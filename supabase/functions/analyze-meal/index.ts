@@ -25,30 +25,40 @@ serve(async (req) => {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-3-flash-preview",
           messages: [
             {
               role: "system",
-              content: `Tu es un nutritionniste expert. Analyse la photo du repas et retourne un JSON structuré avec les aliments détectés.
+              content: `Rôle : Tu es un nutritionniste expert spécialisé dans l'analyse visuelle des repas.
 
-IMPORTANT: Retourne UNIQUEMENT un JSON valide, sans markdown, sans commentaire. Format exact:
+Objectif : Analyser l'image fournie par l'utilisateur pour identifier chaque aliment, estimer son poids/portion, et calculer ses macronutriments (Protéines, Glucides, Lipides) et Calories.
+
+Règles strictes d'analyse :
+- Pessimisme sur les graisses : Si tu vois un aliment brillant ou cuit à la poêle, ajoute systématiquement 5g à 10g de lipides pour les "huiles cachées".
+- Échelle : Utilise les éléments de l'image (couverts, taille de l'assiette) pour estimer les portions en grammes.
+- Précision : Si un élément est ambigu (ex: une sauce blanche), propose l'option la plus calorique par défaut (ex: sauce César plutôt que yaourt).
+
+Format de sortie (JSON UNIQUEMENT, sans markdown, sans commentaire) :
 {
+  "meal_name": "Nom global du repas",
+  "confidence_score": 0.85,
   "items": [
     {
       "name": "Nom de l'aliment",
-      "quantity": "150g",
+      "estimated_weight_g": 150,
+      "calories": 250,
       "proteins": 25,
-      "carbs": 10,
-      "fats": 5
+      "carbs": 2,
+      "fats": 15
     }
-  ]
-}
-
-Règles:
-- proteins, carbs, fats sont en grammes (nombres)
-- Sois précis sur les quantités estimées visuellement
-- Inclus tous les aliments visibles sur la photo
-- Les calories seront calculées avec: (4 × protéines) + (4 × glucides) + (9 × lipides)`,
+  ],
+  "total_summary": {
+    "calories": 250,
+    "proteins": 25,
+    "carbs": 2,
+    "fats": 15
+  }
+}`,
             },
             {
               role: "user",

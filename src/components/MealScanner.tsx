@@ -55,7 +55,16 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
       const data = response.data;
       setRawAnalysis(JSON.stringify(data));
-      setItems(data.items || []);
+      // Map items from the new AI response format
+      const mappedItems: MealItem[] = (data.items || []).map((item: any) => ({
+        name: item.name,
+        quantity: item.estimated_weight_g ? `${item.estimated_weight_g}g` : item.quantity || "",
+        calories: item.calories || 0,
+        proteins: item.proteins || 0,
+        carbs: item.carbs || 0,
+        fats: item.fats || 0,
+      }));
+      setItems(mappedItems);
     } catch (error: any) {
       toast({
         title: "Erreur d'analyse",
