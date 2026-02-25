@@ -24,6 +24,8 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   const percentage = Math.min(value / max, 1);
   const strokeDashoffset = circumference * (1 - percentage);
 
+  const showInner = label || unit;
+
   return (
     <div className="flex flex-col items-center gap-1">
       <div className="relative" style={{ width: size, height: size }}>
@@ -49,14 +51,16 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
             className="transition-all duration-700 ease-out"
           />
         </svg>
-        <div className="absolute inset-0 flex flex-col items-center justify-center">
-          <span className="text-lg font-display font-bold text-foreground">
-            {Math.round(value)}
-          </span>
-          <span className="text-[10px] text-muted-foreground">{unit}</span>
-        </div>
+        {showInner && (
+          <div className="absolute inset-0 flex flex-col items-center justify-center">
+            <span className="text-lg font-display font-bold text-foreground leading-none">
+              {Math.round(value)}
+            </span>
+            {unit && <span className="text-[10px] text-muted-foreground">{unit}</span>}
+          </div>
+        )}
       </div>
-      <span className="text-xs font-medium text-muted-foreground">{label}</span>
+      {label && <span className="text-xs font-medium text-muted-foreground">{label}</span>}
     </div>
   );
 };

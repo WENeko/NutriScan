@@ -5,9 +5,9 @@ import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
 import WeeklyStats from "@/components/WeeklyStats";
 import ProfilePage from "@/components/ProfilePage";
-import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown } from "lucide-react";
+import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { subDays, startOfDay, endOfDay, format } from "date-fns";
+import { subDays, startOfDay } from "date-fns";
 
 interface Goals {
   calories: number;
@@ -24,6 +24,8 @@ interface Meal {
   total_proteins: number;
   total_carbs: number;
   total_fats: number;
+  meal_name?: string | null;
+  is_favorite?: boolean;
 }
 
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
@@ -31,12 +33,13 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [todayTotals, setTodayTotals] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
   const [todayMeals, setTodayMeals] = useState<Meal[]>([]);
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
+  const [favoriteMeals, setFavoriteMeals] = useState<Meal[]>([]);
   const [showProfile, setShowProfile] = useState(false);
   const [showStats, setShowStats] = useState(false);
+  const [showFavorites, setShowFavorites] = useState(false);
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
 
   const fetchData = useCallback(async () => {
-    // Fetch profile
     const { data: profile } = await supabase
       .from("profiles")
       .select("goals")
@@ -53,7 +56,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       });
     }
 
-    // Fetch meals
     const todayStart = startOfDay(new Date());
     const { data: meals } = await supabase
       .from("meals")
@@ -62,8 +64,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       .order("timestamp", { ascending: false });
 
     if (meals) {
-      setAllMeals(meals as Meal[]);
-      const today = meals.filter((m: any) => new Date(m.timestamp) >= todayStart) as Meal[];
+      const typedMeals = meals as Meal[];
+      setAllMeals(typedMeals);
+      setFavoriteMeals(typedMeals.filter((m) => m.is_favorite));
+      const today = typedMeals.filter((m) => new Date(m.timestamp) >= todayStart);
       setTodayMeals(today);
       const totals = today.reduce(
         (acc, m) => ({
@@ -76,10 +80,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       );
       setTodayTotals(totals);
 
-      // 7-day average
       const weekAgo = subDays(new Date(), 6);
-      const weekMeals = meals.filter((m: any) => new Date(m.timestamp) >= startOfDay(weekAgo));
-      const weekTotal = weekMeals.reduce((acc, m: any) => acc + Number(m.total_calories), 0);
+      const weekMeals = typedMeals.filter((m) => new Date(m.timestamp) >= startOfDay(weekAgo));
+      const weekTotal = weekMeals.reduce((acc, m) => acc + Number(m.total_calories), 0);
       setWeekAvgCalories(Math.round(weekTotal / 7));
     }
   }, [userId]);
@@ -131,7 +134,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       <main className="max-w-lg mx-auto px-4 space-y-6 mt-6">
         {/* Remaining focus card */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-          {/* Calorie ring showing REMAINING */}
           <div className="flex items-center justify-center mb-4">
             <div className="relative">
               <CircularProgress
@@ -143,9 +145,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                 label=""
                 unit=""
               />
+              {/* Override inner text: show remaining big, consumed small */}
               <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-display font-bold text-foreground">{Math.round(remaining.calories)}</span>
+                <span className="text-2xl font-display font-bold text-foreground leading-none">
+                  {Math.round(remaining.calories)}
+                </span>
                 <span className="text-[10px] text-muted-foreground">kcal restantes</span>
+                <span className="text-[10px] text-muted-foreground/60 mt-0.5">
+                  {Math.round(todayTotals.calories)} consommées
+                </span>
               </div>
             </div>
           </div>
@@ -176,13 +184,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             </p>
           </div>
 
-          {/* Trend indicator */}
           {weekAvgCalories > 0 && (
             <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
               {trendDiff > 50 ? (
-                <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne 7j : +{trendPercent}% au-dessus de l'objectif</span></>
+                <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne 7j : +{trendPercent}% au-dessus</span></>
               ) : trendDiff < -50 ? (
-                <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : -{trendPercent}% en dessous de l'objectif</span></>
+                <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : -{trendPercent}% en dessous</span></>
               ) : (
                 <><Minus className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : dans l'objectif ✓</span></>
               )}
@@ -199,7 +206,22 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         {todayMeals.length > 0 && (
           <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
             <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
-            <MealHistory meals={todayMeals} userId={userId} onSelect={(_id) => toast({ title: "Détails bientôt disponibles" })} onRefresh={fetchData} />
+            <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+          </section>
+        )}
+
+        {/* Favorites */}
+        {favoriteMeals.length > 0 && (
+          <section className="animate-fade-up" style={{ animationDelay: "175ms" }}>
+            <button onClick={() => setShowFavorites(!showFavorites)} className="flex items-center justify-between w-full mb-3">
+              <h2 className="font-display font-semibold text-base flex items-center gap-1.5">
+                <Heart className="w-4 h-4 fill-destructive text-destructive" /> Favoris
+              </h2>
+              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
+            </button>
+            {showFavorites && (
+              <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+            )}
           </section>
         )}
 
@@ -215,7 +237,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         {/* All history */}
         <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-          <MealHistory meals={allMeals} userId={userId} onSelect={(_id) => toast({ title: "Détails bientôt disponibles" })} onRefresh={fetchData} />
+          <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
         </section>
       </main>
     </div>
