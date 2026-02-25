@@ -114,7 +114,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
       const { data, error } = await supabase
         .from("meal_items").select("*").eq("meal_id", mealId);
       if (error) throw error;
-      setEditItems((data || []).map((item: any) => ({
+      const items = (data || []).map((item: any) => ({
         id: item.id,
         name: item.name,
         quantity: item.quantity,
@@ -122,7 +122,19 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         proteins: item.proteins,
         carbs: item.carbs,
         fats: item.fats,
-      })));
+      }));
+      setEditItems(items);
+      // Compute densities from original values
+      const densities = items.map((item) => {
+        const w = parseFloat(item.quantity || "100") || 100;
+        return {
+          protD: (item.proteins || 0) / w,
+          carbsD: (item.carbs || 0) / w,
+          fatsD: (item.fats || 0) / w,
+        };
+      });
+      setEditDensities(densities);
+      setEditWeightInputs(items.map((item) => String(parseFloat(item.quantity || "0") || 0)));
       setEditingMealId(mealId);
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
@@ -131,23 +143,32 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     }
   };
 
-  const updateEditItemWeight = (idx: number, newWeight: number) => {
+  const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number }[]>([]);
+  const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
+
+  const updateEditItemWeight = (idx: number, rawValue: string) => {
+    // Update the raw input string so the field can be cleared
+    setEditWeightInputs((prev) => prev.map((v, i) => (i === idx ? rawValue : v)));
+
+    const newWeight = parseFloat(rawValue);
+    if (isNaN(newWeight) || newWeight <= 0) return; // Don't recalculate on empty/invalid
+
+    const density = editDensities[idx];
+    if (!density) return;
+
     setEditItems((prev) =>
       prev.map((item, i) => {
         if (i !== idx) return item;
-        const oldWeight = parseFloat(item.quantity || "100") || 100;
-        const ratio = newWeight / oldWeight;
+        const proteins = Math.round(density.protD * newWeight * 10) / 10;
+        const carbs = Math.round(density.carbsD * newWeight * 10) / 10;
+        const fats = Math.round(density.fatsD * newWeight * 10) / 10;
         return {
           ...item,
           quantity: `${newWeight}g`,
-          proteins: Math.round((item.proteins || 0) * ratio * 10) / 10,
-          carbs: Math.round((item.carbs || 0) * ratio * 10) / 10,
-          fats: Math.round((item.fats || 0) * ratio * 10) / 10,
-          calories: Math.round(
-            ((item.proteins || 0) * ratio * 4 +
-              (item.carbs || 0) * ratio * 4 +
-              (item.fats || 0) * ratio * 9) * 10
-          ) / 10,
+          proteins,
+          carbs,
+          fats,
+          calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
         };
       })
     );
@@ -263,8 +284,8 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                   <div className="flex items-center gap-1">
                     <Input
                       type="number"
-                      value={parseFloat(item.quantity || "0") || 0}
-                      onChange={(e) => updateEditItemWeight(i, Number(e.target.value))}
+                      value={editWeightInputs[i] ?? ""}
+                      onChange={(e) => updateEditItemWeight(i, e.target.value)}
                       className="w-16 h-7 text-xs rounded-md text-center"
                     />
                     <span className="text-[10px] text-muted-foreground">g</span>

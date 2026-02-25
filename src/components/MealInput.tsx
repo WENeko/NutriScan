@@ -14,6 +14,10 @@ interface MealItem {
   proteins: number;
   carbs: number;
   fats: number;
+  // Density per gram (original macros / original weight) for recalculation
+  protDensity: number;
+  carbsDensity: number;
+  fatsDensity: number;
 }
 
 interface MealInputProps {
@@ -87,37 +91,57 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const handleAIResponse = (data: any) => {
     setRawAnalysis(JSON.stringify(data));
     setMealName(data.meal_name || "");
-    const mappedItems: MealItem[] = (data.items || []).map((item: any) => ({
-      name: item.name,
-      quantity: item.estimated_weight_g ? `${item.estimated_weight_g}g` : "",
-      calories: item.calories || 0,
-      proteins: item.proteins || 0,
-      carbs: item.carbs || 0,
-      fats: item.fats || 0,
-    }));
+    const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
+      const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
+      const proteins = item.proteins || 0;
+      const carbs = item.carbs || 0;
+      const fats = item.fats || 0;
+      return {
+        name: item.name,
+        quantity: `${weight}g`,
+        calories: item.calories || 0,
+        proteins,
+        carbs,
+        fats,
+        protDensity: proteins / weight,
+        carbsDensity: carbs / weight,
+        fatsDensity: fats / weight,
+      };
+    });
     setItems(mappedItems);
   };
 
   const handleBarcodeProduct = (product: any) => {
     setSource("barcode");
     setMealName(product.name);
+    const weight = product.weight_g || 100;
+    const proteins = product.proteins || 0;
+    const carbs = product.carbs || 0;
+    const fats = product.fats || 0;
     setItems([{
       name: product.name,
-      quantity: `${product.weight_g}g`,
+      quantity: `${weight}g`,
       calories: product.calories,
-      proteins: product.proteins,
-      carbs: product.carbs,
-      fats: product.fats,
+      proteins,
+      carbs,
+      fats,
+      protDensity: proteins / weight,
+      carbsDensity: carbs / weight,
+      fatsDensity: fats / weight,
     }]);
   };
 
-  const updateItem = (idx: number, field: keyof MealItem, value: string | number) => {
+  const updateItemWeight = (idx: number, rawValue: string) => {
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== idx) return item;
-        const updated = { ...item, [field]: value };
-        if (["proteins", "carbs", "fats"].includes(field)) {
-          updated.calories = Number(updated.proteins) * 4 + Number(updated.carbs) * 4 + Number(updated.fats) * 9;
+        const updated = { ...item, quantity: rawValue ? `${rawValue}g` : "" };
+        const newWeight = parseFloat(rawValue);
+        if (!isNaN(newWeight) && newWeight > 0) {
+          updated.proteins = Math.round(item.protDensity * newWeight * 10) / 10;
+          updated.carbs = Math.round(item.carbsDensity * newWeight * 10) / 10;
+          updated.fats = Math.round(item.fatsDensity * newWeight * 10) / 10;
+          updated.calories = Math.round(updated.proteins * 4 + updated.carbs * 4 + updated.fats * 9);
         }
         return updated;
       })
@@ -317,20 +341,17 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
               </div>
 
               {editingIdx === idx ? (
-                <div className="grid grid-cols-3 gap-2">
-                  {(["proteins", "carbs", "fats"] as const).map((field) => (
-                    <div key={field}>
-                      <label className="text-[10px] text-muted-foreground">
-                        {field === "proteins" ? "Prot (g)" : field === "carbs" ? "Gluc (g)" : "Lip (g)"}
-                      </label>
-                      <Input
-                        type="number"
-                        value={item[field]}
-                        onChange={(e) => updateItem(idx, field, Number(e.target.value))}
-                        className="h-8 text-sm rounded-lg"
-                      />
-                    </div>
-                  ))}
+                <div className="flex items-center gap-2">
+                  <label className="text-[10px] text-muted-foreground">Poids (g)</label>
+                  <Input
+                    type="number"
+                    value={parseFloat(item.quantity || "0") || ""}
+                    onChange={(e) => updateItemWeight(idx, e.target.value)}
+                    className="h-8 text-sm rounded-lg w-24"
+                  />
+                  <span className="text-xs text-muted-foreground ml-auto">
+                    P:{Math.round(Number(item.proteins))}g G:{Math.round(Number(item.carbs))}g L:{Math.round(Number(item.fats))}g
+                  </span>
                 </div>
               ) : (
                 <div className="flex gap-3 text-xs text-muted-foreground">
