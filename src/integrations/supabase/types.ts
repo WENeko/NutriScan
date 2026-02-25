@@ -61,6 +61,8 @@ export type Database = {
           id: string
           image_url: string | null
           is_confirmed: boolean
+          is_favorite: boolean
+          meal_name: string | null
           raw_ai_analysis: string | null
           source: string
           timestamp: string
@@ -75,6 +77,8 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_confirmed?: boolean
+          is_favorite?: boolean
+          meal_name?: string | null
           raw_ai_analysis?: string | null
           source?: string
           timestamp?: string
@@ -89,6 +93,8 @@ export type Database = {
           id?: string
           image_url?: string | null
           is_confirmed?: boolean
+          is_favorite?: boolean
+          meal_name?: string | null
           raw_ai_analysis?: string | null
           source?: string
           timestamp?: string
@@ -106,6 +112,7 @@ export type Database = {
           age: number | null
           bmr: number | null
           created_at: string
+          date_of_birth: string | null
           email: string | null
           gender: string | null
           goals: Json
@@ -120,6 +127,7 @@ export type Database = {
           age?: number | null
           bmr?: number | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           gender?: string | null
           goals?: Json
@@ -134,6 +142,7 @@ export type Database = {
           age?: number | null
           bmr?: number | null
           created_at?: string
+          date_of_birth?: string | null
           email?: string | null
           gender?: string | null
           goals?: Json

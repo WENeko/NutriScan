@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Save, ArrowLeft, Calculator } from "lucide-react";
+import { differenceInYears } from "date-fns";
 
 interface ProfilePageProps {
   userId: string;
@@ -26,7 +27,7 @@ const GOAL_TYPES = [
 const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weight, setWeight] = useState<number>(70);
   const [height, setHeight] = useState<number>(175);
-  const [age, setAge] = useState<number>(30);
+  const [dateOfBirth, setDateOfBirth] = useState<string>("");
   const [gender, setGender] = useState<string>("male");
   const [activityLevel, setActivityLevel] = useState<string>("moderate");
   const [goalType, setGoalType] = useState<string>("maintain");
@@ -35,53 +36,55 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [tdee, setTdee] = useState<number>(0);
   const [targets, setTargets] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
 
+  const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
+
   useEffect(() => {
     loadProfile();
   }, []);
 
   useEffect(() => {
     calculateTargets();
-  }, [weight, height, age, gender, activityLevel, goalType]);
+  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmr]);
 
   const loadProfile = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("weight_kg, height_cm, age, gender, activity_level, goals")
+      .select("weight_kg, height_cm, age, gender, activity_level, goals, bmr, date_of_birth")
       .eq("user_id", userId)
       .single();
 
     if (data) {
       if (data.weight_kg) setWeight(Number(data.weight_kg));
       if (data.height_cm) setHeight(Number(data.height_cm));
-      if (data.age) setAge(data.age);
+      if ((data as any).date_of_birth) setDateOfBirth((data as any).date_of_birth);
       if (data.gender) setGender(data.gender);
       if (data.activity_level) setActivityLevel(data.activity_level);
-      // Infer goal type from existing goals
+      if (data.bmr) setBmr(Number(data.bmr));
       const goals = data.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
   };
 
   const calculateTargets = () => {
-    // Mifflin-St Jeor
-    let calculatedBmr: number;
-    if (gender === "female") {
-      calculatedBmr = 10 * weight + 6.25 * height - 5 * age - 161;
-    } else {
-      calculatedBmr = 10 * weight + 6.25 * height - 5 * age + 5;
+    // Use manual BMR if set, otherwise compute with Mifflin-St Jeor
+    let usedBmr = bmr;
+    if (!usedBmr) {
+      if (gender === "female") {
+        usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
+      } else {
+        usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
+      }
+      setBmr(usedBmr);
     }
-    setBmr(Math.round(calculatedBmr));
 
     const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[1];
-    const calculatedTdee = calculatedBmr * activity.factor;
+    const calculatedTdee = usedBmr * activity.factor;
     setTdee(Math.round(calculatedTdee));
 
     const goal = GOAL_TYPES.find((g) => g.value === goalType) || GOAL_TYPES[1];
     const targetCalories = Math.round(calculatedTdee * (1 + goal.calorieModifier));
     const targetProteins = Math.round(weight * goal.proteinPerKg);
-    // Fats = 25% of calories
     const targetFats = Math.round((targetCalories * 0.25) / 9);
-    // Carbs = remaining
     const targetCarbs = Math.round((targetCalories - targetProteins * 4 - targetFats * 9) / 4);
 
     setTargets({
@@ -104,8 +107,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           gender,
           activity_level: activityLevel,
           bmr,
+          date_of_birth: dateOfBirth || null,
           goals: { ...targets, goalType } as any,
-        })
+        } as any)
         .eq("user_id", userId);
       if (error) throw error;
       toast({ title: "Profil sauvegardé !" });
@@ -142,8 +146,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="h-10 rounded-xl" />
             </div>
             <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Âge</Label>
-              <Input type="number" value={age} onChange={(e) => setAge(Number(e.target.value))} className="h-10 rounded-xl" />
+              <Label className="text-xs text-muted-foreground">Date de naissance</Label>
+              <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className="h-10 rounded-xl" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Genre</Label>
@@ -162,6 +166,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
             </div>
           </div>
+        </section>
+
+        {/* MB Manual */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "50ms" }}>
+          <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
+          <p className="text-xs text-muted-foreground mb-2">Saisissez la valeur de votre balance ou laissez le calcul automatique.</p>
+          <Input
+            type="number"
+            value={bmr}
+            onChange={(e) => setBmr(Number(e.target.value))}
+            className="h-10 rounded-xl"
+            placeholder="Ex: 1650"
+          />
         </section>
 
         {/* Activity */}
@@ -212,11 +229,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">MB (Mifflin)</div>
+              <div className="text-xs text-muted-foreground">MB</div>
               <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
             </div>
             <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">Calories cibles</div>
+              <div className="text-xs text-muted-foreground">TDEE → Cible</div>
               <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
             </div>
             <div className="bg-card rounded-xl p-3">

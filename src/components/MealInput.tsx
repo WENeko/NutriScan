@@ -159,13 +159,14 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           user_id: userId,
           image_url: imageUrl,
           raw_ai_analysis: rawAnalysis || null,
+          meal_name: mealName || null,
           total_calories: totals.calories,
           total_proteins: totals.proteins,
           total_carbs: totals.carbs,
           total_fats: totals.fats,
           is_confirmed: true,
           source,
-        })
+        } as any)
         .select()
         .single();
       if (mealError) throw mealError;
