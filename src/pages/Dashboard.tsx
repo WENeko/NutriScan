@@ -1,11 +1,13 @@
 import React, { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import CircularProgress from "@/components/CircularProgress";
-import MealScanner from "@/components/MealScanner";
+import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
-import GoalsEditor from "@/components/GoalsEditor";
-import { Leaf, LogOut, Settings, ChevronDown } from "lucide-react";
+import WeeklyStats from "@/components/WeeklyStats";
+import ProfilePage from "@/components/ProfilePage";
+import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { subDays, startOfDay, endOfDay, format } from "date-fns";
 
 interface Goals {
   calories: number;
@@ -27,8 +29,11 @@ interface Meal {
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [goals, setGoals] = useState<Goals>({ calories: 2000, proteins: 150, carbs: 250, fats: 70 });
   const [todayTotals, setTodayTotals] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
-  const [meals, setMeals] = useState<Meal[]>([]);
-  const [showGoals, setShowGoals] = useState(false);
+  const [todayMeals, setTodayMeals] = useState<Meal[]>([]);
+  const [allMeals, setAllMeals] = useState<Meal[]>([]);
+  const [showProfile, setShowProfile] = useState(false);
+  const [showStats, setShowStats] = useState(false);
+  const [weekAvgCalories, setWeekAvgCalories] = useState(0);
 
   const fetchData = useCallback(async () => {
     // Fetch profile
@@ -48,24 +53,20 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       });
     }
 
-    // Fetch today's meals
-    const todayStart = new Date();
-    todayStart.setHours(0, 0, 0, 0);
-
-    const { data: allMeals } = await supabase
+    // Fetch meals
+    const todayStart = startOfDay(new Date());
+    const { data: meals } = await supabase
       .from("meals")
       .select("*")
       .eq("user_id", userId)
       .order("timestamp", { ascending: false });
 
-    if (allMeals) {
-      setMeals(allMeals as Meal[]);
-
-      const todayMeals = allMeals.filter(
-        (m: any) => new Date(m.timestamp) >= todayStart
-      );
-      const totals = todayMeals.reduce(
-        (acc: any, m: any) => ({
+    if (meals) {
+      setAllMeals(meals as Meal[]);
+      const today = meals.filter((m: any) => new Date(m.timestamp) >= todayStart) as Meal[];
+      setTodayMeals(today);
+      const totals = today.reduce(
+        (acc, m) => ({
           calories: acc.calories + Number(m.total_calories),
           proteins: acc.proteins + Number(m.total_proteins),
           carbs: acc.carbs + Number(m.total_carbs),
@@ -74,6 +75,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         { calories: 0, proteins: 0, carbs: 0, fats: 0 }
       );
       setTodayTotals(totals);
+
+      // 7-day average
+      const weekAgo = subDays(new Date(), 6);
+      const weekMeals = meals.filter((m: any) => new Date(m.timestamp) >= startOfDay(weekAgo));
+      const weekTotal = weekMeals.reduce((acc, m: any) => acc + Number(m.total_calories), 0);
+      setWeekAvgCalories(Math.round(weekTotal / 7));
     }
   }, [userId]);
 
@@ -85,7 +92,19 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     await supabase.auth.signOut();
   };
 
-  const caloriePercent = Math.min(Math.round((todayTotals.calories / goals.calories) * 100), 100);
+  if (showProfile) {
+    return <ProfilePage userId={userId} onBack={() => { setShowProfile(false); fetchData(); }} />;
+  }
+
+  const remaining = {
+    calories: Math.max(0, goals.calories - todayTotals.calories),
+    proteins: Math.max(0, goals.proteins - todayTotals.proteins),
+    carbs: Math.max(0, goals.carbs - todayTotals.carbs),
+    fats: Math.max(0, goals.fats - todayTotals.fats),
+  };
+
+  const trendDiff = weekAvgCalories - goals.calories;
+  const trendPercent = Math.abs(Math.round((trendDiff / goals.calories) * 100));
 
   return (
     <div className="min-h-screen bg-background pb-8">
@@ -99,8 +118,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriVibe</h1>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setShowGoals(!showGoals)} className="p-2 rounded-xl hover:bg-muted transition-colors">
-              <Settings className="w-5 h-5 text-muted-foreground" />
+            <button onClick={() => setShowProfile(true)} className="p-2 rounded-xl hover:bg-muted transition-colors">
+              <User className="w-5 h-5 text-muted-foreground" />
             </button>
             <button onClick={handleLogout} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <LogOut className="w-5 h-5 text-muted-foreground" />
@@ -110,76 +129,93 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       </header>
 
       <main className="max-w-lg mx-auto px-4 space-y-6 mt-6">
-        {/* Daily overview */}
+        {/* Remaining focus card */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-          <div className="flex items-center justify-between mb-4">
-            <h2 className="font-display font-semibold text-base">Aujourd'hui</h2>
-            <span className="text-xs bg-accent text-accent-foreground px-2 py-1 rounded-full font-medium">
-              {caloriePercent}% de l'objectif
-            </span>
-          </div>
-
-          {/* Big calorie ring */}
+          {/* Calorie ring showing REMAINING */}
           <div className="flex items-center justify-center mb-4">
-            <CircularProgress
-              value={todayTotals.calories}
-              max={goals.calories}
-              size={130}
-              strokeWidth={10}
-              color="hsl(var(--primary))"
-              label="Calories"
-              unit="kcal"
-            />
+            <div className="relative">
+              <CircularProgress
+                value={todayTotals.calories}
+                max={goals.calories}
+                size={140}
+                strokeWidth={10}
+                color="hsl(var(--primary))"
+                label=""
+                unit=""
+              />
+              <div className="absolute inset-0 flex flex-col items-center justify-center">
+                <span className="text-2xl font-display font-bold text-foreground">{Math.round(remaining.calories)}</span>
+                <span className="text-[10px] text-muted-foreground">kcal restantes</span>
+              </div>
+            </div>
           </div>
 
-          {/* Macro rings */}
-          <div className="flex justify-around">
-            <CircularProgress
-              value={todayTotals.proteins}
-              max={goals.proteins}
-              size={72}
-              strokeWidth={6}
-              color="hsl(var(--nutri-blue))"
-              label="Protéines"
-            />
-            <CircularProgress
-              value={todayTotals.carbs}
-              max={goals.carbs}
-              size={72}
-              strokeWidth={6}
-              color="hsl(var(--nutri-orange))"
-              label="Glucides"
-            />
-            <CircularProgress
-              value={todayTotals.fats}
-              max={goals.fats}
-              size={72}
-              strokeWidth={6}
-              color="hsl(var(--nutri-pink))"
-              label="Lipides"
-            />
+          {/* Macro remaining bars */}
+          <div className="flex justify-around mb-4">
+            {[
+              { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: "hsl(var(--nutri-blue))" },
+              { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: "hsl(var(--nutri-orange))" },
+              { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: "hsl(var(--nutri-pink))" },
+            ].map((m) => (
+              <div key={m.label} className="flex flex-col items-center gap-1">
+                <CircularProgress value={m.value} max={m.max} size={64} strokeWidth={5} color={m.color} label="" unit="" />
+                <span className="text-xs font-semibold">{Math.round(m.remaining)}g</span>
+                <span className="text-[10px] text-muted-foreground">{m.label}</span>
+              </div>
+            ))}
           </div>
+
+          {/* Motivational message */}
+          <div className="bg-accent rounded-xl p-3 text-center">
+            <p className="text-sm">
+              {remaining.calories > 0 ? (
+                <>Il te reste <strong className="text-primary">{Math.round(remaining.proteins)}g de protéines</strong> et <strong className="text-primary">{Math.round(remaining.calories)} kcal</strong> pour ton objectif</>
+              ) : (
+                <span className="text-primary font-semibold">🎯 Objectif atteint !</span>
+              )}
+            </p>
+          </div>
+
+          {/* Trend indicator */}
+          {weekAvgCalories > 0 && (
+            <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
+              {trendDiff > 50 ? (
+                <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne 7j : +{trendPercent}% au-dessus de l'objectif</span></>
+              ) : trendDiff < -50 ? (
+                <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : -{trendPercent}% en dessous de l'objectif</span></>
+              ) : (
+                <><Minus className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : dans l'objectif ✓</span></>
+              )}
+            </div>
+          )}
         </section>
 
-        {/* Goals editor */}
-        {showGoals && (
-          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-            <GoalsEditor userId={userId} currentGoals={goals} onUpdate={(g) => { setGoals(g); setShowGoals(false); }} />
+        {/* Meal input */}
+        <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
+          <MealInput userId={userId} onMealSaved={fetchData} />
+        </section>
+
+        {/* Today's meals */}
+        {todayMeals.length > 0 && (
+          <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
+            <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
+            <MealHistory meals={todayMeals} userId={userId} onSelect={(_id) => toast({ title: "Détails bientôt disponibles" })} onRefresh={fetchData} />
           </section>
         )}
 
-        {/* Scanner */}
-        <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
-          <MealScanner userId={userId} onMealSaved={fetchData} />
+        {/* Weekly stats */}
+        <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
+          <button onClick={() => setShowStats(!showStats)} className="flex items-center justify-between w-full mb-3">
+            <h2 className="font-display font-semibold text-base">Évolution</h2>
+            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showStats ? "rotate-180" : ""}`} />
+          </button>
+          {showStats && <WeeklyStats userId={userId} calorieGoal={goals.calories} />}
         </section>
 
-        {/* History */}
-        <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display font-semibold text-base">Historique</h2>
-            <ChevronDown className="w-4 h-4 text-muted-foreground" />
-          </div>
-          <MealHistory meals={meals} onSelect={(_id) => toast({ title: "Détails bientôt disponibles" })} />
+        {/* All history */}
+        <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
+          <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
+          <MealHistory meals={allMeals} userId={userId} onSelect={(_id) => toast({ title: "Détails bientôt disponibles" })} onRefresh={fetchData} />
         </section>
       </main>
     </div>
