@@ -62,6 +62,7 @@ export type Database = {
           image_url: string | null
           is_confirmed: boolean
           raw_ai_analysis: string | null
+          source: string
           timestamp: string
           total_calories: number | null
           total_carbs: number | null
@@ -75,6 +76,7 @@ export type Database = {
           image_url?: string | null
           is_confirmed?: boolean
           raw_ai_analysis?: string | null
+          source?: string
           timestamp?: string
           total_calories?: number | null
           total_carbs?: number | null
@@ -88,6 +90,7 @@ export type Database = {
           image_url?: string | null
           is_confirmed?: boolean
           raw_ai_analysis?: string | null
+          source?: string
           timestamp?: string
           total_calories?: number | null
           total_carbs?: number | null
@@ -99,28 +102,46 @@ export type Database = {
       }
       profiles: {
         Row: {
+          activity_level: string | null
+          age: number | null
+          bmr: number | null
           created_at: string
           email: string | null
+          gender: string | null
           goals: Json
+          height_cm: number | null
           id: string
           updated_at: string
           user_id: string
+          weight_kg: number | null
         }
         Insert: {
+          activity_level?: string | null
+          age?: number | null
+          bmr?: number | null
           created_at?: string
           email?: string | null
+          gender?: string | null
           goals?: Json
+          height_cm?: number | null
           id?: string
           updated_at?: string
           user_id: string
+          weight_kg?: number | null
         }
         Update: {
+          activity_level?: string | null
+          age?: number | null
+          bmr?: number | null
           created_at?: string
           email?: string | null
+          gender?: string | null
           goals?: Json
+          height_cm?: number | null
           id?: string
           updated_at?: string
           user_id?: string
+          weight_kg?: number | null
         }
         Relationships: []
       }
