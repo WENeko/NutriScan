@@ -8,10 +8,19 @@ const corsHeaders = {
 
 const SYSTEM_PROMPT = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
 
+IMPORTANT - Extraction temporelle :
+Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
+
+IMPORTANT - Micronutriments :
+Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g) :
+- fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
+- sodium_mg (mg), potassium_mg (mg), magnesium_mg (mg), calcium_mg (mg)
+
 Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
 {
   "meal_name": "string",
   "confidence_score": 0.85,
+  "suggested_timestamp": "2025-01-15T22:00:00" (optionnel),
   "items": [
     {
       "name": "string",
@@ -19,7 +28,15 @@ Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
       "calories": 250,
       "proteins": 25,
       "carbs": 2,
-      "fats": 15
+      "fats": 15,
+      "fiber": 2,
+      "sugar": 1,
+      "saturated_fat": 3,
+      "omega3_mg": 50,
+      "sodium_mg": 200,
+      "potassium_mg": 300,
+      "magnesium_mg": 30,
+      "calcium_mg": 50
     }
   ],
   "total_summary": {
@@ -37,7 +54,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { image, text } = body;
+    const { image, text, custom_foods } = body;
 
     if (!image && !text) {
       return new Response(
@@ -49,18 +66,26 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Build user message based on input type
+    // Build custom foods context if available
+    let customFoodsContext = "";
+    if (custom_foods && Array.isArray(custom_foods) && custom_foods.length > 0) {
+      customFoodsContext = "\n\nIMPORTANT - L'utilisateur a une bibliothèque personnelle d'aliments. UTILISE CES DONNÉES EN PRIORITÉ quand tu reconnais un de ces aliments :\n";
+      custom_foods.forEach((f: any) => {
+        customFoodsContext += `- ${f.name}: P=${f.proteins_per_100g}g/100g, G=${f.carbs_per_100g}g/100g, L=${f.fats_per_100g}g/100g, Cal=${f.calories_per_100g}kcal/100g\n`;
+      });
+    }
+
     const userContent: any[] = [];
 
     if (image) {
       userContent.push(
-        { type: "text", text: "Analyse ce repas et donne-moi les macronutriments de chaque aliment visible." },
+        { type: "text", text: `Analyse ce repas et donne-moi les macronutriments et micronutriments de chaque aliment visible.${customFoodsContext}` },
         { type: "image_url", image_url: { url: image } }
       );
     } else if (text) {
       userContent.push({
         type: "text",
-        text: `Analyse cette description de repas et donne-moi les macronutriments de chaque aliment mentionné : "${text}"`,
+        text: `Analyse cette description de repas et donne-moi les macronutriments et micronutriments de chaque aliment mentionné : "${text}"${customFoodsContext}`,
       });
     }
 
@@ -73,7 +98,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT },
+          { role: "system", content: SYSTEM_PROMPT + customFoodsContext },
           { role: "user", content: userContent },
         ],
       }),

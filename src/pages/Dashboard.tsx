@@ -3,11 +3,15 @@ import { supabase } from "@/integrations/supabase/client";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
-import WeeklyStats from "@/components/WeeklyStats";
+import EvolutionPage from "@/components/EvolutionPage";
+import NutriLibrary from "@/components/NutriLibrary";
 import ProfilePage from "@/components/ProfilePage";
+import BottomNav, { TabId } from "@/components/BottomNav";
+import WaterTracker from "@/components/WaterTracker";
+import HealthDetails from "@/components/HealthDetails";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
-import { subDays, startOfDay } from "date-fns";
+import { subDays, startOfDay, format } from "date-fns";
 
 interface Goals {
   calories: number;
@@ -35,25 +39,38 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [favoriteMeals, setFavoriteMeals] = useState<Meal[]>([]);
   const [showProfile, setShowProfile] = useState(false);
-  const [showStats, setShowStats] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
+  const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const [waterToday, setWaterToday] = useState(0);
+  const [waterGoal, setWaterGoal] = useState(2000);
+  const [weight, setWeight] = useState(70);
+  const [sportCalories, setSportCalories] = useState(0);
+  const [todayMicros, setTodayMicros] = useState({
+    fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
+    calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0,
+  });
 
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals")
+      .select("goals, weight_kg, water_goal_ml, sport_calories_daily")
       .eq("user_id", userId)
       .single();
 
-    if (profile?.goals) {
+    if (profile) {
       const g = profile.goals as any;
+      const baseCalories = g?.calories ?? 2000;
+      const sport = Number((profile as any).sport_calories_daily) || 0;
+      setSportCalories(sport);
       setGoals({
-        calories: g.calories ?? 2000,
-        proteins: g.proteins ?? 150,
-        carbs: g.carbs ?? 250,
-        fats: g.fats ?? 70,
+        calories: baseCalories + sport,
+        proteins: g?.proteins ?? 150,
+        carbs: g?.carbs ?? 250,
+        fats: g?.fats ?? 70,
       });
+      setWeight(Number(profile.weight_kg) || 70);
+      setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
     }
 
     const todayStart = startOfDay(new Date());
@@ -84,7 +101,39 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       const weekMeals = typedMeals.filter((m) => new Date(m.timestamp) >= startOfDay(weekAgo));
       const weekTotal = weekMeals.reduce((acc, m) => acc + Number(m.total_calories), 0);
       setWeekAvgCalories(Math.round(weekTotal / 7));
+
+      // Fetch today's micros
+      const todayMealIds = today.map((m) => m.id);
+      if (todayMealIds.length > 0) {
+        const { data: items } = await supabase
+          .from("meal_items")
+          .select("fiber, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, sugar, saturated_fat, omega3_mg")
+          .in("meal_id", todayMealIds);
+        if (items) {
+          const micros = (items as any[]).reduce((acc, item) => ({
+            fiber: acc.fiber + (Number(item.fiber) || 0),
+            sodium_mg: acc.sodium_mg + (Number(item.sodium_mg) || 0),
+            potassium_mg: acc.potassium_mg + (Number(item.potassium_mg) || 0),
+            magnesium_mg: acc.magnesium_mg + (Number(item.magnesium_mg) || 0),
+            calcium_mg: acc.calcium_mg + (Number(item.calcium_mg) || 0),
+            sugar: acc.sugar + (Number(item.sugar) || 0),
+            saturated_fat: acc.saturated_fat + (Number(item.saturated_fat) || 0),
+            omega3_mg: acc.omega3_mg + (Number(item.omega3_mg) || 0),
+          }), { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0 });
+          setTodayMicros(micros);
+        }
+      }
     }
+
+    // Fetch water for today
+    const todayKey = format(new Date(), "yyyy-MM-dd");
+    const { data: bodyComp } = await supabase
+      .from("body_composition")
+      .select("sport_calories")
+      .eq("user_id", userId)
+      .eq("recorded_at", todayKey)
+      .single();
+    // Water stored locally for now (simple state)
   }, [userId]);
 
   useEffect(() => {
@@ -93,6 +142,11 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
+  };
+
+  const handleAddWater = (ml: number) => {
+    setWaterToday((prev) => prev + ml);
+    toast({ title: `+${ml}ml 💧` });
   };
 
   if (showProfile) {
@@ -108,9 +162,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   const trendDiff = weekAvgCalories - goals.calories;
   const trendPercent = Math.abs(Math.round((trendDiff / goals.calories) * 100));
+  const proteinPerKg = weight > 0 ? (todayTotals.proteins / weight).toFixed(1) : "0";
+
+  const microsList = [
+    { name: "Fibres", value: todayMicros.fiber, unit: "g", info: "Améliorent la digestion et la satiété. Objectif : 25-35g/jour." },
+    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: "Glucides simples. Limitez à <50g/jour pour la performance." },
+    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: "Limitez à <20g/jour pour la santé cardiovasculaire." },
+    { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: "Anti-inflammatoire, récupération musculaire. Objectif : 250-500mg/jour." },
+    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: "Équilibre hydrique et performance. Objectif : <2300mg/jour." },
+    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: "Contraction musculaire et récupération. Objectif : 3500mg/jour." },
+    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: "Énergie et sommeil. Objectif : 400mg/jour." },
+    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: "Santé osseuse et contraction musculaire. Objectif : 1000mg/jour." },
+  ];
 
   return (
-    <div className="min-h-screen bg-background pb-8">
+    <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-10 glass-card px-4 py-3">
         <div className="flex items-center justify-between max-w-lg mx-auto">
@@ -132,114 +198,140 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       </header>
 
       <main className="max-w-lg mx-auto px-4 space-y-6 mt-6">
-        {/* Remaining focus card */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-          <div className="flex items-center justify-center mb-4">
-            <div className="relative">
-              <CircularProgress
-                value={todayTotals.calories}
-                max={goals.calories}
-                size={140}
-                strokeWidth={10}
-                color="hsl(var(--primary))"
-                label=""
-                unit=""
-              />
-              {/* Override inner text: show remaining big, consumed small */}
-              <div className="absolute inset-0 flex flex-col items-center justify-center">
-                <span className="text-2xl font-display font-bold text-foreground leading-none">
-                  {Math.round(remaining.calories)}
-                </span>
-                <span className="text-[10px] text-muted-foreground">kcal restantes</span>
-                <span className="text-[10px] text-muted-foreground/60 mt-0.5">
-                  {Math.round(todayTotals.calories)} consommées
-                </span>
+        {activeTab === "dashboard" && (
+          <>
+            {/* Remaining focus card */}
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <div className="flex items-center justify-center mb-4">
+                <div className="relative">
+                  <CircularProgress
+                    value={todayTotals.calories}
+                    max={goals.calories}
+                    size={140}
+                    strokeWidth={10}
+                    color="hsl(var(--primary))"
+                    label=""
+                    unit=""
+                  />
+                  <div className="absolute inset-0 flex flex-col items-center justify-center">
+                    <span className="text-2xl font-display font-bold text-foreground leading-none">
+                      {Math.round(remaining.calories)}
+                    </span>
+                    <span className="text-[10px] text-muted-foreground">kcal restantes</span>
+                    <span className="text-[10px] text-muted-foreground/60 mt-0.5">
+                      {Math.round(todayTotals.calories)} consommées
+                    </span>
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
 
-          {/* Macro remaining bars */}
-          <div className="flex justify-around mb-4">
-            {[
-              { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: "hsl(var(--nutri-blue))" },
-              { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: "hsl(var(--nutri-orange))" },
-              { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: "hsl(var(--nutri-pink))" },
-            ].map((m) => (
-              <div key={m.label} className="flex flex-col items-center gap-1">
-                <CircularProgress value={m.value} max={m.max} size={64} strokeWidth={5} color={m.color} label="" unit="" />
-                <span className="text-xs font-semibold">{Math.round(m.remaining)}g</span>
-                <span className="text-[10px] text-muted-foreground">{m.label}</span>
+              {/* Macro remaining bars */}
+              <div className="flex justify-around mb-4">
+                {[
+                  { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: "hsl(var(--nutri-blue))" },
+                  { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: "hsl(var(--nutri-orange))" },
+                  { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: "hsl(var(--nutri-pink))" },
+                ].map((m) => (
+                  <div key={m.label} className="flex flex-col items-center gap-1">
+                    <CircularProgress value={m.value} max={m.max} size={64} strokeWidth={5} color={m.color} label="" unit="" />
+                    <span className="text-xs font-semibold">{Math.round(m.remaining)}g</span>
+                    <span className="text-[10px] text-muted-foreground">{m.label}</span>
+                  </div>
+                ))}
               </div>
-            ))}
-          </div>
 
-          {/* Motivational message */}
-          <div className="bg-accent rounded-xl p-3 text-center">
-            <p className="text-sm">
-              {remaining.calories > 0 ? (
-                <>Il te reste <strong className="text-primary">{Math.round(remaining.proteins)}g de protéines</strong> et <strong className="text-primary">{Math.round(remaining.calories)} kcal</strong> pour ton objectif</>
-              ) : (
-                <span className="text-primary font-semibold">🎯 Objectif atteint !</span>
+              {/* Protein ratio + Sport */}
+              <div className="flex items-center justify-center gap-4 mb-3">
+                <span className="text-xs bg-accent px-2.5 py-1 rounded-lg font-semibold">
+                  🥩 {proteinPerKg}g/kg
+                </span>
+                {sportCalories > 0 && (
+                  <span className="text-xs bg-accent px-2.5 py-1 rounded-lg font-semibold">
+                    🔥 +{sportCalories} kcal sport
+                  </span>
+                )}
+              </div>
+
+              {/* Motivational message */}
+              <div className="bg-accent rounded-xl p-3 text-center">
+                <p className="text-sm">
+                  {remaining.calories > 0 ? (
+                    <>Il te reste <strong className="text-primary">{Math.round(remaining.proteins)}g de protéines</strong> et <strong className="text-primary">{Math.round(remaining.calories)} kcal</strong> pour ton objectif</>
+                  ) : (
+                    <span className="text-primary font-semibold">🎯 Objectif atteint !</span>
+                  )}
+                </p>
+              </div>
+
+              {weekAvgCalories > 0 && (
+                <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
+                  {trendDiff > 50 ? (
+                    <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne 7j : +{trendPercent}% au-dessus</span></>
+                  ) : trendDiff < -50 ? (
+                    <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : -{trendPercent}% en dessous</span></>
+                  ) : (
+                    <><Minus className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : dans l'objectif ✓</span></>
+                  )}
+                </div>
               )}
-            </p>
-          </div>
+            </section>
 
-          {weekAvgCalories > 0 && (
-            <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
-              {trendDiff > 50 ? (
-                <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne 7j : +{trendPercent}% au-dessus</span></>
-              ) : trendDiff < -50 ? (
-                <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : -{trendPercent}% en dessous</span></>
-              ) : (
-                <><Minus className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : dans l'objectif ✓</span></>
-              )}
-            </div>
-          )}
-        </section>
+            {/* Water tracker */}
+            <section className="animate-fade-up" style={{ animationDelay: "50ms" }}>
+              <WaterTracker current={waterToday} goal={waterGoal} onAdd={handleAddWater} />
+            </section>
 
-        {/* Meal input */}
-        <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
-          <MealInput userId={userId} onMealSaved={fetchData} />
-        </section>
+            {/* Meal input */}
+            <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
+              <MealInput userId={userId} onMealSaved={fetchData} />
+            </section>
 
-        {/* Today's meals */}
-        {todayMeals.length > 0 && (
-          <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
-            <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
-            <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
-          </section>
-        )}
-
-        {/* Favorites */}
-        {favoriteMeals.length > 0 && (
-          <section className="animate-fade-up" style={{ animationDelay: "175ms" }}>
-            <button onClick={() => setShowFavorites(!showFavorites)} className="flex items-center justify-between w-full mb-3">
-              <h2 className="font-display font-semibold text-base flex items-center gap-1.5">
-                <Heart className="w-4 h-4 fill-destructive text-destructive" /> Favoris
-              </h2>
-              <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
-            </button>
-            {showFavorites && (
-              <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+            {/* Today's meals */}
+            {todayMeals.length > 0 && (
+              <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
+                <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
+                <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+              </section>
             )}
-          </section>
+
+            {/* Health details */}
+            <section className="animate-fade-up" style={{ animationDelay: "175ms" }}>
+              <HealthDetails micros={microsList} />
+            </section>
+
+            {/* Favorites */}
+            {favoriteMeals.length > 0 && (
+              <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
+                <button onClick={() => setShowFavorites(!showFavorites)} className="flex items-center justify-between w-full mb-3">
+                  <h2 className="font-display font-semibold text-base flex items-center gap-1.5">
+                    <Heart className="w-4 h-4 fill-destructive text-destructive" /> Favoris
+                  </h2>
+                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
+                </button>
+                {showFavorites && (
+                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+                )}
+              </section>
+            )}
+
+            {/* All history */}
+            <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
+              <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
+              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+            </section>
+          </>
         )}
 
-        {/* Weekly stats */}
-        <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
-          <button onClick={() => setShowStats(!showStats)} className="flex items-center justify-between w-full mb-3">
-            <h2 className="font-display font-semibold text-base">Évolution</h2>
-            <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showStats ? "rotate-180" : ""}`} />
-          </button>
-          {showStats && <WeeklyStats userId={userId} calorieGoal={goals.calories} />}
-        </section>
+        {activeTab === "evolution" && (
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} />
+        )}
 
-        {/* All history */}
-        <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
-          <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-          <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
-        </section>
+        {activeTab === "library" && (
+          <NutriLibrary userId={userId} />
+        )}
       </main>
+
+      <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>
   );
 };
