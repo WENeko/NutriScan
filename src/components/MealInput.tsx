@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode } from "lucide-react";
+import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 
@@ -14,10 +14,10 @@ interface MealItem {
   proteins: number;
   carbs: number;
   fats: number;
-  // Density per gram (original macros / original weight) for recalculation
   protDensity: number;
   carbsDensity: number;
   fatsDensity: number;
+  isCustom?: boolean;
 }
 
 interface MealInputProps {
@@ -38,14 +38,17 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
   const [mealName, setMealName] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [mealTimestamp, setMealTimestamp] = useState("");
   const [source, setSource] = useState<"ai" | "text" | "barcode">("ai");
+  const [addingManual, setAddingManual] = useState(false);
+  const [manualItem, setManualItem] = useState({ name: "", weight: "" });
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
-    setItems([]);
     setSource("ai");
     await analyzeImage(file);
   };
@@ -59,11 +62,17 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         reader.readAsDataURL(file);
       });
 
+      // Get custom foods for context
+      const { data: customFoods } = await supabase
+        .from("custom_foods")
+        .select("name, proteins_per_100g, carbs_per_100g, fats_per_100g, calories_per_100g")
+        .eq("user_id", userId);
+
       const response = await supabase.functions.invoke("analyze-meal", {
-        body: { image: base64 },
+        body: { image: base64, custom_foods: customFoods || [] },
       });
       if (response.error) throw new Error(response.error.message);
-      handleAIResponse(response.data);
+      handleAIResponse(response.data, customFoods || []);
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
     } finally {
@@ -76,11 +85,16 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setAnalyzing(true);
     setSource("text");
     try {
+      const { data: customFoods } = await supabase
+        .from("custom_foods")
+        .select("name, proteins_per_100g, carbs_per_100g, fats_per_100g, calories_per_100g")
+        .eq("user_id", userId);
+
       const response = await supabase.functions.invoke("analyze-meal", {
-        body: { text: textInput },
+        body: { text: textInput, custom_foods: customFoods || [] },
       });
       if (response.error) throw new Error(response.error.message);
-      handleAIResponse(response.data);
+      handleAIResponse(response.data, customFoods || []);
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
     } finally {
@@ -88,40 +102,56 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     }
   };
 
-  const handleAIResponse = (data: any) => {
+  const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
     setMealName(data.meal_name || "");
+    if (data.suggested_timestamp) {
+      setMealTimestamp(data.suggested_timestamp);
+    }
+    const customFoodMap = new Map(customFoods.map((f: any) => [f.name.toLowerCase(), f]));
+
     const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
       const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
-      const proteins = item.proteins || 0;
-      const carbs = item.carbs || 0;
-      const fats = item.fats || 0;
+      const customMatch = customFoodMap.get(item.name?.toLowerCase());
+      let proteins = item.proteins || 0;
+      let carbs = item.carbs || 0;
+      let fats = item.fats || 0;
+      let isCustom = false;
+
+      if (customMatch) {
+        proteins = Math.round(customMatch.proteins_per_100g * weight / 100 * 10) / 10;
+        carbs = Math.round(customMatch.carbs_per_100g * weight / 100 * 10) / 10;
+        fats = Math.round(customMatch.fats_per_100g * weight / 100 * 10) / 10;
+        isCustom = true;
+      }
+
       return {
         name: item.name,
         quantity: `${weight}g`,
-        calories: item.calories || 0,
+        calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
         proteins,
         carbs,
         fats,
         protDensity: proteins / weight,
         carbsDensity: carbs / weight,
         fatsDensity: fats / weight,
+        isCustom,
       };
     });
-    setItems(mappedItems);
+    setItems((prev) => [...prev, ...mappedItems]);
   };
 
   const handleBarcodeProduct = (product: any) => {
     setSource("barcode");
-    setMealName(product.name);
+    if (!mealName) setMealName(product.name);
     const weight = product.weight_g || 100;
     const proteins = product.proteins || 0;
     const carbs = product.carbs || 0;
     const fats = product.fats || 0;
-    setItems([{
+    setItems((prev) => [...prev, {
       name: product.name,
       quantity: `${weight}g`,
-      calories: product.calories,
+      calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
       proteins,
       carbs,
       fats,
@@ -148,8 +178,73 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     );
   };
 
+  const updateItemName = (idx: number, name: string) => {
+    setItems((prev) => prev.map((item, i) => i === idx ? { ...item, name } : item));
+  };
+
   const removeItem = (idx: number) => {
     setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const addManualItem = async () => {
+    if (!manualItem.name.trim()) return;
+    const weight = parseFloat(manualItem.weight) || 100;
+
+    // Check custom foods first
+    const { data: customFoods } = await supabase
+      .from("custom_foods")
+      .select("*")
+      .eq("user_id", userId)
+      .ilike("name", `%${manualItem.name}%`)
+      .limit(1);
+
+    if (customFoods && customFoods.length > 0) {
+      const cf = customFoods[0] as any;
+      const proteins = Math.round(cf.proteins_per_100g * weight / 100 * 10) / 10;
+      const carbs = Math.round(cf.carbs_per_100g * weight / 100 * 10) / 10;
+      const fats = Math.round(cf.fats_per_100g * weight / 100 * 10) / 10;
+      setItems((prev) => [...prev, {
+        name: cf.name,
+        quantity: `${weight}g`,
+        calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
+        proteins, carbs, fats,
+        protDensity: cf.proteins_per_100g / 100,
+        carbsDensity: cf.carbs_per_100g / 100,
+        fatsDensity: cf.fats_per_100g / 100,
+        isCustom: true,
+      }]);
+    } else {
+      // Quick AI lookup for this single item
+      setAnalyzing(true);
+      try {
+        const response = await supabase.functions.invoke("analyze-meal", {
+          body: { text: `${weight}g de ${manualItem.name}` },
+        });
+        if (response.error) throw new Error(response.error.message);
+        const data = response.data;
+        const item = data.items?.[0];
+        if (item) {
+          const p = item.proteins || 0;
+          const c = item.carbs || 0;
+          const f = item.fats || 0;
+          setItems((prev) => [...prev, {
+            name: item.name || manualItem.name,
+            quantity: `${weight}g`,
+            calories: Math.round(p * 4 + c * 4 + f * 9),
+            proteins: p, carbs: c, fats: f,
+            protDensity: p / weight,
+            carbsDensity: c / weight,
+            fatsDensity: f / weight,
+          }]);
+        }
+      } catch (e: any) {
+        toast({ title: "Erreur", description: e.message, variant: "destructive" });
+      } finally {
+        setAnalyzing(false);
+      }
+    }
+    setManualItem({ name: "", weight: "" });
+    setAddingManual(false);
   };
 
   const computeTotals = () =>
@@ -177,6 +272,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       }
 
       const totals = computeTotals();
+      const timestamp = mealTimestamp ? new Date(mealTimestamp).toISOString() : new Date().toISOString();
+
       const { data: meal, error: mealError } = await supabase
         .from("meals")
         .insert({
@@ -190,6 +287,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           total_fats: totals.fats,
           is_confirmed: true,
           source,
+          timestamp,
         } as any)
         .select()
         .single();
@@ -200,7 +298,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           meal_id: meal.id,
           name: item.name,
           quantity: item.quantity,
-          calories: Number(item.proteins) * 4 + Number(item.carbs) * 4 + Number(item.fats) * 9,
+          calories: Math.round(Number(item.proteins) * 4 + Number(item.carbs) * 4 + Number(item.fats) * 9),
           proteins: Number(item.proteins),
           carbs: Number(item.carbs),
           fats: Number(item.fats),
@@ -223,7 +321,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setTextInput("");
     setRawAnalysis("");
     setMealName("");
+    setMealTimestamp("");
     setEditingIdx(null);
+    setEditingName(false);
+    setAddingManual(false);
   };
 
   const totals = computeTotals();
@@ -237,17 +338,15 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
   return (
     <div className="space-y-4">
-      {/* Tabs */}
+      {/* Mode tabs - always visible when building a multi-source meal */}
       {!hasResults && (
         <div className="flex rounded-xl bg-muted p-1 gap-1">
           {tabs.map((tab) => (
             <button
               key={tab.id}
-              onClick={() => { setMode(tab.id); resetState(); }}
+              onClick={() => setMode(tab.id)}
               className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-                mode === tab.id
-                  ? "bg-card text-foreground shadow-card"
-                  : "text-muted-foreground hover:text-foreground"
+                mode === tab.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"
               }`}
             >
               {tab.icon}
@@ -294,7 +393,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           <Textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
-            placeholder="Décrivez votre repas... Ex: Un café au lait et deux tartines de beurre"
+            placeholder="Décrivez votre repas... Ex: Hier à 22h, un café au lait et deux tartines de beurre"
             className="min-h-[100px] rounded-xl text-sm resize-none"
           />
           <Button
@@ -316,19 +415,57 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         <BarcodeScanner onProductFound={handleBarcodeProduct} />
       )}
 
-      {/* Results */}
+      {/* Results - multi-source editing */}
       {hasResults && (
         <div className="space-y-3 animate-fade-up">
-          {mealName && (
-            <h3 className="font-display font-semibold text-base">{mealName}</h3>
-          )}
+          {/* Editable meal name */}
+          <div className="flex items-center gap-2">
+            {editingName ? (
+              <Input
+                value={mealName}
+                onChange={(e) => setMealName(e.target.value)}
+                onBlur={() => setEditingName(false)}
+                onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
+                className="h-9 rounded-lg font-display font-semibold"
+                autoFocus
+              />
+            ) : (
+              <button onClick={() => setEditingName(true)} className="flex items-center gap-1.5 text-left">
+                <h3 className="font-display font-semibold text-base">{mealName || "Mon repas"}</h3>
+                <Pencil className="w-3 h-3 text-muted-foreground" />
+              </button>
+            )}
+          </div>
 
+          {/* Timestamp */}
+          <div className="flex items-center gap-2">
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              type="datetime-local"
+              value={mealTimestamp || new Date().toISOString().slice(0, 16)}
+              onChange={(e) => setMealTimestamp(e.target.value)}
+              className="h-8 text-xs rounded-lg flex-1"
+            />
+          </div>
+
+          {/* Items */}
           {items.map((item, idx) => (
             <div key={idx} className="bg-card rounded-xl p-3 shadow-card space-y-2">
               <div className="flex items-center justify-between">
-                <div>
-                  <span className="font-semibold text-sm">{item.name}</span>
-                  <span className="text-xs text-muted-foreground ml-2">{item.quantity}</span>
+                <div className="flex items-center gap-1.5">
+                  {item.isCustom && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">✓ Vérifié</span>}
+                  {editingIdx === idx ? (
+                    <Input
+                      value={item.name}
+                      onChange={(e) => updateItemName(idx, e.target.value)}
+                      className="h-7 text-sm rounded-md w-32"
+                    />
+                  ) : (
+                    <>
+                      <span className="font-semibold text-sm">{item.name}</span>
+                      <span className="text-xs text-muted-foreground">{item.quantity}</span>
+                    </>
+                  )}
                 </div>
                 <div className="flex items-center gap-1">
                   <button onClick={() => setEditingIdx(editingIdx === idx ? null : idx)} className="p-1 rounded-lg hover:bg-muted">
@@ -365,6 +502,54 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
               )}
             </div>
           ))}
+
+          {/* Add more items */}
+          {addingManual ? (
+            <div className="bg-accent rounded-xl p-3 space-y-2 animate-fade-up">
+              <div className="flex gap-2">
+                <Input
+                  value={manualItem.name}
+                  onChange={(e) => setManualItem((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Nom de l'aliment"
+                  className="h-8 text-sm rounded-lg flex-1"
+                />
+                <Input
+                  type="number"
+                  value={manualItem.weight}
+                  onChange={(e) => setManualItem((p) => ({ ...p, weight: e.target.value }))}
+                  placeholder="Poids (g)"
+                  className="h-8 text-sm rounded-lg w-24"
+                />
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => setAddingManual(false)} className="flex-1 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted/80">Annuler</button>
+                <button onClick={addManualItem} disabled={analyzing} className="flex-1 py-1.5 rounded-lg text-xs nutri-gradient text-primary-foreground">
+                  {analyzing ? "..." : "Ajouter"}
+                </button>
+              </div>
+            </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => setAddingManual(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-primary/30 text-xs font-semibold text-primary hover:border-primary/60">
+                <Plus className="w-3.5 h-3.5" /> Ajouter un aliment
+              </button>
+              {/* Allow adding from other sources */}
+              <button
+                onClick={() => { setMode("barcode"); }}
+                className="p-2.5 rounded-xl border border-dashed border-primary/30 text-primary hover:border-primary/60"
+                title="Scanner un code-barres"
+              >
+                <ScanBarcode className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {/* If switched to barcode while building meal */}
+          {hasResults && mode === "barcode" && (
+            <div className="mt-2">
+              <BarcodeScanner onProductFound={(product) => { handleBarcodeProduct(product); setMode("image"); }} />
+            </div>
+          )}
 
           {/* Totals */}
           <div className="bg-accent rounded-xl p-3">

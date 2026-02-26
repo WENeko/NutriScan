@@ -14,36 +14,165 @@ export type Database = {
   }
   public: {
     Tables: {
+      body_composition: {
+        Row: {
+          body_fat_percent: number | null
+          created_at: string
+          id: string
+          muscle_mass_kg: number | null
+          recorded_at: string
+          source: string
+          sport_calories: number | null
+          user_id: string
+          weight_kg: number | null
+        }
+        Insert: {
+          body_fat_percent?: number | null
+          created_at?: string
+          id?: string
+          muscle_mass_kg?: number | null
+          recorded_at?: string
+          source?: string
+          sport_calories?: number | null
+          user_id: string
+          weight_kg?: number | null
+        }
+        Update: {
+          body_fat_percent?: number | null
+          created_at?: string
+          id?: string
+          muscle_mass_kg?: number | null
+          recorded_at?: string
+          source?: string
+          sport_calories?: number | null
+          user_id?: string
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
+      custom_foods: {
+        Row: {
+          barcode: string | null
+          brand: string | null
+          calcium_mg_per_100g: number | null
+          calories_per_100g: number
+          carbs_per_100g: number
+          created_at: string
+          fats_per_100g: number
+          fiber_per_100g: number | null
+          id: string
+          magnesium_mg_per_100g: number | null
+          name: string
+          omega3_mg_per_100g: number | null
+          potassium_mg_per_100g: number | null
+          proteins_per_100g: number
+          saturated_fat_per_100g: number | null
+          serving_size_g: number
+          sodium_mg_per_100g: number | null
+          sugar_per_100g: number | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          barcode?: string | null
+          brand?: string | null
+          calcium_mg_per_100g?: number | null
+          calories_per_100g?: number
+          carbs_per_100g?: number
+          created_at?: string
+          fats_per_100g?: number
+          fiber_per_100g?: number | null
+          id?: string
+          magnesium_mg_per_100g?: number | null
+          name: string
+          omega3_mg_per_100g?: number | null
+          potassium_mg_per_100g?: number | null
+          proteins_per_100g?: number
+          saturated_fat_per_100g?: number | null
+          serving_size_g?: number
+          sodium_mg_per_100g?: number | null
+          sugar_per_100g?: number | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          barcode?: string | null
+          brand?: string | null
+          calcium_mg_per_100g?: number | null
+          calories_per_100g?: number
+          carbs_per_100g?: number
+          created_at?: string
+          fats_per_100g?: number
+          fiber_per_100g?: number | null
+          id?: string
+          magnesium_mg_per_100g?: number | null
+          name?: string
+          omega3_mg_per_100g?: number | null
+          potassium_mg_per_100g?: number | null
+          proteins_per_100g?: number
+          saturated_fat_per_100g?: number | null
+          serving_size_g?: number
+          sodium_mg_per_100g?: number | null
+          sugar_per_100g?: number | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       meal_items: {
         Row: {
+          calcium_mg: number | null
           calories: number | null
           carbs: number | null
           fats: number | null
+          fiber: number | null
           id: string
+          magnesium_mg: number | null
           meal_id: string
           name: string
+          omega3_mg: number | null
+          potassium_mg: number | null
           proteins: number | null
           quantity: string | null
+          saturated_fat: number | null
+          sodium_mg: number | null
+          sugar: number | null
         }
         Insert: {
+          calcium_mg?: number | null
           calories?: number | null
           carbs?: number | null
           fats?: number | null
+          fiber?: number | null
           id?: string
+          magnesium_mg?: number | null
           meal_id: string
           name: string
+          omega3_mg?: number | null
+          potassium_mg?: number | null
           proteins?: number | null
           quantity?: string | null
+          saturated_fat?: number | null
+          sodium_mg?: number | null
+          sugar?: number | null
         }
         Update: {
+          calcium_mg?: number | null
           calories?: number | null
           carbs?: number | null
           fats?: number | null
+          fiber?: number | null
           id?: string
+          magnesium_mg?: number | null
           meal_id?: string
           name?: string
+          omega3_mg?: number | null
+          potassium_mg?: number | null
           proteins?: number | null
           quantity?: string | null
+          saturated_fat?: number | null
+          sodium_mg?: number | null
+          sugar?: number | null
         }
         Relationships: [
           {
@@ -111,6 +240,7 @@ export type Database = {
           activity_level: string | null
           age: number | null
           bmr: number | null
+          body_fat_percent: number | null
           created_at: string
           date_of_birth: string | null
           email: string | null
@@ -118,14 +248,18 @@ export type Database = {
           goals: Json
           height_cm: number | null
           id: string
+          muscle_mass_kg: number | null
+          sport_calories_daily: number | null
           updated_at: string
           user_id: string
+          water_goal_ml: number | null
           weight_kg: number | null
         }
         Insert: {
           activity_level?: string | null
           age?: number | null
           bmr?: number | null
+          body_fat_percent?: number | null
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
@@ -133,14 +267,18 @@ export type Database = {
           goals?: Json
           height_cm?: number | null
           id?: string
+          muscle_mass_kg?: number | null
+          sport_calories_daily?: number | null
           updated_at?: string
           user_id: string
+          water_goal_ml?: number | null
           weight_kg?: number | null
         }
         Update: {
           activity_level?: string | null
           age?: number | null
           bmr?: number | null
+          body_fat_percent?: number | null
           created_at?: string
           date_of_birth?: string | null
           email?: string | null
@@ -148,8 +286,11 @@ export type Database = {
           goals?: Json
           height_cm?: number | null
           id?: string
+          muscle_mass_kg?: number | null
+          sport_calories_daily?: number | null
           updated_at?: string
           user_id?: string
+          water_goal_ml?: number | null
           weight_kg?: number | null
         }
         Relationships: []

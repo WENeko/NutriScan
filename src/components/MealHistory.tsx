@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -38,6 +38,10 @@ interface MealHistoryProps {
 const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
+  const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number }[]>([]);
+  const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
+  const [editMealName, setEditMealName] = useState("");
+  const [editTimestamp, setEditTimestamp] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(false);
 
   const deleteMeal = async (mealId: string, e: React.MouseEvent) => {
@@ -67,8 +71,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const duplicateMeal = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     try {
-      const { data: items, error: itemsErr } = await supabase
-        .from("meal_items").select("*").eq("meal_id", mealId);
+      const { data: items, error: itemsErr } = await supabase.from("meal_items").select("*").eq("meal_id", mealId);
       if (itemsErr) throw itemsErr;
       const originalMeal = meals.find((m) => m.id === mealId);
       if (!originalMeal) return;
@@ -111,9 +114,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     e.stopPropagation();
     setLoadingEdit(true);
     try {
-      const { data, error } = await supabase
-        .from("meal_items").select("*").eq("meal_id", mealId);
+      const { data, error } = await supabase.from("meal_items").select("*").eq("meal_id", mealId);
       if (error) throw error;
+      const meal = meals.find((m) => m.id === mealId);
+      setEditMealName(meal?.meal_name || "");
+      setEditTimestamp(meal ? new Date(meal.timestamp).toISOString().slice(0, 16) : "");
+
       const items = (data || []).map((item: any) => ({
         id: item.id,
         name: item.name,
@@ -124,8 +130,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         fats: item.fats,
       }));
       setEditItems(items);
-      // Compute densities from original values
-      const densities = items.map((item) => {
+      const densities = items.map((item: MealItem) => {
         const w = parseFloat(item.quantity || "100") || 100;
         return {
           protD: (item.proteins || 0) / w,
@@ -134,7 +139,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         };
       });
       setEditDensities(densities);
-      setEditWeightInputs(items.map((item) => String(parseFloat(item.quantity || "0") || 0)));
+      setEditWeightInputs(items.map((item: MealItem) => String(parseFloat(item.quantity || "0") || 0)));
       setEditingMealId(mealId);
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
@@ -143,52 +148,51 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     }
   };
 
-  const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number }[]>([]);
-  const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
-
   const updateEditItemWeight = (idx: number, rawValue: string) => {
-    // Update the raw input string so the field can be cleared
     setEditWeightInputs((prev) => prev.map((v, i) => (i === idx ? rawValue : v)));
-
     const newWeight = parseFloat(rawValue);
-    if (isNaN(newWeight) || newWeight <= 0) return; // Don't recalculate on empty/invalid
-
+    if (isNaN(newWeight) || newWeight <= 0) return;
     const density = editDensities[idx];
     if (!density) return;
-
     setEditItems((prev) =>
       prev.map((item, i) => {
         if (i !== idx) return item;
         const proteins = Math.round(density.protD * newWeight * 10) / 10;
         const carbs = Math.round(density.carbsD * newWeight * 10) / 10;
         const fats = Math.round(density.fatsD * newWeight * 10) / 10;
-        return {
-          ...item,
-          quantity: `${newWeight}g`,
-          proteins,
-          carbs,
-          fats,
-          calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
-        };
+        return { ...item, quantity: `${newWeight}g`, proteins, carbs, fats, calories: Math.round(proteins * 4 + carbs * 4 + fats * 9) };
       })
     );
+  };
+
+  const updateEditItemName = (idx: number, name: string) => {
+    setEditItems((prev) => prev.map((item, i) => i === idx ? { ...item, name } : item));
+  };
+
+  const removeEditItem = (idx: number) => {
+    setEditItems((prev) => prev.filter((_, i) => i !== idx));
+    setEditDensities((prev) => prev.filter((_, i) => i !== idx));
+    setEditWeightInputs((prev) => prev.filter((_, i) => i !== idx));
   };
 
   const saveEdit = async () => {
     if (!editingMealId) return;
     try {
-      // Update each item
-      for (const item of editItems) {
-        const cals = (item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9;
-        await supabase.from("meal_items").update({
-          quantity: item.quantity,
-          proteins: item.proteins,
-          carbs: item.carbs,
-          fats: item.fats,
-          calories: Math.round(cals),
-        }).eq("id", item.id);
+      // Delete old items and re-insert (simpler for add/remove)
+      await supabase.from("meal_items").delete().eq("meal_id", editingMealId);
+      if (editItems.length > 0) {
+        await supabase.from("meal_items").insert(
+          editItems.map((item) => ({
+            meal_id: editingMealId,
+            name: item.name,
+            quantity: item.quantity,
+            proteins: item.proteins,
+            carbs: item.carbs,
+            fats: item.fats,
+            calories: Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9),
+          }))
+        );
       }
-      // Update meal totals
       const totals = editItems.reduce(
         (acc, item) => ({
           calories: acc.calories + (item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9,
@@ -199,11 +203,13 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         { calories: 0, proteins: 0, carbs: 0, fats: 0 }
       );
       await supabase.from("meals").update({
+        meal_name: editMealName || null,
+        timestamp: editTimestamp ? new Date(editTimestamp).toISOString() : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,
         total_carbs: Math.round(totals.carbs * 10) / 10,
         total_fats: Math.round(totals.fats * 10) / 10,
-      }).eq("id", editingMealId);
+      } as any).eq("id", editingMealId);
 
       toast({ title: "Repas modifié !" });
       setEditingMealId(null);
@@ -240,9 +246,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               </div>
             )}
             <div className="flex-1 min-w-0">
-              {meal.meal_name && (
-                <p className="text-sm font-bold truncate">{meal.meal_name}</p>
-              )}
+              {meal.meal_name && <p className="text-sm font-bold truncate">{meal.meal_name}</p>}
               <p className={`text-xs text-muted-foreground truncate ${meal.meal_name ? '' : 'text-sm font-semibold text-foreground'}`}>
                 {format(new Date(meal.timestamp), "EEEE d MMM, HH:mm", { locale: fr })}
               </p>
@@ -277,10 +281,21 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           {/* Inline edit panel */}
           {editingMealId === meal.id && (
             <div className="bg-accent rounded-xl p-3 mt-1 space-y-2 animate-fade-up">
-              <h4 className="text-xs font-semibold text-muted-foreground">Modifier les poids</h4>
+              {/* Edit title */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">Titre</label>
+                <Input value={editMealName} onChange={(e) => setEditMealName(e.target.value)} className="h-8 text-sm rounded-lg" placeholder="Nom du repas" />
+              </div>
+              {/* Edit timestamp */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Date/Heure</label>
+                <Input type="datetime-local" value={editTimestamp} onChange={(e) => setEditTimestamp(e.target.value)} className="h-8 text-xs rounded-lg" />
+              </div>
+              {/* Edit items */}
+              <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>
               {editItems.map((item, i) => (
-                <div key={item.id} className="flex items-center gap-2 bg-card rounded-lg p-2">
-                  <span className="text-xs font-medium flex-1 truncate">{item.name}</span>
+                <div key={item.id || i} className="flex items-center gap-2 bg-card rounded-lg p-2">
+                  <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
                   <div className="flex items-center gap-1">
                     <Input
                       type="number"
@@ -290,9 +305,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                     />
                     <span className="text-[10px] text-muted-foreground">g</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground w-12 text-right">
-                    {Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9)} kcal
+                  <span className="text-[10px] text-muted-foreground w-10 text-right">
+                    {Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9)}
                   </span>
+                  <button onClick={() => removeEditItem(i)} className="p-1 rounded hover:bg-destructive/10">
+                    <X className="w-3 h-3 text-destructive" />
+                  </button>
                 </div>
               ))}
               <div className="flex gap-2">

@@ -4,8 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator } from "lucide-react";
-import { differenceInYears } from "date-fns";
+import { Save, ArrowLeft, Calculator, Dumbbell } from "lucide-react";
+import { differenceInYears, format } from "date-fns";
 
 interface ProfilePageProps {
   userId: string;
@@ -36,37 +36,42 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [tdee, setTdee] = useState<number>(0);
   const [targets, setTargets] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
 
+  // Body composition
+  const [bodyFat, setBodyFat] = useState<number | "">("");
+  const [muscleMass, setMuscleMass] = useState<number | "">("");
+  const [sportCalories, setSportCalories] = useState<number>(0);
+  const [waterGoal, setWaterGoal] = useState<number>(2000);
+
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
 
-  useEffect(() => {
-    loadProfile();
-  }, []);
-
-  useEffect(() => {
-    calculateTargets();
-  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmr]);
+  useEffect(() => { loadProfile(); }, []);
+  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmr]);
 
   const loadProfile = async () => {
     const { data } = await supabase
       .from("profiles")
-      .select("weight_kg, height_cm, age, gender, activity_level, goals, bmr, date_of_birth")
+      .select("*")
       .eq("user_id", userId)
       .single();
 
     if (data) {
-      if (data.weight_kg) setWeight(Number(data.weight_kg));
-      if (data.height_cm) setHeight(Number(data.height_cm));
-      if ((data as any).date_of_birth) setDateOfBirth((data as any).date_of_birth);
-      if (data.gender) setGender(data.gender);
-      if (data.activity_level) setActivityLevel(data.activity_level);
-      if (data.bmr) setBmr(Number(data.bmr));
-      const goals = data.goals as any;
+      const d = data as any;
+      if (d.weight_kg) setWeight(Number(d.weight_kg));
+      if (d.height_cm) setHeight(Number(d.height_cm));
+      if (d.date_of_birth) setDateOfBirth(d.date_of_birth);
+      if (d.gender) setGender(d.gender);
+      if (d.activity_level) setActivityLevel(d.activity_level);
+      if (d.bmr) setBmr(Number(d.bmr));
+      if (d.body_fat_percent) setBodyFat(Number(d.body_fat_percent));
+      if (d.muscle_mass_kg) setMuscleMass(Number(d.muscle_mass_kg));
+      if (d.sport_calories_daily) setSportCalories(Number(d.sport_calories_daily));
+      if (d.water_goal_ml) setWaterGoal(Number(d.water_goal_ml));
+      const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
   };
 
   const calculateTargets = () => {
-    // Use manual BMR if set, otherwise compute with Mifflin-St Jeor
     let usedBmr = bmr;
     if (!usedBmr) {
       if (gender === "female") {
@@ -108,10 +113,40 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           activity_level: activityLevel,
           bmr,
           date_of_birth: dateOfBirth || null,
+          body_fat_percent: bodyFat || null,
+          muscle_mass_kg: muscleMass || null,
+          sport_calories_daily: sportCalories,
+          water_goal_ml: waterGoal,
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
       if (error) throw error;
+
+      // Save today's body composition entry
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { data: existing } = await supabase
+        .from("body_composition")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("recorded_at", today)
+        .single();
+
+      const bodyEntry = {
+        user_id: userId,
+        recorded_at: today,
+        weight_kg: weight,
+        body_fat_percent: bodyFat || null,
+        muscle_mass_kg: muscleMass || null,
+        sport_calories: sportCalories,
+        source: "manual",
+      };
+
+      if (existing) {
+        await supabase.from("body_composition").update(bodyEntry as any).eq("id", (existing as any).id);
+      } else {
+        await supabase.from("body_composition").insert(bodyEntry as any);
+      }
+
       toast({ title: "Profil sauvegardé !" });
       onBack();
     } catch (error: any) {
@@ -168,21 +203,42 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
         </section>
 
-        {/* MB Manual */}
+        {/* Body composition */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "50ms" }}>
+          <div className="flex items-center gap-2 mb-4">
+            <Dumbbell className="w-4 h-4 text-primary" />
+            <h2 className="font-display font-semibold text-base">Composition corporelle</h2>
+          </div>
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
+              <Input type="number" value={bodyFat} onChange={(e) => setBodyFat(e.target.value ? Number(e.target.value) : "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
+              <Input type="number" value={muscleMass} onChange={(e) => setMuscleMass(e.target.value ? Number(e.target.value) : "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
+              <Input type="number" value={sportCalories} onChange={(e) => setSportCalories(Number(e.target.value))} className="h-10 rounded-xl" placeholder="Ex: 300" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
+              <Input type="number" value={waterGoal} onChange={(e) => setWaterGoal(Number(e.target.value))} className="h-10 rounded-xl" placeholder="2000" />
+            </div>
+          </div>
+          <p className="text-[10px] text-muted-foreground mt-2">Ces champs sont prêts pour une synchronisation Health Connect future.</p>
+        </section>
+
+        {/* MB Manual */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
           <p className="text-xs text-muted-foreground mb-2">Saisissez la valeur de votre balance ou laissez le calcul automatique.</p>
-          <Input
-            type="number"
-            value={bmr}
-            onChange={(e) => setBmr(Number(e.target.value))}
-            className="h-10 rounded-xl"
-            placeholder="Ex: 1650"
-          />
+          <Input type="number" value={bmr} onChange={(e) => setBmr(Number(e.target.value))} className="h-10 rounded-xl" placeholder="Ex: 1650" />
         </section>
 
         {/* Activity */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Niveau d'activité</h2>
           <div className="flex gap-2">
             {ACTIVITY_LEVELS.map((a) => (
@@ -222,7 +278,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         </section>
 
         {/* Calculated targets */}
-        <section className="bg-accent rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "300ms" }}>
+        <section className="bg-accent rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "250ms" }}>
           <div className="flex items-center gap-2 mb-3">
             <Calculator className="w-4 h-4 text-primary" />
             <h2 className="font-display font-semibold text-base">Objectifs calculés</h2>
@@ -235,6 +291,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <div className="bg-card rounded-xl p-3">
               <div className="text-xs text-muted-foreground">TDEE → Cible</div>
               <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+              {sportCalories > 0 && (
+                <div className="text-[10px] text-muted-foreground">+{sportCalories} sport = {targets.calories + sportCalories}</div>
+              )}
             </div>
             <div className="bg-card rounded-xl p-3">
               <div className="text-xs text-muted-foreground">Protéines</div>
