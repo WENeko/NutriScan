@@ -5,6 +5,8 @@ import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock } from "lu
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import NumericInput from "./NumericInput";
+import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 
 interface MealItem {
   id: string;
@@ -118,7 +120,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
       if (error) throw error;
       const meal = meals.find((m) => m.id === mealId);
       setEditMealName(meal?.meal_name || "");
-      setEditTimestamp(meal ? new Date(meal.timestamp).toISOString().slice(0, 16) : "");
+      setEditTimestamp(meal ? getLocalDateTimeString(new Date(meal.timestamp)) : getLocalDateTimeString());
 
       const items = (data || []).map((item: any) => ({
         id: item.id,
@@ -204,7 +206,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
       );
       await supabase.from("meals").update({
         meal_name: editMealName || null,
-        timestamp: editTimestamp ? new Date(editTimestamp).toISOString() : undefined,
+        timestamp: editTimestamp ? localDateTimeToISO(editTimestamp) : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,
         total_carbs: Math.round(totals.carbs * 10) / 10,
@@ -297,12 +299,11 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                 <div key={item.id || i} className="flex items-center gap-2 bg-card rounded-lg p-2">
                   <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
                   <div className="flex items-center gap-1">
-                    <Input
-                      type="number"
-                      value={editWeightInputs[i] ?? ""}
-                      onChange={(e) => updateEditItemWeight(i, e.target.value)}
-                      className="w-16 h-7 text-xs rounded-md text-center"
-                    />
+                     <NumericInput
+                       value={parseFloat(editWeightInputs[i] || "0") || 0}
+                       onChange={(v, raw) => updateEditItemWeight(i, raw)}
+                       className="w-16 h-7 text-xs rounded-md text-center"
+                     />
                     <span className="text-[10px] text-muted-foreground">g</span>
                   </div>
                   <span className="text-[10px] text-muted-foreground w-10 text-right">

@@ -58,19 +58,41 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       .eq("user_id", userId)
       .single();
 
+    let baseCalories = 2000;
+    let weekSportTotal = 0;
+
     if (profile) {
       const g = profile.goals as any;
-      const baseCalories = g?.calories ?? 2000;
-      const sport = Number((profile as any).sport_calories_daily) || 0;
-      setSportCalories(sport);
+      baseCalories = g?.calories ?? 2000;
+      const dailySport = Number((profile as any).sport_calories_daily) || 0;
+      setSportCalories(dailySport);
+      setWeight(Number(profile.weight_kg) || 70);
+      setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
+
+      // Fetch this week's sport calories from body_composition for smoothing
+      const weekAgo = subDays(new Date(), 6);
+      const { data: weekBody } = await supabase
+        .from("body_composition")
+        .select("sport_calories, recorded_at")
+        .eq("user_id", userId)
+        .gte("recorded_at", format(weekAgo, "yyyy-MM-dd"));
+
+      if (weekBody && weekBody.length > 0) {
+        weekSportTotal = (weekBody as any[]).reduce((sum, b) => sum + (Number(b.sport_calories) || 0), 0);
+      } else {
+        // Fallback: use daily sport × 7
+        weekSportTotal = dailySport * 7;
+      }
+
+      // Weekly smoothed goal: (baseCalories * 7 + weekSportTotal) / 7
+      const smoothedGoal = Math.round((baseCalories * 7 + weekSportTotal) / 7);
+
       setGoals({
-        calories: baseCalories + sport,
+        calories: smoothedGoal,
         proteins: g?.proteins ?? 150,
         carbs: g?.carbs ?? 250,
         fats: g?.fats ?? 70,
       });
-      setWeight(Number(profile.weight_kg) || 70);
-      setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
     }
 
     const todayStart = startOfDay(new Date());
@@ -122,18 +144,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
           }), { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0 });
           setTodayMicros(micros);
         }
+      } else {
+        setTodayMicros({ fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0 });
       }
     }
-
-    // Fetch water for today
-    const todayKey = format(new Date(), "yyyy-MM-dd");
-    const { data: bodyComp } = await supabase
-      .from("body_composition")
-      .select("sport_calories")
-      .eq("user_id", userId)
-      .eq("recorded_at", todayKey)
-      .single();
-    // Water stored locally for now (simple state)
   }, [userId]);
 
   useEffect(() => {
@@ -165,14 +179,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const proteinPerKg = weight > 0 ? (todayTotals.proteins / weight).toFixed(1) : "0";
 
   const microsList = [
-    { name: "Fibres", value: todayMicros.fiber, unit: "g", info: "Améliorent la digestion et la satiété. Objectif : 25-35g/jour." },
-    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: "Glucides simples. Limitez à <50g/jour pour la performance." },
-    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: "Limitez à <20g/jour pour la santé cardiovasculaire." },
+    { name: "Fibres", value: todayMicros.fiber, unit: "g", info: "Digestion et satiété. Objectif : 25-35g/jour." },
+    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: "Glucides simples. Limitez à <50g/jour." },
+    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: "Santé cardiovasculaire. Limitez à <20g/jour." },
     { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: "Anti-inflammatoire, récupération musculaire. Objectif : 250-500mg/jour." },
-    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: "Équilibre hydrique et performance. Objectif : <2300mg/jour." },
-    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: "Contraction musculaire et récupération. Objectif : 3500mg/jour." },
-    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: "Énergie et sommeil. Objectif : 400mg/jour." },
-    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: "Santé osseuse et contraction musculaire. Objectif : 1000mg/jour." },
+    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: "Sodium/Potassium : Équilibre hydrique. <2300mg/jour." },
+    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: "Sodium/Potassium : Équilibre hydrique. Objectif : 3500mg/jour." },
+    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: "Magnésium/Calcium : Récupération. Objectif : 400mg/jour." },
+    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: "Magnésium/Calcium : Récupération. Objectif : 1000mg/jour." },
   ];
 
   return (
@@ -247,7 +261,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                 </span>
                 {sportCalories > 0 && (
                   <span className="text-xs bg-accent px-2.5 py-1 rounded-lg font-semibold">
-                    🔥 +{sportCalories} kcal sport
+                    🔥 +{sportCalories} kcal sport (lissé)
                   </span>
                 )}
               </div>

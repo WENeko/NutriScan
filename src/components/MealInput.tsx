@@ -6,6 +6,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
+import NumericInput from "./NumericInput";
+import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 
 interface MealItem {
   name: string;
@@ -91,7 +93,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         .eq("user_id", userId);
 
       const response = await supabase.functions.invoke("analyze-meal", {
-        body: { text: textInput, custom_foods: customFoods || [] },
+        body: { text: textInput, custom_foods: customFoods || [], local_time: new Date().toLocaleString("fr-FR") },
       });
       if (response.error) throw new Error(response.error.message);
       handleAIResponse(response.data, customFoods || []);
@@ -272,7 +274,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       }
 
       const totals = computeTotals();
-      const timestamp = mealTimestamp ? new Date(mealTimestamp).toISOString() : new Date().toISOString();
+      const timestamp = mealTimestamp ? localDateTimeToISO(mealTimestamp) : new Date().toISOString();
 
       const { data: meal, error: mealError } = await supabase
         .from("meals")
@@ -442,7 +444,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             <Clock className="w-3.5 h-3.5 text-muted-foreground" />
             <Input
               type="datetime-local"
-              value={mealTimestamp || new Date().toISOString().slice(0, 16)}
+              value={mealTimestamp || getLocalDateTimeString()}
               onChange={(e) => setMealTimestamp(e.target.value)}
               className="h-8 text-xs rounded-lg flex-1"
             />
@@ -480,12 +482,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
               {editingIdx === idx ? (
                 <div className="flex items-center gap-2">
                   <label className="text-[10px] text-muted-foreground">Poids (g)</label>
-                  <Input
-                    type="number"
-                    value={parseFloat(item.quantity || "0") || ""}
-                    onChange={(e) => updateItemWeight(idx, e.target.value)}
-                    className="h-8 text-sm rounded-lg w-24"
-                  />
+                   <NumericInput
+                     value={parseFloat(item.quantity || "0") || 0}
+                     onChange={(v, raw) => updateItemWeight(idx, raw)}
+                     className="h-8 text-sm rounded-lg w-24"
+                   />
                   <span className="text-xs text-muted-foreground ml-auto">
                     P:{Math.round(Number(item.proteins))}g G:{Math.round(Number(item.carbs))}g L:{Math.round(Number(item.fats))}g
                   </span>

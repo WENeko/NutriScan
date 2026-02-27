@@ -54,7 +54,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { image, text, custom_foods } = body;
+    const { image, text, custom_foods, local_time } = body;
 
     if (!image && !text) {
       return new Response(
@@ -83,9 +83,10 @@ serve(async (req) => {
         { type: "image_url", image_url: { url: image } }
       );
     } else if (text) {
+      const timeContext = local_time ? `\nL'heure locale actuelle de l'utilisateur est : ${local_time}. Utilise cette référence pour calculer "hier", "ce matin", etc.` : "";
       userContent.push({
         type: "text",
-        text: `Analyse cette description de repas et donne-moi les macronutriments et micronutriments de chaque aliment mentionné : "${text}"${customFoodsContext}`,
+        text: `Analyse cette description de repas et donne-moi les macronutriments et micronutriments de chaque aliment mentionné : "${text}"${customFoodsContext}${timeContext}`,
       });
     }
 

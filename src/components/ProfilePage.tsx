@@ -6,6 +6,7 @@ import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
 import { Save, ArrowLeft, Calculator, Dumbbell } from "lucide-react";
 import { differenceInYears, format } from "date-fns";
+import NumericInput from "@/components/NumericInput";
 
 interface ProfilePageProps {
   userId: string;
@@ -174,11 +175,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
-              <Input type="number" value={weight} onChange={(e) => setWeight(Number(e.target.value))} className="h-10 rounded-xl" />
+              <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Taille (cm)</Label>
-              <Input type="number" value={height} onChange={(e) => setHeight(Number(e.target.value))} className="h-10 rounded-xl" />
+              <NumericInput value={height} onChange={(v) => setHeight(v)} className="h-10 rounded-xl" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Date de naissance</Label>
@@ -212,19 +213,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
-              <Input type="number" value={bodyFat} onChange={(e) => setBodyFat(e.target.value ? Number(e.target.value) : "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
+              <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
-              <Input type="number" value={muscleMass} onChange={(e) => setMuscleMass(e.target.value ? Number(e.target.value) : "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
+              <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
-              <Input type="number" value={sportCalories} onChange={(e) => setSportCalories(Number(e.target.value))} className="h-10 rounded-xl" placeholder="Ex: 300" />
+              <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
             </div>
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
-              <Input type="number" value={waterGoal} onChange={(e) => setWaterGoal(Number(e.target.value))} className="h-10 rounded-xl" placeholder="2000" />
+              <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground mt-2">Ces champs sont prêts pour une synchronisation Health Connect future.</p>
@@ -234,7 +235,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
           <p className="text-xs text-muted-foreground mb-2">Saisissez la valeur de votre balance ou laissez le calcul automatique.</p>
-          <Input type="number" value={bmr} onChange={(e) => setBmr(Number(e.target.value))} className="h-10 rounded-xl" placeholder="Ex: 1650" />
+          <NumericInput value={bmr} onChange={(v) => setBmr(v)} className="h-10 rounded-xl" placeholder="Ex: 1650" />
         </section>
 
         {/* Activity */}
@@ -292,7 +293,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <div className="text-xs text-muted-foreground">TDEE → Cible</div>
               <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
               {sportCalories > 0 && (
-                <div className="text-[10px] text-muted-foreground">+{sportCalories} sport = {targets.calories + sportCalories}</div>
+                <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
               )}
             </div>
             <div className="bg-card rounded-xl p-3">
