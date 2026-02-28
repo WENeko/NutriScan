@@ -6,6 +6,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import NumericInput from "./NumericInput";
+import MealMicros from "./MealMicros";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 
 interface MealItem {
@@ -279,6 +280,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               </div>
             </div>
           </button>
+          {/* Meal micros */}
+          <div className="px-3 pb-2">
+            <MealMicros mealId={meal.id} />
+          </div>
 
           {/* Inline edit panel */}
           {editingMealId === meal.id && (

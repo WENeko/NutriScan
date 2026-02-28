@@ -12,6 +12,14 @@ interface BarcodeScannerProps {
     carbs: number;
     fats: number;
     weight_g: number;
+    fiber?: number;
+    sodium_mg?: number;
+    potassium_mg?: number;
+    omega3_mg?: number;
+    saturated_fat?: number;
+    sugar?: number;
+    calcium_mg?: number;
+    magnesium_mg?: number;
   }) => void;
 }
 
@@ -73,6 +81,13 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
         carbs: Math.round((nutriments.carbohydrates_100g || 0) * servingG / 100),
         fats: Math.round((nutriments.fat_100g || 0) * servingG / 100),
         weight_g: servingG,
+        fiber: Math.round((nutriments.fiber_100g || 0) * servingG / 100) || undefined,
+        sodium_mg: Math.round((nutriments.sodium_100g || 0) * 1000 * servingG / 100) || undefined,
+        potassium_mg: Math.round((nutriments.potassium_100g || 0) * 1000 * servingG / 100) || undefined,
+        saturated_fat: Math.round((nutriments["saturated-fat_100g"] || 0) * servingG / 100) || undefined,
+        sugar: Math.round((nutriments.sugars_100g || 0) * servingG / 100) || undefined,
+        calcium_mg: Math.round((nutriments.calcium_100g || 0) * 1000 * servingG / 100) || undefined,
+        magnesium_mg: Math.round((nutriments.magnesium_100g || 0) * 1000 * servingG / 100) || undefined,
       });
 
       toast({ title: "Produit trouvé !", description: p.product_name });

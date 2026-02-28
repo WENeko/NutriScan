@@ -46,6 +46,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [waterGoal, setWaterGoal] = useState(2000);
   const [weight, setWeight] = useState(70);
   const [sportCalories, setSportCalories] = useState(0);
+  const [targetWeight, setTargetWeight] = useState<number | null>(null);
   const [todayMicros, setTodayMicros] = useState({
     fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
     calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0,
@@ -54,7 +55,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, weight_kg, water_goal_ml, sport_calories_daily")
+      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg")
       .eq("user_id", userId)
       .single();
 
@@ -68,6 +69,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setSportCalories(dailySport);
       setWeight(Number(profile.weight_kg) || 70);
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
+      setTargetWeight((profile as any).target_weight_kg ? Number((profile as any).target_weight_kg) : null);
 
       // Fetch this week's sport calories from body_composition for smoothing
       const weekAgo = subDays(new Date(), 6);
@@ -337,7 +339,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         )}
 
         {activeTab === "evolution" && (
-          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} />
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} />
         )}
 
         {activeTab === "library" && (

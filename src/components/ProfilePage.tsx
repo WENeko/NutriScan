@@ -42,6 +42,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [muscleMass, setMuscleMass] = useState<number | "">("");
   const [sportCalories, setSportCalories] = useState<number>(0);
   const [waterGoal, setWaterGoal] = useState<number>(2000);
+  const [targetWeight, setTargetWeight] = useState<number | "">("");
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
 
@@ -67,6 +68,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.muscle_mass_kg) setMuscleMass(Number(d.muscle_mass_kg));
       if (d.sport_calories_daily) setSportCalories(Number(d.sport_calories_daily));
       if (d.water_goal_ml) setWaterGoal(Number(d.water_goal_ml));
+      if (d.target_weight_kg) setTargetWeight(Number(d.target_weight_kg));
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
@@ -118,6 +120,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           muscle_mass_kg: muscleMass || null,
           sport_calories_daily: sportCalories,
           water_goal_ml: waterGoal,
+          target_weight_kg: targetWeight || null,
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
@@ -226,6 +229,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
               <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
+              <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="Ex: 75" />
             </div>
           </div>
           <p className="text-[10px] text-muted-foreground mt-2">Ces champs sont prêts pour une synchronisation Health Connect future.</p>
