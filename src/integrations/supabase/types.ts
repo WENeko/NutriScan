@@ -250,6 +250,7 @@ export type Database = {
           id: string
           muscle_mass_kg: number | null
           sport_calories_daily: number | null
+          target_weight_kg: number | null
           updated_at: string
           user_id: string
           water_goal_ml: number | null
@@ -269,6 +270,7 @@ export type Database = {
           id?: string
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
+          target_weight_kg?: number | null
           updated_at?: string
           user_id: string
           water_goal_ml?: number | null
@@ -288,6 +290,7 @@ export type Database = {
           id?: string
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
+          target_weight_kg?: number | null
           updated_at?: string
           user_id?: string
           water_goal_ml?: number | null

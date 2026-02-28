@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock } from "lucide-react";
+import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
@@ -20,6 +20,14 @@ interface MealItem {
   carbsDensity: number;
   fatsDensity: number;
   isCustom?: boolean;
+  fiber?: number;
+  sugar?: number;
+  saturated_fat?: number;
+  omega3_mg?: number;
+  sodium_mg?: number;
+  potassium_mg?: number;
+  magnesium_mg?: number;
+  calcium_mg?: number;
 }
 
 interface MealInputProps {
@@ -31,6 +39,7 @@ type InputMode = "image" | "text" | "barcode";
 
 const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<InputMode>("image");
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -138,6 +147,14 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         carbsDensity: carbs / weight,
         fatsDensity: fats / weight,
         isCustom,
+        fiber: item.fiber || 0,
+        sugar: item.sugar || 0,
+        saturated_fat: item.saturated_fat || 0,
+        omega3_mg: item.omega3_mg || 0,
+        sodium_mg: item.sodium_mg || 0,
+        potassium_mg: item.potassium_mg || 0,
+        magnesium_mg: item.magnesium_mg || 0,
+        calcium_mg: item.calcium_mg || 0,
       };
     });
     setItems((prev) => [...prev, ...mappedItems]);
@@ -154,12 +171,18 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       name: product.name,
       quantity: `${weight}g`,
       calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
-      proteins,
-      carbs,
-      fats,
+      proteins, carbs, fats,
       protDensity: proteins / weight,
       carbsDensity: carbs / weight,
       fatsDensity: fats / weight,
+      fiber: product.fiber || 0,
+      sugar: product.sugar || 0,
+      saturated_fat: product.saturated_fat || 0,
+      omega3_mg: product.omega3_mg || 0,
+      sodium_mg: product.sodium_mg || 0,
+      potassium_mg: product.potassium_mg || 0,
+      magnesium_mg: product.magnesium_mg || 0,
+      calcium_mg: product.calcium_mg || 0,
     }]);
   };
 
@@ -304,6 +327,14 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           proteins: Number(item.proteins),
           carbs: Number(item.carbs),
           fats: Number(item.fats),
+          fiber: item.fiber || 0,
+          sugar: item.sugar || 0,
+          saturated_fat: item.saturated_fat || 0,
+          omega3_mg: item.omega3_mg || 0,
+          sodium_mg: item.sodium_mg || 0,
+          potassium_mg: item.potassium_mg || 0,
+          magnesium_mg: item.magnesium_mg || 0,
+          calcium_mg: item.calcium_mg || 0,
         }))
       );
       if (itemsError) throw itemsError;
@@ -362,16 +393,28 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       {mode === "image" && !hasResults && (
         <>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+          <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
           {!preview && (
-            <button
-              onClick={() => fileInputRef.current?.click()}
-              className="w-full h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
-            >
-              <div className="w-12 h-12 rounded-full nutri-gradient flex items-center justify-center animate-pulse-ring">
-                <Camera className="w-6 h-6 text-primary-foreground" />
-              </div>
-              <span className="text-sm font-semibold text-primary">Prendre une photo</span>
-            </button>
+            <div className="flex gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-full nutri-gradient flex items-center justify-center animate-pulse-ring">
+                  <Camera className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <span className="text-sm font-semibold text-primary">Photo</span>
+              </button>
+              <button
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex-1 h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <span className="text-sm font-semibold text-primary">Galerie</span>
+              </button>
+            </div>
           )}
           {preview && (
             <div className="relative rounded-2xl overflow-hidden shadow-card">

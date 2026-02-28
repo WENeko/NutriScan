@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, Area, AreaChart } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -10,9 +10,11 @@ interface EvolutionPageProps {
   proteinGoal: number;
   carbsGoal: number;
   fatsGoal: number;
+  targetWeight?: number | null;
 }
 
 type Period = "7d" | "30d" | "all";
+type MicroKey = "sodium_mg" | "potassium_mg" | "fiber" | "omega3_mg";
 
 interface DayData {
   day: string;
@@ -22,6 +24,10 @@ interface DayData {
   carbs: number;
   fats: number;
   goal: number;
+  sodium_mg: number;
+  potassium_mg: number;
+  fiber: number;
+  omega3_mg: number;
 }
 
 interface BodyData {
@@ -32,14 +38,20 @@ interface BodyData {
   muscleMass: number | null;
 }
 
-const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal }) => {
+const MICRO_OPTIONS: { id: MicroKey; label: string; color: string; unit: string }[] = [
+  { id: "fiber", label: "Fibres", color: "hsl(var(--primary))", unit: "g" },
+  { id: "sodium_mg", label: "Sodium", color: "hsl(var(--nutri-pink))", unit: "mg" },
+  { id: "potassium_mg", label: "Potassium", color: "hsl(var(--nutri-blue))", unit: "mg" },
+  { id: "omega3_mg", label: "Oméga-3", color: "hsl(var(--nutri-orange))", unit: "mg" },
+];
+
+const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, targetWeight }) => {
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
   const [bodyData, setBodyData] = useState<BodyData[]>([]);
+  const [selectedMicro, setSelectedMicro] = useState<MicroKey>("fiber");
 
-  useEffect(() => {
-    fetchData();
-  }, [userId, period]);
+  useEffect(() => { fetchData(); }, [userId, period]);
 
   const getStartDate = () => {
     if (period === "7d") return subDays(new Date(), 6);
@@ -50,14 +62,36 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   const fetchData = async () => {
     const startDate = getStartDate();
     const today = new Date();
+    const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
 
     // Fetch meals
     const { data: meals } = await supabase
       .from("meals")
-      .select("timestamp, total_calories, total_proteins, total_carbs, total_fats")
+      .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
       .eq("user_id", userId)
       .gte("timestamp", startOfDay(startDate).toISOString())
       .lte("timestamp", endOfDay(today).toISOString());
+
+    // Get all meal IDs for micro lookup
+    const mealIds = (meals || []).map((m: any) => m.id);
+
+    // Fetch micros for those meals
+    let microsByMeal: Record<string, { fiber: number; sodium_mg: number; potassium_mg: number; omega3_mg: number }> = {};
+    if (mealIds.length > 0) {
+      const { data: items } = await supabase
+        .from("meal_items")
+        .select("meal_id, fiber, sodium_mg, potassium_mg, omega3_mg")
+        .in("meal_id", mealIds);
+      if (items) {
+        (items as any[]).forEach((item) => {
+          if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = { fiber: 0, sodium_mg: 0, potassium_mg: 0, omega3_mg: 0 };
+          microsByMeal[item.meal_id].fiber += Number(item.fiber) || 0;
+          microsByMeal[item.meal_id].sodium_mg += Number(item.sodium_mg) || 0;
+          microsByMeal[item.meal_id].potassium_mg += Number(item.potassium_mg) || 0;
+          microsByMeal[item.meal_id].omega3_mg += Number(item.omega3_mg) || 0;
+        });
+      }
+    }
 
     // Fetch body composition
     const { data: bodyComp } = await supabase
@@ -67,20 +101,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at");
 
-    // Build day map for nutrition
-    const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
+    // Build day map
     const dayMap: Record<string, DayData> = {};
     for (let i = 0; i < numDays; i++) {
       const d = subDays(today, numDays - 1 - i);
       const key = format(d, "yyyy-MM-dd");
       dayMap[key] = {
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
-        date: key,
-        calories: 0,
-        proteins: 0,
-        carbs: 0,
-        fats: 0,
-        goal: calorieGoal,
+        date: key, calories: 0, proteins: 0, carbs: 0, fats: 0, goal: calorieGoal,
+        sodium_mg: 0, potassium_mg: 0, fiber: 0, omega3_mg: 0,
       };
     }
 
@@ -91,24 +120,27 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         dayMap[key].proteins += Number(m.total_proteins);
         dayMap[key].carbs += Number(m.total_carbs);
         dayMap[key].fats += Number(m.total_fats);
+        const micros = microsByMeal[m.id];
+        if (micros) {
+          dayMap[key].fiber += micros.fiber;
+          dayMap[key].sodium_mg += micros.sodium_mg;
+          dayMap[key].potassium_mg += micros.potassium_mg;
+          dayMap[key].omega3_mg += micros.omega3_mg;
+        }
       }
     });
 
     setNutritionData(Object.values(dayMap));
 
     // Map body data
-    const bodyMap: Record<string, BodyData> = {};
-    (bodyComp || []).forEach((b: any) => {
-      const key = b.recorded_at;
-      bodyMap[key] = {
-        day: format(new Date(key), period === "7d" ? "EEE" : "dd/MM", { locale: fr }),
-        date: key,
-        weight: b.weight_kg ? Number(b.weight_kg) : null,
-        bodyFat: b.body_fat_percent ? Number(b.body_fat_percent) : null,
-        muscleMass: b.muscle_mass_kg ? Number(b.muscle_mass_kg) : null,
-      };
-    });
-    setBodyData(Object.values(bodyMap));
+    const bodyArr: BodyData[] = (bodyComp || []).map((b: any) => ({
+      day: format(new Date(b.recorded_at), period === "7d" ? "EEE" : "dd/MM", { locale: fr }),
+      date: b.recorded_at,
+      weight: b.weight_kg ? Number(b.weight_kg) : null,
+      bodyFat: b.body_fat_percent ? Number(b.body_fat_percent) : null,
+      muscleMass: b.muscle_mass_kg ? Number(b.muscle_mass_kg) : null,
+    }));
+    setBodyData(bodyArr);
   };
 
   const periods: { id: Period; label: string }[] = [
@@ -124,21 +156,16 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     fontSize: "12px",
   };
 
-  // For 30d/all, only show every Nth label
   const tickInterval = period === "7d" ? 0 : period === "30d" ? 4 : 29;
+  const microOption = MICRO_OPTIONS.find((m) => m.id === selectedMicro)!;
 
   return (
     <div className="space-y-6">
       {/* Period selector */}
       <div className="flex rounded-xl bg-muted p-1 gap-1">
         {periods.map((p) => (
-          <button
-            key={p.id}
-            onClick={() => setPeriod(p.id)}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${
-              period === p.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"
-            }`}
-          >
+          <button key={p.id} onClick={() => setPeriod(p.id)}
+            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${period === p.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"}`}>
             {p.label}
           </button>
         ))}
@@ -184,6 +211,30 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
+      {/* Micronutrient evolution */}
+      <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
+        <h3 className="font-display font-semibold text-sm mb-3">Nutriments Santé</h3>
+        <div className="flex rounded-lg bg-muted p-0.5 gap-0.5 mb-3">
+          {MICRO_OPTIONS.map((m) => (
+            <button key={m.id} onClick={() => setSelectedMicro(m.id)}
+              className={`flex-1 py-1.5 rounded-md text-[10px] font-semibold transition-all ${selectedMicro === m.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
+              {m.label}
+            </button>
+          ))}
+        </div>
+        <div className="h-40">
+          <ResponsiveContainer width="100%" height="100%">
+            <BarChart data={nutritionData} barSize={period === "7d" ? 16 : 4}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={tickInterval} />
+              <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${Math.round(v)} ${microOption.unit}`, microOption.label]} />
+              <Bar dataKey={selectedMicro} fill={microOption.color} radius={[4, 4, 0, 0]} />
+            </BarChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
       {/* Body composition */}
       {bodyData.length > 0 && (
         <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "200ms" }}>
@@ -195,6 +246,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
                 <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} />
+                {targetWeight && (
+                  <ReferenceLine y={targetWeight} stroke="hsl(var(--secondary))" strokeDasharray="6 3" label={{ value: `Cible: ${targetWeight}kg`, position: "insideTopRight", fontSize: 10, fill: "hsl(var(--secondary))" }} />
+                )}
                 <Line type="monotone" dataKey="weight" name="Poids (kg)" stroke="hsl(var(--primary))" strokeWidth={2} dot connectNulls />
                 <Line type="monotone" dataKey="bodyFat" name="Masse grasse (%)" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot connectNulls />
                 <Line type="monotone" dataKey="muscleMass" name="Muscle (kg)" stroke="hsl(var(--nutri-blue))" strokeWidth={2} dot connectNulls />
@@ -205,6 +259,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
+            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible</span>}
           </div>
         </section>
       )}
