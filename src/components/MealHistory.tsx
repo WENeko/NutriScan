@@ -1,12 +1,14 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import NumericInput from "./NumericInput";
 import MealMicros from "./MealMicros";
+import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 
 interface MealItem {
@@ -17,6 +19,7 @@ interface MealItem {
   proteins: number | null;
   carbs: number | null;
   fats: number | null;
+  isCustom?: boolean;
 }
 
 interface Meal {
@@ -38,6 +41,8 @@ interface MealHistoryProps {
   onRefresh: () => void;
 }
 
+type AddMode = "manual" | "text" | "barcode";
+
 const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
@@ -46,6 +51,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(false);
+  // Add ingredient state
+  const [addMode, setAddMode] = useState<AddMode | null>(null);
+  const [addTextInput, setAddTextInput] = useState("");
+  const [addManualName, setAddManualName] = useState("");
+  const [addManualWeight, setAddManualWeight] = useState("");
+  const [addAnalyzing, setAddAnalyzing] = useState(false);
 
   const deleteMeal = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -103,6 +114,18 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             proteins: item.proteins,
             carbs: item.carbs,
             fats: item.fats,
+            fiber: item.fiber,
+            sugar: item.sugar,
+            saturated_fat: item.saturated_fat,
+            omega3_mg: item.omega3_mg,
+            sodium_mg: item.sodium_mg,
+            potassium_mg: item.potassium_mg,
+            magnesium_mg: item.magnesium_mg,
+            calcium_mg: item.calcium_mg,
+            vitamin_b_mg: item.vitamin_b_mg,
+            vitamin_c_mg: item.vitamin_c_mg,
+            vitamin_d_mcg: item.vitamin_d_mcg,
+            vitamin_e_mg: item.vitamin_e_mg,
           }))
         );
       }
@@ -116,12 +139,20 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const startEdit = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
     setLoadingEdit(true);
+    setAddMode(null);
     try {
       const { data, error } = await supabase.from("meal_items").select("*").eq("meal_id", mealId);
       if (error) throw error;
       const meal = meals.find((m) => m.id === mealId);
       setEditMealName(meal?.meal_name || "");
       setEditTimestamp(meal ? getLocalDateTimeString(new Date(meal.timestamp)) : getLocalDateTimeString());
+
+      // Check which items are from custom foods library
+      const { data: customFoods } = await supabase
+        .from("custom_foods")
+        .select("name")
+        .eq("user_id", userId);
+      const customNames = new Set((customFoods || []).map((f: any) => f.name.toLowerCase()));
 
       const items = (data || []).map((item: any) => ({
         id: item.id,
@@ -131,6 +162,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         proteins: item.proteins,
         carbs: item.carbs,
         fats: item.fats,
+        isCustom: customNames.has(item.name?.toLowerCase()),
       }));
       setEditItems(items);
       const densities = items.map((item: MealItem) => {
@@ -178,10 +210,116 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     setEditWeightInputs((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  // Add ingredient via AI text
+  const addIngredientText = async () => {
+    if (!addTextInput.trim()) return;
+    setAddAnalyzing(true);
+    try {
+      const response = await supabase.functions.invoke("analyze-meal", {
+        body: { text: addTextInput },
+      });
+      if (response.error) throw new Error(response.error.message);
+      const data = response.data;
+      const item = data.items?.[0];
+      if (item) {
+        const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
+        const p = item.proteins || 0;
+        const c = item.carbs || 0;
+        const f = item.fats || 0;
+        const newItem: MealItem = {
+          id: `new-${Date.now()}`,
+          name: item.name,
+          quantity: `${weight}g`,
+          proteins: p, carbs: c, fats: f,
+          calories: Math.round(p * 4 + c * 4 + f * 9),
+        };
+        setEditItems((prev) => [...prev, newItem]);
+        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight }]);
+        setEditWeightInputs((prev) => [...prev, String(weight)]);
+        toast({ title: "Ingrédient ajouté !" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e.message, variant: "destructive" });
+    } finally {
+      setAddAnalyzing(false);
+      setAddTextInput("");
+      setAddMode(null);
+    }
+  };
+
+  // Add ingredient manually
+  const addIngredientManual = async () => {
+    if (!addManualName.trim()) return;
+    const weight = parseFloat(addManualWeight) || 100;
+    setAddAnalyzing(true);
+    try {
+      // Check custom foods first
+      const { data: customFoods } = await supabase
+        .from("custom_foods")
+        .select("*")
+        .eq("user_id", userId)
+        .ilike("name", `%${addManualName}%`)
+        .limit(1);
+
+      if (customFoods && customFoods.length > 0) {
+        const cf = customFoods[0] as any;
+        const p = Math.round(cf.proteins_per_100g * weight / 100 * 10) / 10;
+        const c = Math.round(cf.carbs_per_100g * weight / 100 * 10) / 10;
+        const f = Math.round(cf.fats_per_100g * weight / 100 * 10) / 10;
+        const newItem: MealItem = {
+          id: `new-${Date.now()}`, name: cf.name, quantity: `${weight}g`,
+          proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9), isCustom: true,
+        };
+        setEditItems((prev) => [...prev, newItem]);
+        setEditDensities((prev) => [...prev, { protD: cf.proteins_per_100g / 100, carbsD: cf.carbs_per_100g / 100, fatsD: cf.fats_per_100g / 100 }]);
+        setEditWeightInputs((prev) => [...prev, String(weight)]);
+      } else {
+        const response = await supabase.functions.invoke("analyze-meal", {
+          body: { text: `${weight}g de ${addManualName}` },
+        });
+        if (response.error) throw new Error(response.error.message);
+        const item = response.data.items?.[0];
+        if (item) {
+          const p = item.proteins || 0;
+          const c = item.carbs || 0;
+          const f = item.fats || 0;
+          setEditItems((prev) => [...prev, {
+            id: `new-${Date.now()}`, name: item.name || addManualName, quantity: `${weight}g`,
+            proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
+          }]);
+          setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight }]);
+          setEditWeightInputs((prev) => [...prev, String(weight)]);
+        }
+      }
+      toast({ title: "Ingrédient ajouté !" });
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e.message, variant: "destructive" });
+    } finally {
+      setAddAnalyzing(false);
+      setAddManualName("");
+      setAddManualWeight("");
+      setAddMode(null);
+    }
+  };
+
+  const handleBarcodeProduct = (product: any) => {
+    const weight = product.weight_g || 100;
+    const p = product.proteins || 0;
+    const c = product.carbs || 0;
+    const f = product.fats || 0;
+    setEditItems((prev) => [...prev, {
+      id: `new-${Date.now()}`, name: product.name, quantity: `${weight}g`,
+      proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
+    }]);
+    setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight }]);
+    setEditWeightInputs((prev) => [...prev, String(weight)]);
+    setAddMode(null);
+    toast({ title: "Produit ajouté !" });
+  };
+
   const saveEdit = async () => {
     if (!editingMealId) return;
     try {
-      // Delete old items and re-insert (simpler for add/remove)
       await supabase.from("meal_items").delete().eq("meal_id", editingMealId);
       if (editItems.length > 0) {
         await supabase.from("meal_items").insert(
@@ -217,6 +355,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
       toast({ title: "Repas modifié !" });
       setEditingMealId(null);
       setEditItems([]);
+      setAddMode(null);
       onRefresh();
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
@@ -302,6 +441,9 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>
               {editItems.map((item, i) => (
                 <div key={item.id || i} className="flex items-center gap-2 bg-card rounded-lg p-2">
+                  {item.isCustom && (
+                    <BadgeCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                  )}
                   <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
                   <div className="flex items-center gap-1">
                      <NumericInput
@@ -319,8 +461,58 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                   </button>
                 </div>
               ))}
+
+              {/* Add ingredient section */}
+              {addMode === null && (
+                <div className="flex gap-1.5">
+                  <button onClick={() => setAddMode("manual")} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-primary/30 text-[10px] font-semibold text-primary">
+                    <Plus className="w-3 h-3" /> Ajouter
+                  </button>
+                  <button onClick={() => setAddMode("text")} className="p-1.5 rounded-lg border border-dashed border-primary/30 text-primary" title="Texte">
+                    <MessageSquareText className="w-3 h-3" />
+                  </button>
+                  <button onClick={() => setAddMode("barcode")} className="p-1.5 rounded-lg border border-dashed border-primary/30 text-primary" title="Scanner">
+                    <ScanBarcode className="w-3 h-3" />
+                  </button>
+                </div>
+              )}
+
+              {addMode === "manual" && (
+                <div className="bg-card rounded-lg p-2 space-y-2 animate-fade-up">
+                  <div className="flex gap-2">
+                    <Input value={addManualName} onChange={(e) => setAddManualName(e.target.value)} placeholder="Nom" className="h-7 text-xs rounded-md flex-1" />
+                    <Input value={addManualWeight} onChange={(e) => setAddManualWeight(e.target.value)} placeholder="g" className="h-7 text-xs rounded-md w-16" type="number" />
+                  </div>
+                  <div className="flex gap-1.5">
+                    <button onClick={() => setAddMode(null)} className="flex-1 py-1 text-[10px] rounded-md bg-muted">Annuler</button>
+                    <button onClick={addIngredientManual} disabled={addAnalyzing} className="flex-1 py-1 text-[10px] rounded-md nutri-gradient text-primary-foreground">
+                      {addAnalyzing ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Ajouter"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {addMode === "text" && (
+                <div className="bg-card rounded-lg p-2 space-y-2 animate-fade-up">
+                  <Input value={addTextInput} onChange={(e) => setAddTextInput(e.target.value)} placeholder="Ex: 200g de riz blanc" className="h-7 text-xs rounded-md" />
+                  <div className="flex gap-1.5">
+                    <button onClick={() => setAddMode(null)} className="flex-1 py-1 text-[10px] rounded-md bg-muted">Annuler</button>
+                    <button onClick={addIngredientText} disabled={addAnalyzing} className="flex-1 py-1 text-[10px] rounded-md nutri-gradient text-primary-foreground">
+                      {addAnalyzing ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Analyser"}
+                    </button>
+                  </div>
+                </div>
+              )}
+
+              {addMode === "barcode" && (
+                <div className="animate-fade-up">
+                  <BarcodeScanner onProductFound={handleBarcodeProduct} />
+                  <button onClick={() => setAddMode(null)} className="w-full py-1 text-[10px] rounded-md bg-muted mt-1">Annuler</button>
+                </div>
+              )}
+
               <div className="flex gap-2">
-                <button onClick={() => { setEditingMealId(null); setEditItems([]); }} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted/80">
+                <button onClick={() => { setEditingMealId(null); setEditItems([]); setAddMode(null); }} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted/80">
                   <X className="w-3 h-3" /> Annuler
                 </button>
                 <button onClick={saveEdit} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg text-xs nutri-gradient text-primary-foreground">

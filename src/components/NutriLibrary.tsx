@@ -22,6 +22,14 @@ interface CustomFood {
   sodium_mg_per_100g: number;
   sugar_per_100g: number;
   saturated_fat_per_100g: number;
+  omega3_mg_per_100g: number;
+  potassium_mg_per_100g: number;
+  magnesium_mg_per_100g: number;
+  calcium_mg_per_100g: number;
+  vitamin_b_per_100g: number;
+  vitamin_c_per_100g: number;
+  vitamin_d_per_100g: number;
+  vitamin_e_per_100g: number;
 }
 
 interface NutriLibraryProps {
@@ -43,6 +51,14 @@ const emptyFood: Omit<CustomFood, "id"> = {
   sodium_mg_per_100g: 0,
   sugar_per_100g: 0,
   saturated_fat_per_100g: 0,
+  omega3_mg_per_100g: 0,
+  potassium_mg_per_100g: 0,
+  magnesium_mg_per_100g: 0,
+  calcium_mg_per_100g: 0,
+  vitamin_b_per_100g: 0,
+  vitamin_c_per_100g: 0,
+  vitamin_d_per_100g: 0,
+  vitamin_e_per_100g: 0,
 };
 
 const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
@@ -115,6 +131,14 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       sodium_mg_per_100g: food.sodium_mg_per_100g,
       sugar_per_100g: food.sugar_per_100g,
       saturated_fat_per_100g: food.saturated_fat_per_100g,
+      omega3_mg_per_100g: food.omega3_mg_per_100g,
+      potassium_mg_per_100g: food.potassium_mg_per_100g,
+      magnesium_mg_per_100g: food.magnesium_mg_per_100g,
+      calcium_mg_per_100g: food.calcium_mg_per_100g,
+      vitamin_b_per_100g: food.vitamin_b_per_100g,
+      vitamin_c_per_100g: food.vitamin_c_per_100g,
+      vitamin_d_per_100g: food.vitamin_d_per_100g,
+      vitamin_e_per_100g: food.vitamin_e_per_100g,
     });
   };
 
@@ -311,6 +335,42 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
                 <Label className="text-[10px] text-muted-foreground">Sodium (mg)</Label>
                 <NumericInput value={form.sodium_mg_per_100g} onChange={(v) => updateField("sodium_mg_per_100g", v)} className="h-9 rounded-lg text-sm" />
               </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">AG Saturés (g)</Label>
+                <NumericInput value={form.saturated_fat_per_100g} onChange={(v) => updateField("saturated_fat_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Oméga-3 (mg)</Label>
+                <NumericInput value={form.omega3_mg_per_100g} onChange={(v) => updateField("omega3_mg_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Potassium (mg)</Label>
+                <NumericInput value={form.potassium_mg_per_100g} onChange={(v) => updateField("potassium_mg_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Magnésium (mg)</Label>
+                <NumericInput value={form.magnesium_mg_per_100g} onChange={(v) => updateField("magnesium_mg_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Calcium (mg)</Label>
+                <NumericInput value={form.calcium_mg_per_100g} onChange={(v) => updateField("calcium_mg_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Vit. B (mg)</Label>
+                <NumericInput value={form.vitamin_b_per_100g} onChange={(v) => updateField("vitamin_b_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Vit. C (mg)</Label>
+                <NumericInput value={form.vitamin_c_per_100g} onChange={(v) => updateField("vitamin_c_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Vit. D (µg)</Label>
+                <NumericInput value={form.vitamin_d_per_100g} onChange={(v) => updateField("vitamin_d_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-[10px] text-muted-foreground">Vit. E (mg)</Label>
+                <NumericInput value={form.vitamin_e_per_100g} onChange={(v) => updateField("vitamin_e_per_100g", v)} className="h-9 rounded-lg text-sm" />
+              </div>
             </div>
           </div>
         )}
@@ -364,6 +424,13 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
                   <span>G:{food.carbs_per_100g}g</span>
                   <span>L:{food.fats_per_100g}g</span>
                   <span className="text-foreground font-medium">{food.calories_per_100g} kcal/100g</span>
+                </div>
+                <div className="flex flex-wrap gap-1.5 text-[9px] text-muted-foreground mt-1">
+                  {food.fiber_per_100g > 0 && <span>Fibres:{food.fiber_per_100g}g</span>}
+                  {food.sodium_mg_per_100g > 0 && <span>Na:{food.sodium_mg_per_100g}mg</span>}
+                  {food.omega3_mg_per_100g > 0 && <span>Ω3:{food.omega3_mg_per_100g}mg</span>}
+                  {food.vitamin_c_per_100g > 0 && <span>VitC:{food.vitamin_c_per_100g}mg</span>}
+                  {food.vitamin_d_per_100g > 0 && <span>VitD:{food.vitamin_d_per_100g}µg</span>}
                 </div>
               </div>
               <div className="flex gap-0.5 flex-shrink-0">

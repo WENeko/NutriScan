@@ -72,6 +72,10 @@ export type Database = {
           sugar_per_100g: number | null
           updated_at: string
           user_id: string
+          vitamin_b_per_100g: number | null
+          vitamin_c_per_100g: number | null
+          vitamin_d_per_100g: number | null
+          vitamin_e_per_100g: number | null
         }
         Insert: {
           barcode?: string | null
@@ -94,6 +98,10 @@ export type Database = {
           sugar_per_100g?: number | null
           updated_at?: string
           user_id: string
+          vitamin_b_per_100g?: number | null
+          vitamin_c_per_100g?: number | null
+          vitamin_d_per_100g?: number | null
+          vitamin_e_per_100g?: number | null
         }
         Update: {
           barcode?: string | null
@@ -116,6 +124,10 @@ export type Database = {
           sugar_per_100g?: number | null
           updated_at?: string
           user_id?: string
+          vitamin_b_per_100g?: number | null
+          vitamin_c_per_100g?: number | null
+          vitamin_d_per_100g?: number | null
+          vitamin_e_per_100g?: number | null
         }
         Relationships: []
       }
@@ -137,6 +149,10 @@ export type Database = {
           saturated_fat: number | null
           sodium_mg: number | null
           sugar: number | null
+          vitamin_b_mg: number | null
+          vitamin_c_mg: number | null
+          vitamin_d_mcg: number | null
+          vitamin_e_mg: number | null
         }
         Insert: {
           calcium_mg?: number | null
@@ -155,6 +171,10 @@ export type Database = {
           saturated_fat?: number | null
           sodium_mg?: number | null
           sugar?: number | null
+          vitamin_b_mg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
         }
         Update: {
           calcium_mg?: number | null
@@ -173,6 +193,10 @@ export type Database = {
           saturated_fat?: number | null
           sodium_mg?: number | null
           sugar?: number | null
+          vitamin_b_mg?: number | null
+          vitamin_c_mg?: number | null
+          vitamin_d_mcg?: number | null
+          vitamin_e_mg?: number | null
         }
         Relationships: [
           {
@@ -295,6 +319,30 @@ export type Database = {
           user_id?: string
           water_goal_ml?: number | null
           weight_kg?: number | null
+        }
+        Relationships: []
+      }
+      water_logs: {
+        Row: {
+          amount_ml: number
+          created_at: string
+          id: string
+          logged_at: string
+          user_id: string
+        }
+        Insert: {
+          amount_ml?: number
+          created_at?: string
+          id?: string
+          logged_at?: string
+          user_id: string
+        }
+        Update: {
+          amount_ml?: number
+          created_at?: string
+          id?: string
+          logged_at?: string
+          user_id?: string
         }
         Relationships: []
       }
