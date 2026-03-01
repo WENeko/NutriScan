@@ -9,7 +9,7 @@ import ProfilePage from "@/components/ProfilePage";
 import BottomNav, { TabId } from "@/components/BottomNav";
 import WaterTracker from "@/components/WaterTracker";
 import HealthDetails from "@/components/HealthDetails";
-import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart } from "lucide-react";
+import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { subDays, startOfDay, format } from "date-fns";
 
@@ -42,14 +42,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [showFavorites, setShowFavorites] = useState(false);
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
-  const [waterToday, setWaterToday] = useState(0);
   const [waterGoal, setWaterGoal] = useState(2000);
   const [weight, setWeight] = useState(70);
   const [sportCalories, setSportCalories] = useState(0);
   const [targetWeight, setTargetWeight] = useState<number | null>(null);
+  const [proteinTargetPerKg, setProteinTargetPerKg] = useState(2.0);
   const [todayMicros, setTodayMicros] = useState({
     fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
     calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0,
+    vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
   });
 
   const fetchData = useCallback(async () => {
@@ -71,7 +72,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
       setTargetWeight((profile as any).target_weight_kg ? Number((profile as any).target_weight_kg) : null);
 
-      // Fetch this week's sport calories from body_composition for smoothing
       const weekAgo = subDays(new Date(), 6);
       const { data: weekBody } = await supabase
         .from("body_composition")
@@ -82,11 +82,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       if (weekBody && weekBody.length > 0) {
         weekSportTotal = (weekBody as any[]).reduce((sum, b) => sum + (Number(b.sport_calories) || 0), 0);
       } else {
-        // Fallback: use daily sport × 7
         weekSportTotal = dailySport * 7;
       }
 
-      // Weekly smoothed goal: (baseCalories * 7 + weekSportTotal) / 7
       const smoothedGoal = Math.round((baseCalories * 7 + weekSportTotal) / 7);
 
       setGoals({
@@ -131,7 +129,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       if (todayMealIds.length > 0) {
         const { data: items } = await supabase
           .from("meal_items")
-          .select("fiber, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, sugar, saturated_fat, omega3_mg")
+          .select("fiber, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, sugar, saturated_fat, omega3_mg, vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg")
           .in("meal_id", todayMealIds);
         if (items) {
           const micros = (items as any[]).reduce((acc, item) => ({
@@ -143,11 +141,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             sugar: acc.sugar + (Number(item.sugar) || 0),
             saturated_fat: acc.saturated_fat + (Number(item.saturated_fat) || 0),
             omega3_mg: acc.omega3_mg + (Number(item.omega3_mg) || 0),
-          }), { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0 });
+            vitamin_b_mg: acc.vitamin_b_mg + (Number(item.vitamin_b_mg) || 0),
+            vitamin_c_mg: acc.vitamin_c_mg + (Number(item.vitamin_c_mg) || 0),
+            vitamin_d_mcg: acc.vitamin_d_mcg + (Number(item.vitamin_d_mcg) || 0),
+            vitamin_e_mg: acc.vitamin_e_mg + (Number(item.vitamin_e_mg) || 0),
+          }), { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 });
           setTodayMicros(micros);
         }
       } else {
-        setTodayMicros({ fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0 });
+        setTodayMicros({ fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 });
       }
     }
   }, [userId]);
@@ -158,11 +160,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
-  };
-
-  const handleAddWater = (ml: number) => {
-    setWaterToday((prev) => prev + ml);
-    toast({ title: `+${ml}ml 💧` });
   };
 
   if (showProfile) {
@@ -178,17 +175,29 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   const trendDiff = weekAvgCalories - goals.calories;
   const trendPercent = Math.abs(Math.round((trendDiff / goals.calories) * 100));
-  const proteinPerKg = weight > 0 ? (todayTotals.proteins / weight).toFixed(1) : "0";
+  
+  // Protein per kg as donut
+  const proteinPerKg = weight > 0 ? todayTotals.proteins / weight : 0;
+  const proteinPerKgMax = proteinTargetPerKg;
+
+  // Electrolyte recovery feedback
+  const showElectrolyteWarning = sportCalories >= 500 && (
+    todayMicros.sodium_mg < 1500 || todayMicros.potassium_mg < 2000 || todayMicros.magnesium_mg < 200
+  );
 
   const microsList = [
     { name: "Fibres", value: todayMicros.fiber, unit: "g", info: "Digestion et satiété. Objectif : 25-35g/jour." },
     { name: "Sucres", value: todayMicros.sugar, unit: "g", info: "Glucides simples. Limitez à <50g/jour." },
     { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: "Santé cardiovasculaire. Limitez à <20g/jour." },
-    { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: "Anti-inflammatoire, récupération musculaire. Objectif : 250-500mg/jour." },
-    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: "Sodium/Potassium : Équilibre hydrique. <2300mg/jour." },
-    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: "Sodium/Potassium : Équilibre hydrique. Objectif : 3500mg/jour." },
-    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: "Magnésium/Calcium : Récupération. Objectif : 400mg/jour." },
-    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: "Magnésium/Calcium : Récupération. Objectif : 1000mg/jour." },
+    { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: "Inflammation et santé cardiaque. 250-500mg/jour." },
+    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: "Équilibre hydrique et congestion. <2300mg/jour." },
+    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: "Équilibre hydrique et congestion. 3500mg/jour." },
+    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: "Récupération et santé osseuse. 400mg/jour." },
+    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: "Récupération et santé osseuse. 1000mg/jour." },
+    { name: "Vitamine B", value: todayMicros.vitamin_b_mg, unit: "mg", info: "Énergie et système nerveux." },
+    { name: "Vitamine C", value: todayMicros.vitamin_c_mg, unit: "mg", info: "Antioxydants. 90mg/jour." },
+    { name: "Vitamine D", value: todayMicros.vitamin_d_mcg, unit: "µg", info: "Immunité et hormones. 15µg/jour." },
+    { name: "Vitamine E", value: todayMicros.vitamin_e_mg, unit: "mg", info: "Antioxydants. 15mg/jour." },
   ];
 
   return (
@@ -241,7 +250,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
               </div>
 
-              {/* Macro remaining bars */}
+              {/* Macro remaining bars + protein/kg donut */}
               <div className="flex justify-around mb-4">
                 {[
                   { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: "hsl(var(--nutri-blue))" },
@@ -254,19 +263,38 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                     <span className="text-[10px] text-muted-foreground">{m.label}</span>
                   </div>
                 ))}
+                {/* Protein per kg donut */}
+                <div className="flex flex-col items-center gap-1">
+                  <div className="relative" style={{ width: 64, height: 64 }}>
+                    <svg width={64} height={64} className="-rotate-90">
+                      <circle cx={32} cy={32} r={27} fill="none" stroke="hsl(var(--muted))" strokeWidth={5} />
+                      <circle
+                        cx={32} cy={32} r={27} fill="none"
+                        stroke="hsl(var(--secondary))"
+                        strokeWidth={5}
+                        strokeDasharray={2 * Math.PI * 27}
+                        strokeDashoffset={2 * Math.PI * 27 * (1 - Math.min(proteinPerKg / proteinPerKgMax, 1))}
+                        strokeLinecap="round"
+                        className="transition-all duration-700 ease-out"
+                      />
+                    </svg>
+                    <div className="absolute inset-0 flex items-center justify-center">
+                      <span className="text-lg">💪</span>
+                    </div>
+                  </div>
+                  <span className="text-xs font-semibold">{proteinPerKg.toFixed(1)}/{proteinPerKgMax}</span>
+                  <span className="text-[10px] text-muted-foreground">g/kg</span>
+                </div>
               </div>
 
-              {/* Protein ratio + Sport */}
-              <div className="flex items-center justify-center gap-4 mb-3">
-                <span className="text-xs bg-accent px-2.5 py-1 rounded-lg font-semibold">
-                  🥩 {proteinPerKg}g/kg
-                </span>
-                {sportCalories > 0 && (
+              {/* Sport info */}
+              {sportCalories > 0 && (
+                <div className="flex items-center justify-center mb-3">
                   <span className="text-xs bg-accent px-2.5 py-1 rounded-lg font-semibold">
                     🔥 +{sportCalories} kcal sport (lissé)
                   </span>
-                )}
-              </div>
+                </div>
+              )}
 
               {/* Motivational message */}
               <div className="bg-accent rounded-xl p-3 text-center">
@@ -292,9 +320,22 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               )}
             </section>
 
+            {/* Electrolyte recovery warning */}
+            {showElectrolyteWarning && (
+              <section className="bg-secondary/10 border border-secondary/30 rounded-2xl p-4 animate-fade-up flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-secondary">Récupération</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ton apport en électrolytes est faible par rapport à ton activité du jour ({sportCalories} kcal sport). Pense à bien t'hydrater et saler ton prochain repas.
+                  </p>
+                </div>
+              </section>
+            )}
+
             {/* Water tracker */}
             <section className="animate-fade-up" style={{ animationDelay: "50ms" }}>
-              <WaterTracker current={waterToday} goal={waterGoal} onAdd={handleAddWater} />
+              <WaterTracker userId={userId} goal={waterGoal} sportCalories={sportCalories} />
             </section>
 
             {/* Meal input */}
