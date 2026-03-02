@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { ChevronDown, Info } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { ChevronDown, Info, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MealMicrosProps {
@@ -21,6 +20,25 @@ const MICRO_META = [
   { key: "vitamin_d_mcg", name: "Vitamine D", unit: "µg", info: "Immunité et hormones. 15µg/jour." },
   { key: "vitamin_e_mg", name: "Vitamine E", unit: "mg", info: "Antioxydants. 15mg/jour." },
 ];
+
+const MicroInfoBubble: React.FC<{ info: string }> = ({ info }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button type="button" onClick={(e) => { e.stopPropagation(); setShow(!show); }} className="inline-flex">
+        <Info className="w-2.5 h-2.5 text-muted-foreground cursor-help" />
+      </button>
+      {show && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-popover border rounded-md px-2.5 py-1.5 text-xs text-popover-foreground shadow-md max-w-[200px] whitespace-normal animate-in fade-in-0 zoom-in-95">
+          {info}
+          <button type="button" onClick={(e) => { e.stopPropagation(); setShow(false); }} className="absolute -top-1 -right-1 bg-muted rounded-full p-0.5">
+            <X className="w-2 h-2" />
+          </button>
+        </span>
+      )}
+    </span>
+  );
+};
 
 const MealMicros: React.FC<MealMicrosProps> = ({ mealId }) => {
   const [open, setOpen] = useState(false);
@@ -55,30 +73,21 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId }) => {
         Détails Santé
       </button>
       {open && (
-        <TooltipProvider delayDuration={0}>
-          <div className="grid grid-cols-2 gap-1.5 mt-1.5 animate-fade-up">
-            {micros && hasMicros ? (
-              MICRO_META.filter((m) => (micros[m.key] || 0) > 0).map((m) => (
-                <div key={m.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-medium">{m.name}</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" className="inline-flex">
-                          <Info className="w-2.5 h-2.5 text-muted-foreground cursor-help" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[200px] text-xs">{m.info}</TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <span className="text-[10px] font-bold">{Math.round((micros[m.key] || 0) * 10) / 10}{m.unit}</span>
+        <div className="grid grid-cols-2 gap-1.5 mt-1.5 animate-fade-up">
+          {micros && hasMicros ? (
+            MICRO_META.filter((m) => (micros[m.key] || 0) > 0).map((m) => (
+              <div key={m.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
+                <div className="flex items-center gap-1">
+                  <span className="text-[10px] font-medium">{m.name}</span>
+                  <MicroInfoBubble info={m.info} />
                 </div>
-              ))
-            ) : (
-              <p className="text-[10px] text-muted-foreground col-span-2">Aucun micronutriment enregistré.</p>
-            )}
-          </div>
-        </TooltipProvider>
+                <span className="text-[10px] font-bold">{Math.round((micros[m.key] || 0) * 10) / 10}{m.unit}</span>
+              </div>
+            ))
+          ) : (
+            <p className="text-[10px] text-muted-foreground col-span-2">Aucun micronutriment enregistré.</p>
+          )}
+        </div>
       )}
     </div>
   );

@@ -1,6 +1,5 @@
 import React, { useState } from "react";
-import { ChevronDown, Info } from "lucide-react";
-import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { ChevronDown, Info, X } from "lucide-react";
 
 export interface MicroNutrient {
   name: string;
@@ -12,6 +11,25 @@ export interface MicroNutrient {
 interface HealthDetailsProps {
   micros: MicroNutrient[];
 }
+
+const InfoBubble: React.FC<{ info: string }> = ({ info }) => {
+  const [show, setShow] = useState(false);
+  return (
+    <span className="relative inline-flex">
+      <button type="button" onClick={(e) => { e.stopPropagation(); setShow(!show); }} className="inline-flex">
+        <Info className="w-3 h-3 text-muted-foreground cursor-help" />
+      </button>
+      {show && (
+        <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-popover border rounded-md px-3 py-2 text-xs text-popover-foreground shadow-md max-w-[220px] whitespace-normal animate-in fade-in-0 zoom-in-95">
+          {info}
+          <button type="button" onClick={(e) => { e.stopPropagation(); setShow(false); }} className="absolute -top-1 -right-1 bg-muted rounded-full p-0.5">
+            <X className="w-2.5 h-2.5" />
+          </button>
+        </span>
+      )}
+    </span>
+  );
+};
 
 const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
   const [open, setOpen] = useState(false);
@@ -25,31 +43,20 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
         <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${open ? "rotate-180" : ""}`} />
       </button>
       {open && (
-        <TooltipProvider delayDuration={0}>
-          <div className="px-4 pb-4 grid grid-cols-2 gap-2 animate-fade-up">
-            {micros.filter((m) => m.value > 0).map((micro) => (
-              <div key={micro.name} className="bg-accent rounded-xl p-2.5 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium">{micro.name}</span>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <button type="button" className="inline-flex">
-                          <Info className="w-3 h-3 text-muted-foreground cursor-help" />
-                        </button>
-                      </TooltipTrigger>
-                      <TooltipContent side="top" className="max-w-[220px] text-xs">
-                        {micro.info}
-                      </TooltipContent>
-                    </Tooltip>
-                  </div>
-                  <span className="text-[10px] text-muted-foreground">{micro.unit}</span>
+        <div className="px-4 pb-4 grid grid-cols-2 gap-2 animate-fade-up">
+          {micros.filter((m) => m.value > 0).map((micro) => (
+            <div key={micro.name} className="bg-accent rounded-xl p-2.5 flex items-center justify-between">
+              <div>
+                <div className="flex items-center gap-1">
+                  <span className="text-xs font-medium">{micro.name}</span>
+                  <InfoBubble info={micro.info} />
                 </div>
-                <span className="text-sm font-bold">{Math.round(micro.value * 10) / 10}</span>
+                <span className="text-[10px] text-muted-foreground">{micro.unit}</span>
               </div>
-            ))}
-          </div>
-        </TooltipProvider>
+              <span className="text-sm font-bold">{Math.round(micro.value * 10) / 10}</span>
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );

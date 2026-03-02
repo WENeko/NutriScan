@@ -20,6 +20,18 @@ interface MealItem {
   carbs: number | null;
   fats: number | null;
   isCustom?: boolean;
+  fiber?: number | null;
+  sugar?: number | null;
+  saturated_fat?: number | null;
+  omega3_mg?: number | null;
+  sodium_mg?: number | null;
+  potassium_mg?: number | null;
+  magnesium_mg?: number | null;
+  calcium_mg?: number | null;
+  vitamin_b_mg?: number | null;
+  vitamin_c_mg?: number | null;
+  vitamin_d_mcg?: number | null;
+  vitamin_e_mg?: number | null;
 }
 
 interface Meal {
@@ -46,7 +58,7 @@ type AddMode = "manual" | "text" | "barcode";
 const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
-  const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number }[]>([]);
+  const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number; fiberD: number; sugarD: number; satFatD: number; omega3D: number; sodiumD: number; potassiumD: number; magnesiumD: number; calciumD: number; vitBD: number; vitCD: number; vitDD: number; vitED: number }[]>([]);
   const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
@@ -162,6 +174,18 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         proteins: item.proteins,
         carbs: item.carbs,
         fats: item.fats,
+        fiber: item.fiber,
+        sugar: item.sugar,
+        saturated_fat: item.saturated_fat,
+        omega3_mg: item.omega3_mg,
+        sodium_mg: item.sodium_mg,
+        potassium_mg: item.potassium_mg,
+        magnesium_mg: item.magnesium_mg,
+        calcium_mg: item.calcium_mg,
+        vitamin_b_mg: item.vitamin_b_mg,
+        vitamin_c_mg: item.vitamin_c_mg,
+        vitamin_d_mcg: item.vitamin_d_mcg,
+        vitamin_e_mg: item.vitamin_e_mg,
         isCustom: customNames.has(item.name?.toLowerCase()),
       }));
       setEditItems(items);
@@ -171,6 +195,18 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           protD: (item.proteins || 0) / w,
           carbsD: (item.carbs || 0) / w,
           fatsD: (item.fats || 0) / w,
+          fiberD: (item.fiber || 0) / w,
+          sugarD: (item.sugar || 0) / w,
+          satFatD: (item.saturated_fat || 0) / w,
+          omega3D: (item.omega3_mg || 0) / w,
+          sodiumD: (item.sodium_mg || 0) / w,
+          potassiumD: (item.potassium_mg || 0) / w,
+          magnesiumD: (item.magnesium_mg || 0) / w,
+          calciumD: (item.calcium_mg || 0) / w,
+          vitBD: (item.vitamin_b_mg || 0) / w,
+          vitCD: (item.vitamin_c_mg || 0) / w,
+          vitDD: (item.vitamin_d_mcg || 0) / w,
+          vitED: (item.vitamin_e_mg || 0) / w,
         };
       });
       setEditDensities(densities);
@@ -195,7 +231,23 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         const proteins = Math.round(density.protD * newWeight * 10) / 10;
         const carbs = Math.round(density.carbsD * newWeight * 10) / 10;
         const fats = Math.round(density.fatsD * newWeight * 10) / 10;
-        return { ...item, quantity: `${newWeight}g`, proteins, carbs, fats, calories: Math.round(proteins * 4 + carbs * 4 + fats * 9) };
+        return {
+          ...item,
+          quantity: `${newWeight}g`, proteins, carbs, fats,
+          calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
+          fiber: Math.round(density.fiberD * newWeight * 10) / 10,
+          sugar: Math.round(density.sugarD * newWeight * 10) / 10,
+          saturated_fat: Math.round(density.satFatD * newWeight * 10) / 10,
+          omega3_mg: Math.round(density.omega3D * newWeight * 10) / 10,
+          sodium_mg: Math.round(density.sodiumD * newWeight * 10) / 10,
+          potassium_mg: Math.round(density.potassiumD * newWeight * 10) / 10,
+          magnesium_mg: Math.round(density.magnesiumD * newWeight * 10) / 10,
+          calcium_mg: Math.round(density.calciumD * newWeight * 10) / 10,
+          vitamin_b_mg: Math.round(density.vitBD * newWeight * 10) / 10,
+          vitamin_c_mg: Math.round(density.vitCD * newWeight * 10) / 10,
+          vitamin_d_mcg: Math.round(density.vitDD * newWeight * 10) / 10,
+          vitamin_e_mg: Math.round(density.vitED * newWeight * 10) / 10,
+        };
       })
     );
   };
@@ -234,7 +286,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           calories: Math.round(p * 4 + c * 4 + f * 9),
         };
         setEditItems((prev) => [...prev, newItem]);
-        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight }]);
+        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: 0, sugarD: 0, satFatD: 0, omega3D: 0, sodiumD: 0, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
         toast({ title: "Ingrédient ajouté !" });
       }
@@ -271,7 +323,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9), isCustom: true,
         };
         setEditItems((prev) => [...prev, newItem]);
-        setEditDensities((prev) => [...prev, { protD: cf.proteins_per_100g / 100, carbsD: cf.carbs_per_100g / 100, fatsD: cf.fats_per_100g / 100 }]);
+        setEditDensities((prev) => [...prev, { protD: cf.proteins_per_100g / 100, carbsD: cf.carbs_per_100g / 100, fatsD: cf.fats_per_100g / 100, fiberD: (cf.fiber_per_100g || 0) / 100, sugarD: (cf.sugar_per_100g || 0) / 100, satFatD: (cf.saturated_fat_per_100g || 0) / 100, omega3D: (cf.omega3_mg_per_100g || 0) / 100, sodiumD: (cf.sodium_mg_per_100g || 0) / 100, potassiumD: (cf.potassium_mg_per_100g || 0) / 100, magnesiumD: (cf.magnesium_mg_per_100g || 0) / 100, calciumD: (cf.calcium_mg_per_100g || 0) / 100, vitBD: (cf.vitamin_b_per_100g || 0) / 100, vitCD: (cf.vitamin_c_per_100g || 0) / 100, vitDD: (cf.vitamin_d_per_100g || 0) / 100, vitED: (cf.vitamin_e_per_100g || 0) / 100 }]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
       } else {
         const response = await supabase.functions.invoke("analyze-meal", {
@@ -287,7 +339,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             id: `new-${Date.now()}`, name: item.name || addManualName, quantity: `${weight}g`,
             proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
           }]);
-          setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight }]);
+          setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: 0, sugarD: 0, satFatD: 0, omega3D: 0, sodiumD: 0, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
           setEditWeightInputs((prev) => [...prev, String(weight)]);
         }
       }
@@ -311,7 +363,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
       id: `new-${Date.now()}`, name: product.name, quantity: `${weight}g`,
       proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
     }]);
-    setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight }]);
+    setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: 0, sugarD: 0, satFatD: 0, omega3D: 0, sodiumD: 0, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
     setEditWeightInputs((prev) => [...prev, String(weight)]);
     setAddMode(null);
     toast({ title: "Produit ajouté !" });
@@ -331,6 +383,18 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             carbs: item.carbs,
             fats: item.fats,
             calories: Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9),
+            fiber: item.fiber || 0,
+            sugar: item.sugar || 0,
+            saturated_fat: item.saturated_fat || 0,
+            omega3_mg: item.omega3_mg || 0,
+            sodium_mg: item.sodium_mg || 0,
+            potassium_mg: item.potassium_mg || 0,
+            magnesium_mg: item.magnesium_mg || 0,
+            calcium_mg: item.calcium_mg || 0,
+            vitamin_b_mg: item.vitamin_b_mg || 0,
+            vitamin_c_mg: item.vitamin_c_mg || 0,
+            vitamin_d_mcg: item.vitamin_d_mcg || 0,
+            vitamin_e_mg: item.vitamin_e_mg || 0,
           }))
         );
       }
