@@ -392,6 +392,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
       <BottomNav active={activeTab} onChange={setActiveTab} />
     </div>
+    </TooltipProvider>
   );
 };
 
