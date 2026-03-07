@@ -284,9 +284,14 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           quantity: `${weight}g`,
           proteins: p, carbs: c, fats: f,
           calories: Math.round(p * 4 + c * 4 + f * 9),
+          fiber: item.fiber || 0, sugar: item.sugar || 0, saturated_fat: item.saturated_fat || 0,
+          omega3_mg: item.omega3_mg || 0, sodium_mg: item.sodium_mg || 0, potassium_mg: item.potassium_mg || 0,
+          magnesium_mg: item.magnesium_mg || 0, calcium_mg: item.calcium_mg || 0,
+          vitamin_b_mg: item.vitamin_b_mg || 0, vitamin_c_mg: item.vitamin_c_mg || 0,
+          vitamin_d_mcg: item.vitamin_d_mcg || 0, vitamin_e_mg: item.vitamin_e_mg || 0,
         };
         setEditItems((prev) => [...prev, newItem]);
-        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: 0, sugarD: 0, satFatD: 0, omega3D: 0, sodiumD: 0, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
+        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: (item.fiber || 0) / weight, sugarD: (item.sugar || 0) / weight, satFatD: (item.saturated_fat || 0) / weight, omega3D: (item.omega3_mg || 0) / weight, sodiumD: (item.sodium_mg || 0) / weight, potassiumD: (item.potassium_mg || 0) / weight, magnesiumD: (item.magnesium_mg || 0) / weight, calciumD: (item.calcium_mg || 0) / weight, vitBD: (item.vitamin_b_mg || 0) / weight, vitCD: (item.vitamin_c_mg || 0) / weight, vitDD: (item.vitamin_d_mcg || 0) / weight, vitED: (item.vitamin_e_mg || 0) / weight }]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
         toast({ title: "Ingrédient ajouté !" });
       }
