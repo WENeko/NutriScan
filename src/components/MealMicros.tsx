@@ -1,6 +1,7 @@
-import React, { useState, useEffect } from "react";
-import { ChevronDown, Info, X } from "lucide-react";
+import React, { useState, useEffect, useId } from "react";
+import { ChevronDown, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { useTooltipCtx } from "./TooltipContext";
 
 interface MealMicrosProps {
   mealId: string;
@@ -21,19 +22,17 @@ const MICRO_META = [
   { key: "vitamin_e_mg", name: "Vitamine E", unit: "mg", info: "Antioxydants. 15mg/jour." },
 ];
 
-const MicroInfoBubble: React.FC<{ info: string }> = ({ info }) => {
-  const [show, setShow] = useState(false);
+const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
+  const { openId, open } = useTooltipCtx();
+  const isOpen = openId === id;
   return (
-    <span className="relative inline-flex">
-      <button type="button" onClick={(e) => { e.stopPropagation(); setShow(!show); }} className="inline-flex">
+    <span className="relative inline-flex" data-info-bubble>
+      <button type="button" onClick={(e) => { e.stopPropagation(); open(id); }} className="inline-flex">
         <Info className="w-2.5 h-2.5 text-muted-foreground cursor-help" />
       </button>
-      {show && (
+      {isOpen && (
         <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-popover border rounded-md px-2.5 py-1.5 text-xs text-popover-foreground shadow-md max-w-[200px] whitespace-normal animate-in fade-in-0 zoom-in-95">
           {info}
-          <button type="button" onClick={(e) => { e.stopPropagation(); setShow(false); }} className="absolute -top-1 -right-1 bg-muted rounded-full p-0.5">
-            <X className="w-2 h-2" />
-          </button>
         </span>
       )}
     </span>
@@ -43,6 +42,7 @@ const MicroInfoBubble: React.FC<{ info: string }> = ({ info }) => {
 const MealMicros: React.FC<MealMicrosProps> = ({ mealId }) => {
   const [open, setOpen] = useState(false);
   const [micros, setMicros] = useState<Record<string, number> | null>(null);
+  const prefix = useId();
 
   useEffect(() => {
     if (!open || micros) return;
@@ -75,11 +75,11 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId }) => {
       {open && (
         <div className="grid grid-cols-2 gap-1.5 mt-1.5 animate-fade-up">
           {micros && hasMicros ? (
-            MICRO_META.filter((m) => (micros[m.key] || 0) > 0).map((m) => (
+            MICRO_META.filter((m) => (micros[m.key] || 0) > 0).map((m, i) => (
               <div key={m.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
                 <div className="flex items-center gap-1">
                   <span className="text-[10px] font-medium">{m.name}</span>
-                  <MicroInfoBubble info={m.info} />
+                  <MicroInfoBubble info={m.info} id={`${prefix}-mm-${i}`} />
                 </div>
                 <span className="text-[10px] font-bold">{Math.round((micros[m.key] || 0) * 10) / 10}{m.unit}</span>
               </div>

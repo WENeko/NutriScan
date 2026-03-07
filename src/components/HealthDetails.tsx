@@ -1,5 +1,6 @@
-import React, { useState } from "react";
-import { ChevronDown, Info, X } from "lucide-react";
+import React, { useState, useId } from "react";
+import { ChevronDown, Info } from "lucide-react";
+import { useTooltipCtx } from "./TooltipContext";
 
 export interface MicroNutrient {
   name: string;
@@ -12,19 +13,17 @@ interface HealthDetailsProps {
   micros: MicroNutrient[];
 }
 
-const InfoBubble: React.FC<{ info: string }> = ({ info }) => {
-  const [show, setShow] = useState(false);
+const InfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
+  const { openId, open } = useTooltipCtx();
+  const isOpen = openId === id;
   return (
-    <span className="relative inline-flex">
-      <button type="button" onClick={(e) => { e.stopPropagation(); setShow(!show); }} className="inline-flex">
+    <span className="relative inline-flex" data-info-bubble>
+      <button type="button" onClick={(e) => { e.stopPropagation(); open(id); }} className="inline-flex">
         <Info className="w-3 h-3 text-muted-foreground cursor-help" />
       </button>
-      {show && (
+      {isOpen && (
         <span className="absolute bottom-full left-1/2 -translate-x-1/2 mb-1 z-50 bg-popover border rounded-md px-3 py-2 text-xs text-popover-foreground shadow-md max-w-[220px] whitespace-normal animate-in fade-in-0 zoom-in-95">
           {info}
-          <button type="button" onClick={(e) => { e.stopPropagation(); setShow(false); }} className="absolute -top-1 -right-1 bg-muted rounded-full p-0.5">
-            <X className="w-2.5 h-2.5" />
-          </button>
         </span>
       )}
     </span>
@@ -33,6 +32,7 @@ const InfoBubble: React.FC<{ info: string }> = ({ info }) => {
 
 const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
   const [open, setOpen] = useState(false);
+  const prefix = useId();
 
   if (micros.every((m) => m.value === 0)) return null;
 
@@ -44,12 +44,12 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
       </button>
       {open && (
         <div className="px-4 pb-4 grid grid-cols-2 gap-2 animate-fade-up">
-          {micros.filter((m) => m.value > 0).map((micro) => (
+          {micros.filter((m) => m.value > 0).map((micro, i) => (
             <div key={micro.name} className="bg-accent rounded-xl p-2.5 flex items-center justify-between">
               <div>
                 <div className="flex items-center gap-1">
                   <span className="text-xs font-medium">{micro.name}</span>
-                  <InfoBubble info={micro.info} />
+                  <InfoBubble info={micro.info} id={`${prefix}-hd-${i}`} />
                 </div>
                 <span className="text-[10px] text-muted-foreground">{micro.unit}</span>
               </div>
