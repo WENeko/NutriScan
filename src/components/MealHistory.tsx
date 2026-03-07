@@ -302,7 +302,8 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   // Add ingredient manually
   const addIngredientManual = async () => {
     if (!addManualName.trim()) return;
-    const weight = parseFloat(addManualWeight) || 100;
+    const userWeight = parseFloat(addManualWeight);
+    const hasUserWeight = !isNaN(userWeight) && userWeight > 0;
     setAddAnalyzing(true);
     try {
       // Check custom foods first
@@ -315,6 +316,19 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
 
       if (customFoods && customFoods.length > 0) {
         const cf = customFoods[0] as any;
+        // If no weight provided, ask AI for estimate
+        let weight = hasUserWeight ? userWeight : 100;
+        if (!hasUserWeight) {
+          try {
+            const resp = await supabase.functions.invoke("analyze-meal", {
+              body: { text: addManualName },
+            });
+            const aiItem = resp.data?.items?.[0];
+            if (aiItem) {
+              weight = parseFloat(aiItem.estimated_weight_g || aiItem.weight_g || "100") || 100;
+            }
+          } catch {}
+        }
         const p = Math.round(cf.proteins_per_100g * weight / 100 * 10) / 10;
         const c = Math.round(cf.carbs_per_100g * weight / 100 * 10) / 10;
         const f = Math.round(cf.fats_per_100g * weight / 100 * 10) / 10;
@@ -326,20 +340,28 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         setEditDensities((prev) => [...prev, { protD: cf.proteins_per_100g / 100, carbsD: cf.carbs_per_100g / 100, fatsD: cf.fats_per_100g / 100, fiberD: (cf.fiber_per_100g || 0) / 100, sugarD: (cf.sugar_per_100g || 0) / 100, satFatD: (cf.saturated_fat_per_100g || 0) / 100, omega3D: (cf.omega3_mg_per_100g || 0) / 100, sodiumD: (cf.sodium_mg_per_100g || 0) / 100, potassiumD: (cf.potassium_mg_per_100g || 0) / 100, magnesiumD: (cf.magnesium_mg_per_100g || 0) / 100, calciumD: (cf.calcium_mg_per_100g || 0) / 100, vitBD: (cf.vitamin_b_per_100g || 0) / 100, vitCD: (cf.vitamin_c_per_100g || 0) / 100, vitDD: (cf.vitamin_d_per_100g || 0) / 100, vitED: (cf.vitamin_e_per_100g || 0) / 100 }]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
       } else {
+        // Let AI estimate everything including weight
+        const textPrompt = hasUserWeight ? `${userWeight}g de ${addManualName}` : addManualName;
         const response = await supabase.functions.invoke("analyze-meal", {
-          body: { text: `${weight}g de ${addManualName}` },
+          body: { text: textPrompt },
         });
         if (response.error) throw new Error(response.error.message);
         const item = response.data.items?.[0];
         if (item) {
+          const weight = hasUserWeight ? userWeight : (parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100);
           const p = item.proteins || 0;
           const c = item.carbs || 0;
           const f = item.fats || 0;
           setEditItems((prev) => [...prev, {
             id: `new-${Date.now()}`, name: item.name || addManualName, quantity: `${weight}g`,
             proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
+            fiber: item.fiber || 0, sugar: item.sugar || 0, saturated_fat: item.saturated_fat || 0,
+            omega3_mg: item.omega3_mg || 0, sodium_mg: item.sodium_mg || 0, potassium_mg: item.potassium_mg || 0,
+            magnesium_mg: item.magnesium_mg || 0, calcium_mg: item.calcium_mg || 0,
+            vitamin_b_mg: item.vitamin_b_mg || 0, vitamin_c_mg: item.vitamin_c_mg || 0,
+            vitamin_d_mcg: item.vitamin_d_mcg || 0, vitamin_e_mg: item.vitamin_e_mg || 0,
           }]);
-          setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: 0, sugarD: 0, satFatD: 0, omega3D: 0, sodiumD: 0, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
+          setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: (item.fiber || 0) / weight, sugarD: (item.sugar || 0) / weight, satFatD: (item.saturated_fat || 0) / weight, omega3D: (item.omega3_mg || 0) / weight, sodiumD: (item.sodium_mg || 0) / weight, potassiumD: (item.potassium_mg || 0) / weight, magnesiumD: (item.magnesium_mg || 0) / weight, calciumD: (item.calcium_mg || 0) / weight, vitBD: (item.vitamin_b_mg || 0) / weight, vitCD: (item.vitamin_c_mg || 0) / weight, vitDD: (item.vitamin_d_mcg || 0) / weight, vitED: (item.vitamin_e_mg || 0) / weight }]);
           setEditWeightInputs((prev) => [...prev, String(weight)]);
         }
       }
