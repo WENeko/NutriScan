@@ -202,6 +202,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   ];
 
   return (
+    <TooltipProvider>
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-10 glass-card px-4 py-3">
