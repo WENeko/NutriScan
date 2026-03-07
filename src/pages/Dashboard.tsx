@@ -9,6 +9,7 @@ import ProfilePage from "@/components/ProfilePage";
 import BottomNav, { TabId } from "@/components/BottomNav";
 import WaterTracker from "@/components/WaterTracker";
 import HealthDetails from "@/components/HealthDetails";
+import { TooltipProvider } from "@/components/TooltipContext";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { subDays, startOfDay, format } from "date-fns";
