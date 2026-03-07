@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine } from "recharts";
+import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 
@@ -28,6 +28,10 @@ interface DayData {
   potassium_mg: number;
   fiber: number;
   omega3_mg: number;
+  magnesium_mg: number;
+  calcium_mg: number;
+  vitamin_c_mg: number;
+  vitamin_d_mcg: number;
 }
 
 interface BodyData {
@@ -43,6 +47,17 @@ const MICRO_OPTIONS: { id: MicroKey; label: string; color: string; unit: string 
   { id: "sodium_mg", label: "Sodium", color: "hsl(var(--nutri-pink))", unit: "mg" },
   { id: "potassium_mg", label: "Potassium", color: "hsl(var(--nutri-blue))", unit: "mg" },
   { id: "omega3_mg", label: "Oméga-3", color: "hsl(var(--nutri-orange))", unit: "mg" },
+];
+
+const RADAR_MICROS = [
+  { key: "fiber", label: "Fibres", goal: 30, unit: "g" },
+  { key: "sodium_mg", label: "Sodium", goal: 2300, unit: "mg" },
+  { key: "potassium_mg", label: "Potassium", goal: 3500, unit: "mg" },
+  { key: "magnesium_mg", label: "Magnésium", goal: 400, unit: "mg" },
+  { key: "calcium_mg", label: "Calcium", goal: 1000, unit: "mg" },
+  { key: "omega3_mg", label: "Oméga-3", goal: 500, unit: "mg" },
+  { key: "vitamin_c_mg", label: "Vit. C", goal: 90, unit: "mg" },
+  { key: "vitamin_d_mcg", label: "Vit. D", goal: 15, unit: "µg" },
 ];
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, targetWeight }) => {
@@ -64,7 +79,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     const today = new Date();
     const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
 
-    // Fetch meals
     const { data: meals } = await supabase
       .from("meals")
       .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
@@ -72,28 +86,24 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       .gte("timestamp", startOfDay(startDate).toISOString())
       .lte("timestamp", endOfDay(today).toISOString());
 
-    // Get all meal IDs for micro lookup
     const mealIds = (meals || []).map((m: any) => m.id);
 
-    // Fetch micros for those meals
-    let microsByMeal: Record<string, { fiber: number; sodium_mg: number; potassium_mg: number; omega3_mg: number }> = {};
+    let microsByMeal: Record<string, Record<string, number>> = {};
     if (mealIds.length > 0) {
       const { data: items } = await supabase
         .from("meal_items")
-        .select("meal_id, fiber, sodium_mg, potassium_mg, omega3_mg")
+        .select("meal_id, fiber, sodium_mg, potassium_mg, omega3_mg, magnesium_mg, calcium_mg, vitamin_c_mg, vitamin_d_mcg")
         .in("meal_id", mealIds);
       if (items) {
         (items as any[]).forEach((item) => {
-          if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = { fiber: 0, sodium_mg: 0, potassium_mg: 0, omega3_mg: 0 };
-          microsByMeal[item.meal_id].fiber += Number(item.fiber) || 0;
-          microsByMeal[item.meal_id].sodium_mg += Number(item.sodium_mg) || 0;
-          microsByMeal[item.meal_id].potassium_mg += Number(item.potassium_mg) || 0;
-          microsByMeal[item.meal_id].omega3_mg += Number(item.omega3_mg) || 0;
+          if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
+          ["fiber", "sodium_mg", "potassium_mg", "omega3_mg", "magnesium_mg", "calcium_mg", "vitamin_c_mg", "vitamin_d_mcg"].forEach((k) => {
+            microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + (Number(item[k]) || 0);
+          });
         });
       }
     }
 
-    // Fetch body composition
     const { data: bodyComp } = await supabase
       .from("body_composition")
       .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg")
@@ -101,7 +111,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at");
 
-    // Build day map
     const dayMap: Record<string, DayData> = {};
     for (let i = 0; i < numDays; i++) {
       const d = subDays(today, numDays - 1 - i);
@@ -110,6 +119,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: key, calories: 0, proteins: 0, carbs: 0, fats: 0, goal: calorieGoal,
         sodium_mg: 0, potassium_mg: 0, fiber: 0, omega3_mg: 0,
+        magnesium_mg: 0, calcium_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0,
       };
     }
 
@@ -122,17 +132,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         dayMap[key].fats += Number(m.total_fats);
         const micros = microsByMeal[m.id];
         if (micros) {
-          dayMap[key].fiber += micros.fiber;
-          dayMap[key].sodium_mg += micros.sodium_mg;
-          dayMap[key].potassium_mg += micros.potassium_mg;
-          dayMap[key].omega3_mg += micros.omega3_mg;
+          Object.keys(micros).forEach((k) => {
+            (dayMap[key] as any)[k] = ((dayMap[key] as any)[k] || 0) + micros[k];
+          });
         }
       }
     });
 
     setNutritionData(Object.values(dayMap));
 
-    // Map body data
     const bodyArr: BodyData[] = (bodyComp || []).map((b: any) => ({
       day: format(new Date(b.recorded_at), period === "7d" ? "EEE" : "dd/MM", { locale: fr }),
       date: b.recorded_at,
@@ -142,6 +150,17 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     }));
     setBodyData(bodyArr);
   };
+
+  // Compute weekly (last 7 days) average for radar
+  const radarData = React.useMemo(() => {
+    const last7 = nutritionData.slice(-7);
+    const daysWithData = last7.filter((d) => d.calories > 0).length || 1;
+    return RADAR_MICROS.map((m) => {
+      const avg = last7.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
+      const pct = Math.min(Math.round((avg / m.goal) * 100), 150);
+      return { nutrient: m.label, value: pct, goal: 100, avg: Math.round(avg), goalVal: m.goal, unit: m.unit };
+    });
+  }, [nutritionData]);
 
   const periods: { id: Period; label: string }[] = [
     { id: "7d", label: "7 jours" },
@@ -232,6 +251,35 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
               <Bar dataKey={selectedMicro} fill={microOption.color} radius={[4, 4, 0, 0]} />
             </BarChart>
           </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* Weekly Micro Radar */}
+      <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "175ms" }}>
+        <h3 className="font-display font-semibold text-sm mb-1">Bilan Micros Hebdo</h3>
+        <p className="text-[10px] text-muted-foreground mb-3">Moyenne 7 jours vs objectifs recommandés (%)</p>
+        <div className="h-64">
+          <ResponsiveContainer width="100%" height="100%">
+            <RadarChart data={radarData} outerRadius="75%">
+              <PolarGrid stroke="hsl(var(--border))" />
+              <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+              <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
+              <Radar name="Objectif" dataKey="goal" stroke="hsl(var(--muted-foreground))" fill="hsl(var(--muted-foreground))" fillOpacity={0.1} strokeDasharray="4 4" />
+              <Radar name="Apport" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                formatter={(v: number, name: string, props: any) => {
+                  if (name === "Objectif") return ["100%", "Objectif"];
+                  const item = props.payload;
+                  return [`${item.avg} ${item.unit} / ${item.goalVal} ${item.unit} (${v}%)`, "Apport"];
+                }}
+              />
+            </RadarChart>
+          </ResponsiveContainer>
+        </div>
+        <div className="flex justify-center gap-4 mt-1 text-[10px]">
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Apport moyen</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground" /> Objectif</span>
         </div>
       </section>
 
