@@ -44,12 +44,6 @@ interface BodyData {
   muscleMass: number | null;
 }
 
-const MICRO_OPTIONS: { id: MicroKey; label: string; color: string; unit: string }[] = [
-  { id: "fiber", label: "Fibres", color: "hsl(var(--primary))", unit: "g" },
-  { id: "sodium_mg", label: "Sodium", color: "hsl(var(--nutri-pink))", unit: "mg" },
-  { id: "potassium_mg", label: "Potassium", color: "hsl(var(--nutri-blue))", unit: "mg" },
-  { id: "omega3_mg", label: "Oméga-3", color: "hsl(var(--nutri-orange))", unit: "mg" },
-];
 
 const RADAR_MICROS = [
   { key: "fiber", label: "Fibres", goal: 30, unit: "g" },
