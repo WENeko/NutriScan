@@ -171,7 +171,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   };
 
   const tickInterval = period === "7d" ? 0 : period === "30d" ? 4 : 29;
-  const microOption = MICRO_OPTIONS.find((m) => m.id === selectedMicro)!;
+  
 
   return (
     <div className="space-y-6">
