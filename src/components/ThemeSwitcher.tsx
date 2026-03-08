@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { useTheme } from "next-themes";
 import { Sun, Moon, Smartphone } from "lucide-react";
 
@@ -10,6 +10,11 @@ const options = [
 
 const ThemeSwitcher: React.FC = () => {
   const { theme, setTheme } = useTheme();
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => setMounted(true), []);
+
+  if (!mounted) return null;
 
   return (
     <div className="flex rounded-xl bg-muted p-1 gap-1">
