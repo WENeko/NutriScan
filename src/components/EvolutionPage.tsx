@@ -16,7 +16,7 @@ interface EvolutionPageProps {
 }
 
 type Period = "7d" | "30d" | "all";
-type MicroKey = "sodium_mg" | "potassium_mg" | "fiber" | "omega3_mg";
+
 
 interface DayData {
   day: string;
