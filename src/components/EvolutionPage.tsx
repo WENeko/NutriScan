@@ -174,15 +174,17 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   
 
   return (
-    <div className="space-y-6">
-      {/* Period selector */}
-      <div className="flex rounded-xl bg-muted p-1 gap-1">
-        {periods.map((p) => (
-          <button key={p.id} onClick={() => setPeriod(p.id)}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${period === p.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"}`}>
-            {p.label}
-          </button>
-        ))}
+    <div className="space-y-6 pt-14">
+      {/* Period selector - sticky */}
+      <div className="fixed top-0 left-0 right-0 z-30 bg-background/95 backdrop-blur-sm px-4 py-2">
+        <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
+          {periods.map((p) => (
+            <button key={p.id} onClick={() => setPeriod(p.id)}
+              className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${period === p.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Calories vs Goal */}
@@ -275,7 +277,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
                   <ReferenceLine y={targetMuscleMass} stroke="hsl(var(--nutri-blue))" strokeDasharray="6 3" label={{ value: `Muscle: ${targetMuscleMass}kg`, position: "insideTopLeft", fontSize: 10, fill: "hsl(var(--nutri-blue))" }} />
                 )}
                 <Line type="monotone" dataKey="weight" name="Poids (kg)" stroke="hsl(var(--primary))" strokeWidth={2} dot connectNulls />
-                <Line type="monotone" dataKey="bodyFat" name="Masse grasse (%)" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot connectNulls />
+                <Line type="monotone" dataKey="bodyFat" name="Masse grasse (%)" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
                 <Line type="monotone" dataKey="muscleMass" name="Muscle (kg)" stroke="hsl(var(--nutri-blue))" strokeWidth={2} dot connectNulls />
               </LineChart>
             </ResponsiveContainer>
