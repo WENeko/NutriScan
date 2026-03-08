@@ -176,7 +176,11 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     await supabase.auth.signOut();
   };
 
-  const microGoals = useMemo(() => getPersonalizedMicroGoals(userProfile), [userProfile]);
+  const microGoals = useMemo(
+    () => getPersonalizedMicroGoals(userProfile),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level]
+  );
 
   if (showProfile) {
     return <ProfilePage userId={userId} onBack={() => { setShowProfile(false); fetchData(); }} />;
