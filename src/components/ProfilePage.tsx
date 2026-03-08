@@ -413,8 +413,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Heure</Label>
               <div className="flex items-center gap-2">
-                <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-20" />
-                <span className="text-sm text-muted-foreground">h00</span>
+              <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
+                <span className="text-sm text-muted-foreground">h</span>
+                <NumericInput value={weighinMinute} onChange={(v) => setWeighinMinute(Math.min(59, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
               </div>
             </div>
           </div>

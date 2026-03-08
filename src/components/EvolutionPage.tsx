@@ -297,7 +297,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
                 <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} />
                 {targetWeight && (
-                  <ReferenceLine y={targetWeight} stroke="hsl(var(--secondary))" strokeDasharray="6 3" label={{ value: `Poids: ${targetWeight}kg`, position: "insideTopRight", fontSize: 10, fill: "hsl(var(--secondary))" }} />
+                  <ReferenceLine y={targetWeight} stroke="hsl(var(--primary))" strokeDasharray="6 3" label={{ value: `Poids: ${targetWeight}kg`, position: "insideTopRight", fontSize: 10, fill: "hsl(var(--primary))" }} />
                 )}
                 {targetBodyFat && (
                   <ReferenceLine y={targetBodyFat} stroke="hsl(var(--nutri-pink))" strokeDasharray="6 3" label={{ value: `Gras: ${targetBodyFat}%`, position: "insideBottomRight", fontSize: 10, fill: "hsl(var(--nutri-pink))" }} />
