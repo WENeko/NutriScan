@@ -56,6 +56,7 @@ interface MealHistoryProps {
   userId: string;
   onSelect: (id: string) => void;
   onRefresh: () => void;
+  microGoals?: MicroGoals;
 }
 
 type AddMode = "manual" | "text" | "barcode";
