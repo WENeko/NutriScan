@@ -140,9 +140,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         isCustom = true;
       }
 
-      // Detect unit-based quantity from AI response
-      const rawQuantity = item.quantity || item.estimated_quantity || "";
-      const unitInfo = parseUnitQuantity(rawQuantity, weight, item.name || "");
+      // Use AI-provided unit data directly
+      const unitCount = item.unit_count ? parseInt(item.unit_count) : undefined;
+      const unitWeightG = item.unit_weight_g ? parseInt(item.unit_weight_g) : undefined;
+      const unitLabel = item.unit_label || undefined;
 
       return {
         name: item.name,
@@ -163,7 +164,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         potassium_mg: item.potassium_mg || 0,
         magnesium_mg: item.magnesium_mg || 0,
         calcium_mg: item.calcium_mg || 0,
-        ...(unitInfo ? { unitCount: unitInfo.unitCount, unitWeightG: unitInfo.unitWeightG, unitLabel: unitInfo.unitLabel } : {}),
+        ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
     setItems((prev) => [...prev, ...mappedItems]);
