@@ -7,34 +7,19 @@ export interface MicroNutrient {
   value: number;
   unit: string;
   info: string;
+  goal?: number;
 }
 
 interface HealthDetailsProps {
   micros: MicroNutrient[];
 }
 
-// Recommended daily values for density score
-const DENSITY_GOALS: Record<string, number> = {
-  "Fibres": 30,
-  "Oméga-3": 500,
-  "Sodium": 2300,
-  "Potassium": 3500,
-  "Magnésium": 400,
-  "Calcium": 1000,
-  "Vitamine B": 2.4,
-  "Vitamine C": 90,
-  "Vitamine D": 15,
-  "Vitamine E": 15,
-};
-
 function computeDensityScore(micros: MicroNutrient[]): number {
-  const scored = micros.filter((m) => DENSITY_GOALS[m.name] !== undefined);
+  const scored = micros.filter((m) => m.goal && m.goal > 0);
   if (scored.length === 0) return 0;
   let total = 0;
   scored.forEach((m) => {
-    const goal = DENSITY_GOALS[m.name];
-    // Cap each micro contribution at 100% (no bonus for excess)
-    const ratio = Math.min(m.value / goal, 1);
+    const ratio = Math.min(m.value / m.goal!, 1);
     total += ratio;
   });
   return Math.round((total / scored.length) * 100);
@@ -82,7 +67,6 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
       </button>
       {open && (
         <div className="px-4 pb-4 space-y-3 animate-fade-up">
-          {/* Density score explanation */}
           <div className="bg-accent rounded-xl p-3 text-center">
             <p className="text-xs text-muted-foreground">
               Score de densité nutritionnelle : <span className={`font-bold ${scoreColor}`}>{densityScore}/100</span>
@@ -93,18 +77,29 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {micros.filter((m) => m.value > 0).map((micro, i) => (
-              <div key={micro.name} className="bg-accent rounded-xl p-2.5 flex items-center justify-between">
-                <div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-xs font-medium">{micro.name}</span>
-                    <InfoBubble info={micro.info} id={`${prefix}-hd-${i}`} />
+            {micros.filter((m) => m.value > 0).map((micro, i) => {
+              const pct = micro.goal ? Math.min(micro.value / micro.goal, 1) : 0;
+              const pctColor = pct >= 0.7 ? "bg-primary" : pct >= 0.4 ? "bg-secondary" : "bg-destructive";
+              return (
+                <div key={micro.name} className="bg-accent rounded-xl p-2.5 space-y-1">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <span className="text-xs font-medium">{micro.name}</span>
+                      <InfoBubble info={micro.info} id={`${prefix}-hd-${i}`} />
+                    </div>
+                    <span className="text-sm font-bold">{Math.round(micro.value * 10) / 10}</span>
                   </div>
-                  <span className="text-[10px] text-muted-foreground">{micro.unit}</span>
+                  {micro.goal && micro.goal > 0 && (
+                    <div className="flex items-center gap-1.5">
+                      <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
+                        <div className={`h-full rounded-full ${pctColor}`} style={{ width: `${pct * 100}%` }} />
+                      </div>
+                      <span className="text-[9px] text-muted-foreground">{Math.round(pct * 100)}%</span>
+                    </div>
+                  )}
                 </div>
-                <span className="text-sm font-bold">{Math.round(micro.value * 10) / 10}</span>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
