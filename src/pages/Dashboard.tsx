@@ -176,6 +176,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     await supabase.auth.signOut();
   };
 
+  const microGoals = useMemo(() => getPersonalizedMicroGoals(userProfile), [userProfile]);
+
   if (showProfile) {
     return <ProfilePage userId={userId} onBack={() => { setShowProfile(false); fetchData(); }} />;
   }
