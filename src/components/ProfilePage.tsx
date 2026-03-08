@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell } from "lucide-react";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 
@@ -25,6 +25,14 @@ const GOAL_TYPES = [
   { value: "bulk", label: "Prise de muscle", calorieModifier: 0.10, proteinPerKg: 2.0 },
 ];
 
+const WEIGHIN_FREQUENCIES = [
+  { value: "daily", label: "Quotidien" },
+  { value: "weekly", label: "Hebdo" },
+  { value: "biweekly", label: "Bi-mensuel" },
+];
+
+const WEEKDAYS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+
 const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weight, setWeight] = useState<number>(70);
   const [height, setHeight] = useState<number>(175);
@@ -34,6 +42,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [goalType, setGoalType] = useState<string>("maintain");
   const [saving, setSaving] = useState(false);
   const [bmr, setBmr] = useState<number>(0);
+  const [bmrMethod, setBmrMethod] = useState<string>("mifflin");
   const [tdee, setTdee] = useState<number>(0);
   const [targets, setTargets] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
 
@@ -43,11 +52,21 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [sportCalories, setSportCalories] = useState<number>(0);
   const [waterGoal, setWaterGoal] = useState<number>(2000);
   const [targetWeight, setTargetWeight] = useState<number | "">("");
+  const [targetBodyFat, setTargetBodyFat] = useState<number | "">("");
+  const [targetMuscleMass, setTargetMuscleMass] = useState<number | "">("");
+
+  // Weighin reminders
+  const [weighinFrequency, setWeighinFrequency] = useState<string>("weekly");
+  const [weighinDay, setWeighinDay] = useState<number>(1);
+  const [weighinHour, setWeighinHour] = useState<number>(8);
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
 
+  // Compute lean mass from weight and body fat
+  const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
+
   useEffect(() => { loadProfile(); }, []);
-  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmr]);
+  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat]);
 
   const loadProfile = async () => {
     const { data } = await supabase
@@ -64,26 +83,36 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.gender) setGender(d.gender);
       if (d.activity_level) setActivityLevel(d.activity_level);
       if (d.bmr) setBmr(Number(d.bmr));
+      if (d.bmr_method) setBmrMethod(d.bmr_method);
       if (d.body_fat_percent) setBodyFat(Number(d.body_fat_percent));
       if (d.muscle_mass_kg) setMuscleMass(Number(d.muscle_mass_kg));
       if (d.sport_calories_daily) setSportCalories(Number(d.sport_calories_daily));
       if (d.water_goal_ml) setWaterGoal(Number(d.water_goal_ml));
       if (d.target_weight_kg) setTargetWeight(Number(d.target_weight_kg));
+      if (d.target_body_fat_percent) setTargetBodyFat(Number(d.target_body_fat_percent));
+      if (d.target_muscle_mass_kg) setTargetMuscleMass(Number(d.target_muscle_mass_kg));
+      if (d.weighin_frequency) setWeighinFrequency(d.weighin_frequency);
+      if (d.weighin_day !== null && d.weighin_day !== undefined) setWeighinDay(Number(d.weighin_day));
+      if (d.weighin_hour !== null && d.weighin_hour !== undefined) setWeighinHour(Number(d.weighin_hour));
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
   };
 
   const calculateTargets = () => {
-    let usedBmr = bmr;
-    if (!usedBmr) {
+    let usedBmr = 0;
+
+    if (bmrMethod === "katch" && leanMass && leanMass > 0) {
+      usedBmr = Math.round(21.6 * leanMass + 370);
+    } else {
+      // Mifflin-St Jeor
       if (gender === "female") {
         usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
       } else {
         usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
       }
-      setBmr(usedBmr);
     }
+    setBmr(usedBmr);
 
     const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[1];
     const calculatedTdee = usedBmr * activity.factor;
@@ -121,6 +150,13 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           sport_calories_daily: sportCalories,
           water_goal_ml: waterGoal,
           target_weight_kg: targetWeight || null,
+          target_body_fat_percent: targetBodyFat || null,
+          target_muscle_mass_kg: targetMuscleMass || null,
+          bmr_method: bmrMethod,
+          weighin_frequency: weighinFrequency,
+          weighin_day: weighinDay,
+          weighin_hour: weighinHour,
+          last_weighin_date: null, // will be set on actual weigh-in
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
@@ -230,19 +266,64 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
               <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
             </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
-              <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="Ex: 75" />
-            </div>
           </div>
+          {leanMass && (
+            <div className="mt-3 bg-accent rounded-xl p-2.5 text-xs">
+              <span className="text-muted-foreground">Masse maigre estimée : </span>
+              <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
+            </div>
+          )}
           <p className="text-[10px] text-muted-foreground mt-2">Ces champs sont prêts pour une synchronisation Health Connect future.</p>
         </section>
 
-        {/* MB Manual */}
+        {/* Targets: weight, body fat, muscle */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "75ms" }}>
+          <h2 className="font-display font-semibold text-base mb-3">🎯 Objectifs corporels</h2>
+          <div className="grid grid-cols-3 gap-3">
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
+              <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="75" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Gras cible (%)</Label>
+              <NumericInput value={targetBodyFat === "" ? 0 : targetBodyFat} onChange={(v) => setTargetBodyFat(v || "")} className="h-10 rounded-xl" placeholder="15" />
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Muscle cible (kg)</Label>
+              <NumericInput value={targetMuscleMass === "" ? 0 : targetMuscleMass} onChange={(v) => setTargetMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="40" />
+            </div>
+          </div>
+        </section>
+
+        {/* BMR Method */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
-          <p className="text-xs text-muted-foreground mb-2">Saisissez la valeur de votre balance ou laissez le calcul automatique.</p>
-          <NumericInput value={bmr} onChange={(v) => setBmr(v)} className="h-10 rounded-xl" placeholder="Ex: 1650" />
+          <div className="flex gap-2 mb-3">
+            {[
+              { value: "mifflin", label: "Mifflin-St Jeor" },
+              { value: "katch", label: "Katch-McArdle" },
+            ].map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setBmrMethod(m.value)}
+                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                  bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                }`}
+              >
+                {m.label}
+              </button>
+            ))}
+          </div>
+          {bmrMethod === "katch" && !leanMass && (
+            <p className="text-xs text-destructive mb-2">⚠️ Renseignez la masse grasse (%) pour utiliser Katch-McArdle.</p>
+          )}
+          {bmrMethod === "katch" && leanMass && (
+            <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
+          )}
+          <div className="bg-accent rounded-xl p-3 text-center">
+            <span className="text-xs text-muted-foreground">MB calculé : </span>
+            <span className="text-lg font-bold text-primary">{bmr} kcal</span>
+          </div>
         </section>
 
         {/* Activity */}
@@ -285,6 +366,57 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
         </section>
 
+        {/* Weighin reminders */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "225ms" }}>
+          <div className="flex items-center gap-2 mb-3">
+            <Bell className="w-4 h-4 text-primary" />
+            <h2 className="font-display font-semibold text-base">Rappel de pesée</h2>
+          </div>
+          <div className="space-y-3">
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Fréquence</Label>
+              <div className="flex gap-2">
+                {WEIGHIN_FREQUENCIES.map((f) => (
+                  <button
+                    key={f.value}
+                    onClick={() => setWeighinFrequency(f.value)}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${
+                      weighinFrequency === f.value ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {f.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+            {weighinFrequency !== "daily" && (
+              <div>
+                <Label className="text-xs text-muted-foreground mb-1.5 block">Jour</Label>
+                <div className="flex gap-1">
+                  {WEEKDAYS.map((d, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setWeighinDay(i)}
+                      className={`flex-1 py-2 rounded-lg text-[10px] font-semibold transition-all ${
+                        weighinDay === i ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {d}
+                    </button>
+                  ))}
+                </div>
+              </div>
+            )}
+            <div>
+              <Label className="text-xs text-muted-foreground mb-1.5 block">Heure</Label>
+              <div className="flex items-center gap-2">
+                <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-20" />
+                <span className="text-sm text-muted-foreground">h00</span>
+              </div>
+            </div>
+          </div>
+        </section>
+
         {/* Calculated targets */}
         <section className="bg-accent rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "250ms" }}>
           <div className="flex items-center gap-2 mb-3">
@@ -293,7 +425,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
             <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">MB</div>
+              <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
               <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
             </div>
             <div className="bg-card rounded-xl p-3">
