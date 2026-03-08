@@ -201,7 +201,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     todayMicros.sodium_mg < 1500 || todayMicros.potassium_mg < 2000 || todayMicros.magnesium_mg < 200
   );
 
-  const microGoals = useMemo(() => getPersonalizedMicroGoals(userProfile), [userProfile]);
 
   const microsList = [
     { name: "Fibres", value: todayMicros.fiber, unit: "g", info: getMicroInfo("fiber", microGoals.fiber), goal: microGoals.fiber },
