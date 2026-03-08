@@ -174,9 +174,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   
 
   return (
-    <div className="space-y-6 pt-14">
-      {/* Period selector - sticky */}
-      <div className="fixed top-0 left-0 right-0 z-30 bg-background/95 backdrop-blur-sm px-4 py-2">
+    <div className="space-y-6">
+      {/* Period selector - sticky below header */}
+      <div className="sticky top-[52px] z-20 bg-background/95 backdrop-blur-sm px-4 py-2 -mx-4">
         <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
           {periods.map((p) => (
             <button key={p.id} onClick={() => setPeriod(p.id)}
