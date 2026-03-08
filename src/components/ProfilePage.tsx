@@ -95,6 +95,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_frequency) setWeighinFrequency(d.weighin_frequency);
       if (d.weighin_day !== null && d.weighin_day !== undefined) setWeighinDay(Number(d.weighin_day));
       if (d.weighin_hour !== null && d.weighin_hour !== undefined) setWeighinHour(Number(d.weighin_hour));
+      if ((d as any).weighin_minute !== null && (d as any).weighin_minute !== undefined) setWeighinMinute(Number((d as any).weighin_minute));
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
