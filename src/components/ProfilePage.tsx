@@ -31,7 +31,15 @@ const WEIGHIN_FREQUENCIES = [
   { value: "biweekly", label: "Bi-mensuel" },
 ];
 
-const WEEKDAYS = ["Dim", "Lun", "Mar", "Mer", "Jeu", "Ven", "Sam"];
+const WEEKDAYS = [
+  { label: "Lun", day: 1 },
+  { label: "Mar", day: 2 },
+  { label: "Mer", day: 3 },
+  { label: "Jeu", day: 4 },
+  { label: "Ven", day: 5 },
+  { label: "Sam", day: 6 },
+  { label: "Dim", day: 0 },
+];
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weight, setWeight] = useState<number>(70);

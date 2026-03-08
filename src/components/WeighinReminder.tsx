@@ -31,13 +31,14 @@ const WeighinReminder: React.FC<WeighinReminderProps> = ({ userId, onGoToProfile
     const today = startOfDay(now);
 
     // Check last body_composition entry
-    const { data: lastEntry } = await supabase
+    const { data: lastEntries } = await supabase
       .from("body_composition")
       .select("recorded_at")
       .eq("user_id", userId)
       .order("recorded_at", { ascending: false })
-      .limit(1)
-      .single();
+      .limit(1);
+
+    const lastEntry = lastEntries && lastEntries.length > 0 ? lastEntries[0] : null;
 
     const lastDate = lastEntry ? new Date((lastEntry as any).recorded_at) : null;
     const daysSinceLast = lastDate ? differenceInDays(today, startOfDay(lastDate)) : 999;
