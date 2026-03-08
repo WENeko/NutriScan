@@ -241,6 +241,29 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     );
   };
 
+  const updateItemUnits = (idx: number, delta: number) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx || !item.unitCount || !item.unitWeightG) return item;
+        const newCount = Math.max(1, item.unitCount + delta);
+        const newWeight = newCount * item.unitWeightG;
+        return {
+          ...item,
+          unitCount: newCount,
+          quantity: `${newWeight}g`,
+          proteins: Math.round(item.protDensity * newWeight * 10) / 10,
+          carbs: Math.round(item.carbsDensity * newWeight * 10) / 10,
+          fats: Math.round(item.fatsDensity * newWeight * 10) / 10,
+          calories: Math.round(
+            item.protDensity * newWeight * 4 +
+            item.carbsDensity * newWeight * 4 +
+            item.fatsDensity * newWeight * 9
+          ) * 10 / 10,
+        };
+      })
+    );
+  };
+
   const updateItemName = (idx: number, name: string) => {
     setItems((prev) => prev.map((item, i) => i === idx ? { ...item, name } : item));
   };
