@@ -199,19 +199,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     todayMicros.sodium_mg < 1500 || todayMicros.potassium_mg < 2000 || todayMicros.magnesium_mg < 200
   );
 
+  const microGoals = useMemo(() => getPersonalizedMicroGoals(userProfile), [userProfile]);
+
   const microsList = [
-    { name: "Fibres", value: todayMicros.fiber, unit: "g", info: "Digestion et satiété. Objectif : 25-35g/jour." },
-    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: "Glucides simples. Limitez à <50g/jour." },
-    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: "Santé cardiovasculaire. Limitez à <20g/jour." },
-    { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: "Inflammation et santé cardiaque. 250-500mg/jour." },
-    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: "Équilibre hydrique et congestion. <2300mg/jour." },
-    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: "Équilibre hydrique et congestion. 3500mg/jour." },
-    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: "Récupération et santé osseuse. 400mg/jour." },
-    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: "Récupération et santé osseuse. 1000mg/jour." },
-    { name: "Vitamine B", value: todayMicros.vitamin_b_mg, unit: "mg", info: "Énergie et système nerveux." },
-    { name: "Vitamine C", value: todayMicros.vitamin_c_mg, unit: "mg", info: "Antioxydants. 90mg/jour." },
-    { name: "Vitamine D", value: todayMicros.vitamin_d_mcg, unit: "µg", info: "Immunité et hormones. 15µg/jour." },
-    { name: "Vitamine E", value: todayMicros.vitamin_e_mg, unit: "mg", info: "Antioxydants. 15mg/jour." },
+    { name: "Fibres", value: todayMicros.fiber, unit: "g", info: getMicroInfo("fiber", microGoals.fiber), goal: microGoals.fiber },
+    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: getMicroInfo("sugar", microGoals.sugar), goal: microGoals.sugar },
+    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: getMicroInfo("saturated_fat", microGoals.saturated_fat), goal: microGoals.saturated_fat },
+    { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: getMicroInfo("omega3_mg", microGoals.omega3_mg), goal: microGoals.omega3_mg },
+    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: getMicroInfo("sodium_mg", microGoals.sodium_mg), goal: microGoals.sodium_mg },
+    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: getMicroInfo("potassium_mg", microGoals.potassium_mg), goal: microGoals.potassium_mg },
+    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: getMicroInfo("magnesium_mg", microGoals.magnesium_mg), goal: microGoals.magnesium_mg },
+    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: getMicroInfo("calcium_mg", microGoals.calcium_mg), goal: microGoals.calcium_mg },
+    { name: "Vitamine B", value: todayMicros.vitamin_b_mg, unit: "mg", info: getMicroInfo("vitamin_b_mg", microGoals.vitamin_b_mg), goal: microGoals.vitamin_b_mg },
+    { name: "Vitamine C", value: todayMicros.vitamin_c_mg, unit: "mg", info: getMicroInfo("vitamin_c_mg", microGoals.vitamin_c_mg), goal: microGoals.vitamin_c_mg },
+    { name: "Vitamine D", value: todayMicros.vitamin_d_mcg, unit: "µg", info: getMicroInfo("vitamin_d_mcg", microGoals.vitamin_d_mcg), goal: microGoals.vitamin_d_mcg },
+    { name: "Vitamine E", value: todayMicros.vitamin_e_mg, unit: "mg", info: getMicroInfo("vitamin_e_mg", microGoals.vitamin_e_mg), goal: microGoals.vitamin_e_mg },
   ];
 
   return (
