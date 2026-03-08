@@ -28,7 +28,40 @@ interface MealItem {
   potassium_mg?: number;
   magnesium_mg?: number;
   calcium_mg?: number;
+  /** Unit-based items (e.g. eggs, slices) */
+  unitCount?: number;
+  unitWeightG?: number;
+  unitLabel?: string;
 }
+
+/** Try to parse a unit-based quantity like "2 tranches (60g)" or "1 oeuf (50g)" */
+const parseUnitQuantity = (quantityStr: string, weightG: number): { unitCount: number; unitWeightG: number; unitLabel: string } | null => {
+  // Match patterns like "2 tranches", "1 oeuf", "3 oeufs (150g)"
+  const match = quantityStr?.match(/^(\d+)\s*(?:x\s*)?(.+?)(?:\s*\(.*\))?$/i);
+  if (!match) return null;
+  const count = parseInt(match[1]);
+  const label = match[2].trim().toLowerCase();
+  // Common unit foods (not weight-based)
+  const unitKeywords = [
+    "oeuf", "oeufs", "egg", "eggs",
+    "tranche", "tranches", "slice", "slices",
+    "portion", "portions",
+    "pièce", "pièces", "piece", "pieces",
+    "unité", "unités", "unit", "units",
+    "biscuit", "biscuits",
+    "toast", "toasts",
+    "tartine", "tartines",
+    "galette", "galettes",
+    "crêpe", "crêpes",
+    "morceau", "morceaux",
+    "cuillère", "cuillères",
+    "carré", "carrés",
+  ];
+  if (count > 0 && unitKeywords.some(k => label.includes(k))) {
+    return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: label };
+  }
+  return null;
+};
 
 interface MealInputProps {
   userId: string;
