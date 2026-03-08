@@ -40,8 +40,10 @@ const WeighinReminder: React.FC<WeighinReminderProps> = ({ userId, onGoToProfile
 
     const lastEntry = lastEntries && lastEntries.length > 0 ? lastEntries[0] : null;
 
-    const lastDate = lastEntry ? new Date((lastEntry as any).recorded_at) : null;
-    const daysSinceLast = lastDate ? differenceInDays(today, startOfDay(lastDate)) : 999;
+    // Parse YYYY-MM-DD as local date (not UTC) to avoid timezone shift
+    const lastDateStr = lastEntry ? (lastEntry as any).recorded_at : null;
+    const lastDate = lastDateStr ? new Date(lastDateStr + "T00:00:00") : null;
+    const daysSinceLast = lastDate ? differenceInDays(today, lastDate) : 999;
 
     let isDue = false;
     if (freq === "daily") {
