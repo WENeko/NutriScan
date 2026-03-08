@@ -59,6 +59,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weighinFrequency, setWeighinFrequency] = useState<string>("weekly");
   const [weighinDay, setWeighinDay] = useState<number>(1);
   const [weighinHour, setWeighinHour] = useState<number>(8);
+  const [weighinMinute, setWeighinMinute] = useState<number>(0);
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
 
