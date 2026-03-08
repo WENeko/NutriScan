@@ -463,7 +463,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             vitamin_c_mg: item.vitamin_c_mg || 0,
             vitamin_d_mcg: item.vitamin_d_mcg || 0,
             vitamin_e_mg: item.vitamin_e_mg || 0,
-          }))
+            unit_count: item.unitCount || null,
+            unit_weight_g: item.unitWeightG || null,
+            unit_label: item.unitLabel || null,
+          } as any))
         );
       }
       const totals = editItems.reduce(
