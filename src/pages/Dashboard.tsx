@@ -44,6 +44,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [showProfile, setShowProfile] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
+  const [weekTotalCalories, setWeekTotalCalories] = useState(0);
+  const [weekDaysElapsed, setWeekDaysElapsed] = useState(1);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [waterGoal, setWaterGoal] = useState(2000);
   const [weight, setWeight] = useState(70);
@@ -136,7 +138,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       const weekAgo = subDays(new Date(), 6);
       const weekMeals = typedMeals.filter((m) => new Date(m.timestamp) >= startOfDay(weekAgo));
       const weekTotal = weekMeals.reduce((acc, m) => acc + Number(m.total_calories), 0);
+      setWeekTotalCalories(Math.round(weekTotal));
       setWeekAvgCalories(Math.round(weekTotal / 7));
+
+      // Count distinct days in the week with data, but use calendar days elapsed for budget
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun
+      const mondayBased = dayOfWeek === 0 ? 7 : dayOfWeek; // 1=Mon..7=Sun
+      setWeekDaysElapsed(mondayBased);
 
       // Fetch today's micros
       const todayMealIds = today.map((m) => m.id);
@@ -341,6 +350,66 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
               )}
             </section>
+
+            {/* Weekly calorie budget */}
+            {goals.calories > 0 && (
+              <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
+                {(() => {
+                  const weeklyTarget = goals.calories * 7;
+                  const expectedAtThisPoint = goals.calories * weekDaysElapsed;
+                  const diff = weekTotalCalories - expectedAtThisPoint;
+                  const absDiff = Math.abs(diff);
+                  const pct = weeklyTarget > 0 ? Math.min(weekTotalCalories / weeklyTarget, 1.3) : 0;
+                  const expectedPct = weeklyTarget > 0 ? expectedAtThisPoint / weeklyTarget : 0;
+                  const isDeficit = diff < -50;
+                  const isSurplus = diff > 50;
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-display font-semibold text-sm">Budget Hebdo</h3>
+                        <span className="text-xs text-muted-foreground">
+                          J{weekDaysElapsed}/7
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="relative h-3 bg-muted rounded-full overflow-hidden mb-2">
+                        {/* Expected marker */}
+                        <div
+                          className="absolute top-0 h-full w-0.5 bg-foreground/30 z-10"
+                          style={{ left: `${Math.min(expectedPct * 100, 100)}%` }}
+                        />
+                        {/* Actual progress */}
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            isSurplus ? "bg-destructive" : isDeficit ? "bg-primary" : "bg-primary"
+                          }`}
+                          style={{ width: `${Math.min(pct * 100, 100)}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal
+                        </span>
+                        <span className={`font-bold ${
+                          isSurplus ? "text-destructive" : isDeficit ? "text-primary" : "text-muted-foreground"
+                        }`}>
+                          {isSurplus ? (
+                            <>▲ Surplus +{Math.round(absDiff)} kcal</>
+                          ) : isDeficit ? (
+                            <>▼ Déficit −{Math.round(absDiff)} kcal</>
+                          ) : (
+                            <>✓ Dans l'objectif</>
+                          )}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </section>
+            )}
 
             {/* Weighin reminder */}
             <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
