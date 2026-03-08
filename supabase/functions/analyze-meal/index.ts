@@ -11,6 +11,9 @@ const SYSTEM_PROMPT = `Tu es un nutritionniste expert. Analyse l'entrée (image 
 IMPORTANT - Extraction temporelle :
 Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
 
+IMPORTANT - Quantités en unités :
+Pour les aliments qui se comptent naturellement en unités (oeufs, tranches de jambon, tartines, biscuits, etc.), ajoute un champ "quantity" décrivant la quantité en unités, ex: "2 tranches", "3 oeufs", "1 portion". Cela permettra à l'utilisateur d'ajuster le nombre d'unités. Le champ "estimated_weight_g" doit contenir le poids total.
+
 IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g) :
 - fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
@@ -25,6 +28,7 @@ Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
     {
       "name": "string",
       "estimated_weight_g": 150,
+      "quantity": "2 tranches" (optionnel, pour aliments comptés en unités),
       "calories": 250,
       "proteins": 25,
       "carbs": 2,

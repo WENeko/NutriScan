@@ -3,7 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon } from "lucide-react";
+import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
@@ -28,7 +28,40 @@ interface MealItem {
   potassium_mg?: number;
   magnesium_mg?: number;
   calcium_mg?: number;
+  /** Unit-based items (e.g. eggs, slices) */
+  unitCount?: number;
+  unitWeightG?: number;
+  unitLabel?: string;
 }
+
+/** Try to parse a unit-based quantity like "2 tranches (60g)" or "1 oeuf (50g)" */
+const parseUnitQuantity = (quantityStr: string, weightG: number): { unitCount: number; unitWeightG: number; unitLabel: string } | null => {
+  // Match patterns like "2 tranches", "1 oeuf", "3 oeufs (150g)"
+  const match = quantityStr?.match(/^(\d+)\s*(?:x\s*)?(.+?)(?:\s*\(.*\))?$/i);
+  if (!match) return null;
+  const count = parseInt(match[1]);
+  const label = match[2].trim().toLowerCase();
+  // Common unit foods (not weight-based)
+  const unitKeywords = [
+    "oeuf", "oeufs", "egg", "eggs",
+    "tranche", "tranches", "slice", "slices",
+    "portion", "portions",
+    "pièce", "pièces", "piece", "pieces",
+    "unité", "unités", "unit", "units",
+    "biscuit", "biscuits",
+    "toast", "toasts",
+    "tartine", "tartines",
+    "galette", "galettes",
+    "crêpe", "crêpes",
+    "morceau", "morceaux",
+    "cuillère", "cuillères",
+    "carré", "carrés",
+  ];
+  if (count > 0 && unitKeywords.some(k => label.includes(k))) {
+    return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: label };
+  }
+  return null;
+};
 
 interface MealInputProps {
   userId: string;
@@ -136,6 +169,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         isCustom = true;
       }
 
+      // Detect unit-based quantity from AI response
+      const rawQuantity = item.quantity || item.estimated_quantity || "";
+      const unitInfo = parseUnitQuantity(rawQuantity, weight);
+
       return {
         name: item.name,
         quantity: `${weight}g`,
@@ -155,6 +192,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         potassium_mg: item.potassium_mg || 0,
         magnesium_mg: item.magnesium_mg || 0,
         calcium_mg: item.calcium_mg || 0,
+        ...(unitInfo ? { unitCount: unitInfo.unitCount, unitWeightG: unitInfo.unitWeightG, unitLabel: unitInfo.unitLabel } : {}),
       };
     });
     setItems((prev) => [...prev, ...mappedItems]);
@@ -199,6 +237,29 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           updated.calories = Math.round(updated.proteins * 4 + updated.carbs * 4 + updated.fats * 9);
         }
         return updated;
+      })
+    );
+  };
+
+  const updateItemUnits = (idx: number, delta: number) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx || !item.unitCount || !item.unitWeightG) return item;
+        const newCount = Math.max(1, item.unitCount + delta);
+        const newWeight = newCount * item.unitWeightG;
+        return {
+          ...item,
+          unitCount: newCount,
+          quantity: `${newWeight}g`,
+          proteins: Math.round(item.protDensity * newWeight * 10) / 10,
+          carbs: Math.round(item.carbsDensity * newWeight * 10) / 10,
+          fats: Math.round(item.fatsDensity * newWeight * 10) / 10,
+          calories: Math.round(
+            item.protDensity * newWeight * 4 +
+            item.carbsDensity * newWeight * 4 +
+            item.fatsDensity * newWeight * 9
+          ) * 10 / 10,
+        };
       })
     );
   };
@@ -494,7 +555,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           </div>
 
           {/* Items */}
-          {items.map((item, idx) => (
+           {items.map((item, idx) => (
             <div key={idx} className="bg-card rounded-xl p-3 shadow-card space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -521,6 +582,27 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
                   </button>
                 </div>
               </div>
+
+              {/* Unit counter for unit-based items */}
+              {item.unitCount && item.unitWeightG && (
+                <div className="flex items-center gap-3 bg-accent rounded-lg px-3 py-1.5">
+                  <span className="text-xs text-muted-foreground capitalize flex-1">{item.unitLabel}</span>
+                  <button
+                    onClick={() => updateItemUnits(idx, -1)}
+                    className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all"
+                  >
+                    <Minus className="w-3.5 h-3.5 text-foreground" />
+                  </button>
+                  <span className="text-sm font-bold min-w-[2ch] text-center">{item.unitCount}</span>
+                  <button
+                    onClick={() => updateItemUnits(idx, 1)}
+                    className="w-7 h-7 rounded-full nutri-gradient flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-primary-foreground" />
+                  </button>
+                  <span className="text-[10px] text-muted-foreground ml-1">({item.unitWeightG}g/u)</span>
+                </div>
+              )}
 
               {editingIdx === idx ? (
                 <div className="flex items-center gap-2">
