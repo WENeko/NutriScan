@@ -8,6 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
+import { parseUnitQuantity } from "@/lib/unit-detection";
 
 interface MealItem {
   name: string;
@@ -28,68 +29,10 @@ interface MealItem {
   potassium_mg?: number;
   magnesium_mg?: number;
   calcium_mg?: number;
-  /** Unit-based items (e.g. eggs, slices) */
   unitCount?: number;
   unitWeightG?: number;
   unitLabel?: string;
 }
-
-/** Unit food names — items naturally counted in units */
-const UNIT_FOOD_KEYWORDS = [
-  "oeuf", "oeufs", "egg", "eggs",
-  "tranche", "tranches", "slice", "slices",
-  "portion", "portions",
-  "pièce", "pièces", "piece", "pieces",
-  "unité", "unités", "unit", "units",
-  "biscuit", "biscuits", "cookie", "cookies",
-  "toast", "toasts",
-  "tartine", "tartines",
-  "galette", "galettes",
-  "crêpe", "crêpes", "pancake", "pancakes",
-  "morceau", "morceaux",
-  "cuillère", "cuillères",
-  "carré", "carrés",
-  "tomate cerise", "tomates cerise", "tomates cerises", "cherry tomato", "cherry tomatoes",
-  "olive", "olives",
-  "amande", "amandes", "noix", "noisette", "noisettes",
-  "datte", "dattes",
-  "abricot", "abricots sec", "abricots secs",
-  "radis",
-  "crevette", "crevettes", "shrimp",
-  "saucisse", "saucisses", "knack", "knacks",
-  "boulette", "boulettes",
-  "nugget", "nuggets",
-  "bonbon", "bonbons",
-  "fraise", "fraises", "strawberry",
-  "cerise", "cerises",
-  "cornichon", "cornichons",
-];
-
-/** Try to parse a unit-based quantity like "2 tranches (60g)" or "5 tomates cerise" */
-const parseUnitQuantity = (quantityStr: string, weightG: number, itemName: string): { unitCount: number; unitWeightG: number; unitLabel: string } | null => {
-  // First try from quantity string: "2 tranches", "5 tomates cerise"
-  const match = quantityStr?.match(/^(\d+)\s*(?:x\s*)?(.+?)(?:\s*\(.*\))?$/i);
-  if (match) {
-    const count = parseInt(match[1]);
-    const label = match[2].trim().toLowerCase();
-    if (count > 0 && UNIT_FOOD_KEYWORDS.some(k => label.includes(k) || k.includes(label))) {
-      return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: label };
-    }
-  }
-  // Fallback: check item name for unit-countable foods
-  const nameLower = (itemName || "").toLowerCase();
-  const nameMatch = UNIT_FOOD_KEYWORDS.find(k => nameLower.includes(k));
-  if (nameMatch && quantityStr) {
-    const qtyMatch = quantityStr.match(/^(\d+)/);
-    if (qtyMatch) {
-      const count = parseInt(qtyMatch[1]);
-      if (count > 0) {
-        return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: nameMatch };
-      }
-    }
-  }
-  return null;
-};
 
 interface MealInputProps {
   userId: string;
