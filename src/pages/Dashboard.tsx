@@ -351,6 +351,66 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               )}
             </section>
 
+            {/* Weekly calorie budget */}
+            {goals.calories > 0 && (
+              <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
+                {(() => {
+                  const weeklyTarget = goals.calories * 7;
+                  const expectedAtThisPoint = goals.calories * weekDaysElapsed;
+                  const diff = weekTotalCalories - expectedAtThisPoint;
+                  const absDiff = Math.abs(diff);
+                  const pct = weeklyTarget > 0 ? Math.min(weekTotalCalories / weeklyTarget, 1.3) : 0;
+                  const expectedPct = weeklyTarget > 0 ? expectedAtThisPoint / weeklyTarget : 0;
+                  const isDeficit = diff < -50;
+                  const isSurplus = diff > 50;
+
+                  return (
+                    <>
+                      <div className="flex items-center justify-between mb-2">
+                        <h3 className="font-display font-semibold text-sm">Budget Hebdo</h3>
+                        <span className="text-xs text-muted-foreground">
+                          J{weekDaysElapsed}/7
+                        </span>
+                      </div>
+
+                      {/* Progress bar */}
+                      <div className="relative h-3 bg-muted rounded-full overflow-hidden mb-2">
+                        {/* Expected marker */}
+                        <div
+                          className="absolute top-0 h-full w-0.5 bg-foreground/30 z-10"
+                          style={{ left: `${Math.min(expectedPct * 100, 100)}%` }}
+                        />
+                        {/* Actual progress */}
+                        <div
+                          className={`h-full rounded-full transition-all duration-700 ${
+                            isSurplus ? "bg-destructive" : isDeficit ? "bg-primary" : "bg-primary"
+                          }`}
+                          style={{ width: `${Math.min(pct * 100, 100)}%` }}
+                        />
+                      </div>
+
+                      <div className="flex items-center justify-between text-xs">
+                        <span className="text-muted-foreground">
+                          {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal
+                        </span>
+                        <span className={`font-bold ${
+                          isSurplus ? "text-destructive" : isDeficit ? "text-primary" : "text-muted-foreground"
+                        }`}>
+                          {isSurplus ? (
+                            <>▲ Surplus +{Math.round(absDiff)} kcal</>
+                          ) : isDeficit ? (
+                            <>▼ Déficit −{Math.round(absDiff)} kcal</>
+                          ) : (
+                            <>✓ Dans l'objectif</>
+                          )}
+                        </span>
+                      </div>
+                    </>
+                  );
+                })()}
+              </section>
+            )}
+
             {/* Weighin reminder */}
             <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
 
