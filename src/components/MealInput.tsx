@@ -49,11 +49,11 @@ const UNIT_FOOD_KEYWORDS = [
   "morceau", "morceaux",
   "cuillère", "cuillères",
   "carré", "carrés",
-  "tomate cerise", "tomates cerise", "tomates cerises", "cherry tomato", "cherry tomatoes",
+  "tomate", "tomates",
   "olive", "olives",
   "amande", "amandes", "noix", "noisette", "noisettes",
   "datte", "dattes",
-  "abricot", "abricots sec", "abricots secs",
+  "abricot", "abricots",
   "radis",
   "crevette", "crevettes", "shrimp",
   "saucisse", "saucisses", "knack", "knacks",
@@ -65,9 +65,9 @@ const UNIT_FOOD_KEYWORDS = [
   "cornichon", "cornichons",
 ];
 
-/** Try to parse a unit-based quantity like "2 tranches (60g)" or "5 tomates cerise" */
+/** Try to parse a unit-based quantity like "2 tranches", "5 tomates", "3 oeufs" */
 const parseUnitQuantity = (quantityStr: string, weightG: number, itemName: string): { unitCount: number; unitWeightG: number; unitLabel: string } | null => {
-  // First try from quantity string: "2 tranches", "5 tomates cerise"
+  // Try from quantity string: "2 tranches", "5 tomates"
   const match = quantityStr?.match(/^(\d+)\s*(?:x\s*)?(.+?)(?:\s*\(.*\))?$/i);
   if (match) {
     const count = parseInt(match[1]);
@@ -79,12 +79,14 @@ const parseUnitQuantity = (quantityStr: string, weightG: number, itemName: strin
   // Fallback: check item name for unit-countable foods
   const nameLower = (itemName || "").toLowerCase();
   const nameMatch = UNIT_FOOD_KEYWORDS.find(k => nameLower.includes(k));
-  if (nameMatch && quantityStr) {
-    const qtyMatch = quantityStr.match(/^(\d+)/);
-    if (qtyMatch) {
-      const count = parseInt(qtyMatch[1]);
-      if (count > 0) {
-        return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: nameMatch };
+  if (nameMatch) {
+    if (quantityStr) {
+      const qtyMatch = quantityStr.match(/(\d+)/);
+      if (qtyMatch) {
+        const count = parseInt(qtyMatch[1]);
+        if (count > 0 && count < 50) {
+          return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: nameMatch };
+        }
       }
     }
   }
