@@ -12,9 +12,18 @@ IMPORTANT - Extraction temporelle :
 Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
 
 IMPORTANT - Détection des aliments comptables en unités :
-Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut. Exemples :
-- Oeufs, tranches (jambon, pain de mie, fromage), portions (fromage type Kiri/Vache qui rit/Babybel), biscuits, tartines, crêpes, saucisses, nuggets, fruits entiers (pomme, banane, abricot), tomates cerises, olives, crevettes, boulettes, bonbons, etc.
-Si OUI, remplis ces 3 champs :
+Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut.
+
+RÈGLE PRINCIPALE : Si l'utilisateur mentionne un nombre SANS unité de poids ou volume après (g, kg, ml, cl, L), c'est un indice TRÈS FORT que cet aliment se compte en unités. Exemples :
+- "2 tranches de jambon" → 2 tranches (PAS de poids mentionné = unités)
+- "3 oeufs" → 3 oeufs (PAS de poids mentionné = unités)
+- "1 portion de Kiri" → 1 portion (PAS de poids mentionné = unités)
+- "200g de riz" → poids brut (unité de poids mentionnée = PAS d'unités)
+
+Autres cas où utiliser des unités même sans nombre explicite :
+- Oeufs, tranches (jambon, pain de mie, fromage, bacon), portions (fromage type Kiri/Vache qui rit/Babybel/triangle), biscuits, tartines, crêpes, saucisses, nuggets, fruits entiers (pomme, banane, abricot), tomates cerises, olives, crevettes, boulettes, bonbons, etc.
+
+Si l'aliment se compte en unités, remplis ces 3 champs :
 - "unit_count": nombre d'unités (entier, ex: 3)
 - "unit_weight_g": poids moyen d'UNE unité en grammes (entier, ex: 60)
 - "unit_label": libellé court de l'unité (ex: "oeuf", "tranche", "portion")
