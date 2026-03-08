@@ -290,9 +290,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
-            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible poids</span>}
-            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))" }} /> Cible gras</span>}
-            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))" }} /> Cible muscle</span>}
+            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-primary" style={{ borderTop: "1px dashed" }} /> Cible poids</span>}
+            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))", borderTop: "1px dashed" }} /> Cible gras</span>}
+            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))", borderTop: "1px dashed" }} /> Cible muscle</span>}
           </div>
         </section>
       )}
