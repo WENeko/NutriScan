@@ -16,7 +16,7 @@ interface EvolutionPageProps {
 }
 
 type Period = "7d" | "30d" | "all";
-type MicroKey = "sodium_mg" | "potassium_mg" | "fiber" | "omega3_mg";
+
 
 interface DayData {
   day: string;
@@ -44,12 +44,6 @@ interface BodyData {
   muscleMass: number | null;
 }
 
-const MICRO_OPTIONS: { id: MicroKey; label: string; color: string; unit: string }[] = [
-  { id: "fiber", label: "Fibres", color: "hsl(var(--primary))", unit: "g" },
-  { id: "sodium_mg", label: "Sodium", color: "hsl(var(--nutri-pink))", unit: "mg" },
-  { id: "potassium_mg", label: "Potassium", color: "hsl(var(--nutri-blue))", unit: "mg" },
-  { id: "omega3_mg", label: "Oméga-3", color: "hsl(var(--nutri-orange))", unit: "mg" },
-];
 
 const RADAR_MICROS = [
   { key: "fiber", label: "Fibres", goal: 30, unit: "g" },
@@ -66,7 +60,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
   const [bodyData, setBodyData] = useState<BodyData[]>([]);
-  const [selectedMicro, setSelectedMicro] = useState<MicroKey>("fiber");
+  
 
   useEffect(() => { fetchData(); }, [userId, period]);
 
@@ -153,12 +147,11 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     setBodyData(bodyArr);
   };
 
-  // Compute weekly (last 7 days) average for radar
+  // Compute average for radar based on current period
   const radarData = React.useMemo(() => {
-    const last7 = nutritionData.slice(-7);
-    const daysWithData = last7.filter((d) => d.calories > 0).length || 1;
+    const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
     return RADAR_MICROS.map((m) => {
-      const avg = last7.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
+      const avg = nutritionData.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
       const pct = Math.min(Math.round((avg / m.goal) * 100), 150);
       return { nutrient: m.label, value: pct, goal: 100, avg: Math.round(avg), goalVal: m.goal, unit: m.unit };
     });
@@ -178,7 +171,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   };
 
   const tickInterval = period === "7d" ? 0 : period === "30d" ? 4 : 29;
-  const microOption = MICRO_OPTIONS.find((m) => m.id === selectedMicro)!;
+  
 
   return (
     <div className="space-y-6">
@@ -232,34 +225,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
-      {/* Micronutrient evolution */}
+      {/* Micro Radar */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
-        <h3 className="font-display font-semibold text-sm mb-3">Nutriments Santé</h3>
-        <div className="flex rounded-lg bg-muted p-0.5 gap-0.5 mb-3">
-          {MICRO_OPTIONS.map((m) => (
-            <button key={m.id} onClick={() => setSelectedMicro(m.id)}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-semibold transition-all ${selectedMicro === m.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <div className="h-40">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={nutritionData} barSize={period === "7d" ? 16 : 4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={tickInterval} />
-              <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${Math.round(v)} ${microOption.unit}`, microOption.label]} />
-              <Bar dataKey={selectedMicro} fill={microOption.color} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      {/* Weekly Micro Radar */}
-      <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "175ms" }}>
-        <h3 className="font-display font-semibold text-sm mb-1">Bilan Micros Hebdo</h3>
-        <p className="text-[10px] text-muted-foreground mb-3">Moyenne 7 jours vs objectifs recommandés (%)</p>
+        <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
+        <p className="text-[10px] text-muted-foreground mb-3">Moyenne sur la période vs objectifs recommandés (%)</p>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData} outerRadius="75%">
@@ -315,9 +284,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
-            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible poids</span>}
-            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))" }} /> Cible gras</span>}
-            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))" }} /> Cible muscle</span>}
+            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-primary" style={{ borderTop: "1px dashed" }} /> Cible poids</span>}
+            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))", borderTop: "1px dashed" }} /> Cible gras</span>}
+            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))", borderTop: "1px dashed" }} /> Cible muscle</span>}
           </div>
         </section>
       )}
