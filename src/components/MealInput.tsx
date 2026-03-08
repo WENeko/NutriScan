@@ -424,7 +424,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           potassium_mg: item.potassium_mg || 0,
           magnesium_mg: item.magnesium_mg || 0,
           calcium_mg: item.calcium_mg || 0,
-        }))
+          unit_count: item.unitCount || null,
+          unit_weight_g: item.unitWeightG || null,
+          unit_label: item.unitLabel || null,
+        } as any))
       );
       if (itemsError) throw itemsError;
 

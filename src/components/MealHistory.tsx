@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -32,6 +32,9 @@ interface MealItem {
   vitamin_c_mg?: number | null;
   vitamin_d_mcg?: number | null;
   vitamin_e_mg?: number | null;
+  unitCount?: number | null;
+  unitWeightG?: number | null;
+  unitLabel?: string | null;
 }
 
 interface Meal {
@@ -138,7 +141,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             vitamin_c_mg: item.vitamin_c_mg,
             vitamin_d_mcg: item.vitamin_d_mcg,
             vitamin_e_mg: item.vitamin_e_mg,
-          }))
+            unit_count: item.unit_count,
+            unit_weight_g: item.unit_weight_g,
+            unit_label: item.unit_label,
+          } as any))
         );
       }
       toast({ title: "Repas dupliqué !" });
@@ -187,6 +193,9 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         vitamin_d_mcg: item.vitamin_d_mcg,
         vitamin_e_mg: item.vitamin_e_mg,
         isCustom: customNames.has(item.name?.toLowerCase()),
+        unitCount: item.unit_count || null,
+        unitWeightG: item.unit_weight_g || null,
+        unitLabel: item.unit_label || null,
       }));
       setEditItems(items);
       const densities = items.map((item: MealItem) => {
@@ -260,6 +269,41 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     setEditItems((prev) => prev.filter((_, i) => i !== idx));
     setEditDensities((prev) => prev.filter((_, i) => i !== idx));
     setEditWeightInputs((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const updateEditItemUnits = (idx: number, delta: number) => {
+    const item = editItems[idx];
+    const density = editDensities[idx];
+    if (!item?.unitCount || !item?.unitWeightG || !density) return;
+    const newCount = Math.max(1, item.unitCount + delta);
+    const newWeight = newCount * item.unitWeightG;
+    setEditWeightInputs((prev) => prev.map((v, i) => i === idx ? String(newWeight) : v));
+    setEditItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        return {
+          ...it,
+          unitCount: newCount,
+          quantity: `${newWeight}g`,
+          proteins: Math.round(density.protD * newWeight * 10) / 10,
+          carbs: Math.round(density.carbsD * newWeight * 10) / 10,
+          fats: Math.round(density.fatsD * newWeight * 10) / 10,
+          calories: Math.round(density.protD * newWeight * 4 + density.carbsD * newWeight * 4 + density.fatsD * newWeight * 9),
+          fiber: Math.round(density.fiberD * newWeight * 10) / 10,
+          sugar: Math.round(density.sugarD * newWeight * 10) / 10,
+          saturated_fat: Math.round(density.satFatD * newWeight * 10) / 10,
+          omega3_mg: Math.round(density.omega3D * newWeight * 10) / 10,
+          sodium_mg: Math.round(density.sodiumD * newWeight * 10) / 10,
+          potassium_mg: Math.round(density.potassiumD * newWeight * 10) / 10,
+          magnesium_mg: Math.round(density.magnesiumD * newWeight * 10) / 10,
+          calcium_mg: Math.round(density.calciumD * newWeight * 10) / 10,
+          vitamin_b_mg: Math.round(density.vitBD * newWeight * 10) / 10,
+          vitamin_c_mg: Math.round(density.vitCD * newWeight * 10) / 10,
+          vitamin_d_mcg: Math.round(density.vitDD * newWeight * 10) / 10,
+          vitamin_e_mg: Math.round(density.vitED * newWeight * 10) / 10,
+        };
+      })
+    );
   };
 
   // Add ingredient via AI text
@@ -422,7 +466,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             vitamin_c_mg: item.vitamin_c_mg || 0,
             vitamin_d_mcg: item.vitamin_d_mcg || 0,
             vitamin_e_mg: item.vitamin_e_mg || 0,
-          }))
+            unit_count: item.unitCount || null,
+            unit_weight_g: item.unitWeightG || null,
+            unit_label: item.unitLabel || null,
+          } as any))
         );
       }
       const totals = editItems.reduce(
@@ -531,25 +578,47 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               {/* Edit items */}
               <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>
               {editItems.map((item, i) => (
-                <div key={item.id || i} className="flex items-center gap-2 bg-card rounded-lg p-2">
-                  {item.isCustom && (
-                    <BadgeCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                  )}
-                  <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
-                  <div className="flex items-center gap-1">
-                     <NumericInput
-                       value={parseFloat(editWeightInputs[i] || "0") || 0}
-                       onChange={(v, raw) => updateEditItemWeight(i, raw)}
-                       className="w-16 h-7 text-xs rounded-md text-center"
-                     />
-                    <span className="text-[10px] text-muted-foreground">g</span>
+                <div key={item.id || i} className="bg-card rounded-lg p-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    {item.isCustom && (
+                      <BadgeCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                    )}
+                    <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
+                    <div className="flex items-center gap-1">
+                       <NumericInput
+                         value={parseFloat(editWeightInputs[i] || "0") || 0}
+                         onChange={(v, raw) => updateEditItemWeight(i, raw)}
+                         className="w-16 h-7 text-xs rounded-md text-center"
+                       />
+                      <span className="text-[10px] text-muted-foreground">g</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground w-10 text-right">
+                      {Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9)}
+                    </span>
+                    <button onClick={() => removeEditItem(i)} className="p-1 rounded hover:bg-destructive/10">
+                      <X className="w-3 h-3 text-destructive" />
+                    </button>
                   </div>
-                  <span className="text-[10px] text-muted-foreground w-10 text-right">
-                    {Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9)}
-                  </span>
-                  <button onClick={() => removeEditItem(i)} className="p-1 rounded hover:bg-destructive/10">
-                    <X className="w-3 h-3 text-destructive" />
-                  </button>
+                  {/* Unit counter */}
+                  {item.unitCount && item.unitWeightG && (
+                    <div className="flex items-center gap-2 bg-accent rounded-md px-2 py-1">
+                      <span className="text-[10px] text-muted-foreground capitalize flex-1">{item.unitLabel}</span>
+                      <button
+                        onClick={() => updateEditItemUnits(i, -1)}
+                        className="w-6 h-6 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95"
+                      >
+                        <Minus className="w-3 h-3 text-foreground" />
+                      </button>
+                      <span className="text-xs font-bold min-w-[2ch] text-center">{item.unitCount}</span>
+                      <button
+                        onClick={() => updateEditItemUnits(i, 1)}
+                        className="w-6 h-6 rounded-full nutri-gradient flex items-center justify-center hover:opacity-90 active:scale-95"
+                      >
+                        <Plus className="w-3 h-3 text-primary-foreground" />
+                      </button>
+                      <span className="text-[9px] text-muted-foreground">({item.unitWeightG}g/u)</span>
+                    </div>
+                  )}
                 </div>
               ))}
 
