@@ -214,6 +214,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
               <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={tickInterval} />
               <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
               <Tooltip contentStyle={tooltipStyle} formatter={(v: number, name: string) => [`${Math.round(v)}g`, name === "proteins" ? "Protéines" : name === "carbs" ? "Glucides" : "Lipides"]} />
+              <ReferenceLine y={proteinGoal} stroke="hsl(var(--nutri-blue))" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <ReferenceLine y={carbsGoal} stroke="hsl(var(--nutri-orange))" strokeDasharray="4 4" strokeOpacity={0.5} />
+              <ReferenceLine y={fatsGoal} stroke="hsl(var(--nutri-pink))" strokeDasharray="4 4" strokeOpacity={0.5} />
               <Line type="monotone" dataKey="proteins" stroke="hsl(var(--nutri-blue))" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="carbs" stroke="hsl(var(--nutri-orange))" strokeWidth={2} dot={false} />
               <Line type="monotone" dataKey="fats" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot={false} />
