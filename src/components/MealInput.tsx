@@ -34,6 +34,7 @@ interface MealItem {
   unitLabel?: string;
 }
 
+interface MealInputProps {
   userId: string;
   onMealSaved: () => void;
 }
