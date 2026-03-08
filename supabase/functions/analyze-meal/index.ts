@@ -11,8 +11,15 @@ const SYSTEM_PROMPT = `Tu es un nutritionniste expert. Analyse l'entrée (image 
 IMPORTANT - Extraction temporelle :
 Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
 
-IMPORTANT - Quantités en unités :
-Pour les aliments qui se comptent naturellement en unités (oeufs, tranches de jambon, tartines, biscuits, etc.), ajoute un champ "quantity" décrivant la quantité en unités, ex: "2 tranches", "3 oeufs", "1 portion". Cela permettra à l'utilisateur d'ajuster le nombre d'unités. Le champ "estimated_weight_g" doit contenir le poids total.
+IMPORTANT - Détection des aliments comptables en unités :
+Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut. Exemples :
+- Oeufs, tranches (jambon, pain de mie, fromage), portions (fromage type Kiri/Vache qui rit/Babybel), biscuits, tartines, crêpes, saucisses, nuggets, fruits entiers (pomme, banane, abricot), tomates cerises, olives, crevettes, boulettes, bonbons, etc.
+Si OUI, remplis ces 3 champs :
+- "unit_count": nombre d'unités (entier, ex: 3)
+- "unit_weight_g": poids moyen d'UNE unité en grammes (entier, ex: 60)
+- "unit_label": libellé court de l'unité (ex: "oeuf", "tranche", "portion")
+Le champ "estimated_weight_g" doit être = unit_count * unit_weight_g.
+Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne mets PAS ces champs.
 
 IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g) :
@@ -28,7 +35,9 @@ Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
     {
       "name": "string",
       "estimated_weight_g": 150,
-      "quantity": "2 tranches" (optionnel, pour aliments comptés en unités),
+      "unit_count": 3 (optionnel),
+      "unit_weight_g": 50 (optionnel),
+      "unit_label": "portion" (optionnel),
       "calories": 250,
       "proteins": 25,
       "carbs": 2,
