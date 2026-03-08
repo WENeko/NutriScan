@@ -285,6 +285,7 @@ export type Database = {
           weighin_day: number | null
           weighin_frequency: string | null
           weighin_hour: number | null
+          weighin_minute: number | null
           weight_kg: number | null
         }
         Insert: {
@@ -312,6 +313,7 @@ export type Database = {
           weighin_day?: number | null
           weighin_frequency?: string | null
           weighin_hour?: number | null
+          weighin_minute?: number | null
           weight_kg?: number | null
         }
         Update: {
@@ -339,6 +341,7 @@ export type Database = {
           weighin_day?: number | null
           weighin_frequency?: string | null
           weighin_hour?: number | null
+          weighin_minute?: number | null
           weight_kg?: number | null
         }
         Relationships: []

@@ -59,6 +59,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weighinFrequency, setWeighinFrequency] = useState<string>("weekly");
   const [weighinDay, setWeighinDay] = useState<number>(1);
   const [weighinHour, setWeighinHour] = useState<number>(8);
+  const [weighinMinute, setWeighinMinute] = useState<number>(0);
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
 
@@ -94,6 +95,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_frequency) setWeighinFrequency(d.weighin_frequency);
       if (d.weighin_day !== null && d.weighin_day !== undefined) setWeighinDay(Number(d.weighin_day));
       if (d.weighin_hour !== null && d.weighin_hour !== undefined) setWeighinHour(Number(d.weighin_hour));
+      if ((d as any).weighin_minute !== null && (d as any).weighin_minute !== undefined) setWeighinMinute(Number((d as any).weighin_minute));
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
@@ -156,6 +158,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           weighin_frequency: weighinFrequency,
           weighin_day: weighinDay,
           weighin_hour: weighinHour,
+          weighin_minute: weighinMinute,
           last_weighin_date: null, // will be set on actual weigh-in
           goals: { ...targets, goalType } as any,
         } as any)
@@ -410,8 +413,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <div>
               <Label className="text-xs text-muted-foreground mb-1.5 block">Heure</Label>
               <div className="flex items-center gap-2">
-                <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-20" />
-                <span className="text-sm text-muted-foreground">h00</span>
+              <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
+                <span className="text-sm text-muted-foreground">h</span>
+                <NumericInput value={weighinMinute} onChange={(v) => setWeighinMinute(Math.min(59, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
               </div>
             </div>
           </div>
