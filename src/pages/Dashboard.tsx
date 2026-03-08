@@ -327,6 +327,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               )}
             </section>
 
+            {/* Weighin reminder */}
+            <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
+
             {/* Electrolyte recovery warning */}
             {showElectrolyteWarning && (
               <section className="bg-secondary/10 border border-secondary/30 rounded-2xl p-4 animate-fade-up flex items-start gap-3">
