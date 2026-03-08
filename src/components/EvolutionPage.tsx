@@ -232,34 +232,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
-      {/* Micronutrient evolution */}
+      {/* Micro Radar */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
-        <h3 className="font-display font-semibold text-sm mb-3">Nutriments Santé</h3>
-        <div className="flex rounded-lg bg-muted p-0.5 gap-0.5 mb-3">
-          {MICRO_OPTIONS.map((m) => (
-            <button key={m.id} onClick={() => setSelectedMicro(m.id)}
-              className={`flex-1 py-1.5 rounded-md text-[10px] font-semibold transition-all ${selectedMicro === m.id ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"}`}>
-              {m.label}
-            </button>
-          ))}
-        </div>
-        <div className="h-40">
-          <ResponsiveContainer width="100%" height="100%">
-            <BarChart data={nutritionData} barSize={period === "7d" ? 16 : 4}>
-              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
-              <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" interval={tickInterval} />
-              <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-              <Tooltip contentStyle={tooltipStyle} formatter={(v: number) => [`${Math.round(v)} ${microOption.unit}`, microOption.label]} />
-              <Bar dataKey={selectedMicro} fill={microOption.color} radius={[4, 4, 0, 0]} />
-            </BarChart>
-          </ResponsiveContainer>
-        </div>
-      </section>
-
-      {/* Weekly Micro Radar */}
-      <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "175ms" }}>
-        <h3 className="font-display font-semibold text-sm mb-1">Bilan Micros Hebdo</h3>
-        <p className="text-[10px] text-muted-foreground mb-3">Moyenne 7 jours vs objectifs recommandés (%)</p>
+        <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
+        <p className="text-[10px] text-muted-foreground mb-3">Moyenne sur la période vs objectifs recommandés (%)</p>
         <div className="h-64">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData} outerRadius="75%">
