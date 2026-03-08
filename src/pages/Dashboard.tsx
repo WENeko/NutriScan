@@ -390,7 +390,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         )}
 
         {activeTab === "evolution" && (
-          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} />
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} />
         )}
 
         {activeTab === "library" && (
