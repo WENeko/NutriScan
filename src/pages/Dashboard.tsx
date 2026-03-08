@@ -391,7 +391,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
                 </button>
                 {showFavorites && (
-                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} />
+                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
                 )}
               </section>
             )}
