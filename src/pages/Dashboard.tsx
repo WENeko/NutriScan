@@ -75,6 +75,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeight(Number(profile.weight_kg) || 70);
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
       setTargetWeight((profile as any).target_weight_kg ? Number((profile as any).target_weight_kg) : null);
+      setTargetBodyFat((profile as any).target_body_fat_percent ? Number((profile as any).target_body_fat_percent) : null);
+      setTargetMuscleMass((profile as any).target_muscle_mass_kg ? Number((profile as any).target_muscle_mass_kg) : null);
 
       const weekAgo = subDays(new Date(), 6);
       const { data: weekBody } = await supabase
