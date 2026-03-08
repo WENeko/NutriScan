@@ -48,6 +48,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [weight, setWeight] = useState(70);
   const [sportCalories, setSportCalories] = useState(0);
   const [targetWeight, setTargetWeight] = useState<number | null>(null);
+  const [targetBodyFat, setTargetBodyFat] = useState<number | null>(null);
+  const [targetMuscleMass, setTargetMuscleMass] = useState<number | null>(null);
   const [proteinTargetPerKg, setProteinTargetPerKg] = useState(2.0);
   const [todayMicros, setTodayMicros] = useState({
     fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
