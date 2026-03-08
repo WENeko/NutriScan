@@ -158,6 +158,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           weighin_frequency: weighinFrequency,
           weighin_day: weighinDay,
           weighin_hour: weighinHour,
+          weighin_minute: weighinMinute,
           last_weighin_date: null, // will be set on actual weigh-in
           goals: { ...targets, goalType } as any,
         } as any)
