@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { ThemeProvider } from "@/components/ThemeProvider";
 import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
