@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette } from "lucide-react";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 
