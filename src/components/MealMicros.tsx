@@ -2,24 +2,26 @@ import React, { useState, useEffect, useId } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTooltipCtx } from "./TooltipContext";
+import { getMicroInfo, type MicroGoals } from "@/lib/micro-goals";
 
 interface MealMicrosProps {
   mealId: string;
+  microGoals?: MicroGoals;
 }
 
-const MICRO_META = [
-  { key: "fiber", name: "Fibres", unit: "g", info: "Digestion et satiété. Objectif : 25-35g/jour." },
-  { key: "sugar", name: "Sucres", unit: "g", info: "Glucides simples. Limitez à <50g/jour." },
-  { key: "saturated_fat", name: "AG Saturés", unit: "g", info: "Santé cardiovasculaire. Limitez à <20g/jour." },
-  { key: "omega3_mg", name: "Oméga-3", unit: "mg", info: "Inflammation et santé cardiaque. 250-500mg/jour." },
-  { key: "sodium_mg", name: "Sodium", unit: "mg", info: "Équilibre hydrique et congestion. <2300mg/jour." },
-  { key: "potassium_mg", name: "Potassium", unit: "mg", info: "Équilibre hydrique et congestion. 3500mg/jour." },
-  { key: "magnesium_mg", name: "Magnésium", unit: "mg", info: "Récupération et santé osseuse. 400mg/jour." },
-  { key: "calcium_mg", name: "Calcium", unit: "mg", info: "Récupération et santé osseuse. 1000mg/jour." },
-  { key: "vitamin_b_mg", name: "Vitamine B", unit: "mg", info: "Énergie et système nerveux." },
-  { key: "vitamin_c_mg", name: "Vitamine C", unit: "mg", info: "Antioxydants. 90mg/jour." },
-  { key: "vitamin_d_mcg", name: "Vitamine D", unit: "µg", info: "Immunité et hormones. 15µg/jour." },
-  { key: "vitamin_e_mg", name: "Vitamine E", unit: "mg", info: "Antioxydants. 15mg/jour." },
+const MICRO_KEYS: { key: string; name: string; unit: string; goalKey: keyof MicroGoals }[] = [
+  { key: "fiber", name: "Fibres", unit: "g", goalKey: "fiber" },
+  { key: "sugar", name: "Sucres", unit: "g", goalKey: "sugar" },
+  { key: "saturated_fat", name: "AG Saturés", unit: "g", goalKey: "saturated_fat" },
+  { key: "omega3_mg", name: "Oméga-3", unit: "mg", goalKey: "omega3_mg" },
+  { key: "sodium_mg", name: "Sodium", unit: "mg", goalKey: "sodium_mg" },
+  { key: "potassium_mg", name: "Potassium", unit: "mg", goalKey: "potassium_mg" },
+  { key: "magnesium_mg", name: "Magnésium", unit: "mg", goalKey: "magnesium_mg" },
+  { key: "calcium_mg", name: "Calcium", unit: "mg", goalKey: "calcium_mg" },
+  { key: "vitamin_b_mg", name: "Vitamine B", unit: "mg", goalKey: "vitamin_b_mg" },
+  { key: "vitamin_c_mg", name: "Vitamine C", unit: "mg", goalKey: "vitamin_c_mg" },
+  { key: "vitamin_d_mcg", name: "Vitamine D", unit: "µg", goalKey: "vitamin_d_mcg" },
+  { key: "vitamin_e_mg", name: "Vitamine E", unit: "mg", goalKey: "vitamin_e_mg" },
 ];
 
 const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
