@@ -268,6 +268,41 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     setEditWeightInputs((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const updateEditItemUnits = (idx: number, delta: number) => {
+    const item = editItems[idx];
+    const density = editDensities[idx];
+    if (!item?.unitCount || !item?.unitWeightG || !density) return;
+    const newCount = Math.max(1, item.unitCount + delta);
+    const newWeight = newCount * item.unitWeightG;
+    setEditWeightInputs((prev) => prev.map((v, i) => i === idx ? String(newWeight) : v));
+    setEditItems((prev) =>
+      prev.map((it, i) => {
+        if (i !== idx) return it;
+        return {
+          ...it,
+          unitCount: newCount,
+          quantity: `${newWeight}g`,
+          proteins: Math.round(density.protD * newWeight * 10) / 10,
+          carbs: Math.round(density.carbsD * newWeight * 10) / 10,
+          fats: Math.round(density.fatsD * newWeight * 10) / 10,
+          calories: Math.round(density.protD * newWeight * 4 + density.carbsD * newWeight * 4 + density.fatsD * newWeight * 9),
+          fiber: Math.round(density.fiberD * newWeight * 10) / 10,
+          sugar: Math.round(density.sugarD * newWeight * 10) / 10,
+          saturated_fat: Math.round(density.satFatD * newWeight * 10) / 10,
+          omega3_mg: Math.round(density.omega3D * newWeight * 10) / 10,
+          sodium_mg: Math.round(density.sodiumD * newWeight * 10) / 10,
+          potassium_mg: Math.round(density.potassiumD * newWeight * 10) / 10,
+          magnesium_mg: Math.round(density.magnesiumD * newWeight * 10) / 10,
+          calcium_mg: Math.round(density.calciumD * newWeight * 10) / 10,
+          vitamin_b_mg: Math.round(density.vitBD * newWeight * 10) / 10,
+          vitamin_c_mg: Math.round(density.vitCD * newWeight * 10) / 10,
+          vitamin_d_mcg: Math.round(density.vitDD * newWeight * 10) / 10,
+          vitamin_e_mg: Math.round(density.vitED * newWeight * 10) / 10,
+        };
+      })
+    );
+  };
+
   // Add ingredient via AI text
   const addIngredientText = async () => {
     if (!addTextInput.trim()) return;
