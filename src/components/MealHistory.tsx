@@ -190,6 +190,9 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         vitamin_d_mcg: item.vitamin_d_mcg,
         vitamin_e_mg: item.vitamin_e_mg,
         isCustom: customNames.has(item.name?.toLowerCase()),
+        unitCount: item.unit_count || null,
+        unitWeightG: item.unit_weight_g || null,
+        unitLabel: item.unit_label || null,
       }));
       setEditItems(items);
       const densities = items.map((item: MealItem) => {
