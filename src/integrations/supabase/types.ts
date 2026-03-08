@@ -149,6 +149,9 @@ export type Database = {
           saturated_fat: number | null
           sodium_mg: number | null
           sugar: number | null
+          unit_count: number | null
+          unit_label: string | null
+          unit_weight_g: number | null
           vitamin_b_mg: number | null
           vitamin_c_mg: number | null
           vitamin_d_mcg: number | null
@@ -171,6 +174,9 @@ export type Database = {
           saturated_fat?: number | null
           sodium_mg?: number | null
           sugar?: number | null
+          unit_count?: number | null
+          unit_label?: string | null
+          unit_weight_g?: number | null
           vitamin_b_mg?: number | null
           vitamin_c_mg?: number | null
           vitamin_d_mcg?: number | null
@@ -193,6 +199,9 @@ export type Database = {
           saturated_fat?: number | null
           sodium_mg?: number | null
           sugar?: number | null
+          unit_count?: number | null
+          unit_label?: string | null
+          unit_weight_g?: number | null
           vitamin_b_mg?: number | null
           vitamin_c_mg?: number | null
           vitamin_d_mcg?: number | null
