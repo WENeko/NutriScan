@@ -32,6 +32,9 @@ interface MealItem {
   vitamin_c_mg?: number | null;
   vitamin_d_mcg?: number | null;
   vitamin_e_mg?: number | null;
+  unitCount?: number | null;
+  unitWeightG?: number | null;
+  unitLabel?: string | null;
 }
 
 interface Meal {
