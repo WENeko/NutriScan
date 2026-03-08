@@ -174,15 +174,17 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   
 
   return (
-    <div className="space-y-6">
-      {/* Period selector */}
-      <div className="flex rounded-xl bg-muted p-1 gap-1">
-        {periods.map((p) => (
-          <button key={p.id} onClick={() => setPeriod(p.id)}
-            className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${period === p.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"}`}>
-            {p.label}
-          </button>
-        ))}
+    <div className="space-y-6 pt-14">
+      {/* Period selector - sticky */}
+      <div className="fixed top-0 left-0 right-0 z-30 bg-background/95 backdrop-blur-sm px-4 py-2">
+        <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
+          {periods.map((p) => (
+            <button key={p.id} onClick={() => setPeriod(p.id)}
+              className={`flex-1 py-2.5 rounded-lg text-xs font-semibold transition-all ${period === p.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"}`}>
+              {p.label}
+            </button>
+          ))}
+        </div>
       </div>
 
       {/* Calories vs Goal */}
