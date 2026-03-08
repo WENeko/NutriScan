@@ -153,12 +153,11 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     setBodyData(bodyArr);
   };
 
-  // Compute weekly (last 7 days) average for radar
+  // Compute average for radar based on current period
   const radarData = React.useMemo(() => {
-    const last7 = nutritionData.slice(-7);
-    const daysWithData = last7.filter((d) => d.calories > 0).length || 1;
+    const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
     return RADAR_MICROS.map((m) => {
-      const avg = last7.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
+      const avg = nutritionData.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
       const pct = Math.min(Math.round((avg / m.goal) * 100), 150);
       return { nutrient: m.label, value: pct, goal: 100, avg: Math.round(avg), goalVal: m.goal, unit: m.unit };
     });
