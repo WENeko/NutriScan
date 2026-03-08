@@ -10,6 +10,7 @@ import NumericInput from "./NumericInput";
 import MealMicros from "./MealMicros";
 import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
+import { parseUnitQuantity } from "@/lib/unit-detection";
 
 interface MealItem {
   id: string;
