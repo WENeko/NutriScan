@@ -8,7 +8,7 @@ import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
-import { parseUnitQuantity } from "@/lib/unit-detection";
+
 
 interface MealItem {
   name: string;
