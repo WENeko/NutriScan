@@ -315,7 +315,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
-            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible</span>}
+            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible poids</span>}
+            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))" }} /> Cible gras</span>}
+            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))" }} /> Cible muscle</span>}
           </div>
         </section>
       )}
