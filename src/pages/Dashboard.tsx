@@ -138,7 +138,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       const weekAgo = subDays(new Date(), 6);
       const weekMeals = typedMeals.filter((m) => new Date(m.timestamp) >= startOfDay(weekAgo));
       const weekTotal = weekMeals.reduce((acc, m) => acc + Number(m.total_calories), 0);
+      setWeekTotalCalories(Math.round(weekTotal));
       setWeekAvgCalories(Math.round(weekTotal / 7));
+
+      // Count distinct days in the week with data, but use calendar days elapsed for budget
+      const now = new Date();
+      const dayOfWeek = now.getDay(); // 0=Sun
+      const mondayBased = dayOfWeek === 0 ? 7 : dayOfWeek; // 1=Mon..7=Sun
+      setWeekDaysElapsed(mondayBased);
 
       // Fetch today's micros
       const todayMealIds = today.map((m) => m.id);
