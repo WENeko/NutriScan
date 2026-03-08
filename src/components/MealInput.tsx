@@ -555,7 +555,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           </div>
 
           {/* Items */}
-          {items.map((item, idx) => (
+           {items.map((item, idx) => (
             <div key={idx} className="bg-card rounded-xl p-3 shadow-card space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
@@ -582,6 +582,27 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
                   </button>
                 </div>
               </div>
+
+              {/* Unit counter for unit-based items */}
+              {item.unitCount && item.unitWeightG && (
+                <div className="flex items-center gap-3 bg-accent rounded-lg px-3 py-1.5">
+                  <span className="text-xs text-muted-foreground capitalize flex-1">{item.unitLabel}</span>
+                  <button
+                    onClick={() => updateItemUnits(idx, -1)}
+                    className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all"
+                  >
+                    <Minus className="w-3.5 h-3.5 text-foreground" />
+                  </button>
+                  <span className="text-sm font-bold min-w-[2ch] text-center">{item.unitCount}</span>
+                  <button
+                    onClick={() => updateItemUnits(idx, 1)}
+                    className="w-7 h-7 rounded-full nutri-gradient flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-primary-foreground" />
+                  </button>
+                  <span className="text-[10px] text-muted-foreground ml-1">({item.unitWeightG}g/u)</span>
+                </div>
+              )}
 
               {editingIdx === idx ? (
                 <div className="flex items-center gap-2">
