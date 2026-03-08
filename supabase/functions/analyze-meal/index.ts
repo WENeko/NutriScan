@@ -15,10 +15,14 @@ IMPORTANT - Détection des aliments comptables en unités :
 Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut.
 
 RÈGLE PRINCIPALE : Si l'utilisateur mentionne un nombre SANS unité de poids ou volume après (g, kg, ml, cl, L), c'est un indice TRÈS FORT que cet aliment se compte en unités. Exemples :
-- "2 tranches de jambon" → 2 tranches (PAS de poids mentionné = unités)
-- "3 oeufs" → 3 oeufs (PAS de poids mentionné = unités)
-- "1 portion de Kiri" → 1 portion (PAS de poids mentionné = unités)
+- "2 tranches de jambon" → unit_count=2, unit_label="tranche" (PAS de poids mentionné = unités)
+- "3 oeufs" → unit_count=3, unit_label="oeuf" (PAS de poids mentionné = unités)
+- "1 portion de Kiri" → unit_count=1, unit_label="portion" (PAS de poids mentionné = unités)
+- "2 fromages triangle" → unit_count=2, unit_label="triangle" (PAS de poids mentionné = unités)
+- "2 Babybel" → unit_count=2, unit_label="portion" (PAS de poids mentionné = unités)
+- "4 biscuits" → unit_count=4, unit_label="biscuit" (PAS de poids mentionné = unités)
 - "200g de riz" → poids brut (unité de poids mentionnée = PAS d'unités)
+En résumé : nombre + nom d'aliment SANS g/kg/ml/cl/L = TOUJOURS utiliser unit_count/unit_label/unit_weight_g.
 
 Autres cas où utiliser des unités même sans nombre explicite :
 - Oeufs, tranches (jambon, pain de mie, fromage, bacon), portions (fromage type Kiri/Vache qui rit/Babybel/triangle), biscuits, tartines, crêpes, saucisses, nuggets, fruits entiers (pomme, banane, abricot), tomates cerises, olives, crevettes, boulettes, bonbons, etc.
