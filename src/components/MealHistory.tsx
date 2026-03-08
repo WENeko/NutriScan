@@ -578,25 +578,47 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               {/* Edit items */}
               <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>
               {editItems.map((item, i) => (
-                <div key={item.id || i} className="flex items-center gap-2 bg-card rounded-lg p-2">
-                  {item.isCustom && (
-                    <BadgeCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />
-                  )}
-                  <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
-                  <div className="flex items-center gap-1">
-                     <NumericInput
-                       value={parseFloat(editWeightInputs[i] || "0") || 0}
-                       onChange={(v, raw) => updateEditItemWeight(i, raw)}
-                       className="w-16 h-7 text-xs rounded-md text-center"
-                     />
-                    <span className="text-[10px] text-muted-foreground">g</span>
+                <div key={item.id || i} className="bg-card rounded-lg p-2 space-y-1.5">
+                  <div className="flex items-center gap-2">
+                    {item.isCustom && (
+                      <BadgeCheck className="w-3.5 h-3.5 text-primary flex-shrink-0" />
+                    )}
+                    <Input value={item.name} onChange={(e) => updateEditItemName(i, e.target.value)} className="h-7 text-xs rounded-md flex-1" />
+                    <div className="flex items-center gap-1">
+                       <NumericInput
+                         value={parseFloat(editWeightInputs[i] || "0") || 0}
+                         onChange={(v, raw) => updateEditItemWeight(i, raw)}
+                         className="w-16 h-7 text-xs rounded-md text-center"
+                       />
+                      <span className="text-[10px] text-muted-foreground">g</span>
+                    </div>
+                    <span className="text-[10px] text-muted-foreground w-10 text-right">
+                      {Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9)}
+                    </span>
+                    <button onClick={() => removeEditItem(i)} className="p-1 rounded hover:bg-destructive/10">
+                      <X className="w-3 h-3 text-destructive" />
+                    </button>
                   </div>
-                  <span className="text-[10px] text-muted-foreground w-10 text-right">
-                    {Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9)}
-                  </span>
-                  <button onClick={() => removeEditItem(i)} className="p-1 rounded hover:bg-destructive/10">
-                    <X className="w-3 h-3 text-destructive" />
-                  </button>
+                  {/* Unit counter */}
+                  {item.unitCount && item.unitWeightG && (
+                    <div className="flex items-center gap-2 bg-accent rounded-md px-2 py-1">
+                      <span className="text-[10px] text-muted-foreground capitalize flex-1">{item.unitLabel}</span>
+                      <button
+                        onClick={() => updateEditItemUnits(i, -1)}
+                        className="w-6 h-6 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95"
+                      >
+                        <Minus className="w-3 h-3 text-foreground" />
+                      </button>
+                      <span className="text-xs font-bold min-w-[2ch] text-center">{item.unitCount}</span>
+                      <button
+                        onClick={() => updateEditItemUnits(i, 1)}
+                        className="w-6 h-6 rounded-full nutri-gradient flex items-center justify-center hover:opacity-90 active:scale-95"
+                      >
+                        <Plus className="w-3 h-3 text-primary-foreground" />
+                      </button>
+                      <span className="text-[9px] text-muted-foreground">({item.unitWeightG}g/u)</span>
+                    </div>
+                  )}
                 </div>
               ))}
 
