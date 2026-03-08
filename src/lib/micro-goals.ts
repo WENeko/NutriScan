@@ -26,7 +26,7 @@ export interface MicroGoals {
 }
 
 const isActive = (level?: string | null) =>
-  level === "active" || level === "very_active";
+  level === "active" || level === "very_active" || level === "athletic";
 
 export function getPersonalizedMicroGoals(profile: UserProfile): MicroGoals {
   const isMale = profile.gender !== "female";
