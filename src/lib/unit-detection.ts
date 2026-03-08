@@ -66,12 +66,13 @@ export const parseUnitQuantity = (
   weightG: number,
   itemName: string
 ): { unitCount: number; unitWeightG: number; unitLabel: string } | null => {
-  // Try from quantity string: "2 tranches", "5 tomates"
-  const match = quantityStr?.match(/^(\d+)\s*(?:x\s*)?(.+?)(?:\s*\(.*\))?$/i);
+  // Try from quantity string: "2 tranches", "5 tomates" (but NOT "50g")
+  const match = quantityStr?.match(/^(\d+)\s*(?:x\s*)?([a-zA-ZÀ-ÿ].+?)(?:\s*\(.*\))?$/i);
   if (match) {
     const count = parseInt(match[1]);
     const label = match[2].trim().toLowerCase();
-    if (count > 0 && UNIT_FOOD_KEYWORDS.some(k => label.includes(k) || k.includes(label))) {
+    // Require label to be at least 2 chars and match a keyword
+    if (count > 0 && label.length >= 2 && UNIT_FOOD_KEYWORDS.some(k => label.includes(k) || (label.length >= 3 && k.includes(label)))) {
       return { unitCount: count, unitWeightG: Math.round(weightG / count), unitLabel: label };
     }
   }
