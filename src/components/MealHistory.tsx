@@ -141,7 +141,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             vitamin_c_mg: item.vitamin_c_mg,
             vitamin_d_mcg: item.vitamin_d_mcg,
             vitamin_e_mg: item.vitamin_e_mg,
-          }))
+            unit_count: item.unit_count,
+            unit_weight_g: item.unit_weight_g,
+            unit_label: item.unit_label,
+          } as any))
         );
       }
       toast({ title: "Repas dupliqué !" });
