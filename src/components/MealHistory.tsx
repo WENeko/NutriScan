@@ -174,13 +174,24 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
       const customNames = new Set((customFoods || []).map((f: any) => f.name.toLowerCase()));
 
       const items = (data || []).map((item: any) => {
-        const w = parseFloat(item.quantity || "100") || 100;
+        // Extract weight: if quantity looks like "150g" or "150" use it, otherwise estimate from macros
+        const qtyStr = item.quantity || "";
+        const gMatch = qtyStr.match(/^(\d+(?:\.\d+)?)\s*g?$/i);
+        let w: number;
+        if (gMatch) {
+          w = parseFloat(gMatch[1]) || 100;
+        } else {
+          // Estimate weight from calories (back-calculate: cal = P*4 + C*4 + F*9)
+          const estimatedCal = (item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9;
+          // Use a rough density of ~1.5 kcal/g as fallback to estimate weight
+          w = estimatedCal > 0 ? Math.round(estimatedCal / 1.5) : 100;
+        }
         // Load saved unit data or detect retroactively
         let unitCount = item.unit_count || null;
         let unitWeightG = item.unit_weight_g || null;
         let unitLabel = item.unit_label || null;
         if (!unitCount && item.name) {
-          const detected = parseUnitQuantity(item.quantity || "", w, item.name);
+          const detected = parseUnitQuantity(qtyStr, w, item.name);
           if (detected) {
             unitCount = detected.unitCount;
             unitWeightG = detected.unitWeightG;
