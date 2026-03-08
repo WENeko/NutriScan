@@ -199,7 +199,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
       // Detect unit-based quantity from AI response
       const rawQuantity = item.quantity || item.estimated_quantity || "";
-      const unitInfo = parseUnitQuantity(rawQuantity, weight);
+      const unitInfo = parseUnitQuantity(rawQuantity, weight, item.name || "");
 
       return {
         name: item.name,
