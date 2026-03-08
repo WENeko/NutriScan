@@ -463,6 +463,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
         </section>
 
+        {/* Theme */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+          <div className="flex items-center gap-2 mb-4">
+            <Palette className="w-4 h-4 text-primary" />
+            <h2 className="font-display font-semibold text-base">Thème d'affichage</h2>
+          </div>
+          <ThemeSwitcher />
+        </section>
+
         <Button
           onClick={handleSave}
           disabled={saving}
