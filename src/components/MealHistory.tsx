@@ -173,31 +173,46 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         .eq("user_id", userId);
       const customNames = new Set((customFoods || []).map((f: any) => f.name.toLowerCase()));
 
-      const items = (data || []).map((item: any) => ({
-        id: item.id,
-        name: item.name,
-        quantity: item.quantity,
-        calories: item.calories,
-        proteins: item.proteins,
-        carbs: item.carbs,
-        fats: item.fats,
-        fiber: item.fiber,
-        sugar: item.sugar,
-        saturated_fat: item.saturated_fat,
-        omega3_mg: item.omega3_mg,
-        sodium_mg: item.sodium_mg,
-        potassium_mg: item.potassium_mg,
-        magnesium_mg: item.magnesium_mg,
-        calcium_mg: item.calcium_mg,
-        vitamin_b_mg: item.vitamin_b_mg,
-        vitamin_c_mg: item.vitamin_c_mg,
-        vitamin_d_mcg: item.vitamin_d_mcg,
-        vitamin_e_mg: item.vitamin_e_mg,
-        isCustom: customNames.has(item.name?.toLowerCase()),
-        unitCount: item.unit_count || null,
-        unitWeightG: item.unit_weight_g || null,
-        unitLabel: item.unit_label || null,
-      }));
+      const items = (data || []).map((item: any) => {
+        const w = parseFloat(item.quantity || "100") || 100;
+        // Load saved unit data or detect retroactively
+        let unitCount = item.unit_count || null;
+        let unitWeightG = item.unit_weight_g || null;
+        let unitLabel = item.unit_label || null;
+        if (!unitCount && item.name) {
+          const detected = parseUnitQuantity(item.quantity || "", w, item.name);
+          if (detected) {
+            unitCount = detected.unitCount;
+            unitWeightG = detected.unitWeightG;
+            unitLabel = detected.unitLabel;
+          }
+        }
+        return {
+          id: item.id,
+          name: item.name,
+          quantity: item.quantity,
+          calories: item.calories,
+          proteins: item.proteins,
+          carbs: item.carbs,
+          fats: item.fats,
+          fiber: item.fiber,
+          sugar: item.sugar,
+          saturated_fat: item.saturated_fat,
+          omega3_mg: item.omega3_mg,
+          sodium_mg: item.sodium_mg,
+          potassium_mg: item.potassium_mg,
+          magnesium_mg: item.magnesium_mg,
+          calcium_mg: item.calcium_mg,
+          vitamin_b_mg: item.vitamin_b_mg,
+          vitamin_c_mg: item.vitamin_c_mg,
+          vitamin_d_mcg: item.vitamin_d_mcg,
+          vitamin_e_mg: item.vitamin_e_mg,
+          isCustom: customNames.has(item.name?.toLowerCase()),
+          unitCount,
+          unitWeightG,
+          unitLabel,
+        };
+      });
       setEditItems(items);
       const densities = items.map((item: MealItem) => {
         const w = parseFloat(item.quantity || "100") || 100;
