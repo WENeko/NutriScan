@@ -11,6 +11,8 @@ interface EvolutionPageProps {
   carbsGoal: number;
   fatsGoal: number;
   targetWeight?: number | null;
+  targetBodyFat?: number | null;
+  targetMuscleMass?: number | null;
 }
 
 type Period = "7d" | "30d" | "all";
