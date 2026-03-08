@@ -60,7 +60,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
   const [bodyData, setBodyData] = useState<BodyData[]>([]);
-  const [selectedMicro, setSelectedMicro] = useState<MicroKey>("fiber");
+  
 
   useEffect(() => { fetchData(); }, [userId, period]);
 
