@@ -404,15 +404,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <div>
                 <Label className="text-xs text-muted-foreground mb-1.5 block">Jour</Label>
                 <div className="flex gap-1">
-                  {WEEKDAYS.map((d, i) => (
+                  {WEEKDAYS.map((d) => (
                     <button
-                      key={i}
-                      onClick={() => setWeighinDay(i)}
+                      key={d.day}
+                      onClick={() => setWeighinDay(d.day)}
                       className={`flex-1 py-2 rounded-lg text-[10px] font-semibold transition-all ${
-                        weighinDay === i ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                        weighinDay === d.day ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
                       }`}
                     >
-                      {d}
+                      {d.label}
                     </button>
                   ))}
                 </div>
