@@ -4,7 +4,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette } from "lucide-react";
+import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 
@@ -460,6 +461,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <div className="font-bold">{targets.fats}g <span className="text-[10px] font-normal text-muted-foreground">(25% des calories)</span></div>
             </div>
           </div>
+        </section>
+
+        {/* Theme */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+          <div className="flex items-center gap-2 mb-4">
+            <Palette className="w-4 h-4 text-primary" />
+            <h2 className="font-display font-semibold text-base">Thème d'affichage</h2>
+          </div>
+          <ThemeSwitcher />
         </section>
 
         <Button
