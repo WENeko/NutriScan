@@ -8,6 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import NumericInput from "./NumericInput";
 import MealMicros from "./MealMicros";
+import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 
@@ -55,11 +56,12 @@ interface MealHistoryProps {
   userId: string;
   onSelect: (id: string) => void;
   onRefresh: () => void;
+  microGoals?: MicroGoals;
 }
 
 type AddMode = "manual" | "text" | "barcode";
 
-const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh }) => {
+const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
   const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number; fiberD: number; sugarD: number; satFatD: number; omega3D: number; sodiumD: number; potassiumD: number; magnesiumD: number; calciumD: number; vitBD: number; vitCD: number; vitDD: number; vitED: number }[]>([]);
@@ -567,7 +569,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           </button>
           {/* Meal micros */}
           <div className="px-3 pb-2">
-            <MealMicros mealId={meal.id} />
+            <MealMicros mealId={meal.id} microGoals={microGoals} />
           </div>
 
           {/* Inline edit panel */}
