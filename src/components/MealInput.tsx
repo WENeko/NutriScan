@@ -8,9 +8,32 @@ import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
-import { UNIT_FOOD_KEYWORDS, parseUnitQuantity } from "@/lib/unit-detection";
+import { parseUnitQuantity } from "@/lib/unit-detection";
 
-interface MealInputProps {
+interface MealItem {
+  name: string;
+  quantity: string;
+  calories: number;
+  proteins: number;
+  carbs: number;
+  fats: number;
+  protDensity: number;
+  carbsDensity: number;
+  fatsDensity: number;
+  isCustom?: boolean;
+  fiber?: number;
+  sugar?: number;
+  saturated_fat?: number;
+  omega3_mg?: number;
+  sodium_mg?: number;
+  potassium_mg?: number;
+  magnesium_mg?: number;
+  calcium_mg?: number;
+  unitCount?: number;
+  unitWeightG?: number;
+  unitLabel?: string;
+}
+
   userId: string;
   onMealSaved: () => void;
 }
