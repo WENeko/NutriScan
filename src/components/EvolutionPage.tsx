@@ -11,6 +11,8 @@ interface EvolutionPageProps {
   carbsGoal: number;
   fatsGoal: number;
   targetWeight?: number | null;
+  targetBodyFat?: number | null;
+  targetMuscleMass?: number | null;
 }
 
 type Period = "7d" | "30d" | "all";
@@ -60,7 +62,7 @@ const RADAR_MICROS = [
   { key: "vitamin_d_mcg", label: "Vit. D", goal: 15, unit: "µg" },
 ];
 
-const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, targetWeight }) => {
+const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, targetWeight, targetBodyFat, targetMuscleMass }) => {
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
   const [bodyData, setBodyData] = useState<BodyData[]>([]);
@@ -295,7 +297,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
                 <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} />
                 {targetWeight && (
-                  <ReferenceLine y={targetWeight} stroke="hsl(var(--secondary))" strokeDasharray="6 3" label={{ value: `Cible: ${targetWeight}kg`, position: "insideTopRight", fontSize: 10, fill: "hsl(var(--secondary))" }} />
+                  <ReferenceLine y={targetWeight} stroke="hsl(var(--secondary))" strokeDasharray="6 3" label={{ value: `Poids: ${targetWeight}kg`, position: "insideTopRight", fontSize: 10, fill: "hsl(var(--secondary))" }} />
+                )}
+                {targetBodyFat && (
+                  <ReferenceLine y={targetBodyFat} stroke="hsl(var(--nutri-pink))" strokeDasharray="6 3" label={{ value: `Gras: ${targetBodyFat}%`, position: "insideBottomRight", fontSize: 10, fill: "hsl(var(--nutri-pink))" }} />
+                )}
+                {targetMuscleMass && (
+                  <ReferenceLine y={targetMuscleMass} stroke="hsl(var(--nutri-blue))" strokeDasharray="6 3" label={{ value: `Muscle: ${targetMuscleMass}kg`, position: "insideTopLeft", fontSize: 10, fill: "hsl(var(--nutri-blue))" }} />
                 )}
                 <Line type="monotone" dataKey="weight" name="Poids (kg)" stroke="hsl(var(--primary))" strokeWidth={2} dot connectNulls />
                 <Line type="monotone" dataKey="bodyFat" name="Masse grasse (%)" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot connectNulls />
@@ -307,7 +315,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
-            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible</span>}
+            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-secondary" /> Cible poids</span>}
+            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))" }} /> Cible gras</span>}
+            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))" }} /> Cible muscle</span>}
           </div>
         </section>
       )}

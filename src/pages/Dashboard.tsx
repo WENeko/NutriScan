@@ -10,6 +10,7 @@ import BottomNav, { TabId } from "@/components/BottomNav";
 import WaterTracker from "@/components/WaterTracker";
 import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
+import WeighinReminder from "@/components/WeighinReminder";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { subDays, startOfDay, format } from "date-fns";
@@ -47,6 +48,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [weight, setWeight] = useState(70);
   const [sportCalories, setSportCalories] = useState(0);
   const [targetWeight, setTargetWeight] = useState<number | null>(null);
+  const [targetBodyFat, setTargetBodyFat] = useState<number | null>(null);
+  const [targetMuscleMass, setTargetMuscleMass] = useState<number | null>(null);
   const [proteinTargetPerKg, setProteinTargetPerKg] = useState(2.0);
   const [todayMicros, setTodayMicros] = useState({
     fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
@@ -57,7 +60,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg")
+      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg")
       .eq("user_id", userId)
       .single();
 
@@ -72,6 +75,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeight(Number(profile.weight_kg) || 70);
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
       setTargetWeight((profile as any).target_weight_kg ? Number((profile as any).target_weight_kg) : null);
+      setTargetBodyFat((profile as any).target_body_fat_percent ? Number((profile as any).target_body_fat_percent) : null);
+      setTargetMuscleMass((profile as any).target_muscle_mass_kg ? Number((profile as any).target_muscle_mass_kg) : null);
 
       const weekAgo = subDays(new Date(), 6);
       const { data: weekBody } = await supabase
@@ -322,6 +327,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               )}
             </section>
 
+            {/* Weighin reminder */}
+            <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
+
             {/* Electrolyte recovery warning */}
             {showElectrolyteWarning && (
               <section className="bg-secondary/10 border border-secondary/30 rounded-2xl p-4 animate-fade-up flex items-start gap-3">
@@ -382,7 +390,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         )}
 
         {activeTab === "evolution" && (
-          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} />
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} />
         )}
 
         {activeTab === "library" && (

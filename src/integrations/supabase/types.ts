@@ -264,6 +264,7 @@ export type Database = {
           activity_level: string | null
           age: number | null
           bmr: number | null
+          bmr_method: string | null
           body_fat_percent: number | null
           created_at: string
           date_of_birth: string | null
@@ -272,18 +273,25 @@ export type Database = {
           goals: Json
           height_cm: number | null
           id: string
+          last_weighin_date: string | null
           muscle_mass_kg: number | null
           sport_calories_daily: number | null
+          target_body_fat_percent: number | null
+          target_muscle_mass_kg: number | null
           target_weight_kg: number | null
           updated_at: string
           user_id: string
           water_goal_ml: number | null
+          weighin_day: number | null
+          weighin_frequency: string | null
+          weighin_hour: number | null
           weight_kg: number | null
         }
         Insert: {
           activity_level?: string | null
           age?: number | null
           bmr?: number | null
+          bmr_method?: string | null
           body_fat_percent?: number | null
           created_at?: string
           date_of_birth?: string | null
@@ -292,18 +300,25 @@ export type Database = {
           goals?: Json
           height_cm?: number | null
           id?: string
+          last_weighin_date?: string | null
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
+          target_body_fat_percent?: number | null
+          target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
           updated_at?: string
           user_id: string
           water_goal_ml?: number | null
+          weighin_day?: number | null
+          weighin_frequency?: string | null
+          weighin_hour?: number | null
           weight_kg?: number | null
         }
         Update: {
           activity_level?: string | null
           age?: number | null
           bmr?: number | null
+          bmr_method?: string | null
           body_fat_percent?: number | null
           created_at?: string
           date_of_birth?: string | null
@@ -312,12 +327,18 @@ export type Database = {
           goals?: Json
           height_cm?: number | null
           id?: string
+          last_weighin_date?: string | null
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
+          target_body_fat_percent?: number | null
+          target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
           updated_at?: string
           user_id?: string
           water_goal_ml?: number | null
+          weighin_day?: number | null
+          weighin_frequency?: string | null
+          weighin_hour?: number | null
           weight_kg?: number | null
         }
         Relationships: []
