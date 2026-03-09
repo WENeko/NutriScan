@@ -81,7 +81,9 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
           <div className="grid grid-cols-2 gap-2">
             {micros.filter((m) => m.value > 0).map((micro, i) => {
               const pct = micro.goal ? Math.min(micro.value / micro.goal, 1) : 0;
-              const pctColor = pct >= 0.7 ? "bg-primary" : pct >= 0.4 ? "bg-secondary" : "bg-destructive";
+              const pctColor = micro.isLimit
+                ? (pct >= 0.9 ? "bg-destructive" : pct >= 0.7 ? "bg-secondary" : "bg-primary")
+                : (pct >= 0.7 ? "bg-primary" : pct >= 0.4 ? "bg-secondary" : "bg-destructive");
               return (
                 <div key={micro.name} className="bg-accent rounded-xl p-2.5 space-y-1">
                   <div className="flex items-center justify-between">
