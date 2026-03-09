@@ -355,6 +355,42 @@ export type Database = {
         }
         Relationships: []
       }
+      sleep_logs: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          end_time: string | null
+          id: string
+          recorded_at: string
+          source: string
+          stages: Json | null
+          start_time: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          end_time?: string | null
+          id?: string
+          recorded_at?: string
+          source?: string
+          stages?: Json | null
+          start_time?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          end_time?: string | null
+          id?: string
+          recorded_at?: string
+          source?: string
+          stages?: Json | null
+          start_time?: string | null
+          user_id?: string
+        }
+        Relationships: []
+      }
       water_logs: {
         Row: {
           amount_ml: number

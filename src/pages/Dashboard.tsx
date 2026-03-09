@@ -7,12 +7,13 @@ import MealHistory from "@/components/MealHistory";
 import EvolutionPage from "@/components/EvolutionPage";
 import NutriLibrary from "@/components/NutriLibrary";
 import ProfilePage from "@/components/ProfilePage";
+import DataSourcesSettings from "@/components/DataSourcesSettings";
 import BottomNav, { TabId } from "@/components/BottomNav";
 import WaterTracker from "@/components/WaterTracker";
 import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
-import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle } from "lucide-react";
+import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { subDays, startOfDay, format } from "date-fns";
 
@@ -42,6 +43,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [favoriteMeals, setFavoriteMeals] = useState<Meal[]>([]);
   const [showProfile, setShowProfile] = useState(false);
+  const [showDataSources, setShowDataSources] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
   const [weekTotalCalories, setWeekTotalCalories] = useState(0);
@@ -191,6 +193,24 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level]
   );
 
+  if (showDataSources) {
+    return (
+      <div className="min-h-screen bg-background pb-20">
+        <header className="sticky top-0 z-10 glass-card px-4 py-3">
+          <div className="flex items-center gap-2 max-w-lg mx-auto">
+            <div className="w-8 h-8 rounded-lg nutri-gradient flex items-center justify-center">
+              <Leaf className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriVibe</h1>
+          </div>
+        </header>
+        <main className="max-w-lg mx-auto px-4 mt-6">
+          <DataSourcesSettings onBack={() => setShowDataSources(false)} />
+        </main>
+      </div>
+    );
+  }
+
   if (showProfile) {
     return <ProfilePage userId={userId} onBack={() => { setShowProfile(false); fetchData(); }} />;
   }
@@ -243,6 +263,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriVibe</h1>
           </div>
           <div className="flex items-center gap-1">
+            <button onClick={() => setShowDataSources(true)} className="p-2 rounded-xl hover:bg-muted transition-colors" title="Sources de données">
+              <Smartphone className="w-5 h-5 text-muted-foreground" />
+            </button>
             <button onClick={() => setShowProfile(true)} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <User className="w-5 h-5 text-muted-foreground" />
             </button>

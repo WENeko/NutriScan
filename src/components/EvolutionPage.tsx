@@ -42,6 +42,7 @@ interface BodyData {
   weight: number | null;
   bodyFat: number | null;
   muscleMass: number | null;
+  source: string;
 }
 
 
@@ -102,7 +103,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
 
     const { data: bodyComp } = await supabase
       .from("body_composition")
-      .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg")
+      .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg, source")
       .eq("user_id", userId)
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at");
@@ -143,6 +144,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       weight: b.weight_kg ? Number(b.weight_kg) : null,
       bodyFat: b.body_fat_percent ? Number(b.body_fat_percent) : null,
       muscleMass: b.muscle_mass_kg ? Number(b.muscle_mass_kg) : null,
+      source: b.source || "manual",
     }));
     setBodyData(bodyArr);
   };
@@ -262,7 +264,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       {/* Body composition */}
       {bodyData.length > 0 && (
         <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "200ms" }}>
-          <h3 className="font-display font-semibold text-sm mb-3">Composition corporelle</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-semibold text-sm">Composition corporelle</h3>
+            {bodyData.some((b) => b.source === "health_connect") && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                Source : Santé
+              </span>
+            )}
+          </div>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={bodyData}>
