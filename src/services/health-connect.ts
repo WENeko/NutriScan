@@ -204,7 +204,7 @@ export async function syncHealthData(
       for (const s of data.sleep) {
         const recordedAt = s.start_time.slice(0, 10);
         const { data: existing } = await supabase
-          .from("sleep_logs")
+          .from("sleep_logs" as any)
           .select("id")
           .eq("user_id", userId)
           .eq("recorded_at", recordedAt)
@@ -221,9 +221,9 @@ export async function syncHealthData(
         };
 
         if (existing) {
-          await supabase.from("sleep_logs").update(record).eq("id", existing.id);
+          await (supabase.from("sleep_logs" as any) as any).update(record).eq("id", (existing as any).id);
         } else {
-          await supabase.from("sleep_logs").insert(record);
+          await (supabase.from("sleep_logs" as any) as any).insert(record);
         }
       }
       synced.push("sleep");
