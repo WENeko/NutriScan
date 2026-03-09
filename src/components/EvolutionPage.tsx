@@ -264,7 +264,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       {/* Body composition */}
       {bodyData.length > 0 && (
         <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "200ms" }}>
-          <h3 className="font-display font-semibold text-sm mb-3">Composition corporelle</h3>
+          <div className="flex items-center justify-between mb-3">
+            <h3 className="font-display font-semibold text-sm">Composition corporelle</h3>
+            {bodyData.some((b) => b.source === "health_connect") && (
+              <span className="text-[9px] px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
+                Source : Santé
+              </span>
+            )}
+          </div>
           <div className="h-48">
             <ResponsiveContainer width="100%" height="100%">
               <LineChart data={bodyData}>
