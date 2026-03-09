@@ -8,6 +8,8 @@ export interface MicroNutrient {
   unit: string;
   info: string;
   goal?: number;
+  /** If true, staying UNDER the goal is good (e.g. sugar, sodium) — inverts color scale */
+  isLimit?: boolean;
 }
 
 interface HealthDetailsProps {
