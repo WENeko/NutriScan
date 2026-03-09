@@ -144,6 +144,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       weight: b.weight_kg ? Number(b.weight_kg) : null,
       bodyFat: b.body_fat_percent ? Number(b.body_fat_percent) : null,
       muscleMass: b.muscle_mass_kg ? Number(b.muscle_mass_kg) : null,
+      source: b.source || "manual",
     }));
     setBodyData(bodyArr);
   };
