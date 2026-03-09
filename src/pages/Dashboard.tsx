@@ -217,10 +217,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   const microsList = [
     { name: "Fibres", value: todayMicros.fiber, unit: "g", info: getMicroInfo("fiber", microGoals.fiber), goal: microGoals.fiber },
-    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: getMicroInfo("sugar", microGoals.sugar), goal: microGoals.sugar },
-    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: getMicroInfo("saturated_fat", microGoals.saturated_fat), goal: microGoals.saturated_fat },
+    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: getMicroInfo("sugar", microGoals.sugar), goal: microGoals.sugar, isLimit: true },
+    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: getMicroInfo("saturated_fat", microGoals.saturated_fat), goal: microGoals.saturated_fat, isLimit: true },
     { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: getMicroInfo("omega3_mg", microGoals.omega3_mg), goal: microGoals.omega3_mg },
-    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: getMicroInfo("sodium_mg", microGoals.sodium_mg), goal: microGoals.sodium_mg },
+    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: getMicroInfo("sodium_mg", microGoals.sodium_mg), goal: microGoals.sodium_mg, isLimit: true },
     { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: getMicroInfo("potassium_mg", microGoals.potassium_mg), goal: microGoals.potassium_mg },
     { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: getMicroInfo("magnesium_mg", microGoals.magnesium_mg), goal: microGoals.magnesium_mg },
     { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: getMicroInfo("calcium_mg", microGoals.calcium_mg), goal: microGoals.calcium_mg },

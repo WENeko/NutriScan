@@ -8,6 +8,8 @@ export interface MicroNutrient {
   unit: string;
   info: string;
   goal?: number;
+  /** If true, staying UNDER the goal is good (e.g. sugar, sodium) — inverts color scale */
+  isLimit?: boolean;
 }
 
 interface HealthDetailsProps {
@@ -19,8 +21,9 @@ function computeDensityScore(micros: MicroNutrient[]): number {
   if (scored.length === 0) return 0;
   let total = 0;
   scored.forEach((m) => {
-    const ratio = Math.min(m.value / m.goal!, 1);
-    total += ratio;
+    const ratio = m.value / m.goal!;
+    // For limit micros (sugar, sodium…), staying under is good
+    total += m.isLimit ? Math.min(Math.max(1 - ratio, 0), 1) : Math.min(ratio, 1);
   });
   return Math.round((total / scored.length) * 100);
 }
@@ -79,7 +82,9 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
           <div className="grid grid-cols-2 gap-2">
             {micros.filter((m) => m.value > 0).map((micro, i) => {
               const pct = micro.goal ? Math.min(micro.value / micro.goal, 1) : 0;
-              const pctColor = pct >= 0.7 ? "bg-primary" : pct >= 0.4 ? "bg-secondary" : "bg-destructive";
+              const pctColor = micro.isLimit
+                ? (pct >= 0.9 ? "bg-destructive" : pct >= 0.7 ? "bg-secondary" : "bg-primary")
+                : (pct >= 0.7 ? "bg-primary" : pct >= 0.4 ? "bg-secondary" : "bg-destructive");
               return (
                 <div key={micro.name} className="bg-accent rounded-xl p-2.5 space-y-1">
                   <div className="flex items-center justify-between">
