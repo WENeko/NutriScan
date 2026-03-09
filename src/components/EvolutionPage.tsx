@@ -42,6 +42,7 @@ interface BodyData {
   weight: number | null;
   bodyFat: number | null;
   muscleMass: number | null;
+  source: string;
 }
 
 
