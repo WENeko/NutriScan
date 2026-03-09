@@ -43,6 +43,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [favoriteMeals, setFavoriteMeals] = useState<Meal[]>([]);
   const [showProfile, setShowProfile] = useState(false);
+  const [showDataSources, setShowDataSources] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
   const [weekTotalCalories, setWeekTotalCalories] = useState(0);
