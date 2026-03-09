@@ -21,8 +21,9 @@ function computeDensityScore(micros: MicroNutrient[]): number {
   if (scored.length === 0) return 0;
   let total = 0;
   scored.forEach((m) => {
-    const ratio = Math.min(m.value / m.goal!, 1);
-    total += ratio;
+    const ratio = m.value / m.goal!;
+    // For limit micros (sugar, sodium…), staying under is good
+    total += m.isLimit ? Math.min(Math.max(1 - ratio, 0), 1) : Math.min(ratio, 1);
   });
   return Math.round((total / scored.length) * 100);
 }
