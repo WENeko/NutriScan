@@ -103,7 +103,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
 
     const { data: bodyComp } = await supabase
       .from("body_composition")
-      .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg")
+      .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg, source")
       .eq("user_id", userId)
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at");
