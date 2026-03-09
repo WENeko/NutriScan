@@ -193,6 +193,24 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level]
   );
 
+  if (showDataSources) {
+    return (
+      <div className="min-h-screen bg-background pb-20">
+        <header className="sticky top-0 z-10 glass-card px-4 py-3">
+          <div className="flex items-center gap-2 max-w-lg mx-auto">
+            <div className="w-8 h-8 rounded-lg nutri-gradient flex items-center justify-center">
+              <Leaf className="w-4 h-4 text-primary-foreground" />
+            </div>
+            <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriVibe</h1>
+          </div>
+        </header>
+        <main className="max-w-lg mx-auto px-4 mt-6">
+          <DataSourcesSettings onBack={() => setShowDataSources(false)} />
+        </main>
+      </div>
+    );
+  }
+
   if (showProfile) {
     return <ProfilePage userId={userId} onBack={() => { setShowProfile(false); fetchData(); }} />;
   }
