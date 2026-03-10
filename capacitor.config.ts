@@ -1,7 +1,7 @@
 import type { CapacitorConfig } from '@capacitor/cli';
 
 const config: CapacitorConfig = {
-  appId: 'app.lovable.08e0d47b4aba4de9868f20245065ca4e',
+  appId: 'com.nutriscan.app',
   appName: 'NutriVibe',
   webDir: 'dist',
   // Pour le dev live-reload, décommenter le bloc server ci-dessous :
