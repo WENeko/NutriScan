@@ -25,17 +25,8 @@ jobs:
       - name: Build web app
         run: npm run build
 
-      - name: Add Android platform
-        run: npx cap add android || true
-
       - name: Sync Capacitor
         run: npx cap sync android
-
-      - name: Add Health Connect permissions to AndroidManifest
-        run: |
-          MANIFEST="android/app/src/main/AndroidManifest.xml"
-          # Insert Health Connect permissions before closing </manifest>
-          sed -i 's|</manifest>|    <!-- Health Connect Permissions -->\n    <uses-permission android:name="android.permission.health.READ_BODY_FAT" />\n    <uses-permission android:name="android.permission.health.READ_WEIGHT" />\n    <uses-permission android:name="android.permission.health.READ_TOTAL_CALORIES_BURNED" />\n    <uses-permission android:name="android.permission.health.READ_SLEEP" />\n    <uses-permission android:name="android.permission.health.READ_LEAN_BODY_MASS" />\n\n    <!-- Health Connect intent filter -->\n    <queries>\n        <package android:name="com.google.android.apps.healthdata" />\n    </queries>\n</manifest>|' "$MANIFEST"
 
       - name: Setup Java 17
         uses: actions/setup-java@v4
