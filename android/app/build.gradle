@@ -4,7 +4,7 @@ android {
     namespace "app.lovable.nutrivibe"
     compileSdk 34
     defaultConfig {
-        applicationId "app.lovable.08e0d47b4aba4de9868f20245065ca4e"
+        applicationId "com.nutriscan.app"
         minSdkVersion 22
         targetSdkVersion 34
         versionCode 1
