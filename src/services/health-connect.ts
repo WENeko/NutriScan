@@ -86,7 +86,7 @@ async function getHealthPlugin() {
   if (_healthPlugin) return _healthPlugin;
   try {
     const mod = await import("capacitor-health");
-    _healthPlugin = mod.CapacitorHealth ?? mod.default;
+    _healthPlugin = mod.Health ?? mod.default;
     return _healthPlugin;
   } catch {
     return null;
