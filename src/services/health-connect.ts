@@ -1,19 +1,16 @@
 /**
- * Health Connect Integration Service
+ * Health Connect Bridge
  * 
- * This module provides the sync layer between Health Connect (Android)
- * and the app's database. It's designed to work with a future Capacitor
- * plugin for Health Connect.
- * 
- * Data flow: Health Connect → Capacitor Plugin → This Service → Supabase
+ * Thin wrapper around the capacitor-health plugin that bridges
+ * the native Health Connect API to our TypeScript service layer.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 
-// Health Connect data types we support
+// ── Types ──────────────────────────────────────────────────────
 export interface HealthConnectWeight {
   value_kg: number;
-  timestamp: string; // ISO string
+  timestamp: string;
 }
 
 export interface HealthConnectBodyFat {
@@ -47,7 +44,6 @@ export interface HealthConnectData {
   activeCalories?: HealthConnectActiveCalories[];
 }
 
-// User preferences for which data sources to sync
 export interface HealthConnectPreferences {
   sync_weight: boolean;
   sync_body_fat: boolean;
@@ -62,7 +58,7 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
   sync_calories: false,
 };
 
-// Unit conversion utilities
+// ── Unit conversions ───────────────────────────────────────────
 export const convertUnits = {
   lbsToKg: (lbs: number) => Math.round(lbs * 0.453592 * 10) / 10,
   kgToLbs: (kg: number) => Math.round(kg * 2.20462 * 10) / 10,
@@ -70,9 +66,7 @@ export const convertUnits = {
   inToCm: (inches: number) => Math.round(inches * 2.54 * 10) / 10,
 };
 
-/**
- * Load Health Connect sync preferences from localStorage
- */
+// ── Preferences ────────────────────────────────────────────────
 export function getHealthConnectPreferences(): HealthConnectPreferences {
   try {
     const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
@@ -81,19 +75,52 @@ export function getHealthConnectPreferences(): HealthConnectPreferences {
   return { ...DEFAULT_PREFERENCES };
 }
 
-/**
- * Save Health Connect sync preferences
- */
 export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
   localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
 }
 
-/**
- * Main sync function — processes incoming Health Connect data
- * and updates the database with priority logic:
- * - If HC data is more recent than manual entry → use HC data
- * - Mark source as "health_connect" for traceability
- */
+// ── Native bridge helpers ──────────────────────────────────────
+let _healthPlugin: any = null;
+
+async function getHealthPlugin() {
+  if (_healthPlugin) return _healthPlugin;
+  try {
+    const mod = await import("capacitor-health");
+    _healthPlugin = mod.Health ?? mod.default;
+    return _healthPlugin;
+  } catch {
+    return null;
+  }
+}
+
+export async function isHealthConnectAvailable(): Promise<boolean> {
+  const plugin = await getHealthPlugin();
+  if (!plugin) return false;
+  try {
+    const result = await plugin.isHealthAvailable();
+    return result?.available === true;
+  } catch {
+    return false;
+  }
+}
+
+export async function requestHealthPermissions(): Promise<boolean> {
+  const plugin = await getHealthPlugin();
+  if (!plugin) return false;
+  try {
+    const result = await plugin.checkHealthPermissions({
+      permissions: [
+        "READ_WEIGHT",
+        "READ_CALORIES",
+      ],
+    });
+    return result?.granted === true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Sync function ──────────────────────────────────────────────
 export async function syncHealthData(
   userId: string,
   data: HealthConnectData,
@@ -102,12 +129,10 @@ export async function syncHealthData(
   const synced: string[] = [];
   const errors: string[] = [];
 
-  // 1. Sync weight + body fat + lean body mass → body_composition table
   if (prefs.sync_weight && data.weight?.length) {
     try {
       for (const w of data.weight) {
         const recordedAt = w.timestamp.slice(0, 10);
-        // Check if a more recent manual entry exists for this date
         const { data: existing } = await supabase
           .from("body_composition")
           .select("id, source, created_at")
@@ -116,15 +141,11 @@ export async function syncHealthData(
           .single();
 
         if (existing && existing.source === "manual" && new Date(existing.created_at) > new Date(w.timestamp)) {
-          continue; // Manual entry is more recent, skip
+          continue;
         }
 
-        const bodyFatForDate = data.bodyFat?.find(
-          (bf) => bf.timestamp.slice(0, 10) === recordedAt
-        );
-        const leanMassForDate = data.leanBodyMass?.find(
-          (lm) => lm.timestamp.slice(0, 10) === recordedAt
-        );
+        const bodyFatForDate = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
+        const leanMassForDate = data.leanBodyMass?.find((lm) => lm.timestamp.slice(0, 10) === recordedAt);
 
         const record = {
           user_id: userId,
@@ -143,7 +164,6 @@ export async function syncHealthData(
       }
       synced.push("weight");
 
-      // Update profile with latest weight for Katch-McArdle
       const latestWeight = data.weight.sort(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )[0];
@@ -166,7 +186,6 @@ export async function syncHealthData(
     }
   }
 
-  // 2. Sync active calories → body_composition.sport_calories
   if (prefs.sync_calories && data.activeCalories?.length) {
     try {
       for (const cal of data.activeCalories) {
@@ -198,7 +217,6 @@ export async function syncHealthData(
     }
   }
 
-  // 3. Sync sleep → sleep_logs table (created via migration)
   if (prefs.sync_sleep && data.sleep?.length) {
     try {
       for (const s of data.sleep) {
