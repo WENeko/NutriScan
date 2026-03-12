@@ -80,44 +80,21 @@ export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
 }
 
 // ── Native bridge helpers ──────────────────────────────────────
-let _healthPlugin: any = null;
+// Native Health Connect plugin is not available in Capacitor 6.
+// These stubs keep the service layer intact for future migration to Capacitor 8+.
 
-async function getHealthPlugin() {
-  if (_healthPlugin) return _healthPlugin;
-  try {
-    const mod = await import("capacitor-health");
-    _healthPlugin = mod.Health ?? mod.default;
-    return _healthPlugin;
-  } catch {
-    return null;
-  }
+async function getHealthPlugin(): Promise<null> {
+  return null;
 }
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
-  const plugin = await getHealthPlugin();
-  if (!plugin) return false;
-  try {
-    const result = await plugin.isHealthAvailable();
-    return result?.available === true;
-  } catch {
-    return false;
-  }
+  // Native plugin not available in current Capacitor version
+  return false;
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
-  const plugin = await getHealthPlugin();
-  if (!plugin) return false;
-  try {
-    const result = await plugin.checkHealthPermissions({
-      permissions: [
-        "READ_WEIGHT",
-        "READ_CALORIES",
-      ],
-    });
-    return result?.granted === true;
-  } catch {
-    return false;
-  }
+  // Native plugin not available in current Capacitor version
+  return false;
 }
 
 // ── Sync function ──────────────────────────────────────────────
