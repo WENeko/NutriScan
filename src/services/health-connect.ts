@@ -88,30 +88,13 @@ async function getHealthPlugin(): Promise<null> {
 }
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
-  const plugin = await getHealthPlugin();
-  if (!plugin) return false;
-  try {
-    const result = await plugin.isHealthAvailable();
-    return result?.available === true;
-  } catch {
-    return false;
-  }
+  // Native plugin not available in current Capacitor version
+  return false;
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
-  const plugin = await getHealthPlugin();
-  if (!plugin) return false;
-  try {
-    const result = await plugin.checkHealthPermissions({
-      permissions: [
-        "READ_WEIGHT",
-        "READ_CALORIES",
-      ],
-    });
-    return result?.granted === true;
-  } catch {
-    return false;
-  }
+  // Native plugin not available in current Capacitor version
+  return false;
 }
 
 // ── Sync function ──────────────────────────────────────────────
