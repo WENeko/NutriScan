@@ -406,9 +406,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                         {/* Actual progress */}
                         <div
                           className={`h-full rounded-full transition-all duration-700 ${
-                            isSurplus ? "bg-destructive" : isDeficit ? "bg-primary" : "bg-primary"
+                            isSurplus ? "bg-destructive" : "bg-primary"
                           }`}
-                          style={{ width: `${Math.min(pct * 100, 100)}%` }}
+                          style={{ width: `${Math.min(pct * 100, 130)}%` }}
                         />
                       </div>
 
