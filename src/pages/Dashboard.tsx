@@ -382,7 +382,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   const expectedAtThisPoint = goals.calories * weekDaysElapsed;
                   const diff = weekTotalCalories - expectedAtThisPoint;
                   const absDiff = Math.abs(diff);
-                  const pct = weeklyTarget > 0 ? Math.min(weekTotalCalories / weeklyTarget, 1.3) : 0;
+                  const pct = weeklyTarget > 0 ? weekTotalCalories / weeklyTarget : 0;
                   const expectedPct = weeklyTarget > 0 ? expectedAtThisPoint / weeklyTarget : 0;
                   const isDeficit = diff < -50;
                   const isSurplus = diff > 50;
