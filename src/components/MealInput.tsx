@@ -246,7 +246,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
   const addManualItem = async () => {
     if (!manualItem.name.trim()) return;
-    const weight = parseFloat(manualItem.weight) || 100;
 
     // Check custom foods first
     const { data: customFoods } = await supabase
@@ -258,9 +257,23 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
     if (customFoods && customFoods.length > 0) {
       const cf = customFoods[0] as any;
+      // Use custom portion if no manual weight provided, fallback to serving_size_g
+      const weight = manualItem.weight ? (parseFloat(manualItem.weight) || cf.serving_size_g || 100) : (cf.serving_size_g || 100);
       const proteins = Math.round(cf.proteins_per_100g * weight / 100 * 10) / 10;
       const carbs = Math.round(cf.carbs_per_100g * weight / 100 * 10) / 10;
       const fats = Math.round(cf.fats_per_100g * weight / 100 * 10) / 10;
+      const fiber = Math.round((cf.fiber_per_100g || 0) * weight / 100 * 10) / 10;
+      const sugar = Math.round((cf.sugar_per_100g || 0) * weight / 100 * 10) / 10;
+      const saturated_fat = Math.round((cf.saturated_fat_per_100g || 0) * weight / 100 * 10) / 10;
+      const omega3_mg = Math.round((cf.omega3_mg_per_100g || 0) * weight / 100 * 10) / 10;
+      const sodium_mg = Math.round((cf.sodium_mg_per_100g || 0) * weight / 100 * 10) / 10;
+      const potassium_mg = Math.round((cf.potassium_mg_per_100g || 0) * weight / 100 * 10) / 10;
+      const magnesium_mg = Math.round((cf.magnesium_mg_per_100g || 0) * weight / 100 * 10) / 10;
+      const calcium_mg = Math.round((cf.calcium_mg_per_100g || 0) * weight / 100 * 10) / 10;
+      const vitamin_b_mg = Math.round((cf.vitamin_b_per_100g || 0) * weight / 100 * 10) / 10;
+      const vitamin_c_mg = Math.round((cf.vitamin_c_per_100g || 0) * weight / 100 * 10) / 10;
+      const vitamin_d_mcg = Math.round((cf.vitamin_d_per_100g || 0) * weight / 100 * 10) / 10;
+      const vitamin_e_mg = Math.round((cf.vitamin_e_per_100g || 0) * weight / 100 * 10) / 10;
       setItems((prev) => [...prev, {
         name: cf.name,
         quantity: `${weight}g`,
@@ -270,8 +283,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         carbsDensity: cf.carbs_per_100g / 100,
         fatsDensity: cf.fats_per_100g / 100,
         isCustom: true,
+        fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
       }]);
+      toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g` });
     } else {
+      const weight = parseFloat(manualItem.weight) || 100;
       // Quick AI lookup for this single item
       setAnalyzing(true);
       try {
