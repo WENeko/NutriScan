@@ -285,8 +285,13 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
           <BarcodeScanner onProductFound={handleBarcodeProduct} />
         )}
 
+        {/* Recipe mode */}
+        {createMode === "recipe" && (
+          <RecipeBuilder userId={userId} onDone={() => { setCreating(false); setForm(emptyFood); fetchFoods(); }} />
+        )}
+
         {/* Manual form (always shown for manual mode, shown after AI analysis for other modes) */}
-        {(createMode === "manual" || editing) && (
+        {(createMode === "manual" || editing) && createMode !== "recipe" && (
           <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Nom *</Label>
