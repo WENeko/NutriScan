@@ -382,7 +382,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   const expectedAtThisPoint = goals.calories * weekDaysElapsed;
                   const diff = weekTotalCalories - expectedAtThisPoint;
                   const absDiff = Math.abs(diff);
-                  const pct = weeklyTarget > 0 ? Math.min(weekTotalCalories / weeklyTarget, 1.3) : 0;
+                  const pct = weeklyTarget > 0 ? weekTotalCalories / weeklyTarget : 0;
                   const expectedPct = weeklyTarget > 0 ? expectedAtThisPoint / weeklyTarget : 0;
                   const isDeficit = diff < -50;
                   const isSurplus = diff > 50;
@@ -406,23 +406,23 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                         {/* Actual progress */}
                         <div
                           className={`h-full rounded-full transition-all duration-700 ${
-                            isSurplus ? "bg-destructive" : isDeficit ? "bg-primary" : "bg-primary"
+                            isSurplus ? "bg-destructive" : "bg-primary"
                           }`}
-                          style={{ width: `${Math.min(pct * 100, 100)}%` }}
+                          style={{ width: `${Math.min(pct * 100, 130)}%` }}
                         />
                       </div>
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">
-                          {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal
+                          {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal ({Math.round(pct * 100)}%)
                         </span>
                         <span className={`font-bold ${
-                          isSurplus ? "text-destructive" : isDeficit ? "text-primary" : "text-muted-foreground"
+                          isSurplus ? "text-destructive" : isDeficit ? "text-primary" : "text-primary"
                         }`}>
                           {isSurplus ? (
                             <>▲ Surplus +{Math.round(absDiff)} kcal</>
                           ) : isDeficit ? (
-                            <>▼ Déficit −{Math.round(absDiff)} kcal</>
+                            <>Restant {Math.round(absDiff)} kcal</>
                           ) : (
                             <>✓ Dans l'objectif</>
                           )}

@@ -118,6 +118,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           total_carbs: originalMeal.total_carbs,
           total_fats: originalMeal.total_fats,
           is_confirmed: true,
+          is_favorite: originalMeal.is_favorite || false,
           source: "ai",
         })
         .select().single();

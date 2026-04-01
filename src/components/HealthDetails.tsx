@@ -80,11 +80,13 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
           </div>
 
           <div className="grid grid-cols-2 gap-2">
-            {micros.filter((m) => m.value > 0).map((micro, i) => {
-              const pct = micro.goal ? Math.min(micro.value / micro.goal, 1) : 0;
+          {micros.filter((m) => m.value > 0).map((micro, i) => {
+              const rawPct = micro.goal ? micro.value / micro.goal : 0;
+              const pct = Math.min(rawPct, 1); // bar capped at 100% visually
+              const displayPct = Math.round(rawPct * 100);
               const pctColor = micro.isLimit
-                ? (pct >= 0.9 ? "bg-destructive" : pct >= 0.7 ? "bg-secondary" : "bg-primary")
-                : (pct >= 0.7 ? "bg-primary" : pct >= 0.4 ? "bg-secondary" : "bg-destructive");
+                ? (rawPct >= 0.9 ? "bg-destructive" : rawPct >= 0.7 ? "bg-secondary" : "bg-primary")
+                : (rawPct >= 0.7 ? "bg-primary" : rawPct >= 0.4 ? "bg-secondary" : "bg-destructive");
               return (
                 <div key={micro.name} className="bg-accent rounded-xl p-2.5 space-y-1">
                   <div className="flex items-center justify-between">
@@ -99,7 +101,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
                       <div className="flex-1 h-1 bg-muted rounded-full overflow-hidden">
                         <div className={`h-full rounded-full ${pctColor}`} style={{ width: `${pct * 100}%` }} />
                       </div>
-                      <span className="text-[9px] text-muted-foreground">{Math.round(pct * 100)}%</span>
+                      <span className={`text-[9px] ${displayPct > 100 && !micro.isLimit ? 'text-primary font-bold' : displayPct > 100 && micro.isLimit ? 'text-destructive font-bold' : 'text-muted-foreground'}`}>{displayPct}%</span>
                     </div>
                   )}
                 </div>

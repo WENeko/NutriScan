@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquareText, ScanBarcode, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquareText, ScanBarcode, Loader2, ChefHat } from "lucide-react";
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
+import RecipeBuilder from "./RecipeBuilder";
 
 interface CustomFood {
   id: string;
@@ -36,7 +37,7 @@ interface NutriLibraryProps {
   userId: string;
 }
 
-type CreateMode = "manual" | "photo" | "text" | "barcode";
+type CreateMode = "manual" | "photo" | "text" | "barcode" | "recipe";
 
 const emptyFood: Omit<CustomFood, "id"> = {
   name: "",
@@ -216,6 +217,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     { id: "photo", label: "Photo", icon: <Camera className="w-3.5 h-3.5" /> },
     { id: "text", label: "Texte", icon: <MessageSquareText className="w-3.5 h-3.5" /> },
     { id: "barcode", label: "Scan", icon: <ScanBarcode className="w-3.5 h-3.5" /> },
+    { id: "recipe", label: "Recette", icon: <ChefHat className="w-3.5 h-3.5" /> },
   ];
 
   if (creating) {
@@ -283,8 +285,13 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
           <BarcodeScanner onProductFound={handleBarcodeProduct} />
         )}
 
+        {/* Recipe mode */}
+        {createMode === "recipe" && (
+          <RecipeBuilder userId={userId} onDone={() => { setCreating(false); setForm(emptyFood); fetchFoods(); }} />
+        )}
+
         {/* Manual form (always shown for manual mode, shown after AI analysis for other modes) */}
-        {(createMode === "manual" || editing) && (
+        {(createMode === "manual" || editing) && createMode !== "recipe" && (
           <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Nom *</Label>
