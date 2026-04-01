@@ -414,15 +414,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
                       <div className="flex items-center justify-between text-xs">
                         <span className="text-muted-foreground">
-                          {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal
+                          {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal ({Math.round(pct * 100)}%)
                         </span>
                         <span className={`font-bold ${
-                          isSurplus ? "text-destructive" : isDeficit ? "text-primary" : "text-muted-foreground"
+                          isSurplus ? "text-destructive" : isDeficit ? "text-primary" : "text-primary"
                         }`}>
                           {isSurplus ? (
                             <>▲ Surplus +{Math.round(absDiff)} kcal</>
                           ) : isDeficit ? (
-                            <>▼ Déficit −{Math.round(absDiff)} kcal</>
+                            <>Restant {Math.round(absDiff)} kcal</>
                           ) : (
                             <>✓ Dans l'objectif</>
                           )}
