@@ -217,6 +217,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     { id: "photo", label: "Photo", icon: <Camera className="w-3.5 h-3.5" /> },
     { id: "text", label: "Texte", icon: <MessageSquareText className="w-3.5 h-3.5" /> },
     { id: "barcode", label: "Scan", icon: <ScanBarcode className="w-3.5 h-3.5" /> },
+    { id: "recipe", label: "Recette", icon: <ChefHat className="w-3.5 h-3.5" /> },
   ];
 
   if (creating) {
