@@ -29,6 +29,10 @@ interface MealItem {
   potassium_mg?: number;
   magnesium_mg?: number;
   calcium_mg?: number;
+  vitamin_b_mg?: number;
+  vitamin_c_mg?: number;
+  vitamin_d_mcg?: number;
+  vitamin_e_mg?: number;
   unitCount?: number;
   unitWeightG?: number;
   unitLabel?: string;
