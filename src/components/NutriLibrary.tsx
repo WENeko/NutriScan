@@ -4,9 +4,10 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquareText, ScanBarcode, Loader2 } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquareText, ScanBarcode, Loader2, ChefHat } from "lucide-react";
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
+import RecipeBuilder from "./RecipeBuilder";
 
 interface CustomFood {
   id: string;
