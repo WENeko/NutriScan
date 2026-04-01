@@ -37,7 +37,7 @@ interface NutriLibraryProps {
   userId: string;
 }
 
-type CreateMode = "manual" | "photo" | "text" | "barcode";
+type CreateMode = "manual" | "photo" | "text" | "barcode" | "recipe";
 
 const emptyFood: Omit<CustomFood, "id"> = {
   name: "",
