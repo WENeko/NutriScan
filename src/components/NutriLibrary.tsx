@@ -162,6 +162,14 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
           sugar_per_100g: Math.round(((item.sugar || 0) / weight) * 100 * 10) / 10,
           sodium_mg_per_100g: Math.round(((item.sodium_mg || 0) / weight) * 100 * 10) / 10,
           saturated_fat_per_100g: Math.round(((item.saturated_fat || 0) / weight) * 100 * 10) / 10,
+            omega3_mg_per_100g: Math.round(((item.omega3_mg || 0) / weight) * 100 * 10) / 10,
+            potassium_mg_per_100g: Math.round(((item.potassium_mg || 0) / weight) * 100 * 10) / 10,
+            magnesium_mg_per_100g: Math.round(((item.magnesium_mg || 0) / weight) * 100 * 10) / 10,
+            calcium_mg_per_100g: Math.round(((item.calcium_mg || 0) / weight) * 100 * 10) / 10,
+            vitamin_b_per_100g: Math.round(((item.vitamin_b_mg || 0) / weight) * 100 * 10) / 10,
+            vitamin_c_per_100g: Math.round(((item.vitamin_c_mg || 0) / weight) * 100 * 10) / 10,
+            vitamin_d_per_100g: Math.round(((item.vitamin_d_mcg || 0) / weight) * 100 * 10) / 10,
+            vitamin_e_per_100g: Math.round(((item.vitamin_e_mg || 0) / weight) * 100 * 10) / 10,
         }));
         setCreateMode("manual"); // Switch to manual to let user review
         toast({ title: "Données extraites par l'IA !", description: "Vérifiez et ajustez si nécessaire." });
@@ -198,6 +206,18 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       proteins_per_100g: Math.round(((product.proteins || 0) / weight) * 100 * 10) / 10,
       carbs_per_100g: Math.round(((product.carbs || 0) / weight) * 100 * 10) / 10,
       fats_per_100g: Math.round(((product.fats || 0) / weight) * 100 * 10) / 10,
+      fiber_per_100g: Math.round(((product.fiber || 0) / weight) * 100 * 10) / 10,
+      sugar_per_100g: Math.round(((product.sugar || 0) / weight) * 100 * 10) / 10,
+      saturated_fat_per_100g: Math.round(((product.saturated_fat || 0) / weight) * 100 * 10) / 10,
+      omega3_mg_per_100g: Math.round(((product.omega3_mg || 0) / weight) * 100 * 10) / 10,
+      sodium_mg_per_100g: Math.round(((product.sodium_mg || 0) / weight) * 100 * 10) / 10,
+      potassium_mg_per_100g: Math.round(((product.potassium_mg || 0) / weight) * 100 * 10) / 10,
+      magnesium_mg_per_100g: Math.round(((product.magnesium_mg || 0) / weight) * 100 * 10) / 10,
+      calcium_mg_per_100g: Math.round(((product.calcium_mg || 0) / weight) * 100 * 10) / 10,
+      vitamin_b_per_100g: Math.round(((product.vitamin_b_mg || 0) / weight) * 100 * 10) / 10,
+      vitamin_c_per_100g: Math.round(((product.vitamin_c_mg || 0) / weight) * 100 * 10) / 10,
+      vitamin_d_per_100g: Math.round(((product.vitamin_d_mcg || 0) / weight) * 100 * 10) / 10,
+      vitamin_e_per_100g: Math.round(((product.vitamin_e_mg || 0) / weight) * 100 * 10) / 10,
     }));
     setCreateMode("manual");
     toast({ title: "Produit scanné !", description: "Vérifiez les données." });

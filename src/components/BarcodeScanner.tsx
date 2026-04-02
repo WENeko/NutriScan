@@ -12,6 +12,7 @@ interface BarcodeScannerProps {
     carbs: number;
     fats: number;
     weight_g: number;
+    barcode?: string;
     fiber?: number;
     sodium_mg?: number;
     potassium_mg?: number;
@@ -20,6 +21,10 @@ interface BarcodeScannerProps {
     sugar?: number;
     calcium_mg?: number;
     magnesium_mg?: number;
+    vitamin_b_mg?: number;
+    vitamin_c_mg?: number;
+    vitamin_d_mcg?: number;
+    vitamin_e_mg?: number;
   }) => void;
 }
 
@@ -73,8 +78,18 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
       const p = data.product;
       const nutriments = p.nutriments || {};
       const servingG = p.serving_quantity || 100;
+      const vitaminBPer100g = [
+        nutriments["vitamin-b1_100g"],
+        nutriments["vitamin-b2_100g"],
+        nutriments["vitamin-b3_100g"],
+        nutriments["vitamin-b5_100g"],
+        nutriments["vitamin-b6_100g"],
+        nutriments["vitamin-b9_100g"],
+        nutriments["vitamin-b12_100g"],
+      ].reduce((sum, value) => sum + (Number(value) || 0), 0);
 
       onProductFound({
+        barcode,
         name: p.product_name || p.generic_name || "Produit inconnu",
         calories: Math.round(nutriments["energy-kcal_100g"] * servingG / 100) || 0,
         proteins: Math.round((nutriments.proteins_100g || 0) * servingG / 100),
@@ -88,6 +103,10 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
         sugar: Math.round((nutriments.sugars_100g || 0) * servingG / 100) || undefined,
         calcium_mg: Math.round((nutriments.calcium_100g || 0) * 1000 * servingG / 100) || undefined,
         magnesium_mg: Math.round((nutriments.magnesium_100g || 0) * 1000 * servingG / 100) || undefined,
+        vitamin_b_mg: Math.round(vitaminBPer100g * servingG / 100 * 10) / 10 || undefined,
+        vitamin_c_mg: Math.round((Number(nutriments["vitamin-c_100g"] || nutriments["vitamin-c"]) || 0) * servingG / 100 * 10) / 10 || undefined,
+        vitamin_d_mcg: Math.round((Number(nutriments["vitamin-d_100g"] || nutriments["vitamin-d"]) || 0) * servingG / 100 * 10) / 10 || undefined,
+        vitamin_e_mg: Math.round((Number(nutriments["vitamin-e_100g"] || nutriments["vitamin-e"]) || 0) * servingG / 100 * 10) / 10 || undefined,
       });
 
       toast({ title: "Produit trouvé !", description: p.product_name });
