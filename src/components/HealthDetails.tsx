@@ -15,6 +15,7 @@ export interface MicroNutrient {
 
 interface HealthDetailsProps {
   micros: MicroNutrient[];
+  radarMicros?: MicroNutrient[];
 }
 
 function computeDensityScore(micros: MicroNutrient[]): number {
@@ -46,13 +47,14 @@ const InfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
   );
 };
 
-const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
+const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) => {
   const [open, setOpen] = useState(false);
   const prefix = useId();
+  const radarSource = radarMicros ?? micros;
 
   const densityScore = useMemo(() => computeDensityScore(micros), [micros]);
 
-  if (micros.every((m) => m.value === 0)) return null;
+  if (micros.every((m) => m.value === 0) && radarSource.every((m) => m.value === 0)) return null;
 
   const scoreColor = densityScore >= 70 ? "text-primary" : densityScore >= 40 ? "text-secondary" : "text-destructive";
 
@@ -82,7 +84,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
 
           {/* Radar Chart */}
           {(() => {
-            const radarData = micros
+            const radarData = radarSource
               .filter((m) => m.goal && m.goal > 0)
               .map((m) => ({
                 name: m.name.replace("Vitamine ", "Vit. "),
@@ -94,7 +96,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
                   <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
                     <PolarGrid stroke="hsl(var(--border))" />
                     <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
-                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                    <PolarRadiusAxis angle={90} domain={[0, 150]} tick={false} axisLine={false} />
                     <Radar dataKey="pct" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
                   </RadarChart>
                 </ResponsiveContainer>

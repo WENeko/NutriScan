@@ -38,6 +38,7 @@ IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g) :
 - fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
 - sodium_mg (mg), potassium_mg (mg), magnesium_mg (mg), calcium_mg (mg)
+- vitamin_b_mg (mg), vitamin_c_mg (mg), vitamin_d_mcg (µg), vitamin_e_mg (mg)
 
 Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
 {
@@ -62,7 +63,11 @@ Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
       "sodium_mg": 200,
       "potassium_mg": 300,
       "magnesium_mg": 30,
-      "calcium_mg": 50
+      "calcium_mg": 50,
+      "vitamin_b_mg": 0.4,
+      "vitamin_c_mg": 40,
+      "vitamin_d_mcg": 0,
+      "vitamin_e_mg": 0.2
     }
   ],
   "total_summary": {
@@ -97,7 +102,7 @@ serve(async (req) => {
     if (custom_foods && Array.isArray(custom_foods) && custom_foods.length > 0) {
       customFoodsContext = "\n\nIMPORTANT - L'utilisateur a une bibliothèque personnelle d'aliments. UTILISE CES DONNÉES EN PRIORITÉ quand tu reconnais un de ces aliments :\n";
       custom_foods.forEach((f: any) => {
-        customFoodsContext += `- ${f.name}: P=${f.proteins_per_100g}g/100g, G=${f.carbs_per_100g}g/100g, L=${f.fats_per_100g}g/100g, Cal=${f.calories_per_100g}kcal/100g\n`;
+        customFoodsContext += `- ${f.name}: portion=${f.serving_size_g ?? 100}g, Cal=${f.calories_per_100g}kcal/100g, P=${f.proteins_per_100g}g/100g, G=${f.carbs_per_100g}g/100g, L=${f.fats_per_100g}g/100g, Fibres=${f.fiber_per_100g ?? 0}g/100g, Sucres=${f.sugar_per_100g ?? 0}g/100g, AGS=${f.saturated_fat_per_100g ?? 0}g/100g, Omega3=${f.omega3_mg_per_100g ?? 0}mg/100g, Sodium=${f.sodium_mg_per_100g ?? 0}mg/100g, Potassium=${f.potassium_mg_per_100g ?? 0}mg/100g, Magnesium=${f.magnesium_mg_per_100g ?? 0}mg/100g, Calcium=${f.calcium_mg_per_100g ?? 0}mg/100g, VitB=${f.vitamin_b_per_100g ?? 0}mg/100g, VitC=${f.vitamin_c_per_100g ?? 0}mg/100g, VitD=${f.vitamin_d_per_100g ?? 0}µg/100g, VitE=${f.vitamin_e_per_100g ?? 0}mg/100g\n`;
       });
     }
 

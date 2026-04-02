@@ -38,6 +38,40 @@ interface MealItem {
   unitLabel?: string;
 }
 
+const roundNutrient = (value: number) => Math.round(value * 10) / 10;
+
+const getItemWeight = (item: MealItem) => {
+  if (item.unitCount && item.unitWeightG) return item.unitCount * item.unitWeightG;
+  return parseFloat((item.quantity || "").replace("g", "")) || 0;
+};
+
+const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial<MealItem> = {}): MealItem => {
+  const currentWeight = getItemWeight(item);
+  const factor = currentWeight > 0 ? newWeight / currentWeight : 1;
+
+  return {
+    ...item,
+    ...overrides,
+    quantity: `${newWeight}g`,
+    calories: Math.round(item.calories * factor),
+    proteins: roundNutrient(item.proteins * factor),
+    carbs: roundNutrient(item.carbs * factor),
+    fats: roundNutrient(item.fats * factor),
+    fiber: roundNutrient((item.fiber || 0) * factor),
+    sugar: roundNutrient((item.sugar || 0) * factor),
+    saturated_fat: roundNutrient((item.saturated_fat || 0) * factor),
+    omega3_mg: roundNutrient((item.omega3_mg || 0) * factor),
+    sodium_mg: roundNutrient((item.sodium_mg || 0) * factor),
+    potassium_mg: roundNutrient((item.potassium_mg || 0) * factor),
+    magnesium_mg: roundNutrient((item.magnesium_mg || 0) * factor),
+    calcium_mg: roundNutrient((item.calcium_mg || 0) * factor),
+    vitamin_b_mg: roundNutrient((item.vitamin_b_mg || 0) * factor),
+    vitamin_c_mg: roundNutrient((item.vitamin_c_mg || 0) * factor),
+    vitamin_d_mcg: roundNutrient((item.vitamin_d_mcg || 0) * factor),
+    vitamin_e_mg: roundNutrient((item.vitamin_e_mg || 0) * factor),
+  };
+};
+
 interface MealInputProps {
   userId: string;
   onMealSaved: () => void;
@@ -84,7 +118,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       // Get custom foods for context
       const { data: customFoods } = await supabase
         .from("custom_foods")
-        .select("name, proteins_per_100g, carbs_per_100g, fats_per_100g, calories_per_100g")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
         .eq("user_id", userId);
 
       const response = await supabase.functions.invoke("analyze-meal", {
@@ -106,7 +140,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     try {
       const { data: customFoods } = await supabase
         .from("custom_foods")
-        .select("name, proteins_per_100g, carbs_per_100g, fats_per_100g, calories_per_100g")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
         .eq("user_id", userId);
 
       const response = await supabase.functions.invoke("analyze-meal", {
@@ -130,17 +164,46 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     const customFoodMap = new Map(customFoods.map((f: any) => [f.name.toLowerCase(), f]));
 
     const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
-      const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
       const customMatch = customFoodMap.get(item.name?.toLowerCase());
-      let proteins = item.proteins || 0;
-      let carbs = item.carbs || 0;
-      let fats = item.fats || 0;
+      const aiWeight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
+      const hasExplicitWeight = Boolean(item.estimated_weight_g || item.weight_g);
+      const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
+      const weight = customMatch && (!hasExplicitWeight || aiWeight === 100) ? customDefaultWeight : aiWeight;
+      let proteins = Number(item.proteins) || 0;
+      let carbs = Number(item.carbs) || 0;
+      let fats = Number(item.fats) || 0;
+      let calories = Number(item.calories) || Math.round(proteins * 4 + carbs * 4 + fats * 9);
+      let fiber = Number(item.fiber) || 0;
+      let sugar = Number(item.sugar) || 0;
+      let saturated_fat = Number(item.saturated_fat) || 0;
+      let omega3_mg = Number(item.omega3_mg) || 0;
+      let sodium_mg = Number(item.sodium_mg) || 0;
+      let potassium_mg = Number(item.potassium_mg) || 0;
+      let magnesium_mg = Number(item.magnesium_mg) || 0;
+      let calcium_mg = Number(item.calcium_mg) || 0;
+      let vitamin_b_mg = Number(item.vitamin_b_mg) || 0;
+      let vitamin_c_mg = Number(item.vitamin_c_mg) || 0;
+      let vitamin_d_mcg = Number(item.vitamin_d_mcg) || 0;
+      let vitamin_e_mg = Number(item.vitamin_e_mg) || 0;
       let isCustom = false;
 
       if (customMatch) {
-        proteins = Math.round(customMatch.proteins_per_100g * weight / 100 * 10) / 10;
-        carbs = Math.round(customMatch.carbs_per_100g * weight / 100 * 10) / 10;
-        fats = Math.round(customMatch.fats_per_100g * weight / 100 * 10) / 10;
+        proteins = roundNutrient((Number(customMatch.proteins_per_100g) || 0) * weight / 100);
+        carbs = roundNutrient((Number(customMatch.carbs_per_100g) || 0) * weight / 100);
+        fats = roundNutrient((Number(customMatch.fats_per_100g) || 0) * weight / 100);
+        calories = Math.round((Number(customMatch.calories_per_100g) || 0) * weight / 100);
+        fiber = roundNutrient((Number(customMatch.fiber_per_100g) || 0) * weight / 100);
+        sugar = roundNutrient((Number(customMatch.sugar_per_100g) || 0) * weight / 100);
+        saturated_fat = roundNutrient((Number(customMatch.saturated_fat_per_100g) || 0) * weight / 100);
+        omega3_mg = roundNutrient((Number(customMatch.omega3_mg_per_100g) || 0) * weight / 100);
+        sodium_mg = roundNutrient((Number(customMatch.sodium_mg_per_100g) || 0) * weight / 100);
+        potassium_mg = roundNutrient((Number(customMatch.potassium_mg_per_100g) || 0) * weight / 100);
+        magnesium_mg = roundNutrient((Number(customMatch.magnesium_mg_per_100g) || 0) * weight / 100);
+        calcium_mg = roundNutrient((Number(customMatch.calcium_mg_per_100g) || 0) * weight / 100);
+        vitamin_b_mg = roundNutrient((Number(customMatch.vitamin_b_per_100g) || 0) * weight / 100);
+        vitamin_c_mg = roundNutrient((Number(customMatch.vitamin_c_per_100g) || 0) * weight / 100);
+        vitamin_d_mcg = roundNutrient((Number(customMatch.vitamin_d_per_100g) || 0) * weight / 100);
+        vitamin_e_mg = roundNutrient((Number(customMatch.vitamin_e_per_100g) || 0) * weight / 100);
         isCustom = true;
       }
 
@@ -152,7 +215,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       return {
         name: item.name,
         quantity: `${weight}g`,
-        calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
+          calories,
         proteins,
         carbs,
         fats,
@@ -160,14 +223,18 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         carbsDensity: carbs / weight,
         fatsDensity: fats / weight,
         isCustom,
-        fiber: item.fiber || 0,
-        sugar: item.sugar || 0,
-        saturated_fat: item.saturated_fat || 0,
-        omega3_mg: item.omega3_mg || 0,
-        sodium_mg: item.sodium_mg || 0,
-        potassium_mg: item.potassium_mg || 0,
-        magnesium_mg: item.magnesium_mg || 0,
-        calcium_mg: item.calcium_mg || 0,
+          fiber,
+          sugar,
+          saturated_fat,
+          omega3_mg,
+          sodium_mg,
+          potassium_mg,
+          magnesium_mg,
+          calcium_mg,
+          vitamin_b_mg,
+          vitamin_c_mg,
+          vitamin_d_mcg,
+          vitamin_e_mg,
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
@@ -184,7 +251,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setItems((prev) => [...prev, {
       name: product.name,
       quantity: `${weight}g`,
-      calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
+      calories: product.calories || Math.round(proteins * 4 + carbs * 4 + fats * 9),
       proteins, carbs, fats,
       protDensity: proteins / weight,
       carbsDensity: carbs / weight,
@@ -197,6 +264,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       potassium_mg: product.potassium_mg || 0,
       magnesium_mg: product.magnesium_mg || 0,
       calcium_mg: product.calcium_mg || 0,
+      vitamin_b_mg: product.vitamin_b_mg || 0,
+      vitamin_c_mg: product.vitamin_c_mg || 0,
+      vitamin_d_mcg: product.vitamin_d_mcg || 0,
+      vitamin_e_mg: product.vitamin_e_mg || 0,
     }]);
   };
 
@@ -204,15 +275,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setItems((prev) =>
       prev.map((item, i) => {
         if (i !== idx) return item;
-        const updated = { ...item, quantity: rawValue ? `${rawValue}g` : "" };
         const newWeight = parseFloat(rawValue);
         if (!isNaN(newWeight) && newWeight > 0) {
-          updated.proteins = Math.round(item.protDensity * newWeight * 10) / 10;
-          updated.carbs = Math.round(item.carbsDensity * newWeight * 10) / 10;
-          updated.fats = Math.round(item.fatsDensity * newWeight * 10) / 10;
-          updated.calories = Math.round(updated.proteins * 4 + updated.carbs * 4 + updated.fats * 9);
+          return scaleItemToWeight(item, newWeight);
         }
-        return updated;
+        return { ...item, quantity: rawValue ? `${rawValue}g` : "" };
       })
     );
   };
@@ -223,19 +290,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         if (i !== idx || !item.unitCount || !item.unitWeightG) return item;
         const newCount = Math.max(1, item.unitCount + delta);
         const newWeight = newCount * item.unitWeightG;
-        return {
-          ...item,
-          unitCount: newCount,
-          quantity: `${newWeight}g`,
-          proteins: Math.round(item.protDensity * newWeight * 10) / 10,
-          carbs: Math.round(item.carbsDensity * newWeight * 10) / 10,
-          fats: Math.round(item.fatsDensity * newWeight * 10) / 10,
-          calories: Math.round(
-            item.protDensity * newWeight * 4 +
-            item.carbsDensity * newWeight * 4 +
-            item.fatsDensity * newWeight * 9
-          ) * 10 / 10,
-        };
+        return scaleItemToWeight(item, newWeight, { unitCount: newCount });
       })
     );
   };
@@ -263,25 +318,25 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const cf = customFoods[0] as any;
       // Use custom portion if no manual weight provided, fallback to serving_size_g
       const weight = manualItem.weight ? (parseFloat(manualItem.weight) || cf.serving_size_g || 100) : (cf.serving_size_g || 100);
-      const proteins = Math.round(cf.proteins_per_100g * weight / 100 * 10) / 10;
-      const carbs = Math.round(cf.carbs_per_100g * weight / 100 * 10) / 10;
-      const fats = Math.round(cf.fats_per_100g * weight / 100 * 10) / 10;
-      const fiber = Math.round((cf.fiber_per_100g || 0) * weight / 100 * 10) / 10;
-      const sugar = Math.round((cf.sugar_per_100g || 0) * weight / 100 * 10) / 10;
-      const saturated_fat = Math.round((cf.saturated_fat_per_100g || 0) * weight / 100 * 10) / 10;
-      const omega3_mg = Math.round((cf.omega3_mg_per_100g || 0) * weight / 100 * 10) / 10;
-      const sodium_mg = Math.round((cf.sodium_mg_per_100g || 0) * weight / 100 * 10) / 10;
-      const potassium_mg = Math.round((cf.potassium_mg_per_100g || 0) * weight / 100 * 10) / 10;
-      const magnesium_mg = Math.round((cf.magnesium_mg_per_100g || 0) * weight / 100 * 10) / 10;
-      const calcium_mg = Math.round((cf.calcium_mg_per_100g || 0) * weight / 100 * 10) / 10;
-      const vitamin_b_mg = Math.round((cf.vitamin_b_per_100g || 0) * weight / 100 * 10) / 10;
-      const vitamin_c_mg = Math.round((cf.vitamin_c_per_100g || 0) * weight / 100 * 10) / 10;
-      const vitamin_d_mcg = Math.round((cf.vitamin_d_per_100g || 0) * weight / 100 * 10) / 10;
-      const vitamin_e_mg = Math.round((cf.vitamin_e_per_100g || 0) * weight / 100 * 10) / 10;
+      const proteins = roundNutrient((cf.proteins_per_100g || 0) * weight / 100);
+      const carbs = roundNutrient((cf.carbs_per_100g || 0) * weight / 100);
+      const fats = roundNutrient((cf.fats_per_100g || 0) * weight / 100);
+      const fiber = roundNutrient((cf.fiber_per_100g || 0) * weight / 100);
+      const sugar = roundNutrient((cf.sugar_per_100g || 0) * weight / 100);
+      const saturated_fat = roundNutrient((cf.saturated_fat_per_100g || 0) * weight / 100);
+      const omega3_mg = roundNutrient((cf.omega3_mg_per_100g || 0) * weight / 100);
+      const sodium_mg = roundNutrient((cf.sodium_mg_per_100g || 0) * weight / 100);
+      const potassium_mg = roundNutrient((cf.potassium_mg_per_100g || 0) * weight / 100);
+      const magnesium_mg = roundNutrient((cf.magnesium_mg_per_100g || 0) * weight / 100);
+      const calcium_mg = roundNutrient((cf.calcium_mg_per_100g || 0) * weight / 100);
+      const vitamin_b_mg = roundNutrient((cf.vitamin_b_per_100g || 0) * weight / 100);
+      const vitamin_c_mg = roundNutrient((cf.vitamin_c_per_100g || 0) * weight / 100);
+      const vitamin_d_mcg = roundNutrient((cf.vitamin_d_per_100g || 0) * weight / 100);
+      const vitamin_e_mg = roundNutrient((cf.vitamin_e_per_100g || 0) * weight / 100);
       setItems((prev) => [...prev, {
         name: cf.name,
         quantity: `${weight}g`,
-        calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
+        calories: Math.round((cf.calories_per_100g || 0) * weight / 100),
         proteins, carbs, fats,
         protDensity: cf.proteins_per_100g / 100,
         carbsDensity: cf.carbs_per_100g / 100,
@@ -309,11 +364,23 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           setItems((prev) => [...prev, {
             name: item.name || manualItem.name,
             quantity: `${weight}g`,
-            calories: Math.round(p * 4 + c * 4 + f * 9),
+            calories: Number(item.calories) || Math.round(p * 4 + c * 4 + f * 9),
             proteins: p, carbs: c, fats: f,
             protDensity: p / weight,
             carbsDensity: c / weight,
             fatsDensity: f / weight,
+            fiber: Number(item.fiber) || 0,
+            sugar: Number(item.sugar) || 0,
+            saturated_fat: Number(item.saturated_fat) || 0,
+            omega3_mg: Number(item.omega3_mg) || 0,
+            sodium_mg: Number(item.sodium_mg) || 0,
+            potassium_mg: Number(item.potassium_mg) || 0,
+            magnesium_mg: Number(item.magnesium_mg) || 0,
+            calcium_mg: Number(item.calcium_mg) || 0,
+            vitamin_b_mg: Number(item.vitamin_b_mg) || 0,
+            vitamin_c_mg: Number(item.vitamin_c_mg) || 0,
+            vitamin_d_mcg: Number(item.vitamin_d_mcg) || 0,
+            vitamin_e_mg: Number(item.vitamin_e_mg) || 0,
           }]);
         }
       } catch (e: any) {
@@ -329,7 +396,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const computeTotals = () =>
     items.reduce(
       (acc, item) => ({
-        calories: acc.calories + (Number(item.proteins) * 4 + Number(item.carbs) * 4 + Number(item.fats) * 9),
+        calories: acc.calories + Number(item.calories),
         proteins: acc.proteins + Number(item.proteins),
         carbs: acc.carbs + Number(item.carbs),
         fats: acc.fats + Number(item.fats),
@@ -377,7 +444,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           meal_id: meal.id,
           name: item.name,
           quantity: item.quantity,
-          calories: Math.round(Number(item.proteins) * 4 + Number(item.carbs) * 4 + Number(item.fats) * 9),
+          calories: Number(item.calories),
           proteins: Number(item.proteins),
           carbs: Number(item.carbs),
           fats: Number(item.fats),

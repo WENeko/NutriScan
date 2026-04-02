@@ -42,6 +42,17 @@ const WEEKDAYS = [
   { label: "Dim", day: 0 },
 ];
 
+const BMR_METHOD_INFO: Record<string, string> = {
+  mifflin: "Formule standard recommandée pour la majorité. Très fiable pour un suivi classique basé sur le poids, la taille et l'âge.",
+  katch: "Idéale si vous connaissez votre taux de masse grasse. Plus précise pour les profils sportifs car elle se base sur la masse maigre.",
+};
+
+const ACTIVITY_LEVEL_INFO: Record<string, string> = {
+  sedentary: "Travail de bureau, peu ou pas d'exercice physique quotidien.",
+  moderate: "Travail debout ou 3 à 5 séances de sport modéré par semaine.",
+  athletic: "Entraînement intense quotidien ou travail physique très exigeant.",
+};
+
 const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weight, setWeight] = useState<number>(70);
   const [height, setHeight] = useState<number>(175);
@@ -318,6 +329,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <button
                 key={m.value}
                 onClick={() => setBmrMethod(m.value)}
+                title={BMR_METHOD_INFO[m.value]}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
                 }`}
@@ -332,6 +344,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           {bmrMethod === "katch" && leanMass && (
             <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
           )}
+          <p className="text-[10px] text-muted-foreground mb-3">{BMR_METHOD_INFO[bmrMethod]}</p>
           <div className="bg-accent rounded-xl p-3 text-center">
             <span className="text-xs text-muted-foreground">MB calculé : </span>
             <span className="text-lg font-bold text-primary">{bmr} kcal</span>
@@ -346,6 +359,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <button
                 key={a.value}
                 onClick={() => setActivityLevel(a.value)}
+                title={ACTIVITY_LEVEL_INFO[a.value]}
                 className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
                   activityLevel === a.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
                 }`}
@@ -355,6 +369,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </button>
             ))}
           </div>
+          <p className="text-[10px] text-muted-foreground mt-3">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
         </section>
 
         {/* Goal */}
