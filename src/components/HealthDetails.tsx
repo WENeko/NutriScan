@@ -1,6 +1,7 @@
 import React, { useState, useId, useMemo } from "react";
 import { ChevronDown, Info, Activity } from "lucide-react";
 import { useTooltipCtx } from "./TooltipContext";
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
 
 export interface MicroNutrient {
   name: string;
