@@ -288,6 +288,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         fatsDensity: cf.fats_per_100g / 100,
         isCustom: true,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
+        vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
       }]);
       toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g` });
     } else {

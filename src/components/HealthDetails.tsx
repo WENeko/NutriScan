@@ -80,6 +80,28 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros }) => {
             </p>
           </div>
 
+          {/* Radar Chart */}
+          {(() => {
+            const radarData = micros
+              .filter((m) => m.goal && m.goal > 0)
+              .map((m) => ({
+                name: m.name.replace("Vitamine ", "Vit. "),
+                pct: Math.min(Math.round((m.value / m.goal!) * 100), 150),
+              }));
+            return radarData.length >= 3 ? (
+              <div className="bg-accent rounded-xl p-2 mb-2">
+                <ResponsiveContainer width="100%" height={220}>
+                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
+                    <PolarGrid stroke="hsl(var(--border))" />
+                    <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+                    <PolarRadiusAxis angle={90} domain={[0, 100]} tick={false} axisLine={false} />
+                    <Radar dataKey="pct" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
+                  </RadarChart>
+                </ResponsiveContainer>
+              </div>
+            ) : null;
+          })()}
+
           <div className="grid grid-cols-2 gap-2">
           {micros.filter((m) => m.value > 0).map((micro, i) => {
               const rawPct = micro.goal ? micro.value / micro.goal : 0;
