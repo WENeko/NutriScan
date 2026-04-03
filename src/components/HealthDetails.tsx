@@ -1,7 +1,7 @@
 import React, { useState, useId, useMemo } from "react";
 import { ChevronDown, Info, Activity } from "lucide-react";
 import { useTooltipCtx } from "./TooltipContext";
-import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer } from "recharts";
+import { Radar, RadarChart, PolarGrid, PolarAngleAxis, PolarRadiusAxis, ResponsiveContainer, Tooltip } from "recharts";
 
 export interface MicroNutrient {
   name: string;
@@ -9,7 +9,6 @@ export interface MicroNutrient {
   unit: string;
   info: string;
   goal?: number;
-  /** If true, staying UNDER the goal is good (e.g. sugar, sodium) — inverts color scale */
   isLimit?: boolean;
 }
 
@@ -18,13 +17,17 @@ interface HealthDetailsProps {
   radarMicros?: MicroNutrient[];
 }
 
+const RADAR_AXES = [
+  "Fibres", "Sucres", "AG Saturés", "Oméga-3", "Sodium", "Potassium",
+  "Magnésium", "Calcium", "Vitamine B", "Vitamine C", "Vitamine D", "Vitamine E",
+];
+
 function computeDensityScore(micros: MicroNutrient[]): number {
   const scored = micros.filter((m) => m.goal && m.goal > 0);
   if (scored.length === 0) return 0;
   let total = 0;
   scored.forEach((m) => {
     const ratio = m.value / m.goal!;
-    // For limit micros (sugar, sodium…), staying under is good
     total += m.isLimit ? Math.min(Math.max(1 - ratio, 0), 1) : Math.min(ratio, 1);
   });
   return Math.round((total / scored.length) * 100);
@@ -47,12 +50,37 @@ const InfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
   );
 };
 
+const tooltipStyle = {
+  background: "hsl(var(--card))",
+  border: "1px solid hsl(var(--border))",
+  borderRadius: "0.75rem",
+  fontSize: "12px",
+};
+
 const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) => {
   const [open, setOpen] = useState(false);
   const prefix = useId();
   const radarSource = radarMicros ?? micros;
 
   const densityScore = useMemo(() => computeDensityScore(micros), [micros]);
+
+  // Build radar data with all 12 axes - must be before early return
+  const radarData = useMemo(() => {
+    return RADAR_AXES.map((axisName) => {
+      const micro = radarSource.find((m) => m.name === axisName);
+      const value = micro?.value || 0;
+      const goal = micro?.goal || 1;
+      const pct = Math.min(Math.round((value / goal) * 100), 150);
+      return {
+        name: axisName.replace("Vitamine ", "Vit. "),
+        fullName: axisName,
+        pct,
+        value: Math.round(value * 10) / 10,
+        goal,
+        unit: micro?.unit || "",
+      };
+    });
+  }, [radarSource]);
 
   if (micros.every((m) => m.value === 0) && radarSource.every((m) => m.value === 0)) return null;
 
@@ -82,32 +110,44 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
             </p>
           </div>
 
-          {/* Radar Chart */}
-          {(() => {
-            const radarData = radarSource
-              .filter((m) => m.goal && m.goal > 0)
-              .map((m) => ({
-                name: m.name.replace("Vitamine ", "Vit. "),
-                pct: Math.min(Math.round((m.value / m.goal!) * 100), 150),
-              }));
-            return radarData.length >= 3 ? (
-              <div className="bg-accent rounded-xl p-2 mb-2">
-                <ResponsiveContainer width="100%" height={220}>
-                  <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="70%">
-                    <PolarGrid stroke="hsl(var(--border))" />
-                    <PolarAngleAxis dataKey="name" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
-                    <PolarRadiusAxis angle={90} domain={[0, 150]} tick={false} axisLine={false} />
-                    <Radar dataKey="pct" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
-                  </RadarChart>
-                </ResponsiveContainer>
+          {/* Radar Chart - 12 axes, % scale, 100% dashed reference */}
+          {radarData.length >= 3 && (
+            <div className="bg-accent rounded-xl p-2 mb-2">
+              <ResponsiveContainer width="100%" height={260}>
+                <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="68%">
+                  <PolarGrid stroke="hsl(var(--border))" />
+                  <PolarAngleAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
+                  <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
+                  {/* 100% reference line */}
+                  <Radar
+                    name="Objectif"
+                    dataKey={() => 100}
+                    stroke="hsl(var(--muted-foreground))"
+                    fill="none"
+                    strokeDasharray="4 4"
+                    strokeOpacity={0.5}
+                  />
+                  <Radar dataKey="pct" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
+                  <Tooltip
+                    contentStyle={tooltipStyle}
+                    formatter={(v: number, _name: string, props: any) => {
+                      const item = props.payload;
+                      return [`${item.value} ${item.unit} / ${item.goal} ${item.unit} (${item.pct}%)`, item.fullName];
+                    }}
+                  />
+                </RadarChart>
+              </ResponsiveContainer>
+              <div className="flex justify-center gap-4 mt-1 text-[10px]">
+                <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Apport</span>
+                <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-muted-foreground" style={{ borderTop: "1px dashed" }} /> 100%</span>
               </div>
-            ) : null;
-          })()}
+            </div>
+          )}
 
           <div className="grid grid-cols-2 gap-2">
           {micros.filter((m) => m.value > 0).map((micro, i) => {
               const rawPct = micro.goal ? micro.value / micro.goal : 0;
-              const pct = Math.min(rawPct, 1); // bar capped at 100% visually
+              const pct = Math.min(rawPct, 1);
               const displayPct = Math.round(rawPct * 100);
               const pctColor = micro.isLimit
                 ? (rawPct >= 0.9 ? "bg-destructive" : rawPct >= 0.7 ? "bg-secondary" : "bg-primary")

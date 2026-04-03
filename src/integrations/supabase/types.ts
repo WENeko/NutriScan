@@ -283,6 +283,8 @@ export type Database = {
           height_cm: number | null
           id: string
           last_weighin_date: string | null
+          mass_gain_phase: string | null
+          morphotype: string | null
           muscle_mass_kg: number | null
           sport_calories_daily: number | null
           target_body_fat_percent: number | null
@@ -311,6 +313,8 @@ export type Database = {
           height_cm?: number | null
           id?: string
           last_weighin_date?: string | null
+          mass_gain_phase?: string | null
+          morphotype?: string | null
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
           target_body_fat_percent?: number | null
@@ -339,6 +343,8 @@ export type Database = {
           height_cm?: number | null
           id?: string
           last_weighin_date?: string | null
+          mass_gain_phase?: string | null
+          morphotype?: string | null
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
           target_body_fat_percent?: number | null
@@ -354,6 +360,83 @@ export type Database = {
           weight_kg?: number | null
         }
         Relationships: []
+      }
+      recipe_ingredients: {
+        Row: {
+          calcium_mg_per_100g: number
+          carbs_per_100g: number
+          created_at: string
+          custom_food_id: string
+          fats_per_100g: number
+          fiber_per_100g: number
+          id: string
+          magnesium_mg_per_100g: number
+          name: string
+          omega3_mg_per_100g: number
+          potassium_mg_per_100g: number
+          proteins_per_100g: number
+          saturated_fat_per_100g: number
+          sodium_mg_per_100g: number
+          sugar_per_100g: number
+          vitamin_b_per_100g: number
+          vitamin_c_per_100g: number
+          vitamin_d_per_100g: number
+          vitamin_e_per_100g: number
+          weight_g: number
+        }
+        Insert: {
+          calcium_mg_per_100g?: number
+          carbs_per_100g?: number
+          created_at?: string
+          custom_food_id: string
+          fats_per_100g?: number
+          fiber_per_100g?: number
+          id?: string
+          magnesium_mg_per_100g?: number
+          name: string
+          omega3_mg_per_100g?: number
+          potassium_mg_per_100g?: number
+          proteins_per_100g?: number
+          saturated_fat_per_100g?: number
+          sodium_mg_per_100g?: number
+          sugar_per_100g?: number
+          vitamin_b_per_100g?: number
+          vitamin_c_per_100g?: number
+          vitamin_d_per_100g?: number
+          vitamin_e_per_100g?: number
+          weight_g?: number
+        }
+        Update: {
+          calcium_mg_per_100g?: number
+          carbs_per_100g?: number
+          created_at?: string
+          custom_food_id?: string
+          fats_per_100g?: number
+          fiber_per_100g?: number
+          id?: string
+          magnesium_mg_per_100g?: number
+          name?: string
+          omega3_mg_per_100g?: number
+          potassium_mg_per_100g?: number
+          proteins_per_100g?: number
+          saturated_fat_per_100g?: number
+          sodium_mg_per_100g?: number
+          sugar_per_100g?: number
+          vitamin_b_per_100g?: number
+          vitamin_c_per_100g?: number
+          vitamin_d_per_100g?: number
+          vitamin_e_per_100g?: number
+          weight_g?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recipe_ingredients_custom_food_id_fkey"
+            columns: ["custom_food_id"]
+            isOneToOne: false
+            referencedRelation: "custom_foods"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       sleep_logs: {
         Row: {

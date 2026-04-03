@@ -14,8 +14,7 @@ import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { subDays, startOfDay, format } from "date-fns";
+import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 
 interface Goals {
   calories: number;
@@ -78,6 +77,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     let baseCalories = 2000;
     let weekSportTotal = 0;
 
+    // Calendar week: Monday 00:00 to Sunday 23:59
+    const now = new Date();
+    const weekStart = startOfWeek(now, { weekStartsOn: 1 }); // Monday
+    const weekEnd = endOfWeek(now, { weekStartsOn: 1 }); // Sunday
+    const dayOfWeek = now.getDay(); // 0=Sun
+    const mondayBased = dayOfWeek === 0 ? 7 : dayOfWeek; // 1=Mon..7=Sun
+    setWeekDaysElapsed(mondayBased);
+
     if (profile) {
       const g = profile.goals as any;
       baseCalories = g?.calories ?? 2000;
@@ -95,12 +102,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         activity_level: profile.activity_level,
       });
 
-      const weekAgo = subDays(new Date(), 6);
       const { data: weekBody } = await supabase
         .from("body_composition")
         .select("sport_calories, recorded_at")
         .eq("user_id", userId)
-        .gte("recorded_at", format(weekAgo, "yyyy-MM-dd"));
+        .gte("recorded_at", format(weekStart, "yyyy-MM-dd"))
+        .lte("recorded_at", format(weekEnd, "yyyy-MM-dd"));
 
       if (weekBody && weekBody.length > 0) {
         weekSportTotal = (weekBody as any[]).reduce((sum, b) => sum + (Number(b.sport_calories) || 0), 0);
@@ -118,7 +125,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       });
     }
 
-    const todayStart = startOfDay(new Date());
+    const todayStart = startOfDay(now);
     const { data: meals } = await supabase
       .from("meals")
       .select("*")
@@ -142,19 +149,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       );
       setTodayTotals(totals);
 
-      const weekAgo = subDays(new Date(), 6);
-      const weekMeals = typedMeals.filter((m) => new Date(m.timestamp) >= startOfDay(weekAgo));
+      // Calendar week meals (Mon-Sun)
+      const weekMeals = typedMeals.filter((m) => {
+        const ts = new Date(m.timestamp);
+        return ts >= weekStart && ts <= weekEnd;
+      });
       const weekTotal = weekMeals.reduce((acc, m) => acc + Number(m.total_calories), 0);
       setWeekTotalCalories(Math.round(weekTotal));
-      setWeekAvgCalories(Math.round(weekTotal / 7));
+      setWeekAvgCalories(Math.round(weekTotal / mondayBased));
 
-      // Count distinct days in the week with data, but use calendar days elapsed for budget
-      const now = new Date();
-      const dayOfWeek = now.getDay(); // 0=Sun
-      const mondayBased = dayOfWeek === 0 ? 7 : dayOfWeek; // 1=Mon..7=Sun
-      setWeekDaysElapsed(mondayBased);
-
-      // Fetch 7-day micros and derive today's micros from the same source
+      // Fetch week micros
       const todayMealIds = today.map((m) => m.id);
       const weekMealIds = weekMeals.map((m) => m.id);
       const emptyMicros = { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 };
@@ -250,15 +254,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const trendDiff = weekAvgCalories - goals.calories;
   const trendPercent = Math.abs(Math.round((trendDiff / goals.calories) * 100));
   
-  // Protein per kg as donut
   const proteinPerKg = weight > 0 ? todayTotals.proteins / weight : 0;
   const proteinPerKgMax = proteinTargetPerKg;
 
-  // Electrolyte recovery feedback
   const showElectrolyteWarning = sportCalories >= 500 && (
     todayMicros.sodium_mg < 1500 || todayMicros.potassium_mg < 2000 || todayMicros.magnesium_mg < 200
   );
-
 
   const microsList = [
     { name: "Fibres", value: todayMicros.fiber, unit: "g", info: getMicroInfo("fiber", microGoals.fiber), goal: microGoals.fiber },
@@ -404,26 +405,25 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               {weekAvgCalories > 0 && (
                 <div className="flex items-center justify-center gap-2 mt-3 text-xs text-muted-foreground">
                   {trendDiff > 50 ? (
-                    <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne 7j : +{trendPercent}% au-dessus</span></>
+                    <><TrendingUp className="w-3.5 h-3.5 text-destructive" /><span>Moyenne sem. : +{trendPercent}% au-dessus</span></>
                   ) : trendDiff < -50 ? (
-                    <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : -{trendPercent}% en dessous</span></>
+                    <><TrendingDown className="w-3.5 h-3.5 text-primary" /><span>Moyenne sem. : -{trendPercent}% en dessous</span></>
                   ) : (
-                    <><Minus className="w-3.5 h-3.5 text-primary" /><span>Moyenne 7j : dans l'objectif ✓</span></>
+                    <><Minus className="w-3.5 h-3.5 text-primary" /><span>Moyenne sem. : dans l'objectif ✓</span></>
                   )}
                 </div>
               )}
             </section>
 
-            {/* Weekly calorie budget */}
+            {/* Weekly calorie budget - Calendar week Mon-Sun */}
             {goals.calories > 0 && (
               <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
                 {(() => {
                   const weeklyTarget = goals.calories * 7;
-                  const expectedAtThisPoint = goals.calories * weekDaysElapsed;
                   const budgetDelta = weekTotalCalories - weeklyTarget;
                   const absDiff = Math.abs(budgetDelta);
                   const pct = weeklyTarget > 0 ? weekTotalCalories / weeklyTarget : 0;
-                  const expectedPct = weeklyTarget > 0 ? expectedAtThisPoint / weeklyTarget : 0;
+                  const expectedPct = weeklyTarget > 0 ? (goals.calories * weekDaysElapsed) / weeklyTarget : 0;
                   const isBalanced = absDiff < 1;
                   const isSurplus = budgetDelta > 0 && !isBalanced;
                   const isRemaining = budgetDelta < 0 && !isBalanced;
@@ -433,23 +433,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                       <div className="flex items-center justify-between mb-2">
                         <h3 className="font-display font-semibold text-sm">Budget Hebdo</h3>
                         <span className="text-xs text-muted-foreground">
-                          J{weekDaysElapsed}/7
+                          Lun→Dim · J{weekDaysElapsed}/7
                         </span>
                       </div>
 
                       {/* Progress bar */}
                       <div className="relative h-3 bg-muted rounded-full overflow-hidden mb-2">
-                        {/* Expected marker */}
                         <div
                           className="absolute top-0 h-full w-0.5 bg-foreground/30 z-10"
                           style={{ left: `${Math.min(expectedPct * 100, 100)}%` }}
                         />
-                        {/* Actual progress */}
                         <div
                           className={`h-full rounded-full transition-all duration-700 ${
                             isSurplus ? "bg-destructive" : "bg-primary"
                           }`}
-                          style={{ width: `${Math.max(pct * 100, 0)}%` }}
+                          style={{ width: `${Math.min(pct * 100, 100)}%` }}
                         />
                       </div>
 

@@ -3,6 +3,7 @@ import { Html5Qrcode } from "html5-qrcode";
 import { Loader2, ScanBarcode, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
+import NumericInput from "./NumericInput";
 
 interface BarcodeScannerProps {
   onProductFound: (product: {
@@ -25,14 +26,16 @@ interface BarcodeScannerProps {
     vitamin_c_mg?: number;
     vitamin_d_mcg?: number;
     vitamin_e_mg?: number;
+    serving_size_g?: number;
   }) => void;
 }
 
 const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
   const [scanning, setScanning] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [pendingProduct, setPendingProduct] = useState<any>(null);
+  const [portionG, setPortionG] = useState<number>(100);
   const scannerRef = useRef<Html5Qrcode | null>(null);
-  const readerRef = useRef<HTMLDivElement>(null);
 
   const startScanner = async () => {
     setScanning(true);
@@ -77,7 +80,8 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
 
       const p = data.product;
       const nutriments = p.nutriments || {};
-      const servingG = p.serving_quantity || 100;
+      const servingG = p.serving_quantity || p.product_quantity || 100;
+      
       const vitaminBPer100g = [
         nutriments["vitamin-b1_100g"],
         nutriments["vitamin-b2_100g"],
@@ -88,33 +92,64 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
         nutriments["vitamin-b12_100g"],
       ].reduce((sum, value) => sum + (Number(value) || 0), 0);
 
-      onProductFound({
+      // Store per-100g values and let user choose portion
+      setPendingProduct({
         barcode,
         name: p.product_name || p.generic_name || "Produit inconnu",
-        calories: Math.round(nutriments["energy-kcal_100g"] * servingG / 100) || 0,
-        proteins: Math.round((nutriments.proteins_100g || 0) * servingG / 100),
-        carbs: Math.round((nutriments.carbohydrates_100g || 0) * servingG / 100),
-        fats: Math.round((nutriments.fat_100g || 0) * servingG / 100),
-        weight_g: servingG,
-        fiber: Math.round((nutriments.fiber_100g || 0) * servingG / 100) || undefined,
-        sodium_mg: Math.round((nutriments.sodium_100g || 0) * 1000 * servingG / 100) || undefined,
-        potassium_mg: Math.round((nutriments.potassium_100g || 0) * 1000 * servingG / 100) || undefined,
-        saturated_fat: Math.round((nutriments["saturated-fat_100g"] || 0) * servingG / 100) || undefined,
-        sugar: Math.round((nutriments.sugars_100g || 0) * servingG / 100) || undefined,
-        calcium_mg: Math.round((nutriments.calcium_100g || 0) * 1000 * servingG / 100) || undefined,
-        magnesium_mg: Math.round((nutriments.magnesium_100g || 0) * 1000 * servingG / 100) || undefined,
-        vitamin_b_mg: Math.round(vitaminBPer100g * servingG / 100 * 10) / 10 || undefined,
-        vitamin_c_mg: Math.round((Number(nutriments["vitamin-c_100g"] || nutriments["vitamin-c"]) || 0) * servingG / 100 * 10) / 10 || undefined,
-        vitamin_d_mcg: Math.round((Number(nutriments["vitamin-d_100g"] || nutriments["vitamin-d"]) || 0) * servingG / 100 * 10) / 10 || undefined,
-        vitamin_e_mg: Math.round((Number(nutriments["vitamin-e_100g"] || nutriments["vitamin-e"]) || 0) * servingG / 100 * 10) / 10 || undefined,
+        servingG,
+        // Use raw energy-kcal from API (priority over P*4+G*4+L*9)
+        calories_100g: Number(nutriments["energy-kcal_100g"]) || 0,
+        proteins_100g: Number(nutriments.proteins_100g) || 0,
+        carbs_100g: Number(nutriments.carbohydrates_100g) || 0,
+        fats_100g: Number(nutriments.fat_100g) || 0,
+        fiber_100g: Number(nutriments.fiber_100g) || 0,
+        sodium_100g: (Number(nutriments.sodium_100g) || 0) * 1000,
+        potassium_100g: (Number(nutriments.potassium_100g) || 0) * 1000,
+        saturated_fat_100g: Number(nutriments["saturated-fat_100g"]) || 0,
+        sugar_100g: Number(nutriments.sugars_100g) || 0,
+        calcium_100g: (Number(nutriments.calcium_100g) || 0) * 1000,
+        magnesium_100g: (Number(nutriments.magnesium_100g) || 0) * 1000,
+        vitamin_b_100g: vitaminBPer100g,
+        vitamin_c_100g: Number(nutriments["vitamin-c_100g"] || nutriments["vitamin-c"]) || 0,
+        vitamin_d_100g: Number(nutriments["vitamin-d_100g"] || nutriments["vitamin-d"]) || 0,
+        vitamin_e_100g: Number(nutriments["vitamin-e_100g"] || nutriments["vitamin-e"]) || 0,
       });
-
+      setPortionG(servingG);
       toast({ title: "Produit trouvé !", description: p.product_name });
     } catch (err: any) {
       toast({ title: "Erreur", description: "Impossible de rechercher le produit", variant: "destructive" });
     } finally {
       setLoading(false);
     }
+  };
+
+  const confirmPortion = () => {
+    if (!pendingProduct) return;
+    const p = pendingProduct;
+    const ratio = portionG / 100;
+    onProductFound({
+      barcode: p.barcode,
+      name: p.name,
+      // Use raw kcal from API, not recalculated
+      calories: Math.round(p.calories_100g * ratio),
+      proteins: Math.round(p.proteins_100g * ratio * 10) / 10,
+      carbs: Math.round(p.carbs_100g * ratio * 10) / 10,
+      fats: Math.round(p.fats_100g * ratio * 10) / 10,
+      weight_g: portionG,
+      serving_size_g: p.servingG,
+      fiber: Math.round(p.fiber_100g * ratio * 10) / 10 || undefined,
+      sodium_mg: Math.round(p.sodium_100g * ratio) || undefined,
+      potassium_mg: Math.round(p.potassium_100g * ratio) || undefined,
+      saturated_fat: Math.round(p.saturated_fat_100g * ratio * 10) / 10 || undefined,
+      sugar: Math.round(p.sugar_100g * ratio * 10) / 10 || undefined,
+      calcium_mg: Math.round(p.calcium_100g * ratio) || undefined,
+      magnesium_mg: Math.round(p.magnesium_100g * ratio) || undefined,
+      vitamin_b_mg: Math.round(p.vitamin_b_100g * ratio * 10) / 10 || undefined,
+      vitamin_c_mg: Math.round(p.vitamin_c_100g * ratio * 10) / 10 || undefined,
+      vitamin_d_mcg: Math.round(p.vitamin_d_100g * ratio * 10) / 10 || undefined,
+      vitamin_e_mg: Math.round(p.vitamin_e_100g * ratio * 10) / 10 || undefined,
+    });
+    setPendingProduct(null);
   };
 
   useEffect(() => {
@@ -126,6 +161,40 @@ const BarcodeScanner: React.FC<BarcodeScannerProps> = ({ onProductFound }) => {
       <div className="flex flex-col items-center justify-center py-12 gap-3">
         <Loader2 className="w-8 h-8 animate-spin text-primary" />
         <p className="text-sm text-muted-foreground">Recherche du produit...</p>
+      </div>
+    );
+  }
+
+  // Pending product - let user adjust portion
+  if (pendingProduct) {
+    const ratio = portionG / 100;
+    return (
+      <div className="space-y-3 animate-fade-up">
+        <div className="bg-card rounded-xl p-3 shadow-card">
+          <p className="text-sm font-semibold">{pendingProduct.name}</p>
+          <p className="text-[10px] text-muted-foreground">Code : {pendingProduct.barcode}</p>
+        </div>
+        <div className="bg-card rounded-xl p-3 shadow-card space-y-2">
+          <div className="flex items-center justify-between">
+            <span className="text-xs text-muted-foreground">Portion (g)</span>
+            <NumericInput value={portionG} onChange={setPortionG} className="h-8 w-24 rounded-lg text-sm text-center" />
+          </div>
+          <p className="text-[10px] text-muted-foreground">Portion par défaut : {pendingProduct.servingG}g</p>
+          <div className="bg-accent rounded-lg p-2 text-xs">
+            <strong className="text-primary">{Math.round(pendingProduct.calories_100g * ratio)} kcal</strong>
+            {" · "}P:{Math.round(pendingProduct.proteins_100g * ratio)}g
+            {" · "}G:{Math.round(pendingProduct.carbs_100g * ratio)}g
+            {" · "}L:{Math.round(pendingProduct.fats_100g * ratio)}g
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <Button variant="outline" className="flex-1 rounded-xl" onClick={() => setPendingProduct(null)}>
+            <X className="w-4 h-4 mr-1" /> Annuler
+          </Button>
+          <Button className="flex-1 rounded-xl nutri-gradient text-primary-foreground" onClick={confirmPortion}>
+            Ajouter
+          </Button>
+        </div>
       </div>
     );
   }

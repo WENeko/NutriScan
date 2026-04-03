@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle } from "lucide-react";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
@@ -48,10 +48,32 @@ const BMR_METHOD_INFO: Record<string, string> = {
 };
 
 const ACTIVITY_LEVEL_INFO: Record<string, string> = {
-  sedentary: "Travail de bureau, peu ou pas d'exercice physique quotidien.",
-  moderate: "Travail debout ou 3 à 5 séances de sport modéré par semaine.",
-  athletic: "Entraînement intense quotidien ou travail physique très exigeant.",
+  sedentary: "Travail de bureau, peu ou pas d'exercice. Multiplicateur ×1.2 appliqué au MB.",
+  moderate: "3 à 5 séances de sport modéré par semaine ou travail debout. Multiplicateur ×1.55.",
+  athletic: "Entraînement intense quotidien ou travail physique très exigeant. Multiplicateur ×1.8.",
 };
+
+const MORPHOTYPES = [
+  { value: "ecto", label: "Ectomorphe", emoji: "🦴", desc: "Ossature fine, métabolisme rapide, difficulté à prendre du poids." },
+  { value: "meso", label: "Mésomorphe", emoji: "💪", desc: "Ossature moyenne, prend du muscle facilement, physique naturellement athlétique." },
+  { value: "endo", label: "Endomorphe", emoji: "🐻", desc: "Ossature large, métabolisme lent, tendance à stocker les graisses." },
+  { value: "ecto-meso", label: "Ecto-Méso", emoji: "🏃", desc: "Mince avec une bonne capacité de prise musculaire." },
+  { value: "endo-meso", label: "Endo-Méso", emoji: "🏋️", desc: "Fort et musclé naturellement, mais stocke aussi facilement." },
+];
+
+const MORPHOTYPE_BMR_FACTOR: Record<string, number> = {
+  ecto: 1.05,
+  meso: 1.0,
+  endo: 0.95,
+  "ecto-meso": 1.02,
+  "endo-meso": 0.97,
+};
+
+const MASS_GAIN_PHASES = [
+  { value: "initial", label: "Initiale", surplus: 500, desc: "Début de prise de masse (+500 kcal). Gain estimé : ~0.5 kg/sem." },
+  { value: "growth", label: "Croissance", surplus: 700, desc: "Phase intensive (+700 kcal). Gain estimé : ~0.7 kg/sem." },
+  { value: "stabilization", label: "Stabilisation", surplus: 500, desc: "Consolidation des acquis (+500 kcal). Gain estimé : ~0.5 kg/sem." },
+];
 
 const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weight, setWeight] = useState<number>(70);
@@ -65,6 +87,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [bmrMethod, setBmrMethod] = useState<string>("mifflin");
   const [tdee, setTdee] = useState<number>(0);
   const [targets, setTargets] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
+  const [morphotype, setMorphotype] = useState<string>("");
+  const [massGainPhase, setMassGainPhase] = useState<string>("");
+  const [showMorphoHelp, setShowMorphoHelp] = useState(false);
 
   // Body composition
   const [bodyFat, setBodyFat] = useState<number | "">("");
@@ -82,12 +107,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weighinMinute, setWeighinMinute] = useState<number>(0);
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
-
-  // Compute lean mass from weight and body fat
   const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
 
   useEffect(() => { loadProfile(); }, []);
-  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat]);
+  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase]);
 
   const loadProfile = async () => {
     const { data } = await supabase
@@ -115,7 +138,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_frequency) setWeighinFrequency(d.weighin_frequency);
       if (d.weighin_day !== null && d.weighin_day !== undefined) setWeighinDay(Number(d.weighin_day));
       if (d.weighin_hour !== null && d.weighin_hour !== undefined) setWeighinHour(Number(d.weighin_hour));
-      if ((d as any).weighin_minute !== null && (d as any).weighin_minute !== undefined) setWeighinMinute(Number((d as any).weighin_minute));
+      if (d.weighin_minute !== null && d.weighin_minute !== undefined) setWeighinMinute(Number(d.weighin_minute));
+      if (d.morphotype) setMorphotype(d.morphotype);
+      if (d.mass_gain_phase) setMassGainPhase(d.mass_gain_phase);
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
     }
@@ -127,13 +152,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     if (bmrMethod === "katch" && leanMass && leanMass > 0) {
       usedBmr = Math.round(21.6 * leanMass + 370);
     } else {
-      // Mifflin-St Jeor
       if (gender === "female") {
         usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
       } else {
         usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
       }
     }
+
+    // Apply morphotype factor
+    const morphoFactor = MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0;
+    usedBmr = Math.round(usedBmr * morphoFactor);
     setBmr(usedBmr);
 
     const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[1];
@@ -141,7 +169,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     setTdee(Math.round(calculatedTdee));
 
     const goal = GOAL_TYPES.find((g) => g.value === goalType) || GOAL_TYPES[1];
-    const targetCalories = Math.round(calculatedTdee * (1 + goal.calorieModifier));
+    let targetCalories = Math.round(calculatedTdee * (1 + goal.calorieModifier));
+
+    // Apply mass gain phase surplus if goal is bulk
+    if (goalType === "bulk" && massGainPhase) {
+      const phase = MASS_GAIN_PHASES.find((p) => p.value === massGainPhase);
+      if (phase) {
+        targetCalories = Math.round(calculatedTdee + phase.surplus);
+      }
+    }
+
     const targetProteins = Math.round(weight * goal.proteinPerKg);
     const targetFats = Math.round((targetCalories * 0.25) / 9);
     const targetCarbs = Math.round((targetCalories - targetProteins * 4 - targetFats * 9) / 4);
@@ -179,13 +216,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           weighin_day: weighinDay,
           weighin_hour: weighinHour,
           weighin_minute: weighinMinute,
-          last_weighin_date: null, // will be set on actual weigh-in
+          morphotype: morphotype || null,
+          mass_gain_phase: massGainPhase || null,
+          last_weighin_date: null,
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
       if (error) throw error;
 
-      // Save today's body composition entry
       const today = format(new Date(), "yyyy-MM-dd");
       const { data: existing } = await supabase
         .from("body_composition")
@@ -266,6 +304,47 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
         </section>
 
+        {/* Morphotype */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="font-display font-semibold text-base">Morphotype</h2>
+            <button onClick={() => setShowMorphoHelp(!showMorphoHelp)} className="p-1 rounded-lg hover:bg-muted">
+              <HelpCircle className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+
+          {showMorphoHelp && (
+            <div className="bg-accent rounded-xl p-3 mb-3 text-xs text-muted-foreground space-y-2 animate-fade-up">
+              <p className="font-semibold text-foreground">🔍 Comment identifier ton morphotype ?</p>
+              <p>• <strong>Poignets fins</strong> (tour &lt; 16cm) → tendance Ecto</p>
+              <p>• <strong>Métabolisme rapide</strong>, difficulté à grossir → Ecto</p>
+              <p>• <strong>Prends du muscle facilement</strong>, épaules larges → Méso</p>
+              <p>• <strong>Ossature large</strong>, stocke facilement → Endo</p>
+              <p>• Tu te situes entre deux ? Choisis un <strong>hybride</strong> (Ecto-Méso ou Endo-Méso).</p>
+            </div>
+          )}
+
+          <div className="grid grid-cols-2 gap-2">
+            {MORPHOTYPES.map((m) => (
+              <button
+                key={m.value}
+                onClick={() => setMorphotype(m.value)}
+                className={`p-3 rounded-xl text-left transition-all ${
+                  morphotype === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                }`}
+              >
+                <div className="text-sm font-semibold">{m.emoji} {m.label}</div>
+                <div className={`text-[10px] mt-0.5 ${morphotype === m.value ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.desc}</div>
+              </button>
+            ))}
+          </div>
+          {morphotype && (
+            <p className="text-[10px] text-muted-foreground mt-2">
+              Facteur MB appliqué : ×{MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0}
+            </p>
+          )}
+        </section>
+
         {/* Body composition */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "50ms" }}>
           <div className="flex items-center gap-2 mb-4">
@@ -296,10 +375,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
             </div>
           )}
-          <p className="text-[10px] text-muted-foreground mt-2">Ces champs sont prêts pour une synchronisation Health Connect future.</p>
         </section>
 
-        {/* Targets: weight, body fat, muscle */}
+        {/* Targets */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "75ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">🎯 Objectifs corporels</h2>
           <div className="grid grid-cols-3 gap-3">
@@ -329,7 +407,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <button
                 key={m.value}
                 onClick={() => setBmrMethod(m.value)}
-                title={BMR_METHOD_INFO[m.value]}
                 className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
                   bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
                 }`}
@@ -344,10 +421,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           {bmrMethod === "katch" && leanMass && (
             <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
           )}
-          <p className="text-[10px] text-muted-foreground mb-3">{BMR_METHOD_INFO[bmrMethod]}</p>
+          <div className="bg-accent/50 rounded-lg p-2.5 mb-3">
+            <div className="flex items-start gap-1.5">
+              <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+              <p className="text-[10px] text-muted-foreground">{BMR_METHOD_INFO[bmrMethod]}</p>
+            </div>
+          </div>
           <div className="bg-accent rounded-xl p-3 text-center">
             <span className="text-xs text-muted-foreground">MB calculé : </span>
             <span className="text-lg font-bold text-primary">{bmr} kcal</span>
+            {morphotype && <span className="text-[10px] text-muted-foreground ml-1">(morpho ×{MORPHOTYPE_BMR_FACTOR[morphotype]})</span>}
           </div>
         </section>
 
@@ -359,7 +442,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <button
                 key={a.value}
                 onClick={() => setActivityLevel(a.value)}
-                title={ACTIVITY_LEVEL_INFO[a.value]}
                 className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
                   activityLevel === a.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
                 }`}
@@ -369,7 +451,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </button>
             ))}
           </div>
-          <p className="text-[10px] text-muted-foreground mt-3">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
+          <div className="bg-accent/50 rounded-lg p-2.5 mt-3">
+            <div className="flex items-start gap-1.5">
+              <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+              <p className="text-[10px] text-muted-foreground">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
+            </div>
+          </div>
         </section>
 
         {/* Goal */}
@@ -392,6 +479,37 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             ))}
           </div>
         </section>
+
+        {/* Mass gain phases - only if bulk */}
+        {goalType === "bulk" && (
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "210ms" }}>
+            <h2 className="font-display font-semibold text-base mb-3">📈 Phase de prise de masse</h2>
+            <div className="space-y-2">
+              {MASS_GAIN_PHASES.map((p) => (
+                <button
+                  key={p.value}
+                  onClick={() => setMassGainPhase(p.value)}
+                  className={`w-full p-3 rounded-xl text-left transition-all ${
+                    massGainPhase === p.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                  }`}
+                >
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-semibold">{p.label}</span>
+                    <span className="text-xs font-bold">+{p.surplus} kcal</span>
+                  </div>
+                  <p className={`text-[10px] mt-0.5 ${massGainPhase === p.value ? "text-primary-foreground/80" : ""}`}>{p.desc}</p>
+                </button>
+              ))}
+            </div>
+            {massGainPhase && (
+              <div className="bg-accent rounded-xl p-3 mt-3 text-center">
+                <p className="text-xs text-muted-foreground">
+                  Gain estimé : <span className="font-bold text-primary">~0.5 kg/semaine</span>
+                </p>
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Weighin reminders */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "225ms" }}>
