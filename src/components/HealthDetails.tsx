@@ -64,11 +64,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
 
   const densityScore = useMemo(() => computeDensityScore(micros), [micros]);
 
-  if (micros.every((m) => m.value === 0) && radarSource.every((m) => m.value === 0)) return null;
-
-  const scoreColor = densityScore >= 70 ? "text-primary" : densityScore >= 40 ? "text-secondary" : "text-destructive";
-
-  // Build radar data with all 12 axes
+  // Build radar data with all 12 axes - must be before early return
   const radarData = useMemo(() => {
     return RADAR_AXES.map((axisName) => {
       const micro = radarSource.find((m) => m.name === axisName);
