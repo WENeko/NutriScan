@@ -82,6 +82,10 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
     });
   }, [radarSource]);
 
+  if (micros.every((m) => m.value === 0) && radarSource.every((m) => m.value === 0)) return null;
+
+  const scoreColor = densityScore >= 70 ? "text-primary" : densityScore >= 40 ? "text-secondary" : "text-destructive";
+
   return (
     <div className="bg-card rounded-2xl shadow-card overflow-hidden">
       <button onClick={() => setOpen(!open)} className="w-full flex items-center justify-between p-4">

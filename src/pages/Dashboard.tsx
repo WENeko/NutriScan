@@ -14,8 +14,7 @@ import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
-import { toast } from "@/hooks/use-toast";
-import { subDays, startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
+import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 
 interface Goals {
   calories: number;
