@@ -17,7 +17,6 @@ interface EvolutionPageProps {
 
 type Period = "7d" | "30d" | "all";
 
-
 interface DayData {
   day: string;
   date: string;
@@ -32,8 +31,12 @@ interface DayData {
   omega3_mg: number;
   magnesium_mg: number;
   calcium_mg: number;
+  vitamin_b_mg: number;
   vitamin_c_mg: number;
   vitamin_d_mcg: number;
+  vitamin_e_mg: number;
+  sugar: number;
+  saturated_fat: number;
 }
 
 interface BodyData {
@@ -45,23 +48,26 @@ interface BodyData {
   source: string;
 }
 
-
+// 12 axes matching Dashboard radar exactly
 const RADAR_MICROS = [
   { key: "fiber", label: "Fibres", goal: 30, unit: "g" },
+  { key: "sugar", label: "Sucres", goal: 50, unit: "g" },
+  { key: "saturated_fat", label: "AG Sat.", goal: 22, unit: "g" },
+  { key: "omega3_mg", label: "Oméga-3", goal: 500, unit: "mg" },
   { key: "sodium_mg", label: "Sodium", goal: 2300, unit: "mg" },
   { key: "potassium_mg", label: "Potassium", goal: 3500, unit: "mg" },
   { key: "magnesium_mg", label: "Magnésium", goal: 400, unit: "mg" },
   { key: "calcium_mg", label: "Calcium", goal: 1000, unit: "mg" },
-  { key: "omega3_mg", label: "Oméga-3", goal: 500, unit: "mg" },
+  { key: "vitamin_b_mg", label: "Vit. B", goal: 2, unit: "mg" },
   { key: "vitamin_c_mg", label: "Vit. C", goal: 90, unit: "mg" },
   { key: "vitamin_d_mcg", label: "Vit. D", goal: 15, unit: "µg" },
+  { key: "vitamin_e_mg", label: "Vit. E", goal: 15, unit: "mg" },
 ];
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, targetWeight, targetBodyFat, targetMuscleMass }) => {
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
   const [bodyData, setBodyData] = useState<BodyData[]>([]);
-  
 
   useEffect(() => { fetchData(); }, [userId, period]);
 
@@ -89,12 +95,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     if (mealIds.length > 0) {
       const { data: items } = await supabase
         .from("meal_items")
-        .select("meal_id, fiber, sodium_mg, potassium_mg, omega3_mg, magnesium_mg, calcium_mg, vitamin_c_mg, vitamin_d_mcg")
+        .select("meal_id, fiber, sodium_mg, potassium_mg, omega3_mg, magnesium_mg, calcium_mg, vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg, sugar, saturated_fat")
         .in("meal_id", mealIds);
       if (items) {
+        const microKeys = ["fiber", "sodium_mg", "potassium_mg", "omega3_mg", "magnesium_mg", "calcium_mg", "vitamin_b_mg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "sugar", "saturated_fat"];
         (items as any[]).forEach((item) => {
           if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
-          ["fiber", "sodium_mg", "potassium_mg", "omega3_mg", "magnesium_mg", "calcium_mg", "vitamin_c_mg", "vitamin_d_mcg"].forEach((k) => {
+          microKeys.forEach((k) => {
             microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + (Number(item[k]) || 0);
           });
         });
@@ -116,7 +123,8 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: key, calories: 0, proteins: 0, carbs: 0, fats: 0, goal: calorieGoal,
         sodium_mg: 0, potassium_mg: 0, fiber: 0, omega3_mg: 0,
-        magnesium_mg: 0, calcium_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0,
+        magnesium_mg: 0, calcium_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
+        sugar: 0, saturated_fat: 0,
       };
     }
 
@@ -149,13 +157,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     setBodyData(bodyArr);
   };
 
-  // Compute average for radar based on current period
+  // Radar data with all 12 axes
   const radarData = React.useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
     return RADAR_MICROS.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
       const pct = Math.min(Math.round((avg / m.goal) * 100), 150);
-      return { nutrient: m.label, value: pct, goal: 100, avg: Math.round(avg), goalVal: m.goal, unit: m.unit };
+      return { nutrient: m.label, value: pct, avg: Math.round(avg * 10) / 10, goalVal: m.goal, unit: m.unit };
     });
   }, [nutritionData]);
 
@@ -173,11 +181,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
   };
 
   const tickInterval = period === "7d" ? 0 : period === "30d" ? 4 : 29;
-  
 
   return (
     <div className="space-y-6">
-      {/* Period selector - sticky below header */}
+      {/* Period selector */}
       <div className="sticky top-[52px] z-20 bg-background/95 backdrop-blur-sm px-4 py-2 -mx-4">
         <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
           {periods.map((p) => (
@@ -232,17 +239,18 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
-      {/* Micro Radar */}
+      {/* Micro Radar - 12 axes identical to Dashboard */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
         <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
         <p className="text-[10px] text-muted-foreground mb-3">Moyenne sur la période vs objectifs recommandés (%)</p>
-        <div className="h-64">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={radarData} outerRadius="75%">
+        <div className="h-280">
+          <ResponsiveContainer width="100%" height={280}>
+            <RadarChart data={radarData} outerRadius="68%">
               <PolarGrid stroke="hsl(var(--border))" />
-              <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 9, fill: "hsl(var(--muted-foreground))" }} />
+              <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
               <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
-              <Radar name="Objectif" dataKey="goal" stroke="hsl(var(--muted-foreground))" fill="hsl(var(--muted-foreground))" fillOpacity={0.1} strokeDasharray="4 4" />
+              {/* 100% dashed reference */}
+              <Radar name="Objectif" dataKey={() => 100} stroke="hsl(var(--muted-foreground))" fill="none" strokeDasharray="4 4" strokeOpacity={0.5} />
               <Radar name="Apport" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
               <Tooltip
                 contentStyle={tooltipStyle}
@@ -257,7 +265,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
         <div className="flex justify-center gap-4 mt-1 text-[10px]">
           <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Apport moyen</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-muted-foreground" /> Objectif</span>
+          <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-muted-foreground" style={{ borderTop: "1px dashed" }} /> 100%</span>
         </div>
       </section>
 
@@ -299,9 +307,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
             <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
-            {targetWeight && <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-primary" style={{ borderTop: "1px dashed" }} /> Cible poids</span>}
-            {targetBodyFat && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-pink))", borderTop: "1px dashed" }} /> Cible gras</span>}
-            {targetMuscleMass && <span className="flex items-center gap-1"><span className="w-2 h-0.5" style={{ background: "hsl(var(--nutri-blue))", borderTop: "1px dashed" }} /> Cible muscle</span>}
           </div>
         </section>
       )}

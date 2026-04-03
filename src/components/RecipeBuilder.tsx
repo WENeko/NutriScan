@@ -1,13 +1,14 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { toast } from "@/hooks/use-toast";
-import { Plus, X, Check, Search, Loader2, Trash2 } from "lucide-react";
+import { Plus, X, Check, Search, Loader2, Trash2, Pencil } from "lucide-react";
 import NumericInput from "./NumericInput";
 
 interface Ingredient {
+  id?: string; // DB id if saved
   name: string;
   weightG: number;
   per100: {
@@ -21,21 +22,62 @@ interface Ingredient {
 interface RecipeBuilderProps {
   userId: string;
   onDone: () => void;
+  editFoodId?: string; // If editing existing recipe-product
 }
 
-const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
+const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodId }) => {
   const [recipeName, setRecipeName] = useState("");
   const [ingredients, setIngredients] = useState<Ingredient[]>([]);
   const [portions, setPortions] = useState(1);
   const [searchQuery, setSearchQuery] = useState("");
   const [searchWeight, setSearchWeight] = useState("");
   const [searching, setSearching] = useState(false);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+
+  // Load existing recipe ingredients if editing
+  useEffect(() => {
+    if (editFoodId) loadExistingRecipe();
+  }, [editFoodId]);
+
+  const loadExistingRecipe = async () => {
+    if (!editFoodId) return;
+    const { data: food } = await supabase
+      .from("custom_foods")
+      .select("name, serving_size_g")
+      .eq("id", editFoodId)
+      .single();
+    if (food) {
+      setRecipeName((food as any).name);
+    }
+
+    const { data: ings } = await supabase
+      .from("recipe_ingredients" as any)
+      .select("*")
+      .eq("custom_food_id", editFoodId)
+      .order("created_at");
+
+    if (ings && (ings as any[]).length > 0) {
+      setIngredients((ings as any[]).map((ing: any) => ({
+        id: ing.id,
+        name: ing.name,
+        weightG: Number(ing.weight_g),
+        per100: {
+          proteins: Number(ing.proteins_per_100g), carbs: Number(ing.carbs_per_100g), fats: Number(ing.fats_per_100g),
+          fiber: Number(ing.fiber_per_100g), sugar: Number(ing.sugar_per_100g),
+          saturated_fat: Number(ing.saturated_fat_per_100g), omega3_mg: Number(ing.omega3_mg_per_100g),
+          sodium_mg: Number(ing.sodium_mg_per_100g), potassium_mg: Number(ing.potassium_mg_per_100g),
+          magnesium_mg: Number(ing.magnesium_mg_per_100g), calcium_mg: Number(ing.calcium_mg_per_100g),
+          vitamin_b: Number(ing.vitamin_b_per_100g), vitamin_c: Number(ing.vitamin_c_per_100g),
+          vitamin_d: Number(ing.vitamin_d_per_100g), vitamin_e: Number(ing.vitamin_e_per_100g),
+        },
+      })));
+    }
+  };
 
   const addIngredient = async () => {
     if (!searchQuery.trim()) return;
     setSearching(true);
     try {
-      // Check custom foods first
       const { data: customFoods } = await supabase
         .from("custom_foods")
         .select("*")
@@ -61,7 +103,6 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
           },
         }]);
       } else {
-        // AI lookup
         const response = await supabase.functions.invoke("analyze-meal", {
           body: { text: `Donne-moi les valeurs nutritionnelles pour 100g de : ${searchQuery}` },
         });
@@ -102,6 +143,10 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
     setIngredients((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const updateIngredientWeight = (idx: number, newWeight: number) => {
+    setIngredients((prev) => prev.map((ing, i) => i === idx ? { ...ing, weightG: newWeight } : ing));
+  };
+
   // Calculate totals
   const totalWeightG = ingredients.reduce((sum, ing) => sum + ing.weightG, 0);
   const totals = ingredients.reduce((acc, ing) => {
@@ -125,7 +170,6 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
     };
   }, { proteins: 0, carbs: 0, fats: 0, fiber: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, vitamin_b: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0 });
 
-  // Per 100g of final product (considering portions)
   const portionWeightG = portions > 0 ? Math.round(totalWeightG / portions) : totalWeightG;
   const to100 = totalWeightG > 0 ? 100 / totalWeightG : 0;
   const per100 = {
@@ -145,7 +189,7 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
       return;
     }
     try {
-      await supabase.from("custom_foods").insert({
+      const foodData = {
         user_id: userId,
         name: recipeName,
         serving_size_g: portionWeightG,
@@ -165,8 +209,45 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
         vitamin_c_per_100g: Math.round(totals.vitamin_c * to100 * 10) / 10,
         vitamin_d_per_100g: Math.round(totals.vitamin_d * to100 * 10) / 10,
         vitamin_e_per_100g: Math.round(totals.vitamin_e * to100 * 10) / 10,
-      } as any);
-      toast({ title: "Produit créé à partir de la recette !" });
+      };
+
+      let foodId = editFoodId;
+
+      if (editFoodId) {
+        await supabase.from("custom_foods").update(foodData as any).eq("id", editFoodId);
+        // Delete old ingredients then re-insert
+        await (supabase.from("recipe_ingredients" as any) as any).delete().eq("custom_food_id", editFoodId);
+      } else {
+        const { data: newFood } = await supabase.from("custom_foods").insert(foodData as any).select("id").single();
+        foodId = (newFood as any)?.id;
+      }
+
+      // Save ingredients
+      if (foodId) {
+        const ingRows = ingredients.map((ing) => ({
+          custom_food_id: foodId,
+          name: ing.name,
+          weight_g: ing.weightG,
+          proteins_per_100g: ing.per100.proteins,
+          carbs_per_100g: ing.per100.carbs,
+          fats_per_100g: ing.per100.fats,
+          fiber_per_100g: ing.per100.fiber,
+          sugar_per_100g: ing.per100.sugar,
+          saturated_fat_per_100g: ing.per100.saturated_fat,
+          omega3_mg_per_100g: ing.per100.omega3_mg,
+          sodium_mg_per_100g: ing.per100.sodium_mg,
+          potassium_mg_per_100g: ing.per100.potassium_mg,
+          magnesium_mg_per_100g: ing.per100.magnesium_mg,
+          calcium_mg_per_100g: ing.per100.calcium_mg,
+          vitamin_b_per_100g: ing.per100.vitamin_b,
+          vitamin_c_per_100g: ing.per100.vitamin_c,
+          vitamin_d_per_100g: ing.per100.vitamin_d,
+          vitamin_e_per_100g: ing.per100.vitamin_e,
+        }));
+        await (supabase.from("recipe_ingredients" as any) as any).insert(ingRows);
+      }
+
+      toast({ title: editFoodId ? "Recette mise à jour !" : "Produit créé à partir de la recette !" });
       onDone();
     } catch (e: any) {
       toast({ title: "Erreur", description: e.message, variant: "destructive" });
@@ -175,7 +256,7 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
 
   return (
     <div className="space-y-4 animate-fade-up">
-      <h2 className="font-display font-semibold text-lg">Créer à partir d'ingrédients</h2>
+      <h2 className="font-display font-semibold text-lg">{editFoodId ? "Modifier la recette" : "Créer à partir d'ingrédients"}</h2>
 
       <div className="space-y-1">
         <Label className="text-xs text-muted-foreground">Nom de la recette *</Label>
@@ -197,20 +278,37 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
         </div>
       </div>
 
-      {/* Ingredients list */}
+      {/* Ingredients list - editable */}
       {ingredients.length > 0 && (
         <div className="space-y-1.5">
           {ingredients.map((ing, idx) => (
-            <div key={idx} className="bg-card rounded-xl p-2.5 shadow-card flex items-center gap-2">
-              <div className="flex-1 min-w-0">
-                <p className="text-xs font-semibold truncate">{ing.name}</p>
-                <p className="text-[10px] text-muted-foreground">
-                  {ing.weightG}g · P:{Math.round(ing.per100.proteins * ing.weightG / 100)}g G:{Math.round(ing.per100.carbs * ing.weightG / 100)}g L:{Math.round(ing.per100.fats * ing.weightG / 100)}g
-                </p>
+            <div key={idx} className="bg-card rounded-xl p-2.5 shadow-card space-y-1">
+              <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <p className="text-xs font-semibold truncate">{ing.name}</p>
+                  <p className="text-[10px] text-muted-foreground">
+                    P:{Math.round(ing.per100.proteins * ing.weightG / 100)}g G:{Math.round(ing.per100.carbs * ing.weightG / 100)}g L:{Math.round(ing.per100.fats * ing.weightG / 100)}g
+                  </p>
+                </div>
+                <button onClick={() => setEditingIdx(editingIdx === idx ? null : idx)} className="p-1 rounded-lg hover:bg-muted">
+                  <Pencil className="w-3 h-3 text-muted-foreground" />
+                </button>
+                <button onClick={() => removeIngredient(idx)} className="p-1 rounded-lg hover:bg-destructive/10">
+                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
+                </button>
               </div>
-              <button onClick={() => removeIngredient(idx)} className="p-1 rounded-lg hover:bg-destructive/10">
-                <Trash2 className="w-3.5 h-3.5 text-destructive" />
-              </button>
+              {editingIdx === idx ? (
+                <div className="flex items-center gap-2 pt-1">
+                  <label className="text-[10px] text-muted-foreground">Poids (g)</label>
+                  <NumericInput
+                    value={ing.weightG}
+                    onChange={(v) => updateIngredientWeight(idx, v)}
+                    className="h-7 w-20 rounded-md text-xs"
+                  />
+                </div>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">{ing.weightG}g</p>
+              )}
             </div>
           ))}
         </div>
@@ -239,7 +337,7 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone }) => {
         </Button>
         {ingredients.length > 0 && (
           <Button className="flex-1 rounded-xl h-11 nutri-gradient text-primary-foreground" onClick={saveAsProduct}>
-            <Check className="w-4 h-4 mr-1" /> Créer le produit
+            <Check className="w-4 h-4 mr-1" /> {editFoodId ? "Mettre à jour" : "Créer le produit"}
           </Button>
         )}
       </div>
