@@ -36,6 +36,7 @@ interface MealItem {
   unitCount?: number;
   unitWeightG?: number;
   unitLabel?: string;
+  isCooked?: boolean;
 }
 
 const roundNutrient = (value: number) => Math.round(value * 10) / 10;
@@ -72,6 +73,9 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
   };
 };
 
+// Raw/cooked ratio: cooked weight = raw weight * 2.5 (for starches/grains)
+const RAW_TO_COOKED_RATIO = 2.5;
+
 interface MealInputProps {
   userId: string;
   onMealSaved: () => void;
@@ -96,6 +100,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [source, setSource] = useState<"ai" | "text" | "barcode">("ai");
   const [addingManual, setAddingManual] = useState(false);
   const [manualItem, setManualItem] = useState({ name: "", weight: "" });
+  const [manualIsCooked, setManualIsCooked] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -115,7 +120,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         reader.readAsDataURL(file);
       });
 
-      // Get custom foods for context
       const { data: customFoods } = await supabase
         .from("custom_foods")
         .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
@@ -207,7 +211,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         isCustom = true;
       }
 
-      // Use AI-provided unit data directly
       const unitCount = item.unit_count ? parseInt(item.unit_count) : undefined;
       const unitWeightG = item.unit_weight_g ? parseInt(item.unit_weight_g) : undefined;
       const unitLabel = item.unit_label || undefined;
@@ -215,26 +218,13 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       return {
         name: item.name,
         quantity: `${weight}g`,
-          calories,
-        proteins,
-        carbs,
-        fats,
+        calories, proteins, carbs, fats,
         protDensity: proteins / weight,
         carbsDensity: carbs / weight,
         fatsDensity: fats / weight,
         isCustom,
-          fiber,
-          sugar,
-          saturated_fat,
-          omega3_mg,
-          sodium_mg,
-          potassium_mg,
-          magnesium_mg,
-          calcium_mg,
-          vitamin_b_mg,
-          vitamin_c_mg,
-          vitamin_d_mcg,
-          vitamin_e_mg,
+        fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
+        vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
@@ -303,10 +293,27 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setItems((prev) => prev.filter((_, i) => i !== idx));
   };
 
+  const toggleItemCooked = (idx: number) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const currentWeight = getItemWeight(item);
+        if (item.isCooked) {
+          // Switch to raw: divide weight by ratio, keep same nutrients per raw gram
+          const rawWeight = Math.round(currentWeight / RAW_TO_COOKED_RATIO);
+          return { ...item, isCooked: false, quantity: `${rawWeight}g` };
+        } else {
+          // Switch to cooked: multiply weight by ratio, keep same nutrients per cooked gram
+          const cookedWeight = Math.round(currentWeight * RAW_TO_COOKED_RATIO);
+          return { ...item, isCooked: true, quantity: `${cookedWeight}g` };
+        }
+      })
+    );
+  };
+
   const addManualItem = async () => {
     if (!manualItem.name.trim()) return;
 
-    // Check custom foods first
     const { data: customFoods } = await supabase
       .from("custom_foods")
       .select("*")
@@ -316,43 +323,45 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
     if (customFoods && customFoods.length > 0) {
       const cf = customFoods[0] as any;
-      // Use custom portion if no manual weight provided, fallback to serving_size_g
-      const weight = manualItem.weight ? (parseFloat(manualItem.weight) || cf.serving_size_g || 100) : (cf.serving_size_g || 100);
-      const proteins = roundNutrient((cf.proteins_per_100g || 0) * weight / 100);
-      const carbs = roundNutrient((cf.carbs_per_100g || 0) * weight / 100);
-      const fats = roundNutrient((cf.fats_per_100g || 0) * weight / 100);
-      const fiber = roundNutrient((cf.fiber_per_100g || 0) * weight / 100);
-      const sugar = roundNutrient((cf.sugar_per_100g || 0) * weight / 100);
-      const saturated_fat = roundNutrient((cf.saturated_fat_per_100g || 0) * weight / 100);
-      const omega3_mg = roundNutrient((cf.omega3_mg_per_100g || 0) * weight / 100);
-      const sodium_mg = roundNutrient((cf.sodium_mg_per_100g || 0) * weight / 100);
-      const potassium_mg = roundNutrient((cf.potassium_mg_per_100g || 0) * weight / 100);
-      const magnesium_mg = roundNutrient((cf.magnesium_mg_per_100g || 0) * weight / 100);
-      const calcium_mg = roundNutrient((cf.calcium_mg_per_100g || 0) * weight / 100);
-      const vitamin_b_mg = roundNutrient((cf.vitamin_b_per_100g || 0) * weight / 100);
-      const vitamin_c_mg = roundNutrient((cf.vitamin_c_per_100g || 0) * weight / 100);
-      const vitamin_d_mcg = roundNutrient((cf.vitamin_d_per_100g || 0) * weight / 100);
-      const vitamin_e_mg = roundNutrient((cf.vitamin_e_per_100g || 0) * weight / 100);
+      let weight = manualItem.weight ? (parseFloat(manualItem.weight) || cf.serving_size_g || 100) : (cf.serving_size_g || 100);
+      // If cooked mode, the user entered cooked weight. Nutrients are per 100g raw.
+      // We need to compute nutrients based on raw equivalent weight
+      const nutrientWeight = manualIsCooked ? weight / RAW_TO_COOKED_RATIO : weight;
+      const proteins = roundNutrient((cf.proteins_per_100g || 0) * nutrientWeight / 100);
+      const carbs = roundNutrient((cf.carbs_per_100g || 0) * nutrientWeight / 100);
+      const fats = roundNutrient((cf.fats_per_100g || 0) * nutrientWeight / 100);
+      const fiber = roundNutrient((cf.fiber_per_100g || 0) * nutrientWeight / 100);
+      const sugar = roundNutrient((cf.sugar_per_100g || 0) * nutrientWeight / 100);
+      const saturated_fat = roundNutrient((cf.saturated_fat_per_100g || 0) * nutrientWeight / 100);
+      const omega3_mg = roundNutrient((cf.omega3_mg_per_100g || 0) * nutrientWeight / 100);
+      const sodium_mg = roundNutrient((cf.sodium_mg_per_100g || 0) * nutrientWeight / 100);
+      const potassium_mg = roundNutrient((cf.potassium_mg_per_100g || 0) * nutrientWeight / 100);
+      const magnesium_mg = roundNutrient((cf.magnesium_mg_per_100g || 0) * nutrientWeight / 100);
+      const calcium_mg = roundNutrient((cf.calcium_mg_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_b_mg = roundNutrient((cf.vitamin_b_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_c_mg = roundNutrient((cf.vitamin_c_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_d_mcg = roundNutrient((cf.vitamin_d_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_e_mg = roundNutrient((cf.vitamin_e_per_100g || 0) * nutrientWeight / 100);
       setItems((prev) => [...prev, {
-        name: cf.name,
+        name: cf.name + (manualIsCooked ? " (cuit)" : ""),
         quantity: `${weight}g`,
-        calories: Math.round((cf.calories_per_100g || 0) * weight / 100),
+        calories: Math.round((cf.calories_per_100g || 0) * nutrientWeight / 100),
         proteins, carbs, fats,
         protDensity: cf.proteins_per_100g / 100,
         carbsDensity: cf.carbs_per_100g / 100,
         fatsDensity: cf.fats_per_100g / 100,
-        isCustom: true,
+        isCustom: true, isCooked: manualIsCooked,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
       }]);
-      toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g` });
+      toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g${manualIsCooked ? " (cuit)" : ""}` });
     } else {
       const weight = parseFloat(manualItem.weight) || 100;
-      // Quick AI lookup for this single item
+      const queryWeight = manualIsCooked ? Math.round(weight / RAW_TO_COOKED_RATIO) : weight;
       setAnalyzing(true);
       try {
         const response = await supabase.functions.invoke("analyze-meal", {
-          body: { text: `${weight}g de ${manualItem.name}` },
+          body: { text: `${queryWeight}g de ${manualItem.name}` },
         });
         if (response.error) throw new Error(response.error.message);
         const data = response.data;
@@ -362,13 +371,14 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           const c = item.carbs || 0;
           const f = item.fats || 0;
           setItems((prev) => [...prev, {
-            name: item.name || manualItem.name,
+            name: (item.name || manualItem.name) + (manualIsCooked ? " (cuit)" : ""),
             quantity: `${weight}g`,
             calories: Number(item.calories) || Math.round(p * 4 + c * 4 + f * 9),
             proteins: p, carbs: c, fats: f,
-            protDensity: p / weight,
-            carbsDensity: c / weight,
-            fatsDensity: f / weight,
+            protDensity: p / queryWeight,
+            carbsDensity: c / queryWeight,
+            fatsDensity: f / queryWeight,
+            isCooked: manualIsCooked,
             fiber: Number(item.fiber) || 0,
             sugar: Number(item.sugar) || 0,
             saturated_fat: Number(item.saturated_fat) || 0,
@@ -391,6 +401,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     }
     setManualItem({ name: "", weight: "" });
     setAddingManual(false);
+    setManualIsCooked(false);
   };
 
   const computeTotals = () =>
@@ -456,10 +467,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           potassium_mg: item.potassium_mg || 0,
           magnesium_mg: item.magnesium_mg || 0,
           calcium_mg: item.calcium_mg || 0,
-          vitamin_b_mg: (item as any).vitamin_b_mg || 0,
-          vitamin_c_mg: (item as any).vitamin_c_mg || 0,
-          vitamin_d_mcg: (item as any).vitamin_d_mcg || 0,
-          vitamin_e_mg: (item as any).vitamin_e_mg || 0,
+          vitamin_b_mg: item.vitamin_b_mg || 0,
+          vitamin_c_mg: item.vitamin_c_mg || 0,
+          vitamin_d_mcg: item.vitamin_d_mcg || 0,
+          vitamin_e_mg: item.vitamin_e_mg || 0,
           unit_count: item.unitCount || null,
           unit_weight_g: item.unitWeightG || null,
           unit_label: item.unitLabel || null,
@@ -486,6 +497,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setEditingIdx(null);
     setEditingName(false);
     setAddingManual(false);
+    setManualIsCooked(false);
   };
 
   const totals = computeTotals();
@@ -499,7 +511,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
   return (
     <div className="space-y-4">
-      {/* Mode tabs - always visible when building a multi-source meal */}
       {!hasResults && (
         <div className="flex rounded-xl bg-muted p-1 gap-1">
           {tabs.map((tab) => (
@@ -517,7 +528,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         </div>
       )}
 
-      {/* Image input */}
       {mode === "image" && !hasResults && (
         <>
           <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
@@ -560,7 +570,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         </>
       )}
 
-      {/* Text input */}
       {mode === "text" && !hasResults && (
         <div className="space-y-3">
           <Textarea
@@ -583,15 +592,12 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         </div>
       )}
 
-      {/* Barcode */}
       {mode === "barcode" && !hasResults && (
         <BarcodeScanner onProductFound={handleBarcodeProduct} />
       )}
 
-      {/* Results - multi-source editing */}
       {hasResults && (
         <div className="space-y-3 animate-fade-up">
-          {/* Editable meal name */}
           <div className="flex items-center gap-2">
             {editingName ? (
               <Input
@@ -610,7 +616,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             )}
           </div>
 
-          {/* Timestamp */}
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-muted-foreground" />
             <Input
@@ -621,12 +626,12 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             />
           </div>
 
-          {/* Items */}
-           {items.map((item, idx) => (
+          {items.map((item, idx) => (
             <div key={idx} className="bg-card rounded-xl p-3 shadow-card space-y-2">
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-1.5">
                   {item.isCustom && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">✓ Vérifié</span>}
+                  {item.isCooked && <span className="text-[10px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded font-semibold">🍳 Cuit</span>}
                   {editingIdx === idx ? (
                     <Input
                       value={item.name}
@@ -650,7 +655,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
                 </div>
               </div>
 
-              {/* Unit counter for unit-based items */}
               {item.unitCount && item.unitWeightG && (
                 <div className="flex items-center gap-3 bg-accent rounded-lg px-3 py-1.5">
                   <span className="text-xs text-muted-foreground capitalize flex-1">{item.unitLabel}</span>
@@ -672,16 +676,27 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
               )}
 
               {editingIdx === idx ? (
-                <div className="flex items-center gap-2">
-                  <label className="text-[10px] text-muted-foreground">Poids (g)</label>
-                   <NumericInput
-                     value={parseFloat(item.quantity || "0") || 0}
-                     onChange={(v, raw) => updateItemWeight(idx, raw)}
-                     className="h-8 text-sm rounded-lg w-24"
-                   />
-                  <span className="text-xs text-muted-foreground ml-auto">
-                    P:{Math.round(Number(item.proteins))}g G:{Math.round(Number(item.carbs))}g L:{Math.round(Number(item.fats))}g
-                  </span>
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-muted-foreground">Poids (g)</label>
+                     <NumericInput
+                       value={parseFloat(item.quantity || "0") || 0}
+                       onChange={(v, raw) => updateItemWeight(idx, raw)}
+                       className="h-8 text-sm rounded-lg w-24"
+                     />
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      P:{Math.round(Number(item.proteins))}g G:{Math.round(Number(item.carbs))}g L:{Math.round(Number(item.fats))}g
+                    </span>
+                  </div>
+                  {/* Cru/Cuit toggle in edit mode */}
+                  <button
+                    onClick={() => toggleItemCooked(idx)}
+                    className={`text-[10px] px-2 py-1 rounded-lg font-semibold transition-all ${
+                      item.isCooked ? "bg-secondary/20 text-secondary" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {item.isCooked ? "🍳 Cuit (÷2.5)" : "🥩 Cru"}
+                  </button>
                 </div>
               ) : (
                 <div className="flex gap-3 text-xs text-muted-foreground">
@@ -689,14 +704,13 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
                   <span>G: {Math.round(Number(item.carbs))}g</span>
                   <span>L: {Math.round(Number(item.fats))}g</span>
                   <span className="ml-auto font-medium text-foreground">
-                    {Math.round(Number(item.proteins) * 4 + Number(item.carbs) * 4 + Number(item.fats) * 9)} kcal
+                    {Math.round(Number(item.calories))} kcal
                   </span>
                 </div>
               )}
             </div>
           ))}
 
-          {/* Add more items */}
           {addingManual ? (
             <div className="bg-accent rounded-xl p-3 space-y-2 animate-fade-up">
               <div className="flex gap-2">
@@ -714,8 +728,23 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
                   className="h-8 text-sm rounded-lg w-24"
                 />
               </div>
+              {/* Raw/Cooked switch */}
               <div className="flex gap-2">
-                <button onClick={() => setAddingManual(false)} className="flex-1 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted/80">Annuler</button>
+                <button
+                  onClick={() => setManualIsCooked(false)}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                    !manualIsCooked ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >🥩 Cru</button>
+                <button
+                  onClick={() => setManualIsCooked(true)}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                    manualIsCooked ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >🍳 Cuit (÷2.5)</button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setAddingManual(false); setManualIsCooked(false); }} className="flex-1 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted/80">Annuler</button>
                 <button onClick={addManualItem} disabled={analyzing} className="flex-1 py-1.5 rounded-lg text-xs nutri-gradient text-primary-foreground">
                   {analyzing ? "..." : "Ajouter"}
                 </button>
@@ -726,7 +755,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
               <button onClick={() => setAddingManual(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-primary/30 text-xs font-semibold text-primary hover:border-primary/60">
                 <Plus className="w-3.5 h-3.5" /> Ajouter un aliment
               </button>
-              {/* Allow adding from other sources */}
               <button
                 onClick={() => { setMode("barcode"); }}
                 className="p-2.5 rounded-xl border border-dashed border-primary/30 text-primary hover:border-primary/60"
@@ -737,14 +765,12 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             </div>
           )}
 
-          {/* If switched to barcode while building meal */}
           {hasResults && mode === "barcode" && (
             <div className="mt-2">
               <BarcodeScanner onProductFound={(product) => { handleBarcodeProduct(product); setMode("image"); }} />
             </div>
           )}
 
-          {/* Totals */}
           <div className="bg-accent rounded-xl p-3">
             <div className="flex items-center justify-between text-sm">
               <span className="font-display font-semibold">Total</span>

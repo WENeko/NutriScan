@@ -4,7 +4,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquareText, ScanBarcode, Loader2, ChefHat } from "lucide-react";
+import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquareText, ScanBarcode, Loader2, ChefHat, Pill } from "lucide-react";
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
 import RecipeBuilder from "./RecipeBuilder";
@@ -37,7 +37,7 @@ interface NutriLibraryProps {
   userId: string;
 }
 
-type CreateMode = "manual" | "photo" | "text" | "barcode" | "recipe";
+type CreateMode = "manual" | "photo" | "text" | "barcode" | "recipe" | "supplement";
 
 const emptyFood: Omit<CustomFood, "id"> = {
   name: "",
@@ -72,6 +72,15 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [textInput, setTextInput] = useState("");
   const fileInputRef = React.useRef<HTMLInputElement>(null);
+  // Supplement per-unit state
+  const [suppUnitWeight, setSuppUnitWeight] = useState(1); // weight per unit in g
+  const [suppUnitLabel, setSuppUnitLabel] = useState("capsule");
+  const [suppPerUnit, setSuppPerUnit] = useState({
+    vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
+    calcium_mg: 0, magnesium_mg: 0, omega3_mg: 0, potassium_mg: 0, sodium_mg: 0,
+  });
+  // Track if user provided raw calories for supplement
+  const [suppCalories, setSuppCalories] = useState(0);
 
   useEffect(() => {
     fetchFoods();
@@ -91,7 +100,9 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       toast({ title: "Nom requis", variant: "destructive" });
       return;
     }
-    const cals = Math.round(form.proteins_per_100g * 4 + form.carbs_per_100g * 4 + form.fats_per_100g * 9);
+    // Use raw calories if provided, otherwise compute from macros
+    const computedCals = Math.round(form.proteins_per_100g * 4 + form.carbs_per_100g * 4 + form.fats_per_100g * 9);
+    const cals = form.calories_per_100g > 0 ? form.calories_per_100g : computedCals;
     try {
       if (editing) {
         await supabase.from("custom_foods").update({ ...form, calories_per_100g: cals } as any).eq("id", editing.id);
@@ -103,6 +114,48 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       setEditing(null);
       setCreating(false);
       setForm(emptyFood);
+      fetchFoods();
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e.message, variant: "destructive" });
+    }
+  };
+
+  const handleSupplementSave = async () => {
+    if (!form.name.trim()) {
+      toast({ title: "Nom requis", variant: "destructive" });
+      return;
+    }
+    // Convert per-unit values to per-100g based on unit weight
+    const unitW = suppUnitWeight || 1;
+    const factor = 100 / unitW;
+    const suppForm: Omit<CustomFood, "id"> = {
+      ...form,
+      serving_size_g: unitW,
+      calories_per_100g: Math.round(suppCalories * factor),
+      proteins_per_100g: 0,
+      carbs_per_100g: 0,
+      fats_per_100g: 0,
+      fiber_per_100g: 0,
+      sugar_per_100g: 0,
+      saturated_fat_per_100g: 0,
+      vitamin_b_per_100g: Math.round(suppPerUnit.vitamin_b_mg * factor * 10) / 10,
+      vitamin_c_per_100g: Math.round(suppPerUnit.vitamin_c_mg * factor * 10) / 10,
+      vitamin_d_per_100g: Math.round(suppPerUnit.vitamin_d_mcg * factor * 10) / 10,
+      vitamin_e_per_100g: Math.round(suppPerUnit.vitamin_e_mg * factor * 10) / 10,
+      calcium_mg_per_100g: Math.round(suppPerUnit.calcium_mg * factor * 10) / 10,
+      magnesium_mg_per_100g: Math.round(suppPerUnit.magnesium_mg * factor * 10) / 10,
+      omega3_mg_per_100g: Math.round(suppPerUnit.omega3_mg * factor * 10) / 10,
+      potassium_mg_per_100g: Math.round(suppPerUnit.potassium_mg * factor * 10) / 10,
+      sodium_mg_per_100g: Math.round(suppPerUnit.sodium_mg * factor * 10) / 10,
+    };
+    try {
+      await supabase.from("custom_foods").insert({ ...suppForm, user_id: userId } as any);
+      toast({ title: "Complément ajouté !" });
+      setCreating(false);
+      setForm(emptyFood);
+      setSuppPerUnit({ vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0, calcium_mg: 0, magnesium_mg: 0, omega3_mg: 0, potassium_mg: 0, sodium_mg: 0 });
+      setSuppCalories(0);
+      setSuppUnitWeight(1);
       fetchFoods();
     } catch (e: any) {
       toast({ title: "Erreur", description: e.message, variant: "destructive" });
@@ -162,16 +215,16 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
           sugar_per_100g: Math.round(((item.sugar || 0) / weight) * 100 * 10) / 10,
           sodium_mg_per_100g: Math.round(((item.sodium_mg || 0) / weight) * 100 * 10) / 10,
           saturated_fat_per_100g: Math.round(((item.saturated_fat || 0) / weight) * 100 * 10) / 10,
-            omega3_mg_per_100g: Math.round(((item.omega3_mg || 0) / weight) * 100 * 10) / 10,
-            potassium_mg_per_100g: Math.round(((item.potassium_mg || 0) / weight) * 100 * 10) / 10,
-            magnesium_mg_per_100g: Math.round(((item.magnesium_mg || 0) / weight) * 100 * 10) / 10,
-            calcium_mg_per_100g: Math.round(((item.calcium_mg || 0) / weight) * 100 * 10) / 10,
-            vitamin_b_per_100g: Math.round(((item.vitamin_b_mg || 0) / weight) * 100 * 10) / 10,
-            vitamin_c_per_100g: Math.round(((item.vitamin_c_mg || 0) / weight) * 100 * 10) / 10,
-            vitamin_d_per_100g: Math.round(((item.vitamin_d_mcg || 0) / weight) * 100 * 10) / 10,
-            vitamin_e_per_100g: Math.round(((item.vitamin_e_mg || 0) / weight) * 100 * 10) / 10,
+          omega3_mg_per_100g: Math.round(((item.omega3_mg || 0) / weight) * 100 * 10) / 10,
+          potassium_mg_per_100g: Math.round(((item.potassium_mg || 0) / weight) * 100 * 10) / 10,
+          magnesium_mg_per_100g: Math.round(((item.magnesium_mg || 0) / weight) * 100 * 10) / 10,
+          calcium_mg_per_100g: Math.round(((item.calcium_mg || 0) / weight) * 100 * 10) / 10,
+          vitamin_b_per_100g: Math.round(((item.vitamin_b_mg || 0) / weight) * 100 * 10) / 10,
+          vitamin_c_per_100g: Math.round(((item.vitamin_c_mg || 0) / weight) * 100 * 10) / 10,
+          vitamin_d_per_100g: Math.round(((item.vitamin_d_mcg || 0) / weight) * 100 * 10) / 10,
+          vitamin_e_per_100g: Math.round(((item.vitamin_e_mg || 0) / weight) * 100 * 10) / 10,
         }));
-        setCreateMode("manual"); // Switch to manual to let user review
+        setCreateMode("manual");
         toast({ title: "Données extraites par l'IA !", description: "Vérifiez et ajustez si nécessaire." });
       }
     } catch (e: any) {
@@ -203,6 +256,8 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       ...prev,
       name: product.name || prev.name,
       barcode: product.barcode || null,
+      serving_size_g: product.serving_size_g || weight,
+      calories_per_100g: weight > 0 ? Math.round((product.calories / weight) * 100) : product.calories,
       proteins_per_100g: Math.round(((product.proteins || 0) / weight) * 100 * 10) / 10,
       carbs_per_100g: Math.round(((product.carbs || 0) / weight) * 100 * 10) / 10,
       fats_per_100g: Math.round(((product.fats || 0) / weight) * 100 * 10) / 10,
@@ -238,6 +293,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     { id: "text", label: "Texte", icon: <MessageSquareText className="w-3.5 h-3.5" /> },
     { id: "barcode", label: "Scan", icon: <ScanBarcode className="w-3.5 h-3.5" /> },
     { id: "recipe", label: "Recette", icon: <ChefHat className="w-3.5 h-3.5" /> },
+    { id: "supplement", label: "Compl.", icon: <Pill className="w-3.5 h-3.5" /> },
   ];
 
   if (creating) {
@@ -247,12 +303,12 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
 
         {/* Input mode tabs */}
         {!editing && (
-          <div className="flex rounded-xl bg-muted p-1 gap-1">
+          <div className="flex rounded-xl bg-muted p-1 gap-1 flex-wrap">
             {modeTabs.map((tab) => (
               <button
                 key={tab.id}
                 onClick={() => setCreateMode(tab.id)}
-                className={`flex-1 flex items-center justify-center gap-1 py-2 rounded-lg text-[11px] font-semibold transition-all ${
+                className={`flex-1 min-w-[60px] flex items-center justify-center gap-1 py-2 rounded-lg text-[10px] font-semibold transition-all ${
                   createMode === tab.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"
                 }`}
               >
@@ -310,8 +366,81 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
           <RecipeBuilder userId={userId} onDone={() => { setCreating(false); setForm(emptyFood); fetchFoods(); }} />
         )}
 
+        {/* Supplement mode */}
+        {createMode === "supplement" && (
+          <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
+            <div className="bg-accent rounded-xl p-2.5 text-center">
+              <p className="text-xs text-muted-foreground">Saisissez les valeurs <strong>par unité/capsule</strong></p>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Nom du complément *</Label>
+              <Input value={form.name} onChange={(e) => updateField("name", e.target.value)} className="h-10 rounded-xl" placeholder="Ex: Vitamine D3 2000 UI" />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Marque</Label>
+                <Input value={form.brand || ""} onChange={(e) => updateField("brand", e.target.value)} className="h-10 rounded-xl" />
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Poids/unité (g)</Label>
+                <NumericInput value={suppUnitWeight} onChange={setSuppUnitWeight} className="h-10 rounded-xl" />
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Type d'unité</Label>
+              <div className="flex gap-2">
+                {["capsule", "gélule", "comprimé", "dose"].map((t) => (
+                  <button
+                    key={t}
+                    onClick={() => setSuppUnitLabel(t)}
+                    className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                      suppUnitLabel === t ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                    }`}
+                  >{t}</button>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Calories par {suppUnitLabel}</Label>
+              <NumericInput value={suppCalories} onChange={setSuppCalories} className="h-9 rounded-lg text-sm" />
+            </div>
+            <h3 className="text-xs font-semibold text-muted-foreground pt-2">Micros par {suppUnitLabel}</h3>
+            <div className="grid grid-cols-3 gap-3">
+              {[
+                { key: "vitamin_b_mg", label: "Vit. B (mg)" },
+                { key: "vitamin_c_mg", label: "Vit. C (mg)" },
+                { key: "vitamin_d_mcg", label: "Vit. D (µg)" },
+                { key: "vitamin_e_mg", label: "Vit. E (mg)" },
+                { key: "calcium_mg", label: "Calcium (mg)" },
+                { key: "magnesium_mg", label: "Magnésium (mg)" },
+                { key: "omega3_mg", label: "Oméga-3 (mg)" },
+                { key: "potassium_mg", label: "Potassium (mg)" },
+                { key: "sodium_mg", label: "Sodium (mg)" },
+              ].map((f) => (
+                <div key={f.key} className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">{f.label}</Label>
+                  <NumericInput
+                    value={(suppPerUnit as any)[f.key]}
+                    onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [f.key]: v }))}
+                    className="h-9 rounded-lg text-sm"
+                  />
+                </div>
+              ))}
+            </div>
+
+            <div className="flex gap-2 pt-2">
+              <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setForm(emptyFood); }}>
+                <X className="w-4 h-4 mr-1" /> Annuler
+              </Button>
+              <Button className="flex-1 rounded-xl h-11 nutri-gradient text-primary-foreground" onClick={handleSupplementSave}>
+                <Check className="w-4 h-4 mr-1" /> Ajouter
+              </Button>
+            </div>
+          </div>
+        )}
+
         {/* Manual form (always shown for manual mode, shown after AI analysis for other modes) */}
-        {(createMode === "manual" || editing) && createMode !== "recipe" && (
+        {(createMode === "manual" || editing) && createMode !== "recipe" && createMode !== "supplement" && (
           <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
             <div className="space-y-1">
               <Label className="text-xs text-muted-foreground">Nom *</Label>
@@ -344,8 +473,17 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
               </div>
             </div>
 
+            <div className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">Calories brutes (kcal/100g) — <em>prioritaire sur P×4+G×4+L×9</em></Label>
+              <NumericInput value={form.calories_per_100g} onChange={(v) => updateField("calories_per_100g", v)} className="h-9 rounded-lg text-sm" />
+            </div>
+
             <div className="bg-accent rounded-xl p-2 text-center text-sm">
-              Calories calculées : <strong className="text-primary">{Math.round(form.proteins_per_100g * 4 + form.carbs_per_100g * 4 + form.fats_per_100g * 9)} kcal/100g</strong>
+              {form.calories_per_100g > 0 ? (
+                <>Calories : <strong className="text-primary">{form.calories_per_100g} kcal/100g</strong> <span className="text-[10px] text-muted-foreground">(brut)</span></>
+              ) : (
+                <>Calories calculées : <strong className="text-primary">{Math.round(form.proteins_per_100g * 4 + form.carbs_per_100g * 4 + form.fats_per_100g * 9)} kcal/100g</strong></>
+              )}
             </div>
 
             <h3 className="text-xs font-semibold text-muted-foreground pt-2">Détails (optionnel)</h3>
@@ -402,16 +540,18 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
           </div>
         )}
 
-        <div className="flex gap-2">
-          <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setEditing(null); setForm(emptyFood); setTextInput(""); }}>
-            <X className="w-4 h-4 mr-1" /> Annuler
-          </Button>
-          {(createMode === "manual" || editing) && (
-            <Button className="flex-1 rounded-xl h-11 nutri-gradient text-primary-foreground" onClick={handleSave}>
-              <Check className="w-4 h-4 mr-1" /> {editing ? "Modifier" : "Ajouter"}
+        {createMode !== "recipe" && createMode !== "supplement" && (
+          <div className="flex gap-2">
+            <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setEditing(null); setForm(emptyFood); setTextInput(""); }}>
+              <X className="w-4 h-4 mr-1" /> Annuler
             </Button>
-          )}
-        </div>
+            {(createMode === "manual" || editing) && (
+              <Button className="flex-1 rounded-xl h-11 nutri-gradient text-primary-foreground" onClick={handleSave}>
+                <Check className="w-4 h-4 mr-1" /> {editing ? "Modifier" : "Ajouter"}
+              </Button>
+            )}
+          </div>
+        )}
       </div>
     );
   }

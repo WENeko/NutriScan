@@ -60,11 +60,11 @@ const tooltipStyle = {
 const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) => {
   const [open, setOpen] = useState(false);
   const prefix = useId();
+  // Radar uses same data source as bars (todayMicros) unless radarMicros explicitly provided
   const radarSource = radarMicros ?? micros;
 
   const densityScore = useMemo(() => computeDensityScore(micros), [micros]);
 
-  // Build radar data with all 12 axes - must be before early return
   const radarData = useMemo(() => {
     return RADAR_AXES.map((axisName) => {
       const micro = radarSource.find((m) => m.name === axisName);
@@ -76,7 +76,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
         fullName: axisName,
         pct,
         value: Math.round(value * 10) / 10,
-        goal,
+        goal: Math.round(goal * 10) / 10,
         unit: micro?.unit || "",
       };
     });
@@ -110,7 +110,6 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
             </p>
           </div>
 
-          {/* Radar Chart - 12 axes, % scale, 100% dashed reference */}
           {radarData.length >= 3 && (
             <div className="bg-accent rounded-xl p-2 mb-2">
               <ResponsiveContainer width="100%" height={260}>
@@ -118,7 +117,6 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
                   <PolarGrid stroke="hsl(var(--border))" />
                   <PolarAngleAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
                   <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
-                  {/* 100% reference line */}
                   <Radar
                     name="Objectif"
                     dataKey={() => 100}
@@ -130,9 +128,9 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
                   <Radar dataKey="pct" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
                   <Tooltip
                     contentStyle={tooltipStyle}
-                    formatter={(v: number, _name: string, props: any) => {
+                    formatter={(_v: any, _name: string, props: any) => {
                       const item = props.payload;
-                      return [`${item.value} ${item.unit} / ${item.goal} ${item.unit} (${item.pct}%)`, item.fullName];
+                      return [`Objectif (100%) : ${item.goal} ${item.unit}\nApport : ${item.value} ${item.unit} (${item.pct}%)`, item.fullName];
                     }}
                   />
                 </RadarChart>
