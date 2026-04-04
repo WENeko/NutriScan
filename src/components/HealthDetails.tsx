@@ -70,11 +70,14 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
       const micro = radarSource.find((m) => m.name === axisName);
       const value = micro?.value || 0;
       const goal = micro?.goal || 1;
-      const pct = Math.min(Math.round((value / goal) * 100), 150);
+      const realPct = Math.round((value / goal) * 100);
+      const pct = Math.min(realPct, 150);
+
       return {
         name: axisName.replace("Vitamine ", "Vit. "),
         fullName: axisName,
         pct,
+        realPct,
         value: Math.round(value * 10) / 10,
         goal: Math.round(goal * 10) / 10,
         unit: micro?.unit || "",
@@ -130,7 +133,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
                     contentStyle={tooltipStyle}
                     formatter={(_v: any, _name: string, props: any) => {
                       const item = props.payload;
-                      return [`Objectif (100%) : ${item.goal} ${item.unit}\nApport : ${item.value} ${item.unit} (${item.pct}%)`, item.fullName];
+                      return [`Objectif (100%) : ${item.goal} ${item.unit}\nApport : ${item.value} ${item.unit} (${item.realPct}%)`, item.fullName];
                     }}
                   />
                 </RadarChart>
