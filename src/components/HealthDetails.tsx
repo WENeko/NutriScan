@@ -22,6 +22,26 @@ const RADAR_AXES = [
   "Magnésium", "Calcium", "Vitamine B", "Vitamine C", "Vitamine D", "Vitamine E",
 ];
 
+// Composant Tooltip personnalisé identique à l'onglet Évolution
+const CustomRadarTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    const item = payload[0].payload;
+    // On ne traite que si c'est le radar de données (pct) pour éviter les doublons
+    if (payload[0].dataKey !== "pct") return null;
+
+    return (
+      <div className="bg-popover border border-border rounded-xl p-3 shadow-md text-[12px] space-y-1">
+        <p className="font-bold text-foreground mb-1">{item.fullName}</p>
+        <p className="text-muted-foreground italic">Objectif : 100%</p>
+        <p className="text-primary font-semibold">
+          Apport : {item.value} {item.unit} ({item.realPct}%)
+        </p>
+      </div>
+    );
+  }
+  return null;
+};
+
 function computeDensityScore(micros: MicroNutrient[]): number {
   const scored = micros.filter((m) => m.goal && m.goal > 0);
   if (scored.length === 0) return 0;
@@ -50,17 +70,9 @@ const InfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
   );
 };
 
-const tooltipStyle = {
-  background: "hsl(var(--card))",
-  border: "1px solid hsl(var(--border))",
-  borderRadius: "0.75rem",
-  fontSize: "12px",
-};
-
 const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) => {
   const [open, setOpen] = useState(false);
   const prefix = useId();
-  // Radar uses same data source as bars (todayMicros) unless radarMicros explicitly provided
   const radarSource = radarMicros ?? micros;
 
   const densityScore = useMemo(() => computeDensityScore(micros), [micros]);
@@ -70,6 +82,8 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
       const micro = radarSource.find((m) => m.name === axisName);
       const value = micro?.value || 0;
       const goal = micro?.goal || 1;
+      
+      // CALCULS CORRIGÉS : realPct pour le tooltip, pct pour le tracé (max 150)
       const realPct = Math.round((value / goal) * 100);
       const pct = Math.min(realPct, 150);
 
@@ -120,6 +134,8 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
                   <PolarGrid stroke="hsl(var(--border))" />
                   <PolarAngleAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
                   <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
+                  
+                  {/* Radar Objectif (Ligne pointillée) */}
                   <Radar
                     name="Objectif"
                     dataKey={() => 100}
@@ -128,14 +144,18 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
                     strokeDasharray="4 4"
                     strokeOpacity={0.5}
                   />
-                  <Radar dataKey="pct" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
-                  <Tooltip
-                    contentStyle={tooltipStyle}
-                    formatter={(_v: any, _name: string, props: any) => {
-                      const item = props.payload;
-                      return [`Objectif (100%) : ${item.goal} ${item.unit}\nApport : ${item.value} ${item.unit} (${item.realPct}%)`, item.fullName];
-                    }}
+                  
+                  {/* Radar Apport (Remplissage couleur) */}
+                  <Radar 
+                    dataKey="pct" 
+                    stroke="hsl(var(--primary))" 
+                    fill="hsl(var(--primary))" 
+                    fillOpacity={0.25} 
+                    strokeWidth={2} 
                   />
+
+                  {/* Tooltip synchronisé sur l'onglet évolution */}
+                  <Tooltip content={<CustomRadarTooltip />} cursor={false} />
                 </RadarChart>
               </ResponsiveContainer>
               <div className="flex justify-center gap-4 mt-1 text-[10px]">
@@ -146,7 +166,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
           )}
 
           <div className="grid grid-cols-2 gap-2">
-          {micros.filter((m) => m.value > 0).map((micro, i) => {
+            {micros.filter((m) => m.value > 0).map((micro, i) => {
               const rawPct = micro.goal ? micro.value / micro.goal : 0;
               const pct = Math.min(rawPct, 1);
               const displayPct = Math.round(rawPct * 100);
