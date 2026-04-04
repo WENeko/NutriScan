@@ -276,20 +276,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     { name: "Vitamine E", value: todayMicros.vitamin_e_mg, unit: "mg", info: getMicroInfo("vitamin_e_mg", microGoals.vitamin_e_mg), goal: microGoals.vitamin_e_mg },
   ];
 
-  const radarMicrosList = [
-    { name: "Fibres", value: weekMicros.fiber, unit: "g", info: getMicroInfo("fiber", microGoals.fiber), goal: microGoals.fiber },
-    { name: "Sucres", value: weekMicros.sugar, unit: "g", info: getMicroInfo("sugar", microGoals.sugar), goal: microGoals.sugar, isLimit: true },
-    { name: "AG Saturés", value: weekMicros.saturated_fat, unit: "g", info: getMicroInfo("saturated_fat", microGoals.saturated_fat), goal: microGoals.saturated_fat, isLimit: true },
-    { name: "Oméga-3", value: weekMicros.omega3_mg, unit: "mg", info: getMicroInfo("omega3_mg", microGoals.omega3_mg), goal: microGoals.omega3_mg },
-    { name: "Sodium", value: weekMicros.sodium_mg, unit: "mg", info: getMicroInfo("sodium_mg", microGoals.sodium_mg), goal: microGoals.sodium_mg, isLimit: true },
-    { name: "Potassium", value: weekMicros.potassium_mg, unit: "mg", info: getMicroInfo("potassium_mg", microGoals.potassium_mg), goal: microGoals.potassium_mg },
-    { name: "Magnésium", value: weekMicros.magnesium_mg, unit: "mg", info: getMicroInfo("magnesium_mg", microGoals.magnesium_mg), goal: microGoals.magnesium_mg },
-    { name: "Calcium", value: weekMicros.calcium_mg, unit: "mg", info: getMicroInfo("calcium_mg", microGoals.calcium_mg), goal: microGoals.calcium_mg },
-    { name: "Vitamine B", value: weekMicros.vitamin_b_mg, unit: "mg", info: getMicroInfo("vitamin_b_mg", microGoals.vitamin_b_mg), goal: microGoals.vitamin_b_mg },
-    { name: "Vitamine C", value: weekMicros.vitamin_c_mg, unit: "mg", info: getMicroInfo("vitamin_c_mg", microGoals.vitamin_c_mg), goal: microGoals.vitamin_c_mg },
-    { name: "Vitamine D", value: weekMicros.vitamin_d_mcg, unit: "µg", info: getMicroInfo("vitamin_d_mcg", microGoals.vitamin_d_mcg), goal: microGoals.vitamin_d_mcg },
-    { name: "Vitamine E", value: weekMicros.vitamin_e_mg, unit: "mg", info: getMicroInfo("vitamin_e_mg", microGoals.vitamin_e_mg), goal: microGoals.vitamin_e_mg },
-  ];
+  // Radar uses SAME todayMicros as the bars to ensure alignment
+  const radarMicrosList = microsList;
 
   return (
     <TooltipProvider>
