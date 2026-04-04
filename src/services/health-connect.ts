@@ -23,6 +23,11 @@ export interface HealthConnectLeanBodyMass {
   timestamp: string;
 }
 
+export interface HealthConnectSkeletalMuscleMass {
+  value_kg: number;
+  timestamp: string;
+}
+
 export interface HealthConnectSleep {
   start_time: string;
   end_time: string;
@@ -40,6 +45,7 @@ export interface HealthConnectData {
   weight?: HealthConnectWeight[];
   bodyFat?: HealthConnectBodyFat[];
   leanBodyMass?: HealthConnectLeanBodyMass[];
+  skeletalMuscleMass?: HealthConnectSkeletalMuscleMass[];
   sleep?: HealthConnectSleep[];
   activeCalories?: HealthConnectActiveCalories[];
 }
@@ -122,14 +128,14 @@ export async function syncHealthData(
         }
 
         const bodyFatForDate = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
-        const leanMassForDate = data.leanBodyMass?.find((lm) => lm.timestamp.slice(0, 10) === recordedAt);
+        const skeletalMassForDate = data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt);
 
         const record = {
           user_id: userId,
           recorded_at: recordedAt,
           weight_kg: w.value_kg,
           body_fat_percent: bodyFatForDate?.percentage ?? null,
-          muscle_mass_kg: leanMassForDate?.value_kg ?? null,
+          muscle_mass_kg: skeletalMassForDate?.value_kg ?? null,
           source: "health_connect",
         };
 
