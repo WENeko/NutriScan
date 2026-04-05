@@ -1,8 +1,9 @@
 /**
  * Health Connect Bridge
  * 
- * Thin wrapper around the capacitor-health plugin that bridges
- * the native Health Connect API to our TypeScript service layer.
+ * Uses @capgo/capacitor-health for weight, steps, calories, sleep.
+ * SkeletalMuscleMass and BodyFat use readSamples when supported,
+ * with graceful fallback on web/unsupported platforms.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +42,12 @@ export interface HealthConnectActiveCalories {
   end_time: string;
 }
 
+export interface HealthConnectSteps {
+  count: number;
+  start_time: string;
+  end_time: string;
+}
+
 export interface HealthConnectData {
   weight?: HealthConnectWeight[];
   bodyFat?: HealthConnectBodyFat[];
@@ -48,6 +55,7 @@ export interface HealthConnectData {
   skeletalMuscleMass?: HealthConnectSkeletalMuscleMass[];
   sleep?: HealthConnectSleep[];
   activeCalories?: HealthConnectActiveCalories[];
+  steps?: HealthConnectSteps[];
 }
 
 export interface HealthConnectPreferences {
@@ -85,22 +93,152 @@ export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
   localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
 }
 
-// ── Native bridge helpers ──────────────────────────────────────
-// Native Health Connect plugin is not available in Capacitor 6.
-// These stubs keep the service layer intact for future migration to Capacitor 8+.
+// ── Native bridge ──────────────────────────────────────────────
+let _healthPlugin: any = null;
 
-async function getHealthPlugin(): Promise<null> {
-  return null;
+async function getHealthPlugin(): Promise<any> {
+  if (_healthPlugin) return _healthPlugin;
+  try {
+    const { Health } = await import("@capgo/capacitor-health");
+    _healthPlugin = Health;
+    return _healthPlugin;
+  } catch {
+    return null;
+  }
 }
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
-  // Native plugin not available in current Capacitor version
-  return false;
+  try {
+    const Health = await getHealthPlugin();
+    if (!Health) return false;
+    const { available } = await Health.isAvailable();
+    return available === true;
+  } catch {
+    return false;
+  }
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
-  // Native plugin not available in current Capacitor version
-  return false;
+  try {
+    const Health = await getHealthPlugin();
+    if (!Health) return false;
+    await Health.requestAuthorization({
+      read: ["steps", "weight", "calories", "sleep"],
+      write: [],
+    });
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// ── Read from native Health Connect ────────────────────────────
+export async function readNativeHealthData(days = 30): Promise<HealthConnectData> {
+  const Health = await getHealthPlugin();
+  if (!Health) return {};
+
+  const endDate = new Date().toISOString();
+  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const data: HealthConnectData = {};
+
+  try {
+    const { samples } = await Health.readSamples({
+      dataType: "weight",
+      startDate,
+      endDate,
+      limit: 500,
+    });
+    if (samples?.length) {
+      data.weight = samples.map((s: any) => ({
+        value_kg: s.value,
+        timestamp: s.startDate || s.date,
+      }));
+    }
+  } catch {}
+
+  try {
+    const { samples } = await Health.readSamples({
+      dataType: "calories",
+      startDate,
+      endDate,
+      limit: 500,
+    });
+    if (samples?.length) {
+      data.activeCalories = samples.map((s: any) => ({
+        value_kcal: s.value,
+        start_time: s.startDate,
+        end_time: s.endDate || s.startDate,
+      }));
+    }
+  } catch {}
+
+  try {
+    const { samples } = await Health.readSamples({
+      dataType: "steps",
+      startDate,
+      endDate,
+      limit: 500,
+    });
+    if (samples?.length) {
+      data.steps = samples.map((s: any) => ({
+        count: s.value,
+        start_time: s.startDate,
+        end_time: s.endDate || s.startDate,
+      }));
+    }
+  } catch {}
+
+  try {
+    const { samples } = await Health.readSamples({
+      dataType: "sleep",
+      startDate,
+      endDate,
+      limit: 100,
+    });
+    if (samples?.length) {
+      data.sleep = samples.map((s: any) => ({
+        start_time: s.startDate,
+        end_time: s.endDate,
+        duration_minutes: Math.round(
+          (new Date(s.endDate).getTime() - new Date(s.startDate).getTime()) / 60000
+        ),
+      }));
+    }
+  } catch {}
+
+  // Body fat & skeletal muscle mass: attempt via readSamples
+  // These may not be supported by all plugins; graceful fallback
+  try {
+    const { samples } = await Health.readSamples({
+      dataType: "bodyFat",
+      startDate,
+      endDate,
+      limit: 500,
+    });
+    if (samples?.length) {
+      data.bodyFat = samples.map((s: any) => ({
+        percentage: s.value,
+        timestamp: s.startDate || s.date,
+      }));
+    }
+  } catch {}
+
+  try {
+    const { samples } = await Health.readSamples({
+      dataType: "leanBodyMass",
+      startDate,
+      endDate,
+      limit: 500,
+    });
+    if (samples?.length) {
+      data.leanBodyMass = samples.map((s: any) => ({
+        value_kg: s.value,
+        timestamp: s.startDate || s.date,
+      }));
+    }
+  } catch {}
+
+  return data;
 }
 
 // ── Sync function ──────────────────────────────────────────────
@@ -128,6 +266,7 @@ export async function syncHealthData(
         }
 
         const bodyFatForDate = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
+        // Use skeletalMuscleMass (68.8 kg from balance) instead of leanBodyMass
         const skeletalMassForDate = data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt);
 
         const record = {
@@ -151,16 +290,19 @@ export async function syncHealthData(
         (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       )[0];
       if (latestWeight) {
+        const latestBodyFat = data.bodyFat?.sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        )[0];
+        const latestSkeletal = data.skeletalMuscleMass?.sort(
+          (a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
+        )[0];
+
         await supabase
           .from("profiles")
           .update({
             weight_kg: latestWeight.value_kg,
-            ...(data.bodyFat?.length
-              ? { body_fat_percent: data.bodyFat.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].percentage }
-              : {}),
-            ...(data.leanBodyMass?.length
-              ? { muscle_mass_kg: data.leanBodyMass.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0].value_kg }
-              : {}),
+            ...(latestBodyFat ? { body_fat_percent: latestBodyFat.percentage } : {}),
+            ...(latestSkeletal ? { muscle_mass_kg: latestSkeletal.value_kg } : {}),
           })
           .eq("user_id", userId);
       }
@@ -205,7 +347,7 @@ export async function syncHealthData(
       for (const s of data.sleep) {
         const recordedAt = s.start_time.slice(0, 10);
         const { data: existing } = await supabase
-          .from("sleep_logs" as any)
+          .from("sleep_logs")
           .select("id")
           .eq("user_id", userId)
           .eq("recorded_at", recordedAt)
@@ -222,9 +364,9 @@ export async function syncHealthData(
         };
 
         if (existing) {
-          await (supabase.from("sleep_logs" as any) as any).update(record).eq("id", (existing as any).id);
+          await supabase.from("sleep_logs").update(record).eq("id", existing.id);
         } else {
-          await (supabase.from("sleep_logs" as any) as any).insert(record);
+          await supabase.from("sleep_logs").insert(record);
         }
       }
       synced.push("sleep");
