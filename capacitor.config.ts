@@ -3,6 +3,11 @@ import type { CapacitorConfig } from '@capacitor/cli';
 const config: CapacitorConfig = {
   appId: 'com.nutriscan.app',
   appName: 'NutriVibe',
+  plugins: {
+    CapacitorHealth: {
+      // Health Connect permissions are declared in AndroidManifest.xml
+    },
+  },
   webDir: 'dist',
   // Pour le dev live-reload, décommenter le bloc server ci-dessous :
   // server: {

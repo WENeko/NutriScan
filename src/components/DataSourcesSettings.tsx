@@ -1,11 +1,18 @@
 import React, { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Smartphone, Weight, Activity, Moon, Flame, Shield } from "lucide-react";
+import { ArrowLeft, Smartphone, Weight, Activity, Moon, Flame, Shield, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { toast } from "@/hooks/use-toast";
 import {
   getHealthConnectPreferences,
   setHealthConnectPreferences,
+  isHealthConnectAvailable,
+  requestHealthPermissions,
+  readNativeHealthData,
+  syncHealthData,
   type HealthConnectPreferences,
 } from "@/services/health-connect";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DataSourcesSettingsProps {
   onBack: () => void;
@@ -16,39 +23,85 @@ const DATA_SOURCES = [
     key: "sync_weight" as keyof HealthConnectPreferences,
     icon: Weight,
     label: "Poids & Composition",
-    description: "Synchronise automatiquement le poids, la masse grasse et la masse musculaire depuis Health Connect. Met à jour ton ratio g/kg en temps réel.",
-    permissions: ["read_weight", "read_body_fat"],
+    description: "Synchronise le poids, la masse grasse et la masse musculaire squelettique depuis Health Connect.",
+    permissions: ["read_weight", "read_skeletal_muscle_mass"],
   },
   {
     key: "sync_body_fat" as keyof HealthConnectPreferences,
     icon: Activity,
     label: "Masse Grasse",
-    description: "Récupère la masse grasse pour le calcul Katch-McArdle de ton métabolisme de base et un lissage calorique plus précis.",
+    description: "Récupère le % de masse grasse pour le calcul Katch-McArdle du métabolisme de base.",
     permissions: ["read_body_fat"],
   },
   {
     key: "sync_calories" as keyof HealthConnectPreferences,
     icon: Flame,
-    label: "Calories Sportives",
-    description: "Importe les calories brûlées pour ajuster ton objectif calorique quotidien automatiquement via le lissage hebdomadaire.",
-    permissions: ["read_total_energy_burned"],
+    label: "Calories & Pas",
+    description: "Importe les calories brûlées et les pas pour ajuster ton objectif calorique.",
+    permissions: ["read_total_energy_burned", "read_steps"],
   },
   {
     key: "sync_sleep" as keyof HealthConnectPreferences,
     icon: Moon,
     label: "Sommeil",
-    description: "Suit la durée et les phases de sommeil. Un bon sommeil optimise la récupération et le métabolisme.",
+    description: "Suit la durée et les phases de sommeil pour optimiser la récupération.",
     permissions: ["read_sleep"],
   },
 ];
 
 const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => {
   const [prefs, setPrefs] = useState<HealthConnectPreferences>(getHealthConnectPreferences());
-  const [isConnected] = useState(false); // Will be true when Capacitor HC plugin is available
+  const [isConnected, setIsConnected] = useState(false);
+  const [isChecking, setIsChecking] = useState(true);
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  useEffect(() => {
+    checkAvailability();
+  }, []);
 
   useEffect(() => {
     setHealthConnectPreferences(prefs);
   }, [prefs]);
+
+  const checkAvailability = async () => {
+    setIsChecking(true);
+    const available = await isHealthConnectAvailable();
+    setIsConnected(available);
+    setIsChecking(false);
+  };
+
+  const handleConnect = async () => {
+    const granted = await requestHealthPermissions();
+    if (granted) {
+      setIsConnected(true);
+      toast({ title: "Health Connect activé", description: "Permissions accordées avec succès." });
+    } else {
+      toast({ title: "Permissions refusées", description: "Autorise l'accès depuis les réglages.", variant: "destructive" });
+    }
+  };
+
+  const handleSync = async () => {
+    setIsSyncing(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        toast({ title: "Non connecté", description: "Connecte-toi pour synchroniser.", variant: "destructive" });
+        return;
+      }
+      const healthData = await readNativeHealthData(30);
+      const result = await syncHealthData(user.id, healthData, prefs);
+      if (result.synced.length) {
+        toast({ title: "Synchronisation réussie", description: `Données synchronisées : ${result.synced.join(", ")}` });
+      }
+      if (result.errors.length) {
+        toast({ title: "Erreurs partielles", description: result.errors.join("; "), variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erreur de synchronisation", description: e.message, variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
   const togglePref = (key: keyof HealthConnectPreferences) => {
     setPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
@@ -74,16 +127,34 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         </div>
         <div className="flex-1">
           <p className="font-semibold text-sm">
-            {isConnected ? "Health Connect activé" : "Health Connect non disponible"}
+            {isChecking ? "Vérification…" : isConnected ? "Health Connect activé" : "Health Connect non disponible"}
           </p>
           <p className="text-xs text-muted-foreground">
-            {isConnected
+            {isChecking
+              ? "Détection en cours…"
+              : isConnected
               ? "Les données sont synchronisées automatiquement"
               : "Installe l'app native pour activer la synchronisation"}
           </p>
         </div>
         <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-primary animate-pulse" : "bg-muted-foreground/30"}`} />
       </div>
+
+      {/* Connect / Sync buttons */}
+      {!isChecking && (
+        <div className="flex gap-2">
+          {!isConnected ? (
+            <Button onClick={handleConnect} className="flex-1" variant="outline">
+              <Smartphone className="w-4 h-4 mr-2" /> Connecter
+            </Button>
+          ) : (
+            <Button onClick={handleSync} className="flex-1" disabled={isSyncing}>
+              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+              {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+            </Button>
+          )}
+        </div>
+      )}
 
       {/* Data source switches */}
       <div className="space-y-3">
@@ -111,7 +182,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
                   <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
                     {source.description}
                   </p>
-                  <div className="flex gap-1.5 mt-2">
+                  <div className="flex flex-wrap gap-1.5 mt-2">
                     {source.permissions.map((p) => (
                       <span key={p} className="text-[9px] px-2 py-0.5 rounded-full bg-muted text-muted-foreground font-mono">
                         {p}
@@ -131,7 +202,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         <div>
           <p className="font-semibold text-xs">Confidentialité</p>
           <p className="text-[11px] text-muted-foreground mt-1 leading-relaxed">
-            Tes données Health Connect sont lues uniquement sur ton appareil et synchronisées de façon sécurisée vers ton compte. Tu peux désactiver chaque source à tout moment. Aucune donnée n'est partagée avec des tiers.
+            Tes données Health Connect sont lues uniquement sur ton appareil et synchronisées de façon sécurisée. Aucune donnée n'est partagée avec des tiers.
           </p>
         </div>
       </div>
@@ -144,9 +215,12 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         <div className="mt-3 space-y-2 text-[11px] text-muted-foreground font-mono">
           <p>android.permission.health.READ_WEIGHT</p>
           <p>android.permission.health.READ_BODY_FAT</p>
+          <p>android.permission.health.READ_SKELETAL_MUSCLE_MASS</p>
           <p>android.permission.health.READ_LEAN_BODY_MASS</p>
           <p>android.permission.health.READ_TOTAL_CALORIES_BURNED</p>
           <p>android.permission.health.READ_SLEEP</p>
+          <p>android.permission.health.READ_STEPS</p>
+          <p>android.permission.health.READ_HEALTH_DATA_HISTORY</p>
         </div>
       </details>
     </div>
