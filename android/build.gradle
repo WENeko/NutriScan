@@ -1,10 +1,4 @@
 // Top-level build file where you can add configuration options common to all sub-projects/modules.
-allprojects {
-    configurations.all {
-        resolutionStrategy.force 'org.bouncycastle:bcprov-jdk18on:1.78' 
-        // On rétrograde d'une micro-version (1.79 -> 1.78) pour éviter le bug de la 1.79
-    }
-}
 
 buildscript {
     repositories {
@@ -23,6 +17,11 @@ allprojects {
     repositories {
         google()
         mavenCentral()
+    }
+    configurations.all {
+        resolutionStrategy {
+            force 'org.bouncycastle:bcprov-jdk18on:1.78'
+        }
     }
 }
 
