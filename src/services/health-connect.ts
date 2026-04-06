@@ -82,7 +82,6 @@ const EMPTY_AUTH_STATUS = {
 
 function hasGrantedAllPermissions(status: typeof EMPTY_AUTH_STATUS | null | undefined): boolean {
   const readAuthorized = Array.isArray(status?.readAuthorized) ? status.readAuthorized : [];
-  // On vérifie si au moins le poids et les pas sont autorisés pour considérer comme "connecté"
   return readAuthorized.includes("weight") || readAuthorized.includes("steps");
 }
 
@@ -120,7 +119,6 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
     if (!Health) return false;
-    
     const result = await withTimeout(Health.isAvailable(), 4000, { available: false });
     return result.available === true;
   } catch (e) {
@@ -133,7 +131,6 @@ export async function checkHealthPermissions(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
     if (!Health) return false;
-
     const status = await withTimeout(
       Health.checkAuthorization({
         read: [...HEALTH_READ_TYPES],
@@ -142,7 +139,6 @@ export async function checkHealthPermissions(): Promise<boolean> {
       4000,
       null
     );
-
     if (!status) return false;
     return hasGrantedAllPermissions(status);
   } catch (e) {
@@ -155,15 +151,13 @@ export async function requestHealthPermissions(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
     if (!Health) {
-      alert("Plugin Health non trouvé au moment de la demande");
+      alert("Plugin Health non trouvé");
       return false;
     }
-    
     const authResult = await Health.requestAuthorization({
       read: [...HEALTH_READ_TYPES],
       write: [],
     });
-    
     return hasGrantedAllPermissions(authResult);
   } catch (e: any) {
     alert("Erreur requestAuthorization: " + e.message);
@@ -203,7 +197,6 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
     }
   };
 
-  // Lecture des données
   const weightSamples = await fetchType("weight");
   if (weightSamples.length) {
     data.weight = weightSamples.map((s: any) => ({
@@ -260,7 +253,12 @@ export async function syncHealthData(
 
   if (prefs.sync_weight && data.weight?.length) {
     try {
-      for (const w of data.weight) {
+      // On trie pour avoir les plus récents en dernier (ils écraseront les plus vieux du même jour)
+      const sortedWeight = [...data.weight].sort((a, b) => 
+        new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
+      );
+
+      for (const w of sortedWeight) {
         const recordedAt = w.timestamp.slice(0, 10);
         
         const bodyFatForDate = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
@@ -275,24 +273,27 @@ export async function syncHealthData(
           source: "health_connect",
         };
 
-        const { data: existing } = await supabase
+        // Utilisation de upsert pour forcer la mise à jour si la ligne existe déjà
+        const { error } = await supabase
           .from("body_composition")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("recorded_at", recordedAt)
-          .single();
+          .upsert(record, { onConflict: 'user_id,recorded_at' });
 
-        if (existing) {
-          await supabase.from("body_composition").update(record).eq("id", existing.id);
-        } else {
-          await supabase.from("body_composition").insert(record);
-        }
+        if (error) throw error;
       }
       synced.push("Poids & Composition");
+
+      // Mise à jour du profil principal avec la valeur la plus récente
+      const latest = sortedWeight[sortedWeight.length - 1];
+      if (latest) {
+        await supabase
+          .from("profiles")
+          .update({ weight_kg: latest.value_kg })
+          .eq("user_id", userId);
+      }
     } catch (e: any) {
       errors.push(`Poids: ${e.message}`);
     }
   }
 
   return { synced, errors };
-  }
+}
