@@ -10,6 +10,7 @@ import {
   requestHealthPermissions,
   readNativeHealthData,
   syncHealthData,
+  onAppResumeRecheck,
   type HealthConnectPreferences,
 } from "@/services/health-connect";
 import { supabase } from "@/integrations/supabase/client";
@@ -57,6 +58,8 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
 
   useEffect(() => {
     checkAvailability();
+    const cleanup = onAppResumeRecheck(() => checkAvailability());
+    return () => { cleanup?.(); };
   }, []);
 
   useEffect(() => {
@@ -66,6 +69,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
   const checkAvailability = async () => {
     setIsChecking(true);
     const available = await isHealthConnectAvailable();
+    console.log("[DataSources] Health Connect available:", available);
     setIsConnected(available);
     setIsChecking(false);
   };
