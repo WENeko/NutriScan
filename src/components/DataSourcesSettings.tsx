@@ -109,8 +109,12 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
   };
 
   const handleForceConnect = async () => {
+    if (typeof window !== "undefined") {
+      alert("Clic sur Forcer la connexion !"); 
+    }
     await requestConnection();
   };
+
 
   const handleSync = async () => {
     if (typeof window !== "undefined") {
