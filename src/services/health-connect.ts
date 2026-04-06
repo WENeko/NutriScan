@@ -72,6 +72,19 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
   sync_calories: false,
 };
 
+const HEALTH_READ_TYPES = ["steps", "weight", "calories", "sleep", "bodyFat"] as const;
+const EMPTY_AUTH_STATUS = {
+  readAuthorized: [] as string[],
+  readDenied: [] as string[],
+  writeAuthorized: [] as string[],
+  writeDenied: [] as string[],
+};
+
+function hasGrantedAllPermissions(status: typeof EMPTY_AUTH_STATUS | null | undefined): boolean {
+  const readAuthorized = Array.isArray(status?.readAuthorized) ? status.readAuthorized : [];
+  return HEALTH_READ_TYPES.every((permission) => readAuthorized.includes(permission));
+}
+
 // ── Unit conversions ───────────────────────────────────────────
 export const convertUnits = {
   lbsToKg: (lbs: number) => Math.round(lbs * 0.453592 * 10) / 10,
@@ -136,20 +149,46 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
   }
 }
 
+export async function checkHealthPermissions(): Promise<boolean> {
+  try {
+    const Health = await getHealthPlugin();
+    if (!Health) {
+      console.log("[HealthConnect] No plugin – permissions unavailable");
+      return false;
+    }
+
+    const status = await withTimeout(
+      Health.checkAuthorization({
+        read: [...HEALTH_READ_TYPES],
+        write: [],
+      }),
+      3000,
+      EMPTY_AUTH_STATUS
+    );
+
+    const granted = hasGrantedAllPermissions(status);
+    console.log("[HealthConnect] Permissions granted:", granted, JSON.stringify(status));
+    return granted;
+  } catch (e) {
+    console.log("[HealthConnect] checkAuthorization error:", e);
+    return false;
+  }
+}
+
 export async function requestHealthPermissions(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
     if (!Health) return false;
     const authResult = await withTimeout(
       Health.requestAuthorization({
-        read: ["steps", "weight", "calories", "sleep"],
+        read: [...HEALTH_READ_TYPES],
         write: [],
       }),
       5000,
       null
     );
-    const granted = authResult !== null;
-    console.log("[HealthConnect] requestAuthorization granted:", granted);
+    const granted = hasGrantedAllPermissions(authResult ?? EMPTY_AUTH_STATUS);
+    console.log("[HealthConnect] Permissions granted:", granted, authResult ? JSON.stringify(authResult) : "null");
     return granted;
   } catch (e) {
     console.log("[HealthConnect] requestAuthorization error:", e);
@@ -161,15 +200,32 @@ export async function requestHealthPermissions(): Promise<boolean> {
 export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   try {
     const doc = typeof document !== "undefined" ? document : null;
+    const win = typeof window !== "undefined" ? window : null;
     if (!doc) return null;
-    const handler = () => {
+
+    const handleVisibility = () => {
       if (doc.visibilityState === "visible") {
-        console.log("[HealthConnect] App resumed – rechecking");
+        console.log("[HealthConnect] App status change: visible – rechecking");
         callback();
       }
     };
-    doc.addEventListener("visibilitychange", handler);
-    return () => doc.removeEventListener("visibilitychange", handler);
+
+    const handleFocus = () => {
+      if (doc.visibilityState === "visible") {
+        console.log("[HealthConnect] App status change: focus – rechecking");
+        callback();
+      }
+    };
+
+    doc.addEventListener("visibilitychange", handleVisibility);
+    win?.addEventListener("focus", handleFocus);
+    win?.addEventListener("pageshow", handleFocus);
+
+    return () => {
+      doc.removeEventListener("visibilitychange", handleVisibility);
+      win?.removeEventListener("focus", handleFocus);
+      win?.removeEventListener("pageshow", handleFocus);
+    };
   } catch {
     return null;
   }

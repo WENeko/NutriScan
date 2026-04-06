@@ -7,6 +7,7 @@ import {
   getHealthConnectPreferences,
   setHealthConnectPreferences,
   isHealthConnectAvailable,
+  checkHealthPermissions,
   requestHealthPermissions,
   readNativeHealthData,
   syncHealthData,
@@ -68,23 +69,53 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
 
   const checkAvailability = async () => {
     setIsChecking(true);
-    const available = await isHealthConnectAvailable();
-    console.log("[DataSources] Health Connect available:", available);
-    setIsConnected(available);
-    setIsChecking(false);
-  };
-
-  const handleConnect = async () => {
-    const granted = await requestHealthPermissions();
-    if (granted) {
-      setIsConnected(true);
-      toast({ title: "Health Connect activé", description: "Permissions accordées avec succès." });
-    } else {
-      toast({ title: "Permissions refusées", description: "Autorise l'accès depuis les réglages.", variant: "destructive" });
+    try {
+      const [available, permissionsGranted] = await Promise.all([
+        isHealthConnectAvailable(),
+        checkHealthPermissions(),
+      ]);
+      const connected = available || permissionsGranted;
+      console.log("[DataSources] Health Connect status:", JSON.stringify({ available, permissionsGranted, connected }));
+      setIsConnected(connected);
+    } catch (e) {
+      console.log("[DataSources] Health Connect check error:", e);
+      setIsConnected(false);
+    } finally {
+      setIsChecking(false);
     }
   };
 
+  const requestConnection = async () => {
+    setIsChecking(true);
+    try {
+      const granted = await requestHealthPermissions();
+      console.log("[DataSources] Force connection granted:", granted);
+      setIsConnected(granted);
+
+      if (granted) {
+        toast({ title: "Health Connect activé", description: "Permissions accordées avec succès." });
+      } else {
+        toast({ title: "Permissions refusées", description: "Autorise l'accès depuis les réglages.", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erreur Health Connect", description: e.message ?? "Impossible de vérifier les permissions.", variant: "destructive" });
+    } finally {
+      setIsChecking(false);
+    }
+  };
+
+  const handleConnect = async () => {
+    await requestConnection();
+  };
+
+  const handleForceConnect = async () => {
+    await requestConnection();
+  };
+
   const handleSync = async () => {
+    if (typeof window !== "undefined") {
+      window.alert("DEBUG: handleSync appelée");
+    }
     setIsSyncing(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -145,20 +176,23 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
       </div>
 
       {/* Connect / Sync buttons */}
-      {!isChecking && (
-        <div className="flex gap-2">
-          {!isConnected ? (
-            <Button onClick={handleConnect} className="flex-1" variant="outline">
+      <div className="flex gap-2">
+        {!isConnected ? (
+          <>
+            <Button onClick={handleConnect} className="flex-1" variant="outline" disabled={isChecking}>
               <Smartphone className="w-4 h-4 mr-2" /> Connecter
             </Button>
-          ) : (
-            <Button onClick={handleSync} className="flex-1" disabled={isSyncing}>
-              <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
-              {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+            <Button onClick={handleForceConnect} className="flex-1" variant="secondary">
+              Forcer la connexion
             </Button>
-          )}
-        </div>
-      )}
+          </>
+        ) : (
+          <Button onClick={handleSync} className="flex-1" disabled={isSyncing}>
+            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+            {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+          </Button>
+        )}
+      </div>
 
       {/* Data source switches */}
       <div className="space-y-3">
