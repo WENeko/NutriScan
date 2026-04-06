@@ -1,6 +1,6 @@
 /**
- * Health Connect Bridge - Version Ultra-Complète
- * Gère Poids, Gras, Muscle (via Skeletal ou Lean) et Calories Sport.
+ * Health Connect Bridge - Version Build Fix
+ * Gère Poids, Gras, Muscle (Skeletal/Lean) et Calories Sport.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -14,7 +14,7 @@ export interface HealthConnectCalories { value_kcal: number; timestamp: string; 
 export interface HealthConnectData {
   weight?: HealthConnectWeight[];
   bodyFat?: HealthConnectBodyFat[];
-  muscle?: HealthConnectMuscle[]; // Fusion de Skeletal et Lean
+  muscle?: HealthConnectMuscle[]; 
   activeCalories?: HealthConnectCalories[];
 }
 
@@ -39,6 +39,19 @@ function hasGrantedPermissions(status: any): boolean {
   return authorized.includes("weight") || authorized.includes("bodyFat");
 }
 
+// ── Preferences (EXPORTÉS POUR LE BUILD) ───────────────────────
+export function getHealthConnectPreferences(): HealthConnectPreferences {
+  try {
+    const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
+    if (stored) return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
+  } catch {}
+  return { ...DEFAULT_PREFERENCES };
+}
+
+export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
+  localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
+}
+
 // ── Bridge Logic ──────────────────────────────────────────────
 async function getHealthPlugin() {
   const { Capacitor } = window as any;
@@ -54,13 +67,32 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
   } catch { return false; }
 }
 
+export async function checkHealthPermissions(): Promise<boolean> {
+  try {
+    const Health = await getHealthPlugin();
+    if (!Health) return false;
+    const status = await Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
+    return hasGrantedPermissions(status);
+  } catch { return false; }
+}
+
 export async function requestHealthPermissions(): Promise<boolean> {
   const Health = await getHealthPlugin();
   if (!Health) return false;
   try {
     const res = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
     return hasGrantedPermissions(res);
-  } catch { return false; }
+  } catch (e: any) {
+    alert("Erreur permissions: " + e.message);
+    return false;
+  }
+}
+
+export function onAppResumeRecheck(callback: () => void): (() => void) | null {
+  if (typeof document === "undefined") return null;
+  const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
+  document.addEventListener("visibilitychange", handleVisibility);
+  return () => document.removeEventListener("visibilitychange", handleVisibility);
 }
 
 // ── Lecture Native ───────────────────────────────────────────
@@ -79,27 +111,22 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
     } catch { return []; }
   };
 
-  // 1. Poids
   const wSamples = await fetch("weight");
   data.weight = wSamples.map((s: any) => ({ value_kg: round1(s.value), timestamp: s.startDate || s.date }));
 
-  // 2. Masse Grasse
   const fSamples = await fetch("bodyFat");
   data.bodyFat = fSamples.map((s: any) => ({ percentage: round1(s.value), timestamp: s.startDate || s.date }));
 
-  // 3. Muscle (On check Skeletal ET Lean Body Mass)
   const skeletal = await fetch("skeletalMuscleMass");
   const lean = await fetch("leanBodyMass");
   const muscleMap = new Map();
   
-  // On remplit avec le lean d'abord, le skeletal écrasera si présent (plus précis)
   [...lean, ...skeletal].forEach((s: any) => {
     const d = (s.startDate || s.date).slice(0, 10);
     muscleMap.set(d, { value_kg: round1(s.value), timestamp: s.startDate || s.date });
   });
   data.muscle = Array.from(muscleMap.values());
 
-  // 4. Calories Sport
   const cSamples = await fetch("calories");
   data.activeCalories = cSamples.map((s: any) => ({ value_kcal: Math.round(s.value), timestamp: s.startDate }));
 
@@ -115,7 +142,6 @@ export async function syncHealthData(
   const synced: string[] = [];
   const errors: string[] = [];
 
-  // SYNC COMPOSITION CORPORELLE
   if (prefs.sync_weight && data.weight?.length) {
     try {
       const sortedW = [...data.weight].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
@@ -139,7 +165,6 @@ export async function syncHealthData(
       }
       synced.push("Composition");
 
-      // Update Profil Principal
       const last = sortedW[sortedW.length - 1];
       const d = last.timestamp.slice(0, 10);
       await supabase.from("profiles").update({ 
@@ -151,7 +176,6 @@ export async function syncHealthData(
     } catch (e: any) { errors.push(`Comp: ${e.message}`); }
   }
 
-  // SYNC CALORIES SPORT
   if (prefs.sync_calories && data.activeCalories?.length) {
     try {
       const today = new Date().toISOString().slice(0, 10);
@@ -167,5 +191,4 @@ export async function syncHealthData(
   }
 
   return { synced, errors };
-}
-  
+        }
