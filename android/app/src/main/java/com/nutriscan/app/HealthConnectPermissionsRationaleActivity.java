@@ -1,13 +1,12 @@
 package com.nutriscan.app;
-
+import android.app.Activity;
 import android.os.Bundle;
-import androidx.appcompat.app.AppCompatActivity;
 
-public class HealthConnectPermissionsRationaleActivity extends AppCompatActivity {
+public class HealthConnectPermissionsRationaleActivity extends Activity {
     @Override
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        // Display rationale to the user, then finish
-        finish();
+        // On ferme immédiatement, c'est juste pour valider le contrat Android
+        finish(); 
     }
 }
