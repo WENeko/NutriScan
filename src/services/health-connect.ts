@@ -1,6 +1,6 @@
 /**
- * Health Connect Bridge - Version "Calculateur de Secours"
- * Force le calcul du muscle si les données sources sont manquantes dans Santé Connect.
+ * Health Connect Bridge - VERSION FINALE TOUT-EN-UN
+ * Correction : Arrondis, Muscle calculé et Calories Multi-Sources.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -37,12 +37,12 @@ const HEALTH_READ_TYPES = [
   "leanBodyMass",
   "activeEnergyBurned",
   "boneMass",
+  "basalMetabolicRate"
 ] as const;
 
-// Utilitaire d'arrondi à une décimale
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-// ── Gestion des Préférences (Exports requis pour le Build) ──────
+// ── Préférences & Permissions ──────────────────────────────────
 export function getHealthConnectPreferences(): HealthConnectPreferences {
   try {
     const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
@@ -55,7 +55,6 @@ export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
   localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
 }
 
-// ── Bridge Natif (Capacitor) ───────────────────────────────────
 async function getHealthPlugin() {
   const { Capacitor } = window as any;
   return Capacitor?.Plugins?.Health || null;
@@ -71,11 +70,8 @@ export async function checkHealthPermissions(): Promise<boolean> {
   if (!Health) return false;
   try {
     const res = await Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
-    const authorized = Array.isArray(res?.readAuthorized) ? res.readAuthorized : [];
-    return authorized.includes("weight");
-  } catch {
-    return false;
-  }
+    return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
+  } catch { return false; }
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
@@ -83,14 +79,11 @@ export async function requestHealthPermissions(): Promise<boolean> {
   if (!Health) return false;
   try {
     const res = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
-    const authorized = Array.isArray(res?.readAuthorized) ? res.readAuthorized : [];
-    return authorized.includes("weight");
-  } catch {
-    return false;
-  }
+    return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
+  } catch { return false; }
 }
 
-// ── Lecture & Moteur Biométrique ───────────────────────────────
+// ── Lecture & Calculs ──────────────────────────────────────────
 export async function readNativeHealthData(days = 7): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
@@ -99,7 +92,6 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], activeCalories: [] };
 
-  // Récupération du profil pour l'âge et le sexe
   const { data: { user } } = await supabase.auth.getUser();
   let isFemale = false;
   let userAge = 30;
@@ -116,46 +108,50 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  const weights = await fetch("weight");
-  const fats = await fetch("bodyFat");
-  const energy = await fetch("activeEnergyBurned");
+  const [weights, fats, activeEnergy, totalEnergy, steps] = await Promise.all([
+    fetch("weight"),
+    fetch("bodyFat"),
+    fetch("activeEnergyBurned"),
+    fetch("calories"), // Total calories (BMR + Active)
+    fetch("steps")
+  ]);
 
-  // 1. Stockage Poids & Gras (Nettoyage immédiat des arrondis)
+  // 1. Composition Corporelle (OK)
   data.weight = weights.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
   data.bodyFat = fats.map((s: any) => ({ percentage: round1(Number(s.value)), timestamp: s.startDate || s.date }));
 
   const muscleMap = new Map();
-  const calMap = new Map();
-
-  // 2. RECONSTRUCTION DU MUSCLE (On calcule ce que la balance n'envoie pas)
   data.weight.forEach((w) => {
     const d = w.timestamp.slice(0, 10);
     const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
-
     if (fatEntry) {
-      // Masse Maigre = Poids - Masse Grasse
       const fatKg = w.value_kg * (fatEntry.percentage / 100);
       const leanMass = w.value_kg - fatKg;
-
-      // Masse Osseuse estimée (Standard 3.2 H / 2.4 F + 1% du poids corporel)
       const boneVal = isFemale ? 2.4 + (w.value_kg * 0.01) : 3.2 + (w.value_kg * 0.01);
-      
-      // Masse Organes/Fluides (ajustée selon l'âge)
       const ageAdj = userAge > 30 ? (userAge - 30) * 0.0001 : 0;
       const organFactor = isFemale ? (0.0145 - ageAdj) : (0.0125 - ageAdj);
-
-      const calculatedMuscle = leanMass - boneVal - (w.value_kg * organFactor);
-      muscleMap.set(d, round1(calculatedMuscle));
+      muscleMap.set(d, round1(leanMass - boneVal - (w.value_kg * organFactor)));
     }
   });
-
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 3. Somme cumulative des calories
-  energy.forEach((s: any) => {
+  // 2. Calories Sport (Correction du 0)
+  const calMap = new Map();
+
+  // Priorité 1 : Somme de l'énergie brûlée active (Sport explicite)
+  activeEnergy.forEach((s: any) => {
     const d = (s.startDate || s.date).slice(0, 10);
     calMap.set(d, (calMap.get(d) || 0) + Number(s.value || 0));
   });
+
+  // Priorité 2 : Si toujours 0, estimation via les pas (0.04 kcal par pas en moyenne)
+  if (Array.from(calMap.values()).every(v => v === 0)) {
+    steps.forEach((s: any) => {
+      const d = (s.startDate || s.date).slice(0, 10);
+      const estimatedBurn = Number(s.value || 0) * 0.04;
+      calMap.set(d, (calMap.get(d) || 0) + estimatedBurn);
+    });
+  }
 
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
     value_kcal: Math.round(val), 
@@ -165,7 +161,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   return data;
 }
 
-// ── Synchronisation Supabase ──────────────────────────────────
+// ── Synchronisation ──────────────────────────────────────────
 export async function syncHealthData(
   userId: string,
   data: HealthConnectData,
@@ -178,11 +174,9 @@ export async function syncHealthData(
     const today = new Date().toISOString().slice(0, 10);
 
     if (prefs.sync_weight && data.weight?.length) {
-      // On prend la mesure la plus récente
       const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const lastW = sortedW[0];
       const d = lastW.timestamp.slice(0, 10);
-      
       const lastFat = data.bodyFat?.find(f => f.timestamp.startsWith(d))?.percentage;
       const lastMus = data.muscle?.find(m => m.timestamp.startsWith(d))?.value_kg;
 
@@ -191,7 +185,6 @@ export async function syncHealthData(
         body_fat_percent: lastFat || null,
         muscle_mass_kg: lastMus || null
       }).eq("user_id", userId);
-
       synced.push("Composition");
     }
 
@@ -200,9 +193,7 @@ export async function syncHealthData(
       await supabase.from("profiles").update({ sport_calories_day: todayCals }).eq("user_id", userId);
       synced.push("Calories Sport");
     }
-  } catch (e: any) {
-    errors.push(e.message);
-  }
+  } catch (e: any) { errors.push(e.message); }
 
   return { synced, errors };
 }
