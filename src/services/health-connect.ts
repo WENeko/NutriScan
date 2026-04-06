@@ -22,12 +22,22 @@ export interface HealthConnectPreferences {
 }
 
 const DEFAULT_PREFERENCES: HealthConnectPreferences = {
-  sync_weight: false, sync_body_fat: false, sync_sleep: false, sync_calories: false,
+  sync_weight: false,
+  sync_body_fat: false,
+  sync_sleep: false,
+  sync_calories: false,
 };
 
 const HEALTH_READ_TYPES = [
-  "steps", "weight", "calories", "sleep", "bodyFat", 
-  "skeletalMuscleMass", "leanBodyMass", "activeEnergyBurned", "boneMass"
+  "steps",
+  "weight",
+  "calories",
+  "sleep",
+  "bodyFat",
+  "skeletalMuscleMass",
+  "leanBodyMass",
+  "activeEnergyBurned",
+  "boneMass",
 ] as const;
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -56,11 +66,28 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
   return !!Health && (await Health.isAvailable()).available;
 }
 
+export async function checkHealthPermissions(): Promise<boolean> {
+  const Health = await getHealthPlugin();
+  if (!Health) return false;
+  try {
+    const res = await Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
+    const authorized = Array.isArray(res?.readAuthorized) ? res.readAuthorized : [];
+    return authorized.includes("weight");
+  } catch {
+    return false;
+  }
+}
+
 export async function requestHealthPermissions(): Promise<boolean> {
   const Health = await getHealthPlugin();
   if (!Health) return false;
-  const res = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
-  return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
+  try {
+    const res = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
+    return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
+  } catch (e: any) {
+    alert("Erreur permissions: " + e.message);
+    return false;
+  }
 }
 
 // ── Lecture & Calculs Biométriques ──────────────────────────────
@@ -75,7 +102,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   // 1. Récupération des données utilisateur pour le modèle dynamique
   const { data: { user } } = await supabase.auth.getUser();
   let isFemale = false;
-  let age = 30; // Valeur par défaut si profil incomplet
+  let age = 30;
 
   if (user) {
     const { data: profile } = await supabase
@@ -97,7 +124,6 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  // 2. Acquisition des données brutes
   const w = await fetch("weight");
   data.weight = w.map((s: any) => ({ value_kg: round1(s.value), timestamp: s.startDate || s.date }));
   
@@ -109,35 +135,27 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   
   const muscleMap = new Map();
 
-  // 3. Calcul Dynamique par Compartiment
   lean.forEach((l: any) => {
     const d = (l.startDate || l.date).slice(0, 10);
     const weightEntry = data.weight?.find(we => we.timestamp.slice(0, 10) === d);
     const boneEntry = bones.find((b: any) => (b.startDate || b.date).slice(0, 10) === d);
     
-    // Poids de référence pour le calcul des ratios
     const currentWeight = weightEntry ? weightEntry.value_kg : l.value / 0.85;
 
-    // A. Estimation Dynamique de la Masse Osseuse (si non fournie)
-    // Elle augmente légèrement avec le poids pour supporter la structure
+    // A. Estimation Dynamique de la Masse Osseuse
     const boneVal = boneEntry ? boneEntry.value : (isFemale ? 2.4 + (currentWeight * 0.01) : 3.2 + (currentWeight * 0.01));
 
     // B. Estimation Dynamique des Tissus Mous (Organes/Fluides)
-    // Diminue très légèrement avec l'âge (atrophie physiologique naturelle)
     const ageAdjustment = age > 30 ? (age - 30) * 0.0001 : 0;
-    const dynamicOrganFactor = isFemale 
-      ? (0.0145 - ageAdjustment) 
-      : (0.0125 - ageAdjustment);
+    const dynamicOrganFactor = isFemale ? (0.0145 - ageAdjustment) : (0.0125 - ageAdjustment);
 
-    // C. Formule Finale de Soustraction
+    // C. Calcul Final
     const calculatedMuscle = l.value - boneVal - (currentWeight * dynamicOrganFactor);
-    
     muscleMap.set(d, { value_kg: round1(calculatedMuscle), timestamp: l.startDate || l.date });
   });
 
   data.muscle = Array.from(muscleMap.values());
 
-  // 4. Somme des Calories Actives (Sport)
   const energy = await fetch("activeEnergyBurned");
   const calMap = new Map();
   energy.forEach((s: any) => {
@@ -173,8 +191,11 @@ export async function syncHealthData(
 
         await supabase.from("body_composition").delete().eq("user_id", userId).eq("recorded_at", date);
         await supabase.from("body_composition").insert({
-          user_id: userId, recorded_at: date, weight_kg: w.value_kg,
-          body_fat_percent: fat?.percentage ?? null, muscle_mass_kg: mus?.value_kg ?? null,
+          user_id: userId,
+          recorded_at: date,
+          weight_kg: w.value_kg,
+          body_fat_percent: fat?.percentage ?? null,
+          muscle_mass_kg: mus?.value_kg ?? null,
           source: "health_connect"
         });
       }
@@ -198,7 +219,9 @@ export async function syncHealthData(
         synced.push("Calories Sport");
       }
     }
-  } catch (e: any) { errors.push(e.message); }
+  } catch (e: any) {
+    errors.push(e.message);
+  }
 
   return { synced, errors };
 }
@@ -206,5 +229,6 @@ export async function syncHealthData(
 export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   if (typeof document === "undefined") return null;
   const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
-  document.addEventListener("visibilitychange",
-                            
+  document.addEventListener("visibilitychange", handleVisibility);
+  return () => document.removeEventListener("visibilitychange", handleVisibility);
+}
