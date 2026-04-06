@@ -253,7 +253,7 @@ export async function syncHealthData(
 
   if (prefs.sync_weight && data.weight?.length) {
     try {
-      // On trie pour avoir les plus récents en dernier (ils écraseront les plus vieux du même jour)
+      // Tri chronologique
       const sortedWeight = [...data.weight].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
@@ -261,33 +261,42 @@ export async function syncHealthData(
       for (const w of sortedWeight) {
         const recordedAt = w.timestamp.slice(0, 10);
         
-        const bodyFatForDate = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
-        const skeletalMassForDate = data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt);
-
         const record = {
           user_id: userId,
           recorded_at: recordedAt,
           weight_kg: w.value_kg,
-          body_fat_percent: bodyFatForDate?.percentage ?? null,
-          muscle_mass_kg: skeletalMassForDate?.value_kg ?? null,
+          body_fat_percent: data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt)?.percentage ?? null,
+          muscle_mass_kg: data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt)?.value_kg ?? null,
           source: "health_connect",
         };
 
-        // Utilisation de upsert pour forcer la mise à jour si la ligne existe déjà
-        const { error } = await supabase
+        // Supprimer l'ancienne valeur pour éviter l'erreur de contrainte unique
+        await supabase
           .from("body_composition")
-          .upsert(record, { onConflict: 'user_id,recorded_at' });
+          .delete()
+          .eq("user_id", userId)
+          .eq("recorded_at", recordedAt);
 
-        if (error) throw error;
+        // Insérer la nouvelle valeur
+        const { error: insertError } = await supabase
+          .from("body_composition")
+          .insert(record);
+
+        if (insertError) throw insertError;
       }
       synced.push("Poids & Composition");
 
-      // Mise à jour du profil principal avec la valeur la plus récente
+      // Mise à jour du profil principal avec la mesure la plus récente
       const latest = sortedWeight[sortedWeight.length - 1];
       if (latest) {
+        const latestSkeletal = data.skeletalMuscleMass?.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
+        
         await supabase
           .from("profiles")
-          .update({ weight_kg: latest.value_kg })
+          .update({ 
+            weight_kg: latest.value_kg,
+            ...(latestSkeletal ? { muscle_mass_kg: latestSkeletal.value_kg } : {})
+          })
           .eq("user_id", userId);
       }
     } catch (e: any) {
