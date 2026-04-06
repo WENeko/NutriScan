@@ -1,6 +1,6 @@
 /**
- * Health Connect Bridge - VERSION FINALE COMPLÈTE
- * Gère la synchronisation biométrique et les autorisations.
+ * Health Connect Bridge - Version "Calculateur de Secours"
+ * Force le calcul du muscle si les données sources sont manquantes dans Santé Connect.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -42,7 +42,7 @@ const HEALTH_READ_TYPES = [
 // Utilitaire d'arrondi à une décimale
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-// ── Gestion des Préférences ────────────────────────────────────
+// ── Gestion des Préférences (Exports requis pour le Build) ──────
 export function getHealthConnectPreferences(): HealthConnectPreferences {
   try {
     const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
@@ -90,7 +90,7 @@ export async function requestHealthPermissions(): Promise<boolean> {
   }
 }
 
-// ── Lecture & Calculs Biométriques ──────────────────────────────
+// ── Lecture & Moteur Biométrique ───────────────────────────────
 export async function readNativeHealthData(days = 7): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
@@ -99,14 +99,14 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], activeCalories: [] };
 
-  // 1. Récupération du profil pour le calcul dynamique
+  // Récupération du profil pour l'âge et le sexe
   const { data: { user } } = await supabase.auth.getUser();
   let isFemale = false;
-  let age = 30;
+  let userAge = 30;
   if (user) {
     const { data: profile } = await supabase.from("profiles").select("gender, birthday").eq("user_id", user.id).single();
     isFemale = profile?.gender === "female";
-    if (profile?.birthday) age = new Date().getFullYear() - new Date(profile.birthday).getFullYear();
+    if (profile?.birthday) userAge = new Date().getFullYear() - new Date(profile.birthday).getFullYear();
   }
 
   const fetch = async (type: string) => {
@@ -116,47 +116,47 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  // 2. Acquisition des données
   const weights = await fetch("weight");
   const fats = await fetch("bodyFat");
-  const leans = await fetch("leanBodyMass");
   const energy = await fetch("activeEnergyBurned");
-  const skeletal = await fetch("skeletalMuscleMass");
 
-  // Traitement Poids & Gras avec arrondi forcé
+  // 1. Stockage Poids & Gras (Nettoyage immédiat des arrondis)
   data.weight = weights.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
   data.bodyFat = fats.map((s: any) => ({ percentage: round1(Number(s.value)), timestamp: s.startDate || s.date }));
 
-  // 3. Calcul du Muscle (Logique Biométrique Avancée)
   const muscleMap = new Map();
-  leans.forEach((l: any) => {
-    const d = (l.startDate || l.date).slice(0, 10);
-    const weightVal = data.weight?.find(we => we.timestamp.startsWith(d))?.value_kg || (Number(l.value) / 0.85);
-    
-    // Formule biométrique (Masse Maigre - Os - Organes)
-    const boneVal = isFemale ? 2.4 + (weightVal * 0.01) : 3.2 + (weightVal * 0.01);
-    const ageAdjustment = age > 30 ? (age - 30) * 0.0001 : 0;
-    const organFactor = isFemale ? (0.0145 - ageAdjustment) : (0.0125 - ageAdjustment);
+  const calMap = new Map();
 
-    const calculatedMuscle = Number(l.value) - boneVal - (weightVal * organFactor);
-    if (calculatedMuscle > 0) muscleMap.set(d, round1(calculatedMuscle));
-  });
+  // 2. RECONSTRUCTION DU MUSCLE (On calcule ce que la balance n'envoie pas)
+  data.weight.forEach((w) => {
+    const d = w.timestamp.slice(0, 10);
+    const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
 
-  // Fallback si la balance écrit directement le muscle squelettique
-  skeletal.forEach((s: any) => {
-    const d = (s.startDate || s.date).slice(0, 10);
-    if (!muscleMap.has(d)) muscleMap.set(d, round1(Number(s.value)));
+    if (fatEntry) {
+      // Masse Maigre = Poids - Masse Grasse
+      const fatKg = w.value_kg * (fatEntry.percentage / 100);
+      const leanMass = w.value_kg - fatKg;
+
+      // Masse Osseuse estimée (Standard 3.2 H / 2.4 F + 1% du poids corporel)
+      const boneVal = isFemale ? 2.4 + (w.value_kg * 0.01) : 3.2 + (w.value_kg * 0.01);
+      
+      // Masse Organes/Fluides (ajustée selon l'âge)
+      const ageAdj = userAge > 30 ? (userAge - 30) * 0.0001 : 0;
+      const organFactor = isFemale ? (0.0145 - ageAdj) : (0.0125 - ageAdj);
+
+      const calculatedMuscle = leanMass - boneVal - (w.value_kg * organFactor);
+      muscleMap.set(d, round1(calculatedMuscle));
+    }
   });
 
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 4. Somme Cumulative des Calories Actives
-  const calMap = new Map();
+  // 3. Somme cumulative des calories
   energy.forEach((s: any) => {
     const d = (s.startDate || s.date).slice(0, 10);
     calMap.set(d, (calMap.get(d) || 0) + Number(s.value || 0));
   });
-  
+
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
     value_kcal: Math.round(val), 
     timestamp: date 
@@ -178,7 +178,7 @@ export async function syncHealthData(
     const today = new Date().toISOString().slice(0, 10);
 
     if (prefs.sync_weight && data.weight?.length) {
-      // Trier pour prendre le poids le plus récent
+      // On prend la mesure la plus récente
       const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const lastW = sortedW[0];
       const d = lastW.timestamp.slice(0, 10);
@@ -188,8 +188,8 @@ export async function syncHealthData(
 
       await supabase.from("profiles").update({ 
         weight_kg: lastW.value_kg,
-        body_fat_percent: lastFat ? round1(lastFat) : null,
-        muscle_mass_kg: lastMus ? round1(lastMus) : null
+        body_fat_percent: lastFat || null,
+        muscle_mass_kg: lastMus || null
       }).eq("user_id", userId);
 
       synced.push("Composition");
@@ -197,7 +197,6 @@ export async function syncHealthData(
 
     if (prefs.sync_calories && data.activeCalories?.length) {
       const todayCals = data.activeCalories.find(c => c.timestamp.startsWith(today))?.value_kcal || 0;
-      // On met à jour même si c'est 0 pour refléter l'état actuel de la journée
       await supabase.from("profiles").update({ sport_calories_day: todayCals }).eq("user_id", userId);
       synced.push("Calories Sport");
     }
