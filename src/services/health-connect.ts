@@ -1,6 +1,6 @@
 /**
- * Health Connect Bridge - Final Version
- * Handles Weight, Fat %, and multiple Muscle mass types with 1-decimal rounding.
+ * Health Connect Bridge - Version Ultra-Complète
+ * Gère Poids, Gras, Muscle (via Skeletal ou Lean) et Calories Sport.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -8,14 +8,14 @@ import { supabase } from "@/integrations/supabase/client";
 // ── Types ──────────────────────────────────────────────────────
 export interface HealthConnectWeight { value_kg: number; timestamp: string; }
 export interface HealthConnectBodyFat { percentage: number; timestamp: string; }
-export interface HealthConnectSkeletalMuscleMass { value_kg: number; timestamp: string; }
-export interface HealthConnectLeanBodyMass { value_kg: number; timestamp: string; }
+export interface HealthConnectMuscle { value_kg: number; timestamp: string; }
+export interface HealthConnectCalories { value_kcal: number; timestamp: string; }
 
 export interface HealthConnectData {
   weight?: HealthConnectWeight[];
   bodyFat?: HealthConnectBodyFat[];
-  skeletalMuscleMass?: HealthConnectSkeletalMuscleMass[];
-  leanBodyMass?: HealthConnectLeanBodyMass[];
+  muscle?: HealthConnectMuscle[]; // Fusion de Skeletal et Lean
+  activeCalories?: HealthConnectCalories[];
 }
 
 export interface HealthConnectPreferences {
@@ -26,80 +26,44 @@ export interface HealthConnectPreferences {
 }
 
 const DEFAULT_PREFERENCES: HealthConnectPreferences = {
-  sync_weight: false,
-  sync_body_fat: false,
-  sync_sleep: false,
-  sync_calories: false,
+  sync_weight: false, sync_body_fat: false, sync_sleep: false, sync_calories: false,
 };
 
-// On demande tout ce qui touche à la composition corporelle
 const HEALTH_READ_TYPES = ["steps", "weight", "calories", "sleep", "bodyFat", "skeletalMuscleMass", "leanBodyMass"] as const;
 
 // ── Helpers ──────────────────────────────────────────────────
-const roundTo1 = (val: number) => Math.round(val * 10) / 10;
+const round1 = (v: number) => Math.round(v * 10) / 10;
 
-function hasGrantedAllPermissions(status: any): boolean {
-  const readAuthorized = Array.isArray(status?.readAuthorized) ? status.readAuthorized : [];
-  return readAuthorized.includes("weight") || readAuthorized.includes("bodyFat");
+function hasGrantedPermissions(status: any): boolean {
+  const authorized = Array.isArray(status?.readAuthorized) ? status.readAuthorized : [];
+  return authorized.includes("weight") || authorized.includes("bodyFat");
 }
 
-// ── Preferences ────────────────────────────────────────────────
-export function getHealthConnectPreferences(): HealthConnectPreferences {
-  try {
-    const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
-    if (stored) return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
-  } catch {}
-  return { ...DEFAULT_PREFERENCES };
-}
-
-export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
-  localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
-}
-
-// ── Native bridge ──────────────────────────────────────────────
-async function getHealthPlugin(): Promise<any> {
+// ── Bridge Logic ──────────────────────────────────────────────
+async function getHealthPlugin() {
   const { Capacitor } = window as any;
   return Capacitor?.Plugins?.Health || null;
 }
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
+  const Health = await getHealthPlugin();
+  if (!Health) return false;
   try {
-    const Health = await getHealthPlugin();
-    if (!Health) return false;
-    const result = await Health.isAvailable();
-    return result.available === true;
-  } catch { return false; }
-}
-
-export async function checkHealthPermissions(): Promise<boolean> {
-  try {
-    const Health = await getHealthPlugin();
-    if (!Health) return false;
-    const status = await Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
-    return hasGrantedAllPermissions(status);
+    const res = await Health.isAvailable();
+    return res.available === true;
   } catch { return false; }
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
+  const Health = await getHealthPlugin();
+  if (!Health) return false;
   try {
-    const Health = await getHealthPlugin();
-    if (!Health) return false;
-    const authResult = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
-    return hasGrantedAllPermissions(authResult);
-  } catch (e: any) {
-    alert("Erreur permissions: " + e.message);
-    return false;
-  }
+    const res = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
+    return hasGrantedPermissions(res);
+  } catch { return false; }
 }
 
-export function onAppResumeRecheck(callback: () => void): (() => void) | null {
-  if (typeof document === "undefined") return null;
-  const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
-  document.addEventListener("visibilitychange", handleVisibility);
-  return () => document.removeEventListener("visibilitychange", handleVisibility);
-}
-
-// ── Read from native Health Connect ────────────────────────────
+// ── Lecture Native ───────────────────────────────────────────
 export async function readNativeHealthData(days = 30): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
@@ -108,38 +72,41 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const data: HealthConnectData = {};
 
-  const fetchType = async (type: string) => {
+  const fetch = async (type: string) => {
     try {
       const { samples } = await Health.readSamples({ dataType: type, startDate, endDate, limit: 100 });
       return samples || [];
     } catch { return []; }
   };
 
-  const weightSamples = await fetchType("weight");
-  if (weightSamples.length) {
-    data.weight = weightSamples.map((s: any) => ({ value_kg: roundTo1(s.value), timestamp: s.startDate || s.date }));
-  }
+  // 1. Poids
+  const wSamples = await fetch("weight");
+  data.weight = wSamples.map((s: any) => ({ value_kg: round1(s.value), timestamp: s.startDate || s.date }));
 
-  const fatSamples = await fetchType("bodyFat");
-  if (fatSamples.length) {
-    data.bodyFat = fatSamples.map((s: any) => ({ percentage: roundTo1(s.value), timestamp: s.startDate || s.date }));
-  }
+  // 2. Masse Grasse
+  const fSamples = await fetch("bodyFat");
+  data.bodyFat = fSamples.map((s: any) => ({ percentage: round1(s.value), timestamp: s.startDate || s.date }));
 
-  // On récupère les deux types de muscles possibles
-  const skeletalSamples = await fetchType("skeletalMuscleMass");
-  if (skeletalSamples.length) {
-    data.skeletalMuscleMass = skeletalSamples.map((s: any) => ({ value_kg: roundTo1(s.value), timestamp: s.startDate || s.date }));
-  }
+  // 3. Muscle (On check Skeletal ET Lean Body Mass)
+  const skeletal = await fetch("skeletalMuscleMass");
+  const lean = await fetch("leanBodyMass");
+  const muscleMap = new Map();
+  
+  // On remplit avec le lean d'abord, le skeletal écrasera si présent (plus précis)
+  [...lean, ...skeletal].forEach((s: any) => {
+    const d = (s.startDate || s.date).slice(0, 10);
+    muscleMap.set(d, { value_kg: round1(s.value), timestamp: s.startDate || s.date });
+  });
+  data.muscle = Array.from(muscleMap.values());
 
-  const leanSamples = await fetchType("leanBodyMass");
-  if (leanSamples.length) {
-    data.leanBodyMass = leanSamples.map((s: any) => ({ value_kg: roundTo1(s.value), timestamp: s.startDate || s.date }));
-  }
+  // 4. Calories Sport
+  const cSamples = await fetch("calories");
+  data.activeCalories = cSamples.map((s: any) => ({ value_kcal: Math.round(s.value), timestamp: s.startDate }));
 
   return data;
 }
 
-// ── Sync function ──────────────────────────────────────────────
+// ── Synchronisation ──────────────────────────────────────────
 export async function syncHealthData(
   userId: string,
   data: HealthConnectData,
@@ -148,51 +115,57 @@ export async function syncHealthData(
   const synced: string[] = [];
   const errors: string[] = [];
 
+  // SYNC COMPOSITION CORPORELLE
   if (prefs.sync_weight && data.weight?.length) {
     try {
-      const sortedWeight = [...data.weight].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
+      const sortedW = [...data.weight].sort((a, b) => new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime());
 
-      for (const w of sortedWeight) {
-        const recordedAt = w.timestamp.slice(0, 10);
-        
-        const fat = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
-        // On prend le skeletal muscle en priorité, sinon le lean body mass
-        const muscle = data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt) 
-                    || data.leanBodyMass?.find((lm) => lm.timestamp.slice(0, 10) === recordedAt);
+      for (const w of sortedW) {
+        const date = w.timestamp.slice(0, 10);
+        const fat = data.bodyFat?.find(f => f.timestamp.slice(0, 10) === date);
+        const mus = data.muscle?.find(m => m.timestamp.slice(0, 10) === date);
 
         const record = {
           user_id: userId,
-          recorded_at: recordedAt,
+          recorded_at: date,
           weight_kg: w.value_kg,
           body_fat_percent: fat?.percentage ?? null,
-          muscle_mass_kg: muscle?.value_kg ?? null,
-          source: "health_connect",
+          muscle_mass_kg: mus?.value_kg ?? null,
+          source: "health_connect"
         };
 
-        await supabase.from("body_composition").delete().eq("user_id", userId).eq("recorded_at", recordedAt);
-        const { error: insErr } = await supabase.from("body_composition").insert(record);
-        if (insErr) throw insErr;
+        await supabase.from("body_composition").delete().eq("user_id", userId).eq("recorded_at", date);
+        await supabase.from("body_composition").insert(record);
       }
-      synced.push("Composition Corporelle");
+      synced.push("Composition");
 
-      // Mise à jour du profil final
-      const latestW = sortedWeight[sortedWeight.length - 1];
-      if (latestW) {
-        const date = latestW.timestamp.slice(0, 10);
-        const latestF = data.bodyFat?.find(f => f.timestamp.slice(0, 10) === date);
-        const latestM = data.skeletalMuscleMass?.find(m => m.timestamp.slice(0, 10) === date)
-                     || data.leanBodyMass?.find(lm => lm.timestamp.slice(0, 10) === date);
+      // Update Profil Principal
+      const last = sortedW[sortedW.length - 1];
+      const d = last.timestamp.slice(0, 10);
+      await supabase.from("profiles").update({ 
+        weight_kg: last.value_kg,
+        body_fat_percent: data.bodyFat?.find(f => f.timestamp.slice(0, 10) === d)?.percentage ?? null,
+        muscle_mass_kg: data.muscle?.find(m => m.timestamp.slice(0, 10) === d)?.value_kg ?? null
+      }).eq("user_id", userId);
+      
+    } catch (e: any) { errors.push(`Comp: ${e.message}`); }
+  }
 
-        await supabase.from("profiles").update({ 
-          weight_kg: latestW.value_kg,
-          body_fat_percent: latestF?.percentage ?? null,
-          muscle_mass_kg: latestM?.value_kg ?? null
-        }).eq("user_id", userId);
+  // SYNC CALORIES SPORT
+  if (prefs.sync_calories && data.activeCalories?.length) {
+    try {
+      const today = new Date().toISOString().slice(0, 10);
+      const dailyCals = data.activeCalories
+        .filter(c => c.timestamp.slice(0, 10) === today)
+        .reduce((sum, curr) => sum + curr.value_kcal, 0);
+
+      if (dailyCals > 0) {
+        await supabase.from("profiles").update({ sport_calories_day: dailyCals }).eq("user_id", userId);
+        synced.push("Calories Sport");
       }
-    } catch (e: any) {
-      errors.push(`Poids/Composition: ${e.message}`);
-    }
+    } catch (e: any) { errors.push(`Calories: ${e.message}`); }
   }
 
   return { synced, errors };
-          }
+}
+  
