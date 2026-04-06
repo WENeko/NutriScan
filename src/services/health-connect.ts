@@ -101,19 +101,37 @@ async function getHealthPlugin(): Promise<any> {
   try {
     const { Health } = await import("@capgo/capacitor-health");
     _healthPlugin = Health;
+    console.log("[HealthConnect] Plugin loaded successfully");
     return _healthPlugin;
-  } catch {
+  } catch (e) {
+    console.log("[HealthConnect] Plugin not available (web?):", e);
     return null;
   }
+}
+
+/** Promise with timeout – resolves to fallback value on expiry */
+function withTimeout<T>(promise: Promise<T>, ms: number, fallback: T): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((resolve) => setTimeout(() => {
+      console.log(`[HealthConnect] Timeout after ${ms}ms, using fallback`);
+      resolve(fallback);
+    }, ms)),
+  ]);
 }
 
 export async function isHealthConnectAvailable(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
-    if (!Health) return false;
-    const { available } = await Health.isAvailable();
-    return available === true;
-  } catch {
+    if (!Health) {
+      console.log("[HealthConnect] No plugin – not available");
+      return false;
+    }
+    const result = await withTimeout(Health.isAvailable(), 3000, { available: false });
+    console.log("[HealthConnect] isAvailable result:", JSON.stringify(result));
+    return result.available === true;
+  } catch (e) {
+    console.log("[HealthConnect] isAvailable error:", e);
     return false;
   }
 }
@@ -122,13 +140,38 @@ export async function requestHealthPermissions(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
     if (!Health) return false;
-    await Health.requestAuthorization({
-      read: ["steps", "weight", "calories", "sleep"],
-      write: [],
-    });
-    return true;
-  } catch {
+    const authResult = await withTimeout(
+      Health.requestAuthorization({
+        read: ["steps", "weight", "calories", "sleep"],
+        write: [],
+      }),
+      5000,
+      null
+    );
+    const granted = authResult !== null;
+    console.log("[HealthConnect] requestAuthorization granted:", granted);
+    return granted;
+  } catch (e) {
+    console.log("[HealthConnect] requestAuthorization error:", e);
     return false;
+  }
+}
+
+/** Register a listener that re-checks availability when app resumes */
+export function onAppResumeRecheck(callback: () => void): (() => void) | null {
+  try {
+    const doc = typeof document !== "undefined" ? document : null;
+    if (!doc) return null;
+    const handler = () => {
+      if (doc.visibilityState === "visible") {
+        console.log("[HealthConnect] App resumed – rechecking");
+        callback();
+      }
+    };
+    doc.addEventListener("visibilitychange", handler);
+    return () => doc.removeEventListener("visibilitychange", handler);
+  } catch {
+    return null;
   }
 }
 
