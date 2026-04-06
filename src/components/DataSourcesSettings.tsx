@@ -16,6 +16,13 @@ import {
 } from "@/services/health-connect";
 import { supabase } from "@/integrations/supabase/client";
 
+// Import direct pour le debug si nécessaire
+const getHealthPlugin = async () => {
+  const { Capacitor } = window as any;
+  if (!Capacitor || !Capacitor.Plugins.Health) return null;
+  return Capacitor.Plugins.Health;
+};
+
 interface DataSourcesSettingsProps {
   onBack: () => void;
 }
@@ -88,17 +95,40 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
   const requestConnection = async () => {
     setIsChecking(true);
     try {
-      const granted = await requestHealthPermissions();
-      console.log("[DataSources] Force connection granted:", granted);
-      setIsConnected(granted);
-
-      if (granted) {
-        toast({ title: "Health Connect activé", description: "Permissions accordées avec succès." });
-      } else {
-        toast({ title: "Permissions refusées", description: "Autorise l'accès depuis les réglages.", variant: "destructive" });
+      const Health = await getHealthPlugin();
+      
+      if (!Health) {
+        alert("ERREUR : Le plugin Health est introuvable dans Capacitor.Plugins");
+        setIsChecking(false);
+        return;
       }
+
+      alert("Plugin détecté. Tentative d'autorisation native...");
+
+      // Appel direct avec capture d'erreur détaillée
+      try {
+        const result = await Health.requestAuthorization({
+          read: ['weight', 'skeletal_muscle_mass', 'steps', 'calories', 'sleep'],
+          write: [],
+        });
+        
+        alert("RÉPONSE DU SYSTÈME : " + JSON.stringify(result));
+        
+        const granted = !!result;
+        setIsConnected(granted);
+
+        if (granted) {
+          toast({ title: "Health Connect activé", description: "Permissions accordées avec succès." });
+        } else {
+          toast({ title: "Permissions refusées", description: "Vérifie les réglages Santé Connect.", variant: "destructive" });
+        }
+      } catch (nativeError: any) {
+        alert("ERREUR NATIVE ANDROID : " + (nativeError.message || JSON.stringify(nativeError)));
+      }
+
     } catch (e: any) {
-      toast({ title: "Erreur Health Connect", description: e.message ?? "Impossible de vérifier les permissions.", variant: "destructive" });
+      alert("ERREUR GLOBALE : " + e.message);
+      toast({ title: "Erreur Health Connect", description: e.message, variant: "destructive" });
     } finally {
       setIsChecking(false);
     }
@@ -115,10 +145,9 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
     await requestConnection();
   };
 
-
   const handleSync = async () => {
     if (typeof window !== "undefined") {
-      window.alert("DEBUG: handleSync appelée");
+      window.alert("DEBUG: Début de la synchronisation");
     }
     setIsSyncing(true);
     try {
@@ -136,6 +165,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         toast({ title: "Erreurs partielles", description: result.errors.join("; "), variant: "destructive" });
       }
     } catch (e: any) {
+      alert("Erreur de synchro : " + e.message);
       toast({ title: "Erreur de synchronisation", description: e.message, variant: "destructive" });
     } finally {
       setIsSyncing(false);
@@ -186,7 +216,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
             <Button onClick={handleConnect} className="flex-1" variant="outline" disabled={isChecking}>
               <Smartphone className="w-4 h-4 mr-2" /> Connecter
             </Button>
-            <Button onClick={handleForceConnect} className="flex-1" variant="secondary">
+            <Button onClick={handleForceConnect} className="flex-1" variant="secondary" disabled={isChecking}>
               Forcer la connexion
             </Button>
           </>
@@ -248,23 +278,6 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
           </p>
         </div>
       </div>
-
-      {/* Android permissions reference */}
-      <details className="bg-card rounded-2xl p-4 shadow-card">
-        <summary className="font-semibold text-xs cursor-pointer">
-          Permissions Android requises
-        </summary>
-        <div className="mt-3 space-y-2 text-[11px] text-muted-foreground font-mono">
-          <p>android.permission.health.READ_WEIGHT</p>
-          <p>android.permission.health.READ_BODY_FAT</p>
-          <p>android.permission.health.READ_SKELETAL_MUSCLE_MASS</p>
-          <p>android.permission.health.READ_LEAN_BODY_MASS</p>
-          <p>android.permission.health.READ_TOTAL_CALORIES_BURNED</p>
-          <p>android.permission.health.READ_SLEEP</p>
-          <p>android.permission.health.READ_STEPS</p>
-          <p>android.permission.health.READ_HEALTH_DATA_HISTORY</p>
-        </div>
-      </details>
     </div>
   );
 };
