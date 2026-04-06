@@ -1,9 +1,0 @@
-[
-  {
-    "id": "@capgo/capacitor-health",
-    "name": "CapacitorHealth",
-    "android": {
-      "path": "../node_modules/@capgo/capacitor-health/android/build.gradle"
-    }
-  }
-]
