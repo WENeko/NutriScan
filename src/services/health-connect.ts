@@ -70,17 +70,12 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
   sync_calories: false,
 };
 
-// Types de données demandés à Android
 const HEALTH_READ_TYPES = ["steps", "weight", "calories", "sleep", "bodyFat", "skeletalMuscleMass"] as const;
 
-const EMPTY_AUTH_STATUS = {
-  readAuthorized: [] as string[],
-  readDenied: [] as string[],
-  writeAuthorized: [] as string[],
-  writeDenied: [] as string[],
-};
+// ── Helpers ──────────────────────────────────────────────────
+const roundTo1 = (val: number) => Math.round(val * 10) / 10;
 
-function hasGrantedAllPermissions(status: typeof EMPTY_AUTH_STATUS | null | undefined): boolean {
+function hasGrantedAllPermissions(status: any): boolean {
   const readAuthorized = Array.isArray(status?.readAuthorized) ? status.readAuthorized : [];
   return readAuthorized.includes("weight") || readAuthorized.includes("steps");
 }
@@ -101,10 +96,7 @@ export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
 // ── Native bridge ──────────────────────────────────────────────
 async function getHealthPlugin(): Promise<any> {
   const { Capacitor } = window as any;
-  if (!Capacitor || !Capacitor.Plugins.Health) {
-    console.log("[HealthConnect] Plugin not found in Capacitor.Plugins");
-    return null;
-  }
+  if (!Capacitor || !Capacitor.Plugins.Health) return null;
   return Capacitor.Plugins.Health;
 }
 
@@ -121,10 +113,7 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
     if (!Health) return false;
     const result = await withTimeout(Health.isAvailable(), 4000, { available: false });
     return result.available === true;
-  } catch (e) {
-    console.error("[HealthConnect] isAvailable error:", e);
-    return false;
-  }
+  } catch { return false; }
 }
 
 export async function checkHealthPermissions(): Promise<boolean> {
@@ -132,35 +121,25 @@ export async function checkHealthPermissions(): Promise<boolean> {
     const Health = await getHealthPlugin();
     if (!Health) return false;
     const status = await withTimeout(
-      Health.checkAuthorization({
-        read: [...HEALTH_READ_TYPES],
-        write: [],
-      }),
+      Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] }),
       4000,
       null
     );
-    if (!status) return false;
     return hasGrantedAllPermissions(status);
-  } catch (e) {
-    console.error("[HealthConnect] checkAuthorization error:", e);
-    return false;
-  }
+  } catch { return false; }
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
   try {
     const Health = await getHealthPlugin();
-    if (!Health) {
-      alert("Plugin Health non trouvé");
-      return false;
-    }
+    if (!Health) return false;
     const authResult = await Health.requestAuthorization({
       read: [...HEALTH_READ_TYPES],
       write: [],
     });
     return hasGrantedAllPermissions(authResult);
   } catch (e: any) {
-    alert("Erreur requestAuthorization: " + e.message);
+    alert("Erreur permissions: " + e.message);
     return false;
   }
 }
@@ -185,22 +164,31 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
 
   const fetchType = async (type: string) => {
     try {
-      const { samples } = await Health.readSamples({
-        dataType: type,
-        startDate,
-        endDate,
-        limit: 500,
-      });
+      const { samples } = await Health.readSamples({ dataType: type, startDate, endDate, limit: 100 });
       return samples || [];
-    } catch {
-      return [];
-    }
+    } catch { return []; }
   };
 
   const weightSamples = await fetchType("weight");
   if (weightSamples.length) {
     data.weight = weightSamples.map((s: any) => ({
-      value_kg: s.value,
+      value_kg: roundTo1(s.value),
+      timestamp: s.startDate || s.date,
+    }));
+  }
+
+  const muscleSamples = await fetchType("skeletalMuscleMass");
+  if (muscleSamples.length) {
+    data.skeletalMuscleMass = muscleSamples.map((s: any) => ({
+      value_kg: roundTo1(s.value),
+      timestamp: s.startDate || s.date,
+    }));
+  }
+
+  const fatSamples = await fetchType("bodyFat");
+  if (fatSamples.length) {
+    data.bodyFat = fatSamples.map((s: any) => ({
+      percentage: roundTo1(s.value),
       timestamp: s.startDate || s.date,
     }));
   }
@@ -208,7 +196,7 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
   const calorieSamples = await fetchType("calories");
   if (calorieSamples.length) {
     data.activeCalories = calorieSamples.map((s: any) => ({
-      value_kcal: s.value,
+      value_kcal: Math.round(s.value),
       start_time: s.startDate,
       end_time: s.endDate || s.startDate,
     }));
@@ -217,25 +205,9 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
   const stepSamples = await fetchType("steps");
   if (stepSamples.length) {
     data.steps = stepSamples.map((s: any) => ({
-      count: s.value,
+      count: Math.round(s.value),
       start_time: s.startDate,
       end_time: s.endDate || s.startDate,
-    }));
-  }
-
-  const muscleSamples = await fetchType("skeletalMuscleMass");
-  if (muscleSamples.length) {
-    data.skeletalMuscleMass = muscleSamples.map((s: any) => ({
-      value_kg: s.value,
-      timestamp: s.startDate || s.date,
-    }));
-  }
-
-  const fatSamples = await fetchType("bodyFat");
-  if (fatSamples.length) {
-    data.bodyFat = fatSamples.map((s: any) => ({
-      percentage: s.value,
-      timestamp: s.startDate || s.date,
     }));
   }
 
@@ -253,7 +225,6 @@ export async function syncHealthData(
 
   if (prefs.sync_weight && data.weight?.length) {
     try {
-      // Tri chronologique
       const sortedWeight = [...data.weight].sort((a, b) => 
         new Date(a.timestamp).getTime() - new Date(b.timestamp).getTime()
       );
@@ -261,41 +232,38 @@ export async function syncHealthData(
       for (const w of sortedWeight) {
         const recordedAt = w.timestamp.slice(0, 10);
         
+        // On cherche la masse grasse et muscle pour le même jour
+        const bodyFatForDate = data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt);
+        const skeletalMassForDate = data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt);
+
         const record = {
           user_id: userId,
           recorded_at: recordedAt,
           weight_kg: w.value_kg,
-          body_fat_percent: data.bodyFat?.find((bf) => bf.timestamp.slice(0, 10) === recordedAt)?.percentage ?? null,
-          muscle_mass_kg: data.skeletalMuscleMass?.find((sm) => sm.timestamp.slice(0, 10) === recordedAt)?.value_kg ?? null,
+          body_fat_percent: bodyFatForDate?.percentage ?? null,
+          muscle_mass_kg: skeletalMassForDate?.value_kg ?? null,
           source: "health_connect",
         };
 
-        // Supprimer l'ancienne valeur pour éviter l'erreur de contrainte unique
-        await supabase
-          .from("body_composition")
-          .delete()
-          .eq("user_id", userId)
-          .eq("recorded_at", recordedAt);
-
-        // Insérer la nouvelle valeur
-        const { error: insertError } = await supabase
-          .from("body_composition")
-          .insert(record);
-
+        await supabase.from("body_composition").delete().eq("user_id", userId).eq("recorded_at", recordedAt);
+        const { error: insertError } = await supabase.from("body_composition").insert(record);
         if (insertError) throw insertError;
       }
       synced.push("Poids & Composition");
 
-      // Mise à jour du profil principal avec la mesure la plus récente
+      // MISE À JOUR DU PROFIL (L'écran "Mon Profil")
       const latest = sortedWeight[sortedWeight.length - 1];
       if (latest) {
-        const latestSkeletal = data.skeletalMuscleMass?.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())[0];
-        
+        const recordedAt = latest.timestamp.slice(0, 10);
+        const latestFat = data.bodyFat?.find(f => f.timestamp.slice(0, 10) === recordedAt);
+        const latestMuscle = data.skeletalMuscleMass?.find(m => m.timestamp.slice(0, 10) === recordedAt);
+
         await supabase
           .from("profiles")
           .update({ 
             weight_kg: latest.value_kg,
-            ...(latestSkeletal ? { muscle_mass_kg: latestSkeletal.value_kg } : {})
+            body_fat_percent: latestFat?.percentage ?? null,
+            muscle_mass_kg: latestMuscle?.value_kg ?? null
           })
           .eq("user_id", userId);
       }
