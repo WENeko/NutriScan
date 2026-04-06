@@ -1,10 +1,11 @@
 /**
- * Health Connect Bridge - Version Précision Scientifique
- * Calcule la masse musculaire via : LBM - BoneMass - (Weight * 0.01)
+ * Health Connect Bridge - Version Adaptative Intelligente
+ * Calcule le muscle selon le profil utilisateur (Genre/Poids)
  */
 
 import { supabase } from "@/integrations/supabase/client";
 
+// ── Types ──────────────────────────────────────────────────────
 export interface HealthConnectData {
   weight?: { value_kg: number; timestamp: string }[];
   bodyFat?: { percentage: number; timestamp: string }[];
@@ -54,14 +55,6 @@ export async function isHealthConnectAvailable(): Promise<boolean> {
   return !!Health && (await Health.isAvailable()).available;
 }
 
-export async function checkHealthPermissions(): Promise<boolean> {
-  const Health = await getHealthPlugin();
-  if (!Health) return false;
-  const res = await Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
-  const authorized = Array.isArray(res?.readAuthorized) ? res.readAuthorized : [];
-  return authorized.includes("weight");
-}
-
 export async function requestHealthPermissions(): Promise<boolean> {
   const Health = await getHealthPlugin();
   if (!Health) return false;
@@ -69,7 +62,7 @@ export async function requestHealthPermissions(): Promise<boolean> {
   return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
 }
 
-// ── Lecture Native ───────────────────────────────────────────
+// ── Lecture & Calculs Adaptatifs ───────────────────────────────
 export async function readNativeHealthData(days = 7): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
@@ -77,6 +70,14 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   const endDate = new Date().toISOString();
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
   const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], activeCalories: [] };
+
+  // Récupération du profil pour adapter le calcul
+  const { data: { user } } = await supabase.auth.getUser();
+  let isFemale = false;
+  if (user) {
+    const { data: profile } = await supabase.from("profiles").select("gender").eq("user_id", user.id).single();
+    isFemale = profile?.gender === "female";
+  }
 
   const fetch = async (type: string) => {
     try {
@@ -101,11 +102,14 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     const weightEntry = data.weight?.find(we => we.timestamp.slice(0, 10) === d);
     const boneEntry = bones.find((b: any) => (b.startDate || b.date).slice(0, 10) === d);
     
-    const weightVal = weightEntry ? weightEntry.value_kg : 85.7;
-    const boneVal = boneEntry ? boneEntry.value : 3.8;
+    // Fallbacks si données manquantes
+    const weightVal = weightEntry ? weightEntry.value_kg : l.value / 0.85;
+    const boneVal = boneEntry ? boneEntry.value : (isFemale ? 2.5 : 3.5);
 
-    // FORMULE PRÉCISE : Masse Maigre - Masse Osseuse - (1.1% du poids pour les tissus mous non-musculaires)
-    const muscleVal = l.value - boneVal - (weightVal * 0.011);
+    // LOGIQUE ADAPTATIVE
+    // Organes/Fluides = 1.2% du poids (H) ou 1.4% (F)
+    const organFactor = isFemale ? 0.014 : 0.012;
+    const muscleVal = l.value - boneVal - (weightVal * organFactor);
     
     muscleMap.set(d, { value_kg: round1(muscleVal), timestamp: l.startDate || l.date });
   });
@@ -182,4 +186,5 @@ export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
   document.addEventListener("visibilitychange", handleVisibility);
   return () => document.removeEventListener("visibilitychange", handleVisibility);
-        }
+}
+  
