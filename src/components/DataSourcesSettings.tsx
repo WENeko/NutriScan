@@ -10,6 +10,7 @@ import {
   requestHealthPermissions,
   readNativeHealthData,
   syncHealthData,
+  onAppResumeRecheck,
   type HealthConnectPreferences,
 } from "@/services/health-connect";
 import { supabase } from "@/integrations/supabase/client";
