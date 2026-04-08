@@ -136,12 +136,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       const typedMeals = meals as Meal[];
       setAllMeals(typedMeals);
       setFavoriteMeals(
-  typedMeals
-    .filter((m) => m.is_favorite)
-    .filter((meal, index, self) => 
-      index === self.findIndex((t) => t.meal_name === meal.name || t.meal_name === meal.meal_name)
-    )
-);
+        typedMeals
+          .filter((m) => m.is_favorite)
+          .filter((meal, index, self) => 
+            index === self.findIndex((t) => (t.meal_name || t.name) === (meal.meal_name || meal.name))
+          )
+      );
 
       const today = typedMeals.filter((m) => new Date(m.timestamp) >= todayStart);
       setTodayMeals(today);
