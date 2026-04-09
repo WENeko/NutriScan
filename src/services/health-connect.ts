@@ -1,6 +1,6 @@
 /**
- * Health Connect Bridge - VERSION FINALE TOUT-EN-UN
- * Correction : Arrondis, Muscle calculé et Calories Multi-Sources.
+ * Health Connect Bridge - VERSION CORRIGÉE (OS & MUSCLE)
+ * Correction : Lecture directe de la masse osseuse et synchronisation Muscle.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -10,6 +10,7 @@ export interface HealthConnectData {
   weight?: { value_kg: number; timestamp: string }[];
   bodyFat?: { percentage: number; timestamp: string }[];
   muscle?: { value_kg: number; timestamp: string }[];
+  boneMass?: { value_kg: number; timestamp: string }[]; // Ajout des os
   activeCalories?: { value_kcal: number; timestamp: string }[];
 }
 
@@ -90,16 +91,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
 
   const endDate = new Date().toISOString();
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
-  const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], activeCalories: [] };
-
-  const { data: { user } } = await supabase.auth.getUser();
-  let isFemale = false;
-  let userAge = 30;
-  if (user) {
-    const { data: profile } = await supabase.from("profiles").select("gender, birthday").eq("user_id", user.id).single();
-    isFemale = profile?.gender === "female";
-    if (profile?.birthday) userAge = new Date().getFullYear() - new Date(profile.birthday).getFullYear();
-  }
+  const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], boneMass: [], activeCalories: [] };
 
   const fetch = async (type: string) => {
     try {
@@ -108,29 +100,38 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  const [weights, fats, activeEnergy, totalEnergy, steps] = await Promise.all([
+  const [weights, fats, bones, activeEnergy, steps] = await Promise.all([
     fetch("weight"),
     fetch("bodyFat"),
+    fetch("boneMass"), // Lecture des os envoyés par Fitdays
     fetch("activeEnergyBurned"),
-    fetch("calories"), // Total calories (BMR + Active)
     fetch("steps")
   ]);
 
-  // 1. Composition Corporelle (OK)
+  // 1. Composition Corporelle
   data.weight = weights.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
   data.bodyFat = fats.map((s: any) => ({ percentage: round1(Number(s.value)), timestamp: s.startDate || s.date }));
+  data.boneMass = bones.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
 
   const muscleMap = new Map();
   data.weight.forEach((w) => {
     const d = w.timestamp.slice(0, 10);
     const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
+    const boneEntry = data.boneMass?.find(b => b.timestamp.startsWith(d));
+
     if (fatEntry) {
       const fatKg = w.value_kg * (fatEntry.percentage / 100);
       const leanMass = w.value_kg - fatKg;
-      const boneVal = isFemale ? 2.4 + (w.value_kg * 0.01) : 3.2 + (w.value_kg * 0.01);
-      const ageAdj = userAge > 30 ? (userAge - 30) * 0.0001 : 0;
-      const organFactor = isFemale ? (0.0145 - ageAdj) : (0.0125 - ageAdj);
-      muscleMap.set(d, round1(leanMass - boneVal - (w.value_kg * organFactor)));
+
+      /**
+       * CALCUL MUSCLE PRÉCIS : 
+       * On utilise la masse osseuse réelle de Santé Connect, sinon ta constante 3.8kg.
+       * On retire 1% du poids pour les organes/fluides (standard médical).
+       */
+      const boneVal = boneEntry ? boneEntry.value_kg : 3.8;
+      const organResidual = w.value_kg * 0.01;
+      
+      muscleMap.set(d, round1(leanMass - boneVal - organResidual));
     }
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
@@ -138,13 +139,11 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   // 2. Calories Sport (Correction du 0)
   const calMap = new Map();
 
-  // Priorité 1 : Somme de l'énergie brûlée active (Sport explicite)
   activeEnergy.forEach((s: any) => {
     const d = (s.startDate || s.date).slice(0, 10);
     calMap.set(d, (calMap.get(d) || 0) + Number(s.value || 0));
   });
 
-  // Priorité 2 : Si toujours 0, estimation via les pas (0.04 kcal par pas en moyenne)
   if (Array.from(calMap.values()).every(v => v === 0)) {
     steps.forEach((s: any) => {
       const d = (s.startDate || s.date).slice(0, 10);
@@ -190,7 +189,7 @@ export async function syncHealthData(
 
     if (prefs.sync_calories && data.activeCalories?.length) {
       const todayCals = data.activeCalories.find(c => c.timestamp.startsWith(today))?.value_kcal || 0;
-      await supabase.from("profiles").update({ sport_calories_day: todayCals }).eq("user_id", userId);
+      await supabase.from("profiles").update({ sport_calories_daily: todayCals }).eq("user_id", userId);
       synced.push("Calories Sport");
     }
   } catch (e: any) { errors.push(e.message); }
