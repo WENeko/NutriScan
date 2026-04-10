@@ -1,10 +1,11 @@
 /**
- * Health Connect Bridge - NUTRIVISABLE / NUTRISCAN
- * Version : Cumul Calories Sport + Pas & Lecture Os
+ * Health Connect Bridge - VERSION NUTRISCAN ULTRA
+ * Inclus : Cumul Pas + Sport, Lecture Os réelle, et Naming harmonisé.
  */
 
 import { supabase } from "@/integrations/supabase/client";
 
+// ── Types & Interfaces ──────────────────────────────────────────
 export interface HealthConnectData {
   weight?: { value_kg: number; timestamp: string }[];
   bodyFat?: { percentage: number; timestamp: string }[];
@@ -42,6 +43,7 @@ const HEALTH_READ_TYPES = [
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
+// ── Préférences & Permissions ──────────────────────────────────
 export function getHealthConnectPreferences(): HealthConnectPreferences {
   try {
     const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
@@ -82,12 +84,15 @@ export async function requestHealthPermissions(): Promise<boolean> {
   } catch { return false; }
 }
 
+// ── Lecture & Calculs ──────────────────────────────────────────
 export async function readNativeHealthData(days = 7): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
 
   const endDate = new Date().toISOString();
   const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  const today = new Date().toISOString().slice(0, 10);
+  
   const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], boneMass: [], activeCalories: [] };
 
   const fetchSamples = async (type: string) => {
@@ -105,7 +110,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     fetchSamples("steps")
   ]);
 
-  // 1. Composition Corporelle
+  // 1. Composition Corporelle (Muscle & Os)
   data.weight = weights.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
   data.bodyFat = fats.map((s: any) => ({ percentage: round1(Number(s.value)), timestamp: s.startDate || s.date }));
   data.boneMass = bones.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
@@ -115,6 +120,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     const d = w.timestamp.slice(0, 10);
     const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
     const boneEntry = data.boneMass?.find(b => b.timestamp.startsWith(d));
+
     if (fatEntry) {
       const fatKg = w.value_kg * (fatEntry.percentage / 100);
       const leanMass = w.value_kg - fatKg;
@@ -125,20 +131,20 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 2. Calories Sport & Activité (Cumul)
+  // 2. Calories Sport & Activité (Hybridation)
   const calMap = new Map();
 
-  // Énergie active (Sport)
+  // On cumule le sport direct (énergie brûlée active)
   activeEnergy.forEach((s: any) => {
-    const d = (s.startDate || s.date).slice(0, 10);
-    calMap.set(d, (calMap.get(d) || 0) + Number(s.value || 0));
+    const d = (s.startDate || s.date || "").slice(0, 10);
+    if (d) calMap.set(d, (calMap.get(d) || 0) + Number(s.value || 0));
   });
 
-  // Énergie des Pas (0.04 kcal/pas)
+  // On ajoute l'estimation via les pas (Sécurité si Sport = 0)
   steps.forEach((s: any) => {
-    const d = (s.startDate || s.date).slice(0, 10);
-    const stepEnergy = Number(s.value || 0) * 0.04;
-    calMap.set(d, (calMap.get(d) || 0) + stepEnergy);
+    const d = (s.startDate || s.date || "").slice(0, 10);
+    const stepKcal = Number(s.value || 0) * 0.04;
+    if (d) calMap.set(d, (calMap.get(d) || 0) + stepKcal);
   });
 
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
@@ -149,6 +155,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   return data;
 }
 
+// ── Synchronisation ──────────────────────────────────────────
 export async function syncHealthData(
   userId: string,
   data: HealthConnectData,
@@ -160,6 +167,7 @@ export async function syncHealthData(
   try {
     const today = new Date().toISOString().slice(0, 10);
 
+    // Sync Composition
     if (prefs.sync_weight && data.weight?.length) {
       const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const lastW = sortedW[0];
@@ -175,13 +183,21 @@ export async function syncHealthData(
       synced.push("Composition");
     }
 
+    // Sync Calories Sport (Vers colonne sport_calories_daily)
     if (prefs.sync_calories && data.activeCalories?.length) {
-      const todayCals = data.activeCalories.find(c => c.timestamp.startsWith(today))?.value_kcal || 0;
-      // On met à jour le champ sport_calories_daily utilisé par le Dashboard
-      await supabase.from("profiles").update({ sport_calories_daily: todayCals }).eq("user_id", userId);
+      const todayEntry = data.activeCalories.find(c => c.timestamp.startsWith(today));
+      const todayCals = todayEntry ? todayEntry.value_kcal : 0;
+      
+      await supabase.from("profiles").update({ 
+        sport_calories_daily: todayCals 
+      }).eq("user_id", userId);
+      
       synced.push("Calories Sport & Pas");
     }
-  } catch (e: any) { errors.push(e.message); }
+  } catch (e: any) { 
+    console.error("Erreur syncHealthData:", e);
+    errors.push(e.message); 
+  }
 
   return { synced, errors };
 }
@@ -191,4 +207,4 @@ export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
   document.addEventListener("visibilitychange", handleVisibility);
   return () => document.removeEventListener("visibilitychange", handleVisibility);
-}
+        }
