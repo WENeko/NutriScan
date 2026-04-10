@@ -1,11 +1,6 @@
-/**
- * Health Connect Bridge - VERSION DEBUG NUTRISCAN
- * Inclus : Alertes de diagnostic, Normalisation ISO, Hybridation Pas+Sport
- */
-
 import { supabase } from "@/integrations/supabase/client";
 
-// ── Types & Interfaces ──────────────────────────────────────────
+// ── TYPES ───────────────────────────────────────────────────────
 export interface HealthConnectData {
   weight?: { value_kg: number; timestamp: string }[];
   bodyFat?: { percentage: number; timestamp: string }[];
@@ -28,34 +23,18 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
   sync_calories: false,
 };
 
+// Types de lecture simplifiés pour Xiaomi/Android 14
 const HEALTH_READ_TYPES = [
   "steps",
   "weight",
-  "calories",
-  "sleep",
   "bodyFat",
-  "skeletalMuscleMass",
-  "leanBodyMass",
   "activeEnergyBurned",
-  "boneMass",
-  "basalMetabolicRate"
-] as const;
+  "boneMass"
+];
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
 
-// ── Préférences & Permissions ──────────────────────────────────
-export function getHealthConnectPreferences(): HealthConnectPreferences {
-  try {
-    const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
-    if (stored) return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
-  } catch {}
-  return { ...DEFAULT_PREFERENCES };
-}
-
-export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
-  localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
-}
-
+// ── PLUGIN & PERMISSIONS ────────────────────────────────────────
 async function getHealthPlugin() {
   const { Capacitor } = window as any;
   return Capacitor?.Plugins?.Health || null;
@@ -70,7 +49,8 @@ export async function checkHealthPermissions(): Promise<boolean> {
   const Health = await getHealthPlugin();
   if (!Health) return false;
   try {
-    const res = await Health.checkAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
+    const res = await Health.checkAuthorization({ read: HEALTH_READ_TYPES, write: [] });
+    // On vérifie si au moins le poids est autorisé
     return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
   } catch { return false; }
 }
@@ -79,12 +59,12 @@ export async function requestHealthPermissions(): Promise<boolean> {
   const Health = await getHealthPlugin();
   if (!Health) return false;
   try {
-    const res = await Health.requestAuthorization({ read: [...HEALTH_READ_TYPES], write: [] });
+    const res = await Health.requestAuthorization({ read: HEALTH_READ_TYPES, write: [] });
     return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
   } catch { return false; }
 }
 
-// ── Lecture & Calculs ──────────────────────────────────────────
+// ── LECTURE DES DONNÉES ──────────────────────────────────────────
 export async function readNativeHealthData(days = 7): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
@@ -109,20 +89,12 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     fetchSamples("steps")
   ]);
 
-  // 1. Composition Corporelle
-  data.weight = weights.map((s: any) => ({ 
-    value_kg: round1(Number(s.value)), 
-    timestamp: new Date(s.startDate || s.date).toISOString() 
-  }));
-  data.bodyFat = fats.map((s: any) => ({ 
-    percentage: round1(Number(s.value)), 
-    timestamp: new Date(s.startDate || s.date).toISOString() 
-  }));
-  data.boneMass = bones.map((s: any) => ({ 
-    value_kg: round1(Number(s.value)), 
-    timestamp: new Date(s.startDate || s.date).toISOString() 
-  }));
+  // 1. Poids, Gras et Os
+  data.weight = weights.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
+  data.bodyFat = fats.map((s: any) => ({ percentage: round1(Number(s.value)), timestamp: s.startDate || s.date }));
+  data.boneMass = bones.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
 
+  // 2. Calcul du Muscle (Reconstruction)
   const muscleMap = new Map();
   data.weight.forEach((w) => {
     const d = w.timestamp.slice(0, 10);
@@ -132,25 +104,27 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     if (fatEntry) {
       const fatKg = w.value_kg * (fatEntry.percentage / 100);
       const leanMass = w.value_kg - fatKg;
-      const boneVal = boneEntry ? boneEntry.value_kg : 3.8;
+      const boneVal = boneEntry ? boneEntry.value_kg : 3.8; // Fallback si pas d'os
       const organResidual = w.value_kg * 0.01;
       muscleMap.set(d, round1(leanMass - boneVal - organResidual));
     }
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 2. Calories (Hybridation + Normalisation)
+  // 3. Calories Sport & Pas (Le cumul forcé)
   const calMap = new Map();
-  const allEnergySources = [
-    ...activeEnergy.map(s => ({ ...s, isStep: false })),
-    ...steps.map(s => ({ ...s, isStep: true }))
-  ];
 
-  allEnergySources.forEach((s: any) => {
-    const dateObj = new Date(s.startDate || s.date);
-    const d = dateObj.toISOString().slice(0, 10);
-    let kcal = s.isStep ? Number(s.value || 0) * 0.04 : Number(s.value || 0);
-    calMap.set(d, (calMap.get(d) || 0) + kcal);
+  activeEnergy.forEach((s: any) => {
+    const d = (s.startDate || s.date || "").slice(0, 10);
+    if (d) calMap.set(d, (calMap.get(d) || 0) + Number(s.value || 0));
+  });
+
+  steps.forEach((s: any) => {
+    const d = (s.startDate || s.date || "").slice(0, 10);
+    if (d) {
+      const stepKcal = Number(s.value || 0) * 0.04;
+      calMap.set(d, (calMap.get(d) || 0) + stepKcal);
+    }
   });
 
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
@@ -161,7 +135,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   return data;
 }
 
-// ── Synchronisation & Debug ───────────────────────────────────
+// ── SYNCHRONISATION SUPABASE ────────────────────────────────────
 export async function syncHealthData(
   userId: string,
   data: HealthConnectData,
@@ -170,13 +144,10 @@ export async function syncHealthData(
   const synced: string[] = [];
   const errors: string[] = [];
 
-  // DEBUG 1: Vérification du nombre d'entrées trouvées
-  alert(`DEBUG LECTURE: Sport entries: ${data.activeCalories?.length || 0} | Weight: ${data.weight?.length || 0}`);
-
   try {
     const today = new Date().toISOString().slice(0, 10);
 
-    // Sync Composition
+    // Sync Composition (Poids, Gras, Muscle)
     if (prefs.sync_weight && data.weight?.length) {
       const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const lastW = sortedW[0];
@@ -189,29 +160,35 @@ export async function syncHealthData(
         body_fat_percent: lastFat || null,
         muscle_mass_kg: lastMus || null
       }).eq("user_id", userId);
-      synced.push("Composition");
+      synced.push("Poids & Composition");
     }
 
-    // Sync Calories Sport
+    // Sync Calories (vers sport_calories_daily)
     if (prefs.sync_calories && data.activeCalories?.length) {
       const todayEntry = data.activeCalories.find(c => c.timestamp.startsWith(today));
-      const todayCals = todayEntry ? todayEntry.value_kcal : 0;
+      const val = todayEntry ? todayEntry.value_kcal : 0;
       
-      // DEBUG 2: Vérification de la valeur envoyée à Supabase
-      alert(`DEBUG SYNC: Envoi de ${todayCals} kcal vers sport_calories_daily`);
-
-      await supabase.from("profiles").update({ 
-        sport_calories_daily: todayCals 
-      }).eq("user_id", userId);
-      
-      synced.push("Calories Sport & Pas");
+      await supabase.from("profiles").update({ sport_calories_daily: val }).eq("user_id", userId);
+      synced.push("Calories Sport");
     }
   } catch (e: any) { 
-    alert(`ERREUR SYNC: ${e.message}`);
     errors.push(e.message); 
   }
 
   return { synced, errors };
+}
+
+// ── PRÉFÉRENCES & UTILITAIRES ───────────────────────────────────
+export function getHealthConnectPreferences(): HealthConnectPreferences {
+  try {
+    const stored = localStorage.getItem("nutrivibe-health-connect-prefs");
+    if (stored) return { ...DEFAULT_PREFERENCES, ...JSON.parse(stored) };
+  } catch {}
+  return { ...DEFAULT_PREFERENCES };
+}
+
+export function setHealthConnectPreferences(prefs: HealthConnectPreferences) {
+  localStorage.setItem("nutrivibe-health-connect-prefs", JSON.stringify(prefs));
 }
 
 export function onAppResumeRecheck(callback: () => void): (() => void) | null {
@@ -219,4 +196,4 @@ export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
   document.addEventListener("visibilitychange", handleVisibility);
   return () => document.removeEventListener("visibilitychange", handleVisibility);
-                                            }
+}
