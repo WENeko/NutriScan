@@ -13,6 +13,16 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
+  // Injection globale de la date du build
+  define: {
+    __BUILD_DATE__: JSON.stringify(new Date().toLocaleString('fr-FR', {
+      day: '2-digit',
+      month: '2-digit',
+      year: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit'
+    })),
+  },
   plugins: [
     react(),
     mode === "development" && componentTagger(),
