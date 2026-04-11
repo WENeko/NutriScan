@@ -1,3 +1,8 @@
+/**
+ * Health Connect Bridge - NutriScan v0.85.0
+ * Stratégie : Lecture Hybridée (Énergie + Pas) avec Naming Android 14.
+ */
+
 import { supabase } from "@/integrations/supabase/client";
 
 // ── TYPES ───────────────────────────────────────────────────────
@@ -23,14 +28,13 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
   sync_calories: false,
 };
 
-// Types de lecture optimisés (Naming Android strict)
+// Utilisation des identifiants système les plus robustes pour Android 14 / Xiaomi
 const HEALTH_READ_TYPES = [
   "weight",
   "bodyFat",
   "boneMass",
   "steps",
-  "active_energy_burned",
-  "basal_metabolic_rate"
+  "active_energy_burned"
 ];
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
@@ -70,7 +74,8 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   if (!Health) return {};
 
   const endDate = new Date().toISOString();
-  const startDate = new Date(Date.now() - days * 24 * 60 * 60 * 1000).toISOString();
+  // On remonte 1 jour de plus pour assurer la jonction des données
+  const startDate = new Date(Date.now() - (days + 1) * 24 * 60 * 60 * 1000).toISOString();
   
   const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], boneMass: [], activeCalories: [] };
 
@@ -89,12 +94,23 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     fetchSamples("steps")
   ]);
 
-  // 1. Poids & Composition
-  data.weight = weights.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
-  data.bodyFat = fats.map((s: any) => ({ percentage: round1(Number(s.value)), timestamp: s.startDate || s.date }));
-  data.boneMass = bones.map((s: any) => ({ value_kg: round1(Number(s.value)), timestamp: s.startDate || s.date }));
+  // 1. Composition Corporelle
+  data.weight = weights.map((s: any) => ({ 
+    value_kg: round1(Number(s.value)), 
+    timestamp: s.startDate || s.date 
+  }));
+  
+  data.bodyFat = fats.map((s: any) => ({ 
+    percentage: round1(Number(s.value)), 
+    timestamp: s.startDate || s.date 
+  }));
 
-  // 2. Calcul du Muscle (Reconstruction basée sur tes données balance)
+  data.boneMass = bones.map((s: any) => ({ 
+    value_kg: round1(Number(s.value)), 
+    timestamp: s.startDate || s.date 
+  }));
+
+  // Calcul du Muscle
   const muscleMap = new Map();
   data.weight.forEach((w) => {
     const d = w.timestamp.slice(0, 10);
@@ -111,23 +127,23 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 3. Calories Sport & Pas (Hybridation forcée)
+  // 2. Calories : Logique de cumul Sport + Pas
   const calMap = new Map();
 
-  // On enregistre les calories sportives (Fit / Lyfta)
+  // On ajoute les calories d'activité (Fit/Lyfta)
   activeEnergy.forEach((s: any) => {
     const d = (s.startDate || s.date || "").slice(0, 10);
     if (d) calMap.set(d, (calMap.get(d) || 0) + Number(s.value));
   });
 
-  // On complète avec les pas (Samsung Health) si le sport est à 0
+  // On ajoute les pas (Samsung Health) convertis en Kcal (0.04)
   steps.forEach((s: any) => {
     const d = (s.startDate || s.date || "").slice(0, 10);
     if (d) {
-      const stepKcal = Number(s.value) * 0.04;
+      const stepKcal = Math.round(Number(s.value) * 0.04);
       const current = calMap.get(d) || 0;
-      // Si les pas rapportent plus que le sport déclaré, on prend les pas
-      if (stepKcal > current) calMap.set(d, Math.round(stepKcal));
+      // On prend la valeur la plus haute entre sport déclaré et pas détectés
+      if (stepKcal > current) calMap.set(d, stepKcal);
     }
   });
 
@@ -167,7 +183,7 @@ export async function syncHealthData(
       synced.push("Composition");
     }
 
-    // Sync Calories (Cible la colonne sport_calories_daily)
+    // Sync Calories
     if (prefs.sync_calories && data.activeCalories?.length) {
       const todayEntry = data.activeCalories.find(c => c.timestamp.startsWith(today));
       const val = todayEntry ? todayEntry.value_kcal : 0;
@@ -203,4 +219,4 @@ export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
   document.addEventListener("visibilitychange", handleVisibility);
   return () => document.removeEventListener("visibilitychange", handleVisibility);
-        }
+  }
