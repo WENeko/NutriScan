@@ -3,7 +3,6 @@ import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import packageJson from "../../package.json";
 
 interface EvolutionPageProps {
   userId: string;
@@ -296,9 +295,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </section>
       )}
 
-      <footer className="mt-8 pb-6 text-center opacity-30">
-        <p className="text-[10px] text-muted-foreground">NutriScan v{packageJson.version}</p>
-      </footer>
+
     </div>
   );
 };
