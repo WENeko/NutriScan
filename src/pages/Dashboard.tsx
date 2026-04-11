@@ -15,7 +15,8 @@ import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
-import packageJson from "../../package.json";
+import BuildInfo from "@/components/BuildInfo";
+
 
 interface Goals {
   calories: number;
@@ -539,9 +540,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
           <NutriLibrary userId={userId} />
         )}
           <footer className="mt-8 pb-6 text-center">
-          <p className="text-[10px] text-muted-foreground opacity-50">
-          NutriScan Debug Build v{packageJson.version}
-          </p>
+          {/* Footer de debug avec horodatage automatique */}
+          <BuildInfo />
           </footer>  
       </main>
 
