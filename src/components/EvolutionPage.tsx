@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
+import packageJson from "../../package.json";
 
 interface EvolutionPageProps {
   userId: string;
@@ -48,7 +49,6 @@ interface BodyData {
   source: string;
 }
 
-// 12 axes matching Dashboard radar exactly
 const RADAR_MICROS = [
   { key: "fiber", label: "Fibres", goal: 30, unit: "g" },
   { key: "sugar", label: "Sucres", goal: 50, unit: "g" },
@@ -157,13 +157,20 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     setBodyData(bodyArr);
   };
 
-  // Radar data with all 12 axes
   const radarData = React.useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
     return RADAR_MICROS.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
-      const pct = Math.min(Math.round((avg / m.goal) * 100), 150);
-      return { nutrient: m.label, value: pct, avg: Math.round(avg * 10) / 10, goalVal: m.goal, unit: m.unit };
+      const realPct = Math.round((avg / m.goal) * 100);
+      const displayPct = Math.min(realPct, 150);
+      return { 
+        nutrient: m.label, 
+        value: displayPct, 
+        realPct: realPct,
+        avg: Math.round(avg * 10) / 10, 
+        goalVal: m.goal, 
+        unit: m.unit 
+      };
     });
   }, [nutritionData]);
 
@@ -178,13 +185,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     border: "1px solid hsl(var(--border))",
     borderRadius: "0.75rem",
     fontSize: "12px",
+    padding: "8px"
   };
 
   const tickInterval = period === "7d" ? 0 : period === "30d" ? 4 : 29;
 
   return (
     <div className="space-y-6">
-      {/* Period selector */}
       <div className="sticky top-[52px] z-20 bg-background/95 backdrop-blur-sm px-4 py-2 -mx-4">
         <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
           {periods.map((p) => (
@@ -196,7 +203,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </div>
 
-      {/* Calories vs Goal */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
         <div className="h-48">
@@ -213,7 +219,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
-      {/* Macros evolution */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
         <h3 className="font-display font-semibold text-sm mb-3">Macronutriments</h3>
         <div className="h-48">
@@ -232,24 +237,17 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
             </LineChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex justify-center gap-4 mt-2 text-[10px]">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Protéines</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-orange))" }} /> Glucides</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Lipides</span>
-        </div>
       </section>
 
-      {/* Micro Radar - 12 axes identical to Dashboard */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
         <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
         <p className="text-[10px] text-muted-foreground mb-3">Moyenne sur la période vs objectifs recommandés (%)</p>
-        <div className="h-280">
-          <ResponsiveContainer width="100%" height={280}>
+        <div className="h-[280px]">
+          <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData} outerRadius="68%">
               <PolarGrid stroke="hsl(var(--border))" />
               <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
               <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
-              {/* 100% dashed reference */}
               <Radar name="Objectif" dataKey={() => 100} stroke="hsl(var(--muted-foreground))" fill="none" strokeDasharray="4 4" strokeOpacity={0.5} />
               <Radar name="Apport" dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
               <Tooltip
@@ -257,27 +255,27 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
                 formatter={(v: number, name: string, props: any) => {
                   if (name === "Objectif") return ["100%", "Objectif"];
                   const item = props.payload;
-                  return [`${item.avg} ${item.unit} / ${item.goalVal} ${item.unit} (${v}%)`, "Apport"];
+                  return [
+                    <div key={item.nutrient} className="flex flex-col gap-0.5">
+                      <span className="font-bold text-primary">{item.avg} {item.unit} / {item.goalVal} {item.unit}</span>
+                      <span className="text-[10px] text-muted-foreground">Soit {item.realPct}% de l'objectif</span>
+                    </div>,
+                    "Apport moyen"
+                  ];
                 }}
               />
             </RadarChart>
           </ResponsiveContainer>
         </div>
-        <div className="flex justify-center gap-4 mt-1 text-[10px]">
-          <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Apport moyen</span>
-          <span className="flex items-center gap-1"><span className="w-2 h-0.5 bg-muted-foreground" style={{ borderTop: "1px dashed" }} /> 100%</span>
-        </div>
       </section>
 
-      {/* Body composition */}
       {bodyData.length > 0 && (
         <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "200ms" }}>
           <div className="flex items-center justify-between mb-3">
             <h3 className="font-display font-semibold text-sm">Composition corporelle</h3>
             {bodyData.some((b) => b.source === "health_connect") && (
               <span className="text-[9px] px-2 py-0.5 rounded-full bg-accent text-accent-foreground font-medium flex items-center gap-1">
-                <span className="w-1.5 h-1.5 rounded-full bg-primary" />
-                Source : Santé
+                <span className="w-1.5 h-1.5 rounded-full bg-primary" />Source : Santé
               </span>
             )}
           </div>
@@ -288,35 +286,19 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
                 <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
                 <Tooltip contentStyle={tooltipStyle} />
-                {targetWeight && (
-                  <ReferenceLine y={targetWeight} stroke="hsl(var(--primary))" strokeDasharray="6 3" label={{ value: `Poids: ${targetWeight}kg`, position: "insideTopRight", fontSize: 10, fill: "hsl(var(--primary))" }} />
-                )}
-                {targetBodyFat && (
-                  <ReferenceLine y={targetBodyFat} stroke="hsl(var(--nutri-pink))" strokeDasharray="6 3" label={{ value: `Gras: ${targetBodyFat}%`, position: "insideBottomRight", fontSize: 10, fill: "hsl(var(--nutri-pink))" }} />
-                )}
-                {targetMuscleMass && (
-                  <ReferenceLine y={targetMuscleMass} stroke="hsl(var(--nutri-blue))" strokeDasharray="6 3" label={{ value: `Muscle: ${targetMuscleMass}kg`, position: "insideTopLeft", fontSize: 10, fill: "hsl(var(--nutri-blue))" }} />
-                )}
+                {targetWeight && <ReferenceLine y={targetWeight} stroke="hsl(var(--primary))" strokeDasharray="6 3" />}
                 <Line type="monotone" dataKey="weight" name="Poids (kg)" stroke="hsl(var(--primary))" strokeWidth={2} dot connectNulls />
-                <Line type="monotone" dataKey="bodyFat" name="Masse grasse (%)" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot={{ r: 4 }} connectNulls />
+                <Line type="monotone" dataKey="bodyFat" name="Gras (%)" stroke="hsl(var(--nutri-pink))" strokeWidth={2} dot connectNulls />
                 <Line type="monotone" dataKey="muscleMass" name="Muscle (kg)" stroke="hsl(var(--nutri-blue))" strokeWidth={2} dot connectNulls />
               </LineChart>
             </ResponsiveContainer>
           </div>
-          <div className="flex justify-center gap-4 mt-2 text-[10px]">
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full bg-primary" /> Poids</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-pink))" }} /> Masse grasse</span>
-            <span className="flex items-center gap-1"><span className="w-2 h-2 rounded-full" style={{ background: "hsl(var(--nutri-blue))" }} /> Muscle</span>
-          </div>
         </section>
       )}
 
-      {bodyData.length === 0 && (
-        <div className="bg-accent rounded-2xl p-4 text-center text-sm text-muted-foreground">
-          <p>Aucune donnée de composition corporelle.</p>
-          <p className="text-xs mt-1">Ajoute tes mesures dans ton Profil pour suivre ton évolution.</p>
-        </div>
-      )}
+      <footer className="mt-8 pb-6 text-center opacity-30">
+        <p className="text-[10px] text-muted-foreground">NutriScan v{packageJson.version}</p>
+      </footer>
     </div>
   );
 };
