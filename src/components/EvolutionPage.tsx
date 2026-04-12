@@ -34,22 +34,13 @@ interface DayData {
   [key: string]: any; 
 }
 
-interface BodyData {
-  day: string;
-  date: string;
-  weight: number | null;
-  bodyFat: number | null;
-  muscleMass: number | null;
-  source: string;
-}
-
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
   userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
   targetWeight, targetBodyFat, targetMuscleMass, userProfile 
 }) => {
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
-  const [bodyData, setBodyData] = useState<BodyData[]>([]);
+  const [bodyData, setBodyData] = useState<any[]>([]);
 
   const dynamicGoals = useMemo(() => {
     return calculateMicroGoals({
@@ -65,14 +56,8 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
   useEffect(() => { fetchData(); }, [userId, period]);
 
-  const getStartDate = () => {
-    if (period === "7d") return subDays(new Date(), 6);
-    if (period === "30d") return subDays(new Date(), 29);
-    return subMonths(new Date(), 6);
-  };
-
   const fetchData = async () => {
-    const startDate = getStartDate();
+    const startDate = period === "7d" ? subDays(new Date(), 6) : period === "30d" ? subDays(new Date(), 29) : subMonths(new Date(), 6);
     const today = new Date();
     const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
 
@@ -87,20 +72,11 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     let microsByMeal: Record<string, Record<string, number>> = {};
 
     if (mealIds.length > 0) {
-      // On ne liste que les colonnes dont on est SÛR qu'elles existent en base pour éviter l'erreur 400
-      const safeColumns = [
-        "fiber", "sugar", "saturated_fat", "sodium_mg", "potassium_mg", 
-        "magnesium_mg", "calcium_mg", "vitamin_c_mg", "vitamin_d_mcg", 
-        "vitamin_e_mg", "omega3_mg"
-      ];
-
-      const { data: items } = await supabase
-        .from("meal_items")
-        .select(`meal_id, ${safeColumns.join(', ')}`)
-        .in("meal_id", mealIds);
-
+      const safeColumns = ["fiber", "sugar", "saturated_fat", "sodium_mg", "potassium_mg", "magnesium_mg", "calcium_mg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "omega3_mg"];
+      const { data: items } = await supabase.from("meal_items").select(`meal_id, ${safeColumns.join(', ')}`).in("meal_id", mealIds);
+      
       if (items) {
-        (items as any[]).forEach((item) => {
+        items.forEach((item: any) => {
           if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
           NUTRIENTS_MASTER_LIST.forEach((n) => {
             microsByMeal[item.meal_id][n.key] = (microsByMeal[item.meal_id][n.key] || 0) + (Number(item[n.key]) || 0);
@@ -109,23 +85,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       }
     }
 
-    const { data: bodyComp } = await supabase
-      .from("body_composition")
-      .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg, source")
-      .eq("user_id", userId)
-      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
-      .order("recorded_at");
-
     const dayMap: Record<string, DayData> = {};
     for (let i = 0; i < numDays; i++) {
       const d = subDays(today, numDays - 1 - i);
       const key = format(d, "yyyy-MM-dd");
-      const dayEntry: DayData = {
+      dayMap[key] = {
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: key, calories: 0, proteins: 0, carbs: 0, fats: 0, goal: calorieGoal
       };
-      NUTRIENTS_MASTER_LIST.forEach(n => dayEntry[n.key] = 0);
-      dayMap[key] = dayEntry;
+      NUTRIENTS_MASTER_LIST.forEach(n => dayMap[key][n.key] = 0);
     }
 
     (meals || []).forEach((m: any) => {
@@ -136,25 +104,19 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         dayMap[key].carbs += Number(m.total_carbs);
         dayMap[key].fats += Number(m.total_fats);
         const micros = microsByMeal[m.id];
-        if (micros) {
-          Object.keys(micros).forEach((k) => {
-            dayMap[key][k] += (micros[k] || 0);
-          });
-        }
+        if (micros) Object.keys(micros).forEach((k) => { dayMap[key][k] += (micros[k] || 0); });
       }
     });
 
     setNutritionData(Object.values(dayMap));
 
-    const bodyArr: BodyData[] = (bodyComp || []).map((b: any) => ({
-      day: format(new Date(b.recorded_at), period === "7d" ? "EEE" : "dd/MM", { locale: fr }),
-      date: b.recorded_at,
-      weight: b.weight_kg ? Number(b.weight_kg) : null,
-      bodyFat: b.body_fat_percent ? Number(b.body_fat_percent) : null,
-      muscleMass: b.muscle_mass_kg ? Number(b.muscle_mass_kg) : null,
-      source: b.source || "manual",
-    }));
-    setBodyData(bodyArr);
+    const { data: bodyComp } = await supabase.from("body_composition").select("*").eq("user_id", userId).gte("recorded_at", format(startDate, "yyyy-MM-dd")).order("recorded_at");
+    setBodyData((bodyComp || []).map(b => ({
+      day: format(new Date(b.recorded_at), "dd/MM"),
+      weight: b.weight_kg,
+      bodyFat: b.body_fat_percent,
+      muscleMass: b.muscle_mass_kg
+    })));
   };
 
   const radarData = useMemo(() => {
@@ -162,14 +124,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     return NUTRIENTS_MASTER_LIST.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
       const goal = dynamicGoals[m.key] || 1;
-      const realPct = Math.round((avg / goal) * 100);
+      const pct = (avg / goal) * 100;
       return { 
         nutrient: m.label, 
-        value: Math.min(realPct, 150),
-        realPct: realPct,
+        value: Math.min(pct, 150),
+        fullPct: Math.round(pct),
         avg: Math.round(avg * 10) / 10, 
         goalVal: goal, 
-        unit: m.unit 
+        unit: m.unit,
+        goalMarker: 100
       };
     });
   }, [nutritionData, dynamicGoals]);
@@ -179,7 +142,8 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     border: "1px solid hsl(var(--border))",
     borderRadius: "0.75rem",
     fontSize: "12px",
-    padding: "8px"
+    padding: "8px",
+    color: "hsl(var(--foreground))"
   };
 
   return (
@@ -196,7 +160,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </div>
 
-      {/* 1. NUTRITION CALORIES */}
+      {/* 1. CALORIES */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
         <div className="h-48">
@@ -205,7 +169,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
               <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
               <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-              <Tooltip contentStyle={tooltipStyle} />
+              <Tooltip contentStyle={tooltipStyle} cursor={{fill: 'transparent'}} />
               <ReferenceLine y={calorieGoal} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
               <Bar dataKey="calories" fill="hsl(var(--primary))" radius={[4, 4, 0, 0]} />
             </BarChart>
@@ -213,78 +177,81 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </section>
 
-      {/* 2. BILAN MICROS (RADAR) */}
+      {/* 2. MACRONUTRIMENTS */}
+      <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
+        <h3 className="font-display font-semibold text-sm mb-3">Macronutriments (g)</h3>
+        <div className="h-48">
+          <ResponsiveContainer width="100%" height="100%">
+            <LineChart data={nutritionData}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+              <YAxis tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
+              <Tooltip contentStyle={tooltipStyle} />
+              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={2} dot={false} name="Protéines" />
+              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={2} dot={false} name="Glucides" />
+              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={2} dot={false} name="Lipides" />
+            </LineChart>
+          </ResponsiveContainer>
+        </div>
+      </section>
+
+      {/* 3. RADAR MICROS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
         <p className="text-[10px] text-muted-foreground mb-3">Moyenne vs objectifs personnalisés (%)</p>
-        <div className="h-[300px]">
+        <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
-            <RadarChart data={radarData} outerRadius="68%">
-              <PolarGrid stroke="hsl(var(--border))" />
-              <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
-              <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} />
-              <Radar dataKey="value" stroke="hsl(var(--primary))" fill="hsl(var(--primary))" fillOpacity={0.25} strokeWidth={2} />
-              <Tooltip contentStyle={tooltipStyle} />
+            <RadarChart data={radarData} outerRadius="70%">
+              <PolarGrid stroke="rgba(255,255,255,0.1)" />
+              <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.5)" }} />
+              <PolarRadiusAxis angle={90} domain={[0, 150]} tick={false} axisLine={false} />
+              <Radar dataKey="goalMarker" stroke="rgba(255,255,255,0.3)" strokeDasharray="4 4" fill="none" />
+              <Radar name="Apport" dataKey="value" stroke="#10b981" fill="#10b981" fillOpacity={0.3} strokeWidth={2} />
+              <Tooltip
+                content={({ active, payload }) => {
+                  if (active && payload && payload.length) {
+                    const data = payload[0].payload;
+                    return (
+                      <div className="bg-[#1A1F2C] border border-white/10 p-3 rounded-xl shadow-xl">
+                        <p className="text-white font-bold text-xs mb-1">{data.nutrient}</p>
+                        <p className="text-[#10b981] text-[11px] font-medium">{data.avg} {data.unit} / {data.goalVal} {data.unit}</p>
+                        <p className="text-white/50 text-[10px]">Couverture : {data.fullPct}%</p>
+                      </div>
+                    );
+                  }
+                  return null;
+                }}
+              />
             </RadarChart>
           </ResponsiveContainer>
         </div>
       </section>
 
-      {/* 3. COMPOSITION CORPORELLE - 3 GRAPHIQUES */}
+      {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
         <div className="space-y-6">
           <h2 className="font-display font-bold text-lg px-1 mt-8">Analyse Corporelle</h2>
-
-          {/* POIDS */}
-          <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-            <h3 className="font-display font-semibold text-sm mb-3">Poids (kg)</h3>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bodyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis domain={['dataMin - 2', 'dataMax + 2']} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  {targetWeight && <ReferenceLine y={targetWeight} stroke="hsl(var(--primary))" strokeDasharray="6 3" />}
-                  <Line type="monotone" dataKey="weight" stroke="hsl(var(--primary))" strokeWidth={3} dot connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          {/* GRAS */}
-          <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-            <h3 className="font-display font-semibold text-sm text-nutri-pink mb-3">Masse Grasse (%)</h3>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bodyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis domain={['dataMin - 1', 'dataMax + 1']} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  {targetBodyFat && <ReferenceLine y={targetBodyFat} stroke="hsl(var(--nutri-pink))" strokeDasharray="6 3" />}
-                  <Line type="monotone" dataKey="bodyFat" stroke="hsl(var(--nutri-pink))" strokeWidth={3} dot connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
-
-          {/* MUSCLE */}
-          <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-            <h3 className="font-display font-semibold text-sm text-nutri-blue mb-3">Masse Musculaire (kg)</h3>
-            <div className="h-40">
-              <ResponsiveContainer width="100%" height="100%">
-                <LineChart data={bodyData}>
-                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" vertical={false} />
-                  <XAxis dataKey="day" tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <YAxis domain={['dataMin - 1', 'dataMax + 1']} tick={{ fontSize: 10 }} stroke="hsl(var(--muted-foreground))" />
-                  <Tooltip contentStyle={tooltipStyle} />
-                  {targetMuscleMass && <ReferenceLine y={targetMuscleMass} stroke="hsl(var(--nutri-blue))" strokeDasharray="6 3" />}
-                  <Line type="monotone" dataKey="muscleMass" stroke="hsl(var(--nutri-blue))" strokeWidth={3} dot connectNulls />
-                </LineChart>
-              </ResponsiveContainer>
-            </div>
-          </section>
+          {[
+            { title: "Poids", key: "weight", unit: "kg", color: "hsl(var(--primary))", target: targetWeight, range: 2 },
+            { title: "Masse Grasse", key: "bodyFat", unit: "%", color: "#F43F5E", target: targetBodyFat, range: 1 },
+            { title: "Masse Musculaire", key: "muscleMass", unit: "kg", color: "#3B82F6", target: targetMuscleMass, range: 1 }
+          ].map((chart) => (
+            <section key={chart.key} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
+              <h3 className="font-display font-semibold text-sm mb-3" style={{ color: chart.color }}>{chart.title} ({chart.unit})</h3>
+              <div className="h-40">
+                <ResponsiveContainer width="100%" height="100%">
+                  <LineChart data={bodyData}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+                    <YAxis domain={[`dataMin - ${chart.range}`, `dataMax + ${chart.range}`]} hide />
+                    <Tooltip contentStyle={tooltipStyle} />
+                    {chart.target && <ReferenceLine y={chart.target} stroke={chart.color} strokeDasharray="6 3" opacity={0.5} />}
+                    <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={3} dot={{ r: 4, fill: chart.color }} connectNulls />
+                  </LineChart>
+                </ResponsiveContainer>
+              </div>
+            </section>
+          ))}
         </div>
       )}
     </div>
@@ -292,3 +259,4 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 };
 
 export default EvolutionPage;
+      
