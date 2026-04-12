@@ -1,25 +1,50 @@
 /**
- * NutriVibe Intelligence Engine - v0.87.0
- * Algorithmes de personnalisation avancée basés sur les recommandations 
- * de l'ANSES (France) et de l'EFSA (Europe).
+ * NutriVibe Intelligence Engine - v1.0.0
+ * Source Unique de Vérité pour la logique nutritionnelle.
  */
+
+// 1. DÉFINITION MAÎTRESSE DES NUTRIMENTS
+// Centraliser ici permet de mettre à jour toute l'app en une ligne.
+export interface NutrientDef {
+  key: string;
+  label: string;
+  unit: string;
+  category: 'macro' | 'mineral' | 'vitamin' | 'lipid';
+}
+
+export const NUTRIENTS_MASTER_LIST: NutrientDef[] = [
+  { key: "fiber", label: "Fibres", unit: "g", category: "macro" },
+  { key: "sugar", label: "Sucres", unit: "g", category: "macro" },
+  { key: "saturated_fat", label: "AG Sat.", unit: "g", category: "macro" },
+  { key: "omega3_mg", label: "Oméga-3", unit: "mg", category: "lipid" },
+  { key: "sodium_mg", label: "Sodium", unit: "mg", category: "mineral" },
+  { key: "potassium_mg", label: "Potassium", unit: "mg", category: "mineral" },
+  { key: "magnesium_mg", label: "Magnésium", unit: "mg", category: "mineral" },
+  { key: "calcium_mg", label: "Calcium", unit: "mg", category: "mineral" },
+  { key: "iron_mg", label: "Fer", unit: "mg", category: "mineral" },
+  { key: "zinc_mg", label: "Zinc", unit: "mg", category: "mineral" },
+  { key: "vitamin_c_mg", label: "Vit. C", unit: "mg", category: "vitamin" },
+  { key: "vitamin_d_mcg", label: "Vit. D", unit: "µg", category: "vitamin" },
+  { key: "vitamin_b9_mcg", label: "Vit. B9", unit: "µg", category: "vitamin" },
+  { key: "vitamin_b12_mcg", label: "Vit. B12", unit: "µg", category: "vitamin" },
+  { key: "vitamin_e_mg", label: "Vit. E", unit: "mg", category: "vitamin" },
+];
 
 export interface UserProfile {
   age?: number;
   gender?: 'male' | 'female';
   weight?: number;
   totalCaloriesGoal?: number;
-  isAthlete?: boolean;      // Sportif régulier (> 5h/semaine)
-  isSmoker?: boolean;       // Stress oxydatif accru
-  isPregnant?: boolean;     // Besoins spécifiques Fer/B9
+  isAthlete?: boolean;
+  isSmoker?: boolean;
+  isPregnant?: boolean;
 }
 
 /**
  * Calcule les objectifs de micronutriments personnalisés
- * @param profile Les données physiologiques de l'utilisateur
  */
 export const calculateMicroGoals = (profile: UserProfile = {}) => {
-  // --- FALLBACKS (Valeurs par défaut si données manquantes) ---
+  // --- FALLBACKS ---
   const age = profile.age || 30;
   const gender = profile.gender || 'male';
   const weight = profile.weight || 75;
@@ -28,59 +53,73 @@ export const calculateMicroGoals = (profile: UserProfile = {}) => {
   const isSmoker = !!profile.isSmoker;
   const isPregnant = !!profile.isPregnant;
 
-  // --- 1. MACRO-RÉGULATEURS (Basés sur l'apport énergétique) ---
-  // Fibres : 14g / 1000kcal (EFSA)
-  const fiberGoal = Math.max(25, Math.round((calories / 1000) * 14));
-  // Sucres : < 10% de l'apport énergétique (OMS)
-  const sugarMax = Math.round((calories * 0.1) / 4);
-  // Acides Gras Saturés : < 10% de l'apport énergétique (ANSES)
-  const satFatMax = Math.round((calories * 0.1) / 9);
+  // Initialisation de l'objet de retour
+  const goals: Record<string, number> = {};
 
-  // --- 2. MINÉRAUX (Basés sur le profil physiologique) ---
-  // Magnésium : 6mg/kg. Sportif : +20% pour compenser les pertes sudorales.
-  const magnesium = Math.round(weight * (isAthlete ? 7.2 : 6));
-  // Potassium : Différencié par sexe (EFSA)
-  const potassium = gender === 'male' ? 3500 : 3000;
-  // Calcium : Augmenté pour les seniors et femmes > 50 ans
-  const calcium = (gender === 'female' && age > 50) || age > 70 ? 1200 : 1000;
-  // Fer : Homme (11mg), Femme (16mg), Enceinte (27mg)
-  const iron = isPregnant ? 27 : (gender === 'female' && age <= 50 ? 16 : 11);
-  // Zinc : Synthèse protéique. Sportif : +25%.
-  const zinc = Math.round((gender === 'male' ? 11 : 8) * (isAthlete ? 1.25 : 1));
-  // Sodium : Plafond OMS (2300mg). Augmenté pour sportifs (pertes par la sueur).
-  const sodiumMax = isAthlete ? 3000 : 2300;
+  // --- LOGIQUE DE CALCUL PAR CLÉ ---
+  NUTRIENTS_MASTER_LIST.forEach((n) => {
+    let value = 0;
 
-  // --- 3. VITAMINES DYNAMIQUES ---
-  // Vitamine C : Standard 110mg. +35mg fumeur. +20mg sportif.
-  const vitC = 110 + (isSmoker ? 35 : 0) + (isAthlete ? 20 : 0);
-  // Vitamine D : 15µg standard, 20µg pour les seniors
-  const vitD = age > 70 ? 20 : 15;
-  // Vitamine B9 (Folate) : Crucial pendant la grossesse
-  const vitB9 = isPregnant ? 600 : 400;
-  // Vitamine B12 : Énergie nerveuse. Sportif : besoins accrus.
-  const vitB12 = isAthlete ? 5 : 4;
-  // Vitamine E : Protection lipidique. Sportif : +20%. Fumeur : +2mg.
-  const vitE = Math.round(15 * (isAthlete ? 1.2 : 1) + (isSmoker ? 2 : 0));
+    switch (n.key) {
+      // MACROS
+      case "fiber":
+        value = Math.max(25, (calories / 1000) * 14);
+        break;
+      case "sugar":
+        value = (calories * 0.1) / 4;
+        break;
+      case "saturated_fat":
+        value = (calories * 0.1) / 9;
+        break;
 
-  // --- 4. ACIDES GRAS ESSENTIELS ---
-  // Oméga-3 (EPA/DHA) : Base 500mg. Sportif (Anti-inflammatoire) : 1000mg.
-  const omega3 = isAthlete ? 1000 : 500;
+      // MINÉRAUX
+      case "magnesium_mg":
+        value = weight * (isAthlete ? 7.2 : 6);
+        break;
+      case "potassium_mg":
+        value = gender === "male" ? 3500 : 3000;
+        break;
+      case "calcium_mg":
+        value = (gender === "female" && age > 50) || age > 70 ? 1200 : 1000;
+        break;
+      case "iron_mg":
+        value = isPregnant ? 27 : (gender === "female" && age <= 50 ? 16 : 11);
+        break;
+      case "zinc_mg":
+        value = (gender === "male" ? 11 : 8) * (isAthlete ? 1.25 : 1);
+        break;
+      case "sodium_mg":
+        value = isAthlete ? 3000 : 2300;
+        break;
 
-  return {
-    fiber: fiberGoal,
-    sugar: sugarMax,
-    saturated_fat: satFatMax,
-    omega3_mg: omega3,
-    sodium_mg: sodiumMax,
-    potassium_mg: potassium,
-    magnesium_mg: magnesium,
-    calcium_mg: calcium,
-    iron_mg: iron,
-    zinc_mg: zinc,
-    vitamin_c_mg: vitC,
-    vitamin_d_mcg: vitD,
-    vitamin_b9_mcg: vitB9,
-    vitamin_b12_mcg: vitB12,
-    vitamin_e_mg: vitE
-  };
+      // VITAMINES
+      case "vitamin_c_mg":
+        value = 110 + (isSmoker ? 35 : 0) + (isAthlete ? 20 : 0);
+        break;
+      case "vitamin_d_mcg":
+        value = age > 70 ? 20 : 15;
+        break;
+      case "vitamin_b9_mcg":
+        value = isPregnant ? 600 : 400;
+        break;
+      case "vitamin_b12_mcg":
+        value = isAthlete ? 5 : 4;
+        break;
+      case "vitamin_e_mg":
+        value = 15 * (isAthlete ? 1.2 : 1) + (isSmoker ? 2 : 0);
+        break;
+
+      // LIPIDES
+      case "omega3_mg":
+        value = isAthlete ? 1000 : 500;
+        break;
+
+      default:
+        value = 0;
+    }
+
+    goals[n.key] = Math.round(value);
+  });
+
+  return goals;
 };
