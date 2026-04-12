@@ -78,6 +78,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       const key = format(d, "yyyy-MM-dd");
       dayMap[key] = {
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
+        date: format(d, "dd/MM/yyyy"),
         calories: 0, proteins: 0, carbs: 0, fats: 0
       };
       NUTRIENTS_MASTER_LIST.forEach(n => dayMap[key][n.key] = 0);
@@ -99,6 +100,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     const { data: bodyComp } = await supabase.from("body_composition").select("*").eq("user_id", userId).gte("recorded_at", format(startDate, "yyyy-MM-dd")).order("recorded_at");
     setBodyData((bodyComp || []).map(b => ({
       day: format(new Date(b.recorded_at), "dd/MM"),
+      date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
       weight: b.weight_kg,
       bodyFat: b.body_fat_percent,
       muscleMass: b.muscle_mass_kg
@@ -127,18 +129,16 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     backgroundColor: "#1A1F2C",
     border: "1px solid rgba(255,255,255,0.1)",
     borderRadius: "12px",
-    fontSize: "12px",
-    color: "#fff"
+    fontSize: "13px",
+    color: "#FFFFFF",
+    padding: "10px"
   };
 
-  // Fonction utilitaire pour s'assurer que l'objectif est visible sur l'axe Y
   const getExtendedDomain = (data: any[], key: string, target: number | null | undefined, padding: number) => {
     const values = data.map(d => d[key]).filter(v => v !== null);
     if (values.length === 0 && !target) return [0, 100];
-    
     const min = Math.min(...values, target || Infinity);
     const max = Math.max(...values, target || -Infinity);
-    
     return [Math.floor(min - padding), Math.ceil(max + padding)];
   };
 
@@ -156,7 +156,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </div>
 
-      {/* 1. CALORIES VS OBJECTIF */}
+      {/* 1. CALORIES */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
         <div className="h-48">
@@ -169,8 +169,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
               <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
-              <Tooltip contentStyle={tooltipStyle} cursor={{fill: 'rgba(255,255,255,0.05)'}} />
-              <ReferenceLine y={calorieGoal} stroke="hsl(var(--primary))" strokeDasharray="4 4" label={{ position: 'right', value: 'But', fill: 'hsl(var(--primary))', fontSize: 10 }} />
+              <Tooltip 
+                contentStyle={tooltipStyle} 
+                itemStyle={{ color: "#FFFFFF" }}
+                cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
+              />
+              <ReferenceLine y={calorieGoal} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
               <Bar dataKey="calories" radius={[4, 4, 0, 0]}>
                 {nutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
@@ -194,9 +198,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <ReferenceLine y={proteinGoal} stroke="#3B82F6" strokeDasharray="3 3" opacity={0.3} />
               <ReferenceLine y={carbsGoal} stroke="#F59E0B" strokeDasharray="3 3" opacity={0.3} />
               <ReferenceLine y={fatsGoal} stroke="#F43F5E" strokeDasharray="3 3" opacity={0.3} />
-              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={{ r: 3 }} name="Prot." />
-              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={{ r: 3 }} name="Gluc." />
-              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={{ r: 3 }} name="Lip." />
+              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={false} name="Prot." />
+              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={false} name="Gluc." />
+              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={false} name="Lip." />
             </LineChart>
           </ResponsiveContainer>
         </div>
@@ -234,7 +238,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </section>
 
-      {/* 4. COMPOSITION CORPORELLE (3 GRAPHS AVEC OBJECTIFS FORCÉS) */}
+      {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
         <div className="space-y-6">
           <h2 className="font-display font-bold text-lg px-1 mt-8">Analyse Corporelle</h2>
@@ -257,7 +261,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip contentStyle={tooltipStyle} />
+                    <Tooltip 
+                      content={({ active, payload }) => {
+                        if (active && payload && payload.length) {
+                          return (
+                            <div className="bg-[#1A1F2C] border border-white/10 p-2.5 rounded-xl shadow-xl">
+                              <p className="text-white/60 text-[11px] mb-0.5">{payload[0].payload.date}</p>
+                              <p className="text-white font-bold text-sm">
+                                {payload[0].value} {chart.unit}
+                              </p>
+                            </div>
+                          );
+                        }
+                        return null;
+                      }}
+                    />
                     {chart.target && (
                       <ReferenceLine 
                         y={chart.target} 
@@ -266,7 +284,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                         label={{ position: 'insideTopRight', value: 'Cible', fill: chart.color, fontSize: 9, opacity: 0.8 }}
                       />
                     )}
-                    <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={3} dot={{ r: 4, fill: chart.color }} connectNulls />
+                    <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={3} dot={false} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
               </div>
@@ -279,3 +297,4 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 };
 
 export default EvolutionPage;
+                    
