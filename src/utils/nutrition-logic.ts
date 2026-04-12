@@ -3,8 +3,6 @@
  * Source Unique de Vérité pour la logique nutritionnelle.
  */
 
-// 1. DÉFINITION MAÎTRESSE DES NUTRIMENTS
-// Centraliser ici permet de mettre à jour toute l'app en une ligne.
 export interface NutrientDef {
   key: string;
   label: string;
@@ -40,21 +38,23 @@ export interface UserProfile {
   isPregnant?: boolean;
 }
 
+// Type pour l'objet de retour (ex: { iron_mg: number, ... })
+export type MicroGoals = Record<string, number>;
+
 /**
  * Calcule les objectifs de micronutriments personnalisés
  */
-export const calculateMicroGoals = (profile: UserProfile = {}) => {
+export const calculateMicroGoals = (profile: UserProfile = {}): MicroGoals => {
   // --- FALLBACKS ---
-  const age = profile.age || 30;
-  const gender = profile.gender || 'male';
-  const weight = profile.weight || 75;
-  const calories = profile.totalCaloriesGoal || 2000;
+  const age = profile.age ?? 30;
+  const gender = profile.gender ?? 'male';
+  const weight = profile.weight ?? 75;
+  const calories = profile.totalCaloriesGoal ?? 2000;
   const isAthlete = !!profile.isAthlete;
   const isSmoker = !!profile.isSmoker;
   const isPregnant = !!profile.isPregnant;
 
-  // Initialisation de l'objet de retour
-  const goals: Record<string, number> = {};
+  const goals: MicroGoals = {};
 
   // --- LOGIQUE DE CALCUL PAR CLÉ ---
   NUTRIENTS_MASTER_LIST.forEach((n) => {
@@ -80,7 +80,8 @@ export const calculateMicroGoals = (profile: UserProfile = {}) => {
         value = gender === "male" ? 3500 : 3000;
         break;
       case "calcium_mg":
-        value = (gender === "female" && age > 50) || age > 70 ? 1200 : 1000;
+        // Correction de la condition logique pour plus de clarté
+        value = (age > 70 || (gender === "female" && age > 50)) ? 1200 : 1000;
         break;
       case "iron_mg":
         value = isPregnant ? 27 : (gender === "female" && age <= 50 ? 16 : 11);
