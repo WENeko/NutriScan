@@ -1,8 +1,13 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis } from "recharts";
-import { format, subDays, subMonths, startOfDay, endOfDay } from "date-fns";
+import { 
+  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, 
+  Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis 
+} from "recharts";
+import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } from "date-fns";
 import { fr } from "date-fns/locale";
+import { calculateMicroGoals, NUTRIENTS_MASTER_LIST } from "@/utils/nutrition-logic";
 
 interface EvolutionPageProps {
   userId: string;
@@ -13,6 +18,7 @@ interface EvolutionPageProps {
   targetWeight?: number | null;
   targetBodyFat?: number | null;
   targetMuscleMass?: number | null;
+  userProfile?: any;
 }
 
 type Period = "7d" | "30d" | "all";
@@ -25,18 +31,7 @@ interface DayData {
   carbs: number;
   fats: number;
   goal: number;
-  sodium_mg: number;
-  potassium_mg: number;
-  fiber: number;
-  omega3_mg: number;
-  magnesium_mg: number;
-  calcium_mg: number;
-  vitamin_b_mg: number;
-  vitamin_c_mg: number;
-  vitamin_d_mcg: number;
-  vitamin_e_mg: number;
-  sugar: number;
-  saturated_fat: number;
+  [key: string]: any; // Permet d'accéder aux micros dynamiquement via d[m.key]
 }
 
 interface BodyData {
@@ -48,25 +43,26 @@ interface BodyData {
   source: string;
 }
 
-const RADAR_MICROS = [
-  { key: "fiber", label: "Fibres", goal: 30, unit: "g" },
-  { key: "sugar", label: "Sucres", goal: 50, unit: "g" },
-  { key: "saturated_fat", label: "AG Sat.", goal: 22, unit: "g" },
-  { key: "omega3_mg", label: "Oméga-3", goal: 500, unit: "mg" },
-  { key: "sodium_mg", label: "Sodium", goal: 2300, unit: "mg" },
-  { key: "potassium_mg", label: "Potassium", goal: 3500, unit: "mg" },
-  { key: "magnesium_mg", label: "Magnésium", goal: 400, unit: "mg" },
-  { key: "calcium_mg", label: "Calcium", goal: 1000, unit: "mg" },
-  { key: "vitamin_b_mg", label: "Vit. B", goal: 2, unit: "mg" },
-  { key: "vitamin_c_mg", label: "Vit. C", goal: 90, unit: "mg" },
-  { key: "vitamin_d_mcg", label: "Vit. D", goal: 15, unit: "µg" },
-  { key: "vitamin_e_mg", label: "Vit. E", goal: 15, unit: "mg" },
-];
-
-const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, targetWeight, targetBodyFat, targetMuscleMass }) => {
+const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
+  userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
+  targetWeight, targetBodyFat, targetMuscleMass, userProfile 
+}) => {
   const [period, setPeriod] = useState<Period>("7d");
   const [nutritionData, setNutritionData] = useState<DayData[]>([]);
   const [bodyData, setBodyData] = useState<BodyData[]>([]);
+
+  // 1. Calcul des objectifs personnalisés via le moteur centralisé
+  const dynamicGoals = useMemo(() => {
+    return calculateMicroGoals({
+      age: userProfile?.birth_date ? differenceInYears(new Date(), new Date(userProfile.birth_date)) : 30,
+      gender: userProfile?.gender || 'male',
+      weight: userProfile?.current_weight || 75,
+      totalCaloriesGoal: calorieGoal,
+      isAthlete: userProfile?.is_athlete,
+      isSmoker: userProfile?.is_smoker,
+      isPregnant: userProfile?.is_pregnant
+    });
+  }, [userProfile, calorieGoal]);
 
   useEffect(() => { fetchData(); }, [userId, period]);
 
@@ -81,6 +77,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     const today = new Date();
     const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
 
+    // Récupération des repas
     const { data: meals } = await supabase
       .from("meals")
       .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
@@ -90,14 +87,16 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
 
     const mealIds = (meals || []).map((m: any) => m.id);
 
+    // Récupération des micros dynamiquement selon la MASTER_LIST
     let microsByMeal: Record<string, Record<string, number>> = {};
     if (mealIds.length > 0) {
+      const microKeys = NUTRIENTS_MASTER_LIST.map(n => n.key);
       const { data: items } = await supabase
         .from("meal_items")
-        .select("meal_id, fiber, sodium_mg, potassium_mg, omega3_mg, magnesium_mg, calcium_mg, vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg, sugar, saturated_fat")
+        .select(`meal_id, ${microKeys.join(', ')}`)
         .in("meal_id", mealIds);
+
       if (items) {
-        const microKeys = ["fiber", "sodium_mg", "potassium_mg", "omega3_mg", "magnesium_mg", "calcium_mg", "vitamin_b_mg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "sugar", "saturated_fat"];
         (items as any[]).forEach((item) => {
           if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
           microKeys.forEach((k) => {
@@ -107,6 +106,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       }
     }
 
+    // Récupération poids/corps
     const { data: bodyComp } = await supabase
       .from("body_composition")
       .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg, source")
@@ -114,19 +114,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at");
 
+    // Construction du map des jours
     const dayMap: Record<string, DayData> = {};
     for (let i = 0; i < numDays; i++) {
       const d = subDays(today, numDays - 1 - i);
       const key = format(d, "yyyy-MM-dd");
-      dayMap[key] = {
+      const dayEntry: DayData = {
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
-        date: key, calories: 0, proteins: 0, carbs: 0, fats: 0, goal: calorieGoal,
-        sodium_mg: 0, potassium_mg: 0, fiber: 0, omega3_mg: 0,
-        magnesium_mg: 0, calcium_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
-        sugar: 0, saturated_fat: 0,
+        date: key, calories: 0, proteins: 0, carbs: 0, fats: 0, goal: calorieGoal
       };
+      // Initialisation de chaque micro à 0
+      NUTRIENTS_MASTER_LIST.forEach(n => dayEntry[n.key] = 0);
+      dayMap[key] = dayEntry;
     }
 
+    // Agrégation des données
     (meals || []).forEach((m: any) => {
       const key = format(new Date(m.timestamp), "yyyy-MM-dd");
       if (dayMap[key]) {
@@ -137,7 +139,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         const micros = microsByMeal[m.id];
         if (micros) {
           Object.keys(micros).forEach((k) => {
-            (dayMap[key] as any)[k] = ((dayMap[key] as any)[k] || 0) + micros[k];
+            dayMap[key][k] += micros[k];
           });
         }
       }
@@ -156,22 +158,25 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
     setBodyData(bodyArr);
   };
 
-  const radarData = React.useMemo(() => {
+  // 2. Calcul des données du Radar (Dynamique)
+  const radarData = useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
-    return RADAR_MICROS.map((m) => {
-      const avg = nutritionData.reduce((sum, d) => sum + ((d as any)[m.key] || 0), 0) / daysWithData;
-      const realPct = Math.round((avg / m.goal) * 100);
-      const displayPct = Math.min(realPct, 150);
+    
+    return NUTRIENTS_MASTER_LIST.map((m) => {
+      const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
+      const goal = dynamicGoals[m.key] || 1;
+      const realPct = Math.round((avg / goal) * 100);
+      
       return { 
         nutrient: m.label, 
-        value: displayPct, 
+        value: Math.min(realPct, 150), // Cap visuel
         realPct: realPct,
         avg: Math.round(avg * 10) / 10, 
-        goalVal: m.goal, 
+        goalVal: goal, 
         unit: m.unit 
       };
     });
-  }, [nutritionData]);
+  }, [nutritionData, dynamicGoals]);
 
   const periods: { id: Period; label: string }[] = [
     { id: "7d", label: "7 jours" },
@@ -191,6 +196,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
 
   return (
     <div className="space-y-6">
+      {/* Sélecteur de période */}
       <div className="sticky top-[52px] z-20 bg-background/95 backdrop-blur-sm px-4 py-2 -mx-4">
         <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
           {periods.map((p) => (
@@ -202,6 +208,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </div>
 
+      {/* Graphique Calories */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
         <div className="h-48">
@@ -218,6 +225,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
+      {/* Graphique Macros */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
         <h3 className="font-display font-semibold text-sm mb-3">Macronutriments</h3>
         <div className="h-48">
@@ -238,10 +246,11 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
+      {/* Radar de Micronutriments (Source Unique) */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
         <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
-        <p className="text-[10px] text-muted-foreground mb-3">Moyenne sur la période vs objectifs recommandés (%)</p>
-        <div className="h-[280px]">
+        <p className="text-[10px] text-muted-foreground mb-3">Moyenne vs objectifs personnalisés (%)</p>
+        <div className="h-[300px]">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData} outerRadius="68%">
               <PolarGrid stroke="hsl(var(--border))" />
@@ -252,14 +261,14 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
               <Tooltip
                 contentStyle={tooltipStyle}
                 formatter={(v: number, name: string, props: any) => {
-                  if (name === "Objectif") return ["100%", "Objectif"];
+                  if (name === "Objectif") return ["100%", "Objectif idéal"];
                   const item = props.payload;
                   return [
-                    <div key={item.nutrient} className="flex flex-col gap-0.5">
-                      <span className="font-bold text-primary">{item.avg} {item.unit} / {item.goalVal} {item.unit}</span>
-                      <span className="text-[10px] text-muted-foreground">Soit {item.realPct}% de l'objectif</span>
+                    <div key={item.nutrient} className="flex flex-col gap-0.5 text-foreground">
+                      <span className="font-bold">{item.avg} {item.unit} / {item.goalVal} {item.unit}</span>
+                      <span className="text-[10px] text-primary">Couverture : {item.realPct}%</span>
                     </div>,
-                    "Apport moyen"
+                    "Moyenne"
                   ];
                 }}
               />
@@ -268,6 +277,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
         </div>
       </section>
 
+      {/* Composition corporelle */}
       {bodyData.length > 0 && (
         <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "200ms" }}>
           <div className="flex items-center justify-between mb-3">
@@ -294,10 +304,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({ userId, calorieGoal, prot
           </div>
         </section>
       )}
-
-
     </div>
   );
 };
 
 export default EvolutionPage;
+                         
