@@ -2,7 +2,9 @@ name: Build Android APK
 
 on:
   push:
-    branches: [main]
+    # L'utilisation de '**' permet de déclencher le workflow sur n'importe quelle branche
+    branches:
+      - '**'
   workflow_dispatch:
 
 env:
