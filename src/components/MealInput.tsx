@@ -173,7 +173,7 @@ export default function App() {
   /**
    * ANALYSE PAR L'IA GEMINI
    */
-  const performAnalysis = async (text, base64Image) => {
+  const analyzeMealWithGemini = async (text, base64Image) => {
     const apiKey = ""; // Fourni par l'environnement
     const model = "gemini-2.5-flash-preview-09-2025";
     
@@ -231,7 +231,7 @@ export default function App() {
 
     setIsAnalyzing(true);
     try {
-      const result = await performAnalysis(inputText, selectedImage);
+      const result = await analyzeMealWithGemini(inputText, selectedImage);
       setAnalysisResult(result);
       setShowAnalysisResult(true);
       showFeedback("Analyse réussie !");
@@ -245,7 +245,7 @@ export default function App() {
   /**
    * ENREGISTREMENT DANS FIRESTORE
    */
-  const handleSaveMeal = async () => {
+  const saveMealWithDualWrite = async () => {
     if (!user || !analysisResult) return;
     
     setIsSaving(true);
@@ -259,7 +259,7 @@ export default function App() {
         fat: Math.round(analysisResult.fat * portionSize),
         portionSize,
         mealType,
-        timestamp: serverTimestamp()
+        timestamp: localToUtcIso()
       });
       
       showFeedback("Repas enregistré avec succès !");
@@ -661,7 +661,7 @@ export default function App() {
                 </button>
                 <button 
                   disabled={isSaving}
-                  onClick={handleSaveMeal}
+                  onClick={saveMealWithDualWrite}
                   className="flex-[2] py-5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 text-white rounded-2xl font-black text-xs tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-orange-100 transition-all active:scale-95"
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
