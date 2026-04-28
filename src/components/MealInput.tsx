@@ -1,971 +1,677 @@
-import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
-import {
-  View,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  ScrollView,
-  Image,
-  ActivityIndicator,
-  Alert,
-  Animated,
-  Dimensions,
-  Platform,
-  KeyboardAvoidingView,
-  Keyboard,
-  StyleSheet,
-  ActionSheetIOS,
-  Modal,
-  StatusBar,
-  SafeAreaView,
-  Pressable,
-  Vibration,
-  Easing
-} from 'react-native';
-import * as ImagePicker from 'expo-image-picker';
-import * as Haptics from 'expo-haptics';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
-  Camera, 
-  Image as ImageIcon, 
-  Send, 
-  X, 
-  Check, 
-  AlertCircle, 
-  ChefHat, 
-  Flame, 
-  Utensils, 
-  Info,
-  History,
-  Sparkles,
-  ChevronDown,
-  ChevronUp,
-  Plus,
-  Trash2,
-  Maximize2,
-  Clock,
-  Calendar,
-  Zap,
-  Coffee,
-  Moon,
-  Sun,
-  Search,
-  Filter,
-  ArrowRight,
-  RotateCcw
-} from 'lucide-react-native';
+  Camera, Image as ImageIcon, Send, X, Check, AlertCircle, ChefHat, 
+  Flame, Utensils, Info, History, Sparkles, ChevronDown, ChevronUp, 
+  Plus, Trash2, Clock, Calendar, Zap, Coffee, ArrowRight, Loader2, 
+  Target, Scale, PieChart, Activity, TrendingUp, HelpCircle, 
+  Settings, Save, RefreshCw, Smartphone
+} from 'lucide-react';
 
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
-import { getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
-import { getFirestore, collection, addDoc, doc, setDoc, query, where, onSnapshot, getDocs } from 'firebase/firestore';
+import { 
+  getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged 
+} from 'firebase/auth';
+import { 
+  getFirestore, collection, addDoc, query, onSnapshot, 
+  serverTimestamp, deleteDoc, doc 
+} from 'firebase/firestore';
 
-// --- CONFIGURATION FIREBASE ---
-// On récupère la config depuis les variables d'environnement fournies
+/**
+ * CONFIGURATION ET INITIALISATION FIREBASE
+ * Respect strict des règles de sécurité et de structure de données.
+ */
 const firebaseConfig = JSON.parse(__firebase_config);
 const app = initializeApp(firebaseConfig);
 const auth = getAuth(app);
 const db = getFirestore(app);
 const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
 
-// --- CONSTANTES DE DESIGN ---
-const { width, height } = Dimensions.get('window');
-const COLORS = {
-  primary: '#f97316',
-  secondary: '#3b82f6',
-  success: '#16a34a',
-  danger: '#ef4444',
-  warning: '#eab308',
-  info: '#a855f7',
-  bg: '#ffffff',
-  text: '#111827',
-  muted: '#6b7280',
-  border: '#e5e7eb',
-  card: '#f9fafb'
-};
-
 /**
- * Helper: Conversion Date locale vers ISO UTC
+ * COMPOSANT PRINCIPAL : NUTRISCAN WEB PRO
+ * Une application complète de suivi nutritionnel par IA.
  */
-const localToUtcIso = (date = new Date()) => {
-  return date.toISOString();
-};
-
-const MealInput = ({ onMealAdded, userProfile, theme = 'light' }) => {
-  // --- ÉTATS DE NAVIGATION ET UI ---
-  const [inputText, setInputText] = useState('');
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [showAnalysisResult, setShowAnalysisResult] = useState(false);
-  const [activeTab, setActiveTab] = useState('text');
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isKeyboardVisible, setIsKeyboardVisible] = useState(false);
-  
-  // --- ÉTATS DES DONNÉES ---
-  const [analysisResult, setAnalysisResult] = useState(null);
+export default function App() {
+  // --- ÉTATS D'AUTHENTIFICATION ---
   const [user, setUser] = useState(null);
-  const [historyMeals, setHistoryMeals] = useState([]);
+  const [authLoading, setAuthLoading] = useState(true);
+
+  // --- ÉTATS DE L'INTERFACE (UI) ---
+  const [activeTab, setActiveTab] = useState('text'); // 'text' | 'camera'
+  const [isAnalyzing, setIsAnalyzing] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
+  const [showAnalysisResult, setShowAnalysisResult] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [notification, setNotification] = useState(null);
+  const [isProcessingImage, setIsProcessingImage] = useState(false);
+
+  // --- ÉTATS DES DONNÉES DU REPAS ---
+  const [inputText, setInputText] = useState('');
+  const [selectedImage, setSelectedImage] = useState(null);
+  const [analysisResult, setAnalysisResult] = useState(null);
   const [portionSize, setPortionSize] = useState(1);
-  const [mealType, setMealType] = useState('lunch'); // lunch, dinner, breakfast, snack
+  const [mealType, setMealType] = useState('lunch');
+  const [historyMeals, setHistoryMeals] = useState([]);
 
-  // --- RÉFÉRENCES D'ANIMATION (DÉTAILLÉES) ---
-  const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(height)).current;
-  const scaleAnim = useRef(new Animated.Value(0.9)).current;
-  const buttonScale = useRef(new Animated.Value(1)).current;
-  const rotateAnim = useRef(new Animated.Value(0)).current;
-  const scrollY = useRef(new Animated.Value(0)).current;
+  // --- RÉFÉRENCES DOM ---
+  const videoRef = useRef(null);
+  const canvasRef = useRef(null);
+  const fileInputRef = useRef(null);
 
-  // --- LOGIQUE D'AUTHENTIFICATION (RULE 3) ---
+  /**
+   * INITIALISATION DE L'AUTHENTIFICATION (RULE 3)
+   */
   useEffect(() => {
     const initAuth = async () => {
       try {
+        setAuthLoading(true);
         if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
           await signInWithCustomToken(auth, __initial_auth_token);
         } else {
           await signInAnonymously(auth);
         }
       } catch (err) {
-        console.error("Auth initialization error:", err);
+        showFeedback("Erreur de connexion : " + err.message, "error");
+      } finally {
+        setAuthLoading(false);
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => {
-      setUser(u);
-    });
+    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
     return () => unsubscribe();
   }, []);
 
-  // --- ÉCOUTE DES REPAS EN TEMPS RÉEL (FIRESTORE) ---
+  /**
+   * SYNCHRONISATION FIRESTORE EN TEMPS RÉEL (RULE 1 & 2)
+   */
   useEffect(() => {
     if (!user) return;
 
     // Chemin obligatoire : /artifacts/{appId}/users/{userId}/{collectionName}
-    const q = query(collection(db, 'artifacts', appId, 'users', user.uid, 'meals'));
+    const mealsCollection = collection(db, 'artifacts', appId, 'users', user.uid, 'meals');
     
-    const unsubscribe = onSnapshot(q, (snapshot) => {
+    const unsubscribe = onSnapshot(mealsCollection, (snapshot) => {
       const meals = [];
       snapshot.forEach((doc) => {
         meals.push({ id: doc.id, ...doc.data() });
       });
-      // Tri manuel en mémoire (Rule 2)
-      meals.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
+      
+      // Tri par date en mémoire (évite les index complexes Firestore)
+      meals.sort((a, b) => {
+        const dateA = a.timestamp?.seconds || 0;
+        const dateB = b.timestamp?.seconds || 0;
+        return dateB - dateA;
+      });
+      
       setHistoryMeals(meals);
     }, (error) => {
-      console.error("Firestore listen error:", error);
+      console.error("Erreur Firestore:", error);
+      showFeedback("Impossible de charger l'historique", "error");
     });
 
     return () => unsubscribe();
   }, [user]);
 
-  // --- LOGIQUE CLAVIER ---
-  useEffect(() => {
-    const showSub = Keyboard.addListener('keyboardDidShow', () => setIsKeyboardVisible(true));
-    const hideSub = Keyboard.addListener('keyboardDidHide', () => setIsKeyboardVisible(false));
-    return () => { showSub.remove(); hideSub.remove(); };
-  }, []);
+  /**
+   * CALCULS DES STATISTIQUES (MÉMOÏSÉS)
+   */
+  const stats = useMemo(() => {
+    const totalCalories = historyMeals.reduce((acc, m) => acc + (Number(m.calories) || 0), 0);
+    const avgCalories = historyMeals.length > 0 ? (totalCalories / historyMeals.length).toFixed(0) : 0;
+    const totalProtein = historyMeals.reduce((acc, m) => acc + (Number(m.protein) || 0), 0);
+    return { totalCalories, avgCalories, totalProtein, count: historyMeals.length };
+  }, [historyMeals]);
 
-  // --- ANALYSE AVEC GEMINI ---
-  const analyzeMealWithGemini = async (text, base64Image = null) => {
-    const apiKey = ""; // Géré par l'environnement
+  /**
+   * SYSTÈME DE FEEDBACK (SANS ALERT)
+   */
+  const showFeedback = (message, type = 'success') => {
+    setNotification({ message, type });
+    setTimeout(() => setNotification(null), 4000);
+  };
+
+  /**
+   * LOGIQUE CAMERA (NAVIGATEUR)
+   */
+  const handleStartCamera = async () => {
+    setShowCamera(true);
+    try {
+      const stream = await navigator.mediaDevices.getUserMedia({ 
+        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+      });
+      if (videoRef.current) {
+        videoRef.current.srcObject = stream;
+      }
+    } catch (err) {
+      showFeedback("Accès caméra refusé ou non disponible.", "error");
+      setShowCamera(false);
+    }
+  };
+
+  const handleCapture = () => {
+    if (videoRef.current && canvasRef.current) {
+      const context = canvasRef.current.getContext('2d');
+      const video = videoRef.current;
+      canvasRef.current.width = video.videoWidth;
+      canvasRef.current.height = video.videoHeight;
+      context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
+      
+      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.8);
+      setSelectedImage(dataUrl);
+      handleStopCamera();
+    }
+  };
+
+  const handleStopCamera = () => {
+    if (videoRef.current && videoRef.current.srcObject) {
+      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
+    }
+    setShowCamera(false);
+  };
+
+  /**
+   * ANALYSE PAR L'IA GEMINI
+   */
+  const performAnalysis = async (text, base64Image) => {
+    const apiKey = ""; // Fourni par l'environnement
     const model = "gemini-2.5-flash-preview-09-2025";
     
-    const systemPrompt = `Tu es un nutritionniste expert. 
-    Analyse le repas fourni (texte ou image). 
-    Calcule les calories et les macronutriments (protéines, glucides, lipides) pour une portion standard.
-    Réponds EXCLUSIVEMENT avec un objet JSON structuré :
+    const prompt = `En tant qu'expert nutritionnel, analyse ce repas : "${text}". 
+    Si une image est fournie, base-toi principalement sur le visuel pour estimer les portions.
+    Renvoie EXCLUSIVEMENT un objet JSON avec cette structure précise :
     {
       "name": "Nom du plat",
-      "calories": 450,
-      "protein": 25,
-      "carbs": 50,
-      "fat": 15,
-      "confidence": 0.95
+      "calories": 123,
+      "protein": 12,
+      "carbs": 45,
+      "fat": 10,
+      "description": "Brève description des ingrédients détectés"
     }`;
-    
-    const userPrompt = `Analyse ce repas : "${text}"`;
-
-    const runFetch = async () => {
-      const contents = [{
-        parts: [{ text: userPrompt }]
-      }];
-
-      if (base64Image) {
-        contents[0].parts.push({
-          inlineData: { mimeType: "image/jpeg", data: base64Image }
-        });
-      }
-
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents,
-            systemInstruction: { parts: [{ text: systemPrompt }] },
-            generationConfig: { 
-              responseMimeType: "application/json",
-              temperature: 0.1
-            }
-          })
-        }
-      );
-
-      if (!response.ok) throw new Error(`HTTP Error: ${response.status}`);
-      const data = await response.json();
-      return JSON.parse(data.candidates[0].content.parts[0].text);
-    };
-
-    // Backoff exponentiel (Rule: 5 retries)
-    let attempt = 0;
-    while (attempt < 5) {
-      try {
-        return await runFetch();
-      } catch (err) {
-        attempt++;
-        if (attempt === 5) throw err;
-        await new Promise(r => setTimeout(r, Math.pow(2, attempt) * 1000));
-      }
-    }
-  };
-
-  // --- SAUVEGARDE DUAL WRITE (FIRESTORE + UI) ---
-  const saveMeal = async (mealData) => {
-    if (!user) {
-      Alert.alert("Erreur", "Vous devez être connecté pour enregistrer.");
-      return;
-    }
 
     const payload = {
-      ...mealData,
-      timestamp: localToUtcIso(),
-      portionSize,
-      mealType,
-      userId: user.uid
+      contents: [{
+        parts: [
+          { text: prompt },
+          ...(base64Image ? [{ inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] } }] : [])
+        ]
+      }],
+      generationConfig: { responseMimeType: "application/json" }
     };
 
-    try {
-      // Chemin : /artifacts/{appId}/users/{userId}/meals
-      const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'meals');
-      await addDoc(collectionRef, payload);
-      
-      if (onMealAdded) onMealAdded(payload);
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
-      closeResultModal();
-    } catch (err) {
-      console.error("Save failed:", err);
-      Alert.alert("Erreur", "Impossible de sauvegarder le repas.");
+    let retries = 0;
+    const maxRetries = 5;
+
+    while (retries < maxRetries) {
+      try {
+        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        
+        if (!response.ok) throw new Error('API Error');
+        
+        const data = await response.json();
+        const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+        return JSON.parse(resultText);
+      } catch (err) {
+        retries++;
+        if (retries === maxRetries) throw err;
+        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 1000));
+      }
     }
   };
 
-  // --- GESTIONNAIRES D'ÉVÉNEMENTS ---
-  const handleStartAnalysis = async () => {
+  const handleRunAnalysis = async () => {
     if (!inputText && !selectedImage) {
-      Vibration.vibrate(50);
+      showFeedback("Veuillez entrer du texte ou une photo.", "error");
       return;
     }
 
     setIsAnalyzing(true);
-    // Animation de rotation pour le bouton
-    Animated.loop(
-      Animated.timing(rotateAnim, {
-        toValue: 1,
-        duration: 1500,
-        easing: Easing.linear,
-        useNativeDriver: true
-      })
-    ).start();
-
     try {
-      const b64 = selectedImage?.base64 || null;
-      const result = await analyzeMealWithGemini(inputText, b64);
+      const result = await performAnalysis(inputText, selectedImage);
       setAnalysisResult(result);
-      
-      // Ouvrir le modal avec animation
       setShowAnalysisResult(true);
-      Animated.parallel([
-        Animated.timing(fadeAnim, { toValue: 1, duration: 400, useNativeDriver: true }),
-        Animated.spring(slideAnim, { toValue: 0, tension: 40, friction: 7, useNativeDriver: true }),
-        Animated.spring(scaleAnim, { toValue: 1, tension: 40, friction: 7, useNativeDriver: true })
-      ]).start();
+      showFeedback("Analyse réussie !");
     } catch (err) {
-      Alert.alert("Analyse échouée", "Le service d'IA est temporairement indisponible.");
+      showFeedback("L'analyse a échoué. Réessayez.", "error");
     } finally {
       setIsAnalyzing(false);
-      rotateAnim.setValue(0);
     }
   };
 
-  const closeResultModal = () => {
-    Animated.parallel([
-      Animated.timing(fadeAnim, { toValue: 0, duration: 300, useNativeDriver: true }),
-      Animated.timing(slideAnim, { toValue: height, duration: 300, useNativeDriver: true }),
-      Animated.timing(scaleAnim, { toValue: 0.9, duration: 300, useNativeDriver: true })
-    ]).start(() => {
+  /**
+   * ENREGISTREMENT DANS FIRESTORE
+   */
+  const handleSaveMeal = async () => {
+    if (!user || !analysisResult) return;
+    
+    setIsSaving(true);
+    try {
+      const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'meals');
+      await addDoc(collectionRef, {
+        ...analysisResult,
+        calories: Math.round(analysisResult.calories * portionSize),
+        protein: Math.round(analysisResult.protein * portionSize),
+        carbs: Math.round(analysisResult.carbs * portionSize),
+        fat: Math.round(analysisResult.fat * portionSize),
+        portionSize,
+        mealType,
+        timestamp: serverTimestamp()
+      });
+      
+      showFeedback("Repas enregistré avec succès !");
+      resetForm();
+    } catch (err) {
+      showFeedback("Erreur lors de l'enregistrement.", "error");
+    } finally {
+      setIsSaving(false);
       setShowAnalysisResult(false);
-      setAnalysisResult(null);
-      setInputText('');
-      setSelectedImage(null);
-    });
-  };
-
-  const pickImage = async (useCamera = false) => {
-    const options = {
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
-      allowsEditing: true,
-      aspect: [4, 3],
-      quality: 0.7,
-      base64: true
-    };
-
-    let result;
-    if (useCamera) {
-      const { status } = await ImagePicker.requestCameraPermissionsAsync();
-      if (status !== 'granted') return;
-      result = await ImagePicker.launchCameraAsync(options);
-    } else {
-      result = await ImagePicker.launchImageLibraryAsync(options);
-    }
-
-    if (!result.canceled) {
-      setSelectedImage(result.assets[0]);
     }
   };
 
-  // --- RENDU DES SOUS-COMPOSANTS (POUR AUGMENTER LA CLARTÉ ET LE VOLUME) ---
+  const handleDeleteMeal = async (id) => {
+    try {
+      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'meals', id));
+      showFeedback("Entrée supprimée.");
+    } catch (err) {
+      showFeedback("Erreur de suppression.", "error");
+    }
+  };
 
-  const renderHeader = () => (
-    <View style={styles.header}>
-      <View>
-        <Text style={styles.headerTitle}>
-          NUTRI<Text style={{ color: COLORS.primary }}>SCAN</Text>
-        </Text>
-        <Text style={styles.headerSubtitle}>Intelligence Nutritionnelle</Text>
-      </View>
-      <TouchableOpacity 
-        onPress={() => setIsHistoryOpen(!isHistoryOpen)}
-        style={styles.historyBtn}
-      >
-        <History size={24} color={COLORS.text} />
-        {historyMeals.length > 0 && <View style={styles.badge} />}
-      </TouchableOpacity>
-    </View>
-  );
+  const resetForm = () => {
+    setInputText('');
+    setSelectedImage(null);
+    setAnalysisResult(null);
+    setPortionSize(1);
+  };
 
-  const renderInputSection = () => (
-    <View style={styles.inputContainer}>
-      <View style={styles.tabBar}>
-        <TouchableOpacity 
-          onPress={() => setActiveTab('text')}
-          style={[styles.tab, activeTab === 'text' && styles.activeTab]}
-        >
-          <Utensils size={18} color={activeTab === 'text' ? COLORS.primary : COLORS.muted} />
-          <Text style={[styles.tabText, activeTab === 'text' && styles.activeTabText]}>Description</Text>
-        </TouchableOpacity>
-        <TouchableOpacity 
-          onPress={() => setActiveTab('camera')}
-          style={[styles.tab, activeTab === 'camera' && styles.activeTab]}
-        >
-          <Camera size={18} color={activeTab === 'camera' ? COLORS.primary : COLORS.muted} />
-          <Text style={[styles.tabText, activeTab === 'camera' && styles.activeTabText]}>Photo</Text>
-        </TouchableOpacity>
-      </View>
+  // --- RENDU UI ---
 
-      <View style={styles.mainInputArea}>
-        <TextInput
-          style={styles.textInput}
-          placeholder="J'ai mangé un poulet grillé avec du riz et des brocolis..."
-          placeholderTextColor="#9ca3af"
-          multiline
-          value={inputText}
-          onChangeText={setInputText}
-          blurOnSubmit={false}
-        />
-        
-        {selectedImage && (
-          <View style={styles.imagePreviewContainer}>
-            <Image source={{ uri: selectedImage.uri }} style={styles.imagePreview} />
-            <TouchableOpacity style={styles.removeImgBtn} onPress={() => setSelectedImage(null)}>
-              <X size={16} color="white" />
-            </TouchableOpacity>
-          </View>
-        )}
-      </View>
-
-      <View style={styles.actionRow}>
-        <View style={styles.mediaBtns}>
-          <TouchableOpacity style={styles.mediaBtn} onPress={() => pickImage(true)}>
-            <Camera size={22} color={COLORS.muted} />
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.mediaBtn} onPress={() => pickImage(false)}>
-            <ImageIcon size={22} color={COLORS.muted} />
-          </TouchableOpacity>
-        </View>
-
-        <TouchableOpacity 
-          style={[styles.analyzeBtn, (!inputText && !selectedImage) && styles.disabledBtn]}
-          onPress={handleStartAnalysis}
-          disabled={isAnalyzing}
-        >
-          {isAnalyzing ? (
-            <ActivityIndicator color="white" />
-          ) : (
-            <>
-              <Text style={styles.analyzeBtnText}>ANALYSER</Text>
-              <Sparkles size={18} color="white" />
-            </>
-          )}
-        </TouchableOpacity>
-      </View>
-    </View>
-  );
-
-  const renderHistory = () => {
-    if (!isHistoryOpen) return null;
+  if (authLoading) {
     return (
-      <View style={styles.historyContainer}>
-        <View style={styles.historyHeader}>
-          <Text style={styles.historyTitle}>Derniers Repas</Text>
-          <TouchableOpacity onPress={() => setIsHistoryOpen(false)}>
-            <Text style={{ color: COLORS.primary, fontWeight: 'bold' }}>Fermer</Text>
-          </TouchableOpacity>
-        </View>
-        <ScrollView style={{ maxHeight: 300 }}>
-          {historyMeals.length === 0 ? (
-            <View style={styles.emptyHistory}>
-              <Coffee size={40} color={COLORS.border} />
-              <Text style={styles.emptyText}>Aucun historique pour le moment.</Text>
-            </View>
-          ) : (
-            historyMeals.map((meal, index) => (
-              <View key={meal.id || index} style={styles.historyItem}>
-                <View style={styles.historyItemIcon}>
-                  <ChefHat size={20} color={COLORS.primary} />
-                </View>
-                <View style={{ flex: 1 }}>
-                  <Text style={styles.historyItemName}>{meal.name}</Text>
-                  <Text style={styles.historyItemMeta}>
-                    {new Date(meal.timestamp).toLocaleTimeString([], { hour: '2h', minute: '2h' })} • {meal.calories} kcal
-                  </Text>
-                </View>
-                <ChevronRight size={16} color={COLORS.muted} />
-              </View>
-            ))
-          )}
-        </ScrollView>
-      </View>
+      <div className="min-h-screen flex items-center justify-center bg-slate-50">
+        <div className="text-center space-y-4">
+          <Loader2 className="animate-spin mx-auto text-orange-500" size={48} />
+          <p className="font-bold text-slate-400 animate-pulse">Initialisation de NutriScan...</p>
+        </div>
+      </div>
     );
-  };
-
-  const renderResultModal = () => (
-    <Modal transparent visible={showAnalysisResult} animationType="none">
-      <View style={styles.modalOverlay}>
-        <Pressable style={styles.modalCloser} onPress={closeResultModal} />
-        <Animated.View 
-          style={[
-            styles.modalContent,
-            { 
-              opacity: fadeAnim, 
-              transform: [{ translateY: slideAnim }, { scale: scaleAnim }]
-            }
-          ]}
-        >
-          <View style={styles.modalHandle} />
-          
-          <ScrollView showsVerticalScrollIndicator={false}>
-            <View style={styles.modalHeader}>
-              <View style={styles.resultIconBox}>
-                <ChefHat size={32} color={COLORS.primary} />
-              </View>
-              <Text style={styles.resultTitle}>{analysisResult?.name}</Text>
-              <View style={styles.confidenceBadge}>
-                <Check size={12} color={COLORS.success} />
-                <Text style={styles.confidenceText}>IA VÉRIFIÉE</Text>
-              </View>
-            </View>
-
-            <View style={styles.macroGrid}>
-              <View style={[styles.macroCard, { backgroundColor: '#fff7ed' }]}>
-                <Flame size={20} color={COLORS.primary} />
-                <Text style={styles.macroValue}>{analysisResult?.calories}</Text>
-                <Text style={styles.macroLabel}>CALORIES</Text>
-              </View>
-              <View style={[styles.macroCard, { backgroundColor: '#eff6ff' }]}>
-                <Zap size={20} color={COLORS.secondary} />
-                <Text style={styles.macroValue}>{analysisResult?.protein}g</Text>
-                <Text style={styles.macroLabel}>PROTÉINES</Text>
-              </View>
-              <View style={[styles.macroCard, { backgroundColor: '#fefce8' }]}>
-                <Utensils size={20} color={COLORS.warning} />
-                <Text style={styles.macroValue}>{analysisResult?.carbs}g</Text>
-                <Text style={styles.macroLabel}>GLUCIDES</Text>
-              </View>
-              <View style={[styles.macroCard, { backgroundColor: '#faf5ff' }]}>
-                <Info size={20} color={COLORS.info} />
-                <Text style={styles.macroValue}>{analysisResult?.fat}g</Text>
-                <Text style={styles.macroLabel}>LIPIDES</Text>
-              </View>
-            </View>
-
-            <View style={styles.settingsSection}>
-              <Text style={styles.sectionTitle}>Ajustements</Text>
-              <View style={styles.settingRow}>
-                <Text style={styles.settingLabel}>Nombre de portions</Text>
-                <View style={styles.stepper}>
-                  <TouchableOpacity onPress={() => setPortionSize(Math.max(0.5, portionSize - 0.5))} style={styles.stepBtn}>
-                    <Text style={styles.stepBtnText}>-</Text>
-                  </TouchableOpacity>
-                  <Text style={styles.stepValue}>{portionSize}</Text>
-                  <TouchableOpacity onPress={() => setPortionSize(portionSize + 0.5)} style={styles.stepBtn}>
-                    <Text style={styles.stepBtnText}>+</Text>
-                  </TouchableOpacity>
-                </View>
-              </View>
-            </View>
-
-            <View style={styles.modalActions}>
-              <TouchableOpacity style={styles.cancelBtn} onPress={closeResultModal}>
-                <Text style={styles.cancelBtnText}>IGNORER</Text>
-              </TouchableOpacity>
-              <TouchableOpacity style={styles.confirmBtn} onPress={() => saveMeal(analysisResult)}>
-                <Text style={styles.confirmBtnText}>ENREGISTRER</Text>
-                <ArrowRight size={20} color="white" />
-              </TouchableOpacity>
-            </View>
-          </ScrollView>
-        </Animated.View>
-      </View>
-    </Modal>
-  );
+  }
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="dark-content" />
-      <KeyboardAvoidingView 
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        style={{ flex: 1 }}
-      >
-        <ScrollView 
-          contentContainerStyle={styles.scrollContent}
-          onScroll={Animated.event([{ nativeEvent: { contentOffset: { y: scrollY } } }], { useNativeDriver: false })}
-          scrollEventThrottle={16}
-        >
-          {renderHeader()}
-          {renderInputSection()}
-          {renderHistory()}
-          
-          <View style={styles.tipsSection}>
-            <View style={styles.tipsCard}>
-              <Sparkles size={24} color={COLORS.primary} />
-              <View style={{ flex: 1, marginLeft: 15 }}>
-                <Text style={styles.tipsTitle}>Astuce du jour</Text>
-                <Text style={styles.tipsText}>Prenez une photo de votre assiette pour une analyse plus précise des portions.</Text>
-              </View>
-            </View>
-          </View>
-        </ScrollView>
-      </KeyboardAvoidingView>
-      {renderResultModal()}
-    </SafeAreaView>
+    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-orange-100 pb-24">
+      {/* NOTIFICATIONS VOLANTES */}
+      {notification && (
+        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-10 duration-300 ${
+          notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
+        }`}>
+          {notification.type === 'error' ? <AlertCircle size={18} /> : <Check size={18} className="text-green-400" />}
+          <span className="font-bold text-sm">{notification.message}</span>
+        </div>
+      )}
+
+      {/* HEADER PREMIUM */}
+      <header className="bg-white/80 backdrop-blur-md border-b sticky top-0 z-40 px-4 py-3">
+        <div className="max-w-4xl mx-auto flex justify-between items-center">
+          <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-tr from-orange-500 to-amber-400 p-2 rounded-2xl shadow-lg shadow-orange-200">
+              <ChefHat size={24} className="text-white" />
+            </div>
+            <div>
+              <h1 className="text-xl font-black tracking-tighter">
+                NUTRI<span className="text-orange-500">SCAN</span>
+                <span className="ml-1 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-widest">v2.0</span>
+              </h1>
+              <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
+                <Smartphone size={10} /> Web Optimized
+              </p>
+            </div>
+          </div>
+
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
+              className={`p-2.5 rounded-xl transition-all ${isHistoryOpen ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
+            >
+              <History size={20} />
+            </button>
+            <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden sm:block"></div>
+            <div className="hidden sm:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-xl">
+              <div className="text-right">
+                <p className="text-[9px] font-bold text-slate-400 uppercase">Aujourd'hui</p>
+                <p className="text-sm font-black text-slate-700">{stats.totalCalories} kcal</p>
+              </div>
+              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-orange-500 shadow-sm">
+                <Flame size={18} />
+              </div>
+            </div>
+          </div>
+        </div>
+      </header>
+
+      <main className="max-w-4xl mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
+        
+        {/* COLONNE GAUCHE : SAISIE (8 cols) */}
+        <div className="lg:col-span-7 space-y-6">
+          <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all hover:shadow-2xl hover:shadow-slate-200/60">
+            <div className="flex p-2 bg-slate-50/50">
+              <button 
+                onClick={() => setActiveTab('text')}
+                className={`flex-1 py-3 rounded-2xl text-xs font-black tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'text' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
+              >
+                <Utensils size={16} /> TEXTE
+              </button>
+              <button 
+                onClick={() => setActiveTab('camera')}
+                className={`flex-1 py-3 rounded-2xl text-xs font-black tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'camera' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
+              >
+                <Camera size={16} /> APPAREIL PHOTO
+              </button>
+            </div>
+
+            <div className="p-8">
+              {activeTab === 'text' ? (
+                <textarea
+                  className="w-full h-40 text-xl font-medium bg-transparent border-none focus:ring-0 resize-none placeholder:text-slate-200"
+                  placeholder="Décrivez votre repas... (ex: Un bowl de riz, saumon grillé et avocat)"
+                  value={inputText}
+                  onChange={(e) => setInputText(e.target.value)}
+                />
+              ) : (
+                <div className="space-y-4">
+                  {selectedImage ? (
+                    <div className="relative rounded-3xl overflow-hidden group aspect-video bg-slate-100">
+                      <img src={selectedImage} alt="Repas" className="w-full h-full object-cover" />
+                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
+                        <button onClick={() => setSelectedImage(null)} className="p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all">
+                          <X size={24} />
+                        </button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div 
+                      onClick={handleStartCamera}
+                      className="aspect-video border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center gap-4 text-slate-300 hover:text-orange-400 hover:border-orange-100 hover:bg-orange-50/30 cursor-pointer transition-all group"
+                    >
+                      <div className="p-6 bg-slate-50 rounded-full group-hover:scale-110 transition-transform">
+                        <Camera size={48} />
+                      </div>
+                      <p className="font-black text-sm tracking-widest">CLIQUEZ POUR CAPTURER</p>
+                    </div>
+                  )}
+                  <div className="flex gap-2">
+                    <button onClick={() => fileInputRef.current.click()} className="flex-1 py-3 bg-slate-100 rounded-xl text-slate-500 text-[10px] font-black tracking-tighter hover:bg-slate-200 transition-all">
+                      OUVRIR LA GALERIE
+                    </button>
+                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
+                      const file = e.target.files[0];
+                      if (!file) return;
+                      const reader = new FileReader();
+                      reader.onload = () => setSelectedImage(reader.result);
+                      reader.readAsDataURL(file);
+                    }} />
+                  </div>
+                </div>
+              )}
+
+              <div className="mt-8 flex items-center justify-between border-t pt-8">
+                <div className="flex -space-x-2">
+                  {[1, 2, 3].map(i => (
+                    <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center overflow-hidden">
+                      <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="user" />
+                    </div>
+                  ))}
+                  <div className="w-10 h-10 rounded-full border-2 border-white bg-orange-500 flex items-center justify-center text-[10px] font-bold text-white">
+                    +1k
+                  </div>
+                </div>
+
+                <button
+                  disabled={isAnalyzing || (!inputText && !selectedImage)}
+                  onClick={handleRunAnalysis}
+                  className="group relative bg-slate-900 disabled:bg-slate-200 text-white px-10 py-4 rounded-2xl font-black tracking-widest flex items-center gap-3 overflow-hidden transition-all active:scale-95 shadow-xl shadow-slate-200"
+                >
+                  {isAnalyzing ? (
+                    <Loader2 className="animate-spin" size={20} />
+                  ) : (
+                    <>
+                      <Sparkles size={20} className="group-hover:rotate-12 transition-transform" />
+                      ANALYSER AVEC L'IA
+                    </>
+                  )}
+                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
+                </button>
+              </div>
+            </div>
+          </section>
+
+          {/* DASHBOARD STATS */}
+          <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-slate-800">{stats.totalCalories}</span>
+                <span className="text-[10px] font-bold text-slate-400">kcal</span>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Moyenne</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-slate-800">{stats.avgCalories}</span>
+                <span className="text-[10px] font-bold text-slate-400">kcal</span>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Protéines</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-slate-800">{stats.totalProtein}</span>
+                <span className="text-[10px] font-bold text-slate-400">g</span>
+              </div>
+            </div>
+            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
+              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Repas</p>
+              <div className="flex items-baseline gap-1">
+                <span className="text-2xl font-black text-slate-800">{stats.count}</span>
+                <span className="text-[10px] font-bold text-slate-400">enregistrés</span>
+              </div>
+            </div>
+          </section>
+        </div>
+
+        {/* COLONNE DROITE : HISTORIQUE ET ASTUCES (4 cols) */}
+        <aside className="lg:col-span-5 space-y-6">
+          <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-slate-300">
+            <div className="relative z-10">
+              <div className="flex items-center gap-3 mb-6">
+                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
+                  <TrendingUp size={20} className="text-orange-400" />
+                </div>
+                <h3 className="text-lg font-black tracking-tight">Objectif du jour</h3>
+              </div>
+              <div className="space-y-4">
+                <div className="flex justify-between items-end">
+                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Calories</span>
+                  <span className="text-xl font-black">{stats.totalCalories} / 2200 <span className="text-[10px] text-slate-500">kcal</span></span>
+                </div>
+                <div className="h-3 bg-white/5 rounded-full overflow-hidden">
+                  <div 
+                    className="h-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-1000"
+                    style={{ width: `${Math.min((stats.totalCalories / 2200) * 100, 100)}%` }}
+                  />
+                </div>
+              </div>
+            </div>
+            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl" />
+          </div>
+
+          <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8">
+            <div className="flex items-center justify-between mb-6">
+              <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs flex items-center gap-2">
+                <History size={16} className="text-orange-500" /> Historique
+              </h3>
+              <button className="text-[10px] font-black text-orange-500 uppercase">Voir tout</button>
+            </div>
+            
+            <div className="space-y-4">
+              {historyMeals.slice(0, 5).map((meal) => (
+                <div key={meal.id} className="group flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-all">
+                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-500 transition-colors">
+                    <Utensils size={20} />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <p className="font-bold text-slate-800 truncate">{meal.name}</p>
+                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
+                      {meal.calories} kcal • {meal.mealType}
+                    </p>
+                  </div>
+                  <button 
+                    onClick={() => handleDeleteMeal(meal.id)}
+                    className="p-2 text-slate-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
+                  >
+                    <Trash2 size={16} />
+                  </button>
+                </div>
+              ))}
+              {historyMeals.length === 0 && (
+                <div className="py-12 text-center space-y-4">
+                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
+                    <PieChart size={32} />
+                  </div>
+                  <p className="text-sm font-bold text-slate-300">Aucun repas aujourd'hui</p>
+                </div>
+              )}
+            </div>
+          </div>
+        </aside>
+      </main>
+
+      {/* MODAL CAMERA FULLSCREEN */}
+      {showCamera && (
+        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-300">
+          <div className="absolute top-0 inset-x-0 p-6 flex justify-between items-center z-20">
+            <button onClick={handleStopCamera} className="w-12 h-12 bg-black/40 backdrop-blur-md rounded-full text-white flex items-center justify-center">
+              <X size={24} />
+            </button>
+            <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full text-white text-[10px] font-black tracking-widest">
+              MODE CAPTURE ALIMENTAIRE
+            </div>
+            <div className="w-12" />
+          </div>
+
+          <video ref={videoRef} autoPlay playsInline className="flex-1 object-cover" />
+          <canvas ref={canvasRef} className="hidden" />
+
+          <div className="absolute bottom-0 inset-x-0 p-12 flex flex-col items-center gap-8 bg-gradient-to-t from-black/80 to-transparent">
+            <p className="text-white/60 text-xs font-bold text-center max-w-xs">
+              Placez le repas au centre du cadre pour une analyse optimale des portions.
+            </p>
+            <button 
+              onClick={handleCapture}
+              className="w-24 h-24 bg-white rounded-full border-8 border-white/20 flex items-center justify-center active:scale-90 transition-transform shadow-2xl"
+            >
+              <div className="w-16 h-16 rounded-full border-2 border-black/5" />
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL DE RÉSULTAT D'ANALYSE (OVERLAY) */}
+      {showAnalysisResult && analysisResult && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
+          <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
+            <div className="p-10">
+              <div className="flex justify-between items-start mb-8">
+                <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2">
+                  <Activity size={14} /> RAPPORT NUTRITIONNEL
+                </div>
+                <button onClick={() => setShowAnalysisResult(false)} className="text-slate-300 hover:text-slate-500 transition-colors">
+                  <X size={24} />
+                </button>
+              </div>
+
+              <div className="text-center mb-10">
+                <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter mb-2">{analysisResult.name}</h2>
+                <p className="text-slate-400 text-sm font-medium italic">"{analysisResult.description}"</p>
+              </div>
+
+              <div className="grid grid-cols-2 gap-4 mb-10">
+                <div className="bg-orange-50/50 p-6 rounded-[2rem] border border-orange-100 flex flex-col items-center text-center">
+                  <Flame size={20} className="text-orange-500 mb-2" />
+                  <p className="text-3xl font-black text-orange-600">{Math.round(analysisResult.calories * portionSize)}</p>
+                  <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Calories</p>
+                </div>
+                <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 flex flex-col items-center text-center">
+                  <Target size={20} className="text-blue-500 mb-2" />
+                  <p className="text-3xl font-black text-blue-600">{Math.round(analysisResult.protein * portionSize)}g</p>
+                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Protéines</p>
+                </div>
+                <div className="bg-yellow-50/50 p-6 rounded-[2rem] border border-yellow-100 flex flex-col items-center text-center">
+                  <Utensils size={20} className="text-yellow-500 mb-2" />
+                  <p className="text-3xl font-black text-yellow-600">{Math.round(analysisResult.carbs * portionSize)}g</p>
+                  <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">Glucides</p>
+                </div>
+                <div className="bg-purple-50/50 p-6 rounded-[2rem] border border-purple-100 flex flex-col items-center text-center">
+                  <Scale size={20} className="text-purple-500 mb-2" />
+                  <p className="text-3xl font-black text-purple-600">{Math.round(analysisResult.fat * portionSize)}g</p>
+                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Lipides</p>
+                </div>
+              </div>
+
+              <div className="space-y-6">
+                <div className="flex items-center justify-between px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100">
+                  <div className="flex items-center gap-3">
+                    <PieChart size={18} className="text-slate-400" />
+                    <span className="text-sm font-black text-slate-500 uppercase tracking-widest">Portions</span>
+                  </div>
+                  <div className="flex items-center gap-6">
+                    <button 
+                      onClick={() => setPortionSize(p => Math.max(0.5, p - 0.5))}
+                      className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center font-black text-lg hover:border-orange-500 transition-colors shadow-sm"
+                    >-</button>
+                    <span className="text-xl font-black text-slate-800 w-8 text-center">{portionSize}</span>
+                    <button 
+                      onClick={() => setPortionSize(p => p + 0.5)}
+                      className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center font-black text-lg hover:border-orange-500 transition-colors shadow-sm"
+                    >+</button>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-4 gap-2">
+                  {['Petit-dej', 'Déjeuner', 'Dîner', 'Snack'].map((type) => (
+                    <button
+                      key={type}
+                      onClick={() => setMealType(type.toLowerCase())}
+                      className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${mealType === type.toLowerCase() ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
+                    >
+                      {type}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div className="mt-10 flex gap-4">
+                <button 
+                  onClick={() => setShowAnalysisResult(false)}
+                  className="flex-1 py-5 font-black text-slate-400 text-xs tracking-widest hover:text-slate-600 transition-colors uppercase"
+                >
+                  Annuler
+                </button>
+                <button 
+                  disabled={isSaving}
+                  onClick={handleSaveMeal}
+                  className="flex-[2] py-5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 text-white rounded-2xl font-black text-xs tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-orange-100 transition-all active:scale-95"
+                >
+                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
+                  VALIDER LE REPAS
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+    </div>
   );
-};
-
-// --- STYLES ÉTENDUS (DÉPLOIEMENT COMPLET DES LIGNES) ---
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: COLORS.bg,
-  },
-  scrollContent: {
-    padding: 20,
-    paddingBottom: 100,
-  },
-  header: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 30,
-    marginTop: 10,
-  },
-  headerTitle: {
-    fontSize: 28,
-    fontWeight: '900',
-    color: COLORS.text,
-    letterSpacing: -1,
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: COLORS.muted,
-    fontWeight: '500',
-  },
-  historyBtn: {
-    backgroundColor: COLORS.card,
-    padding: 12,
-    borderRadius: 16,
-    position: 'relative',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  badge: {
-    position: 'absolute',
-    top: -2,
-    right: -2,
-    width: 10,
-    height: 10,
-    backgroundColor: COLORS.primary,
-    borderRadius: 5,
-    borderWidth: 2,
-    borderColor: 'white',
-  },
-  inputContainer: {
-    backgroundColor: 'white',
-    borderRadius: 32,
-    padding: 8,
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 15 },
-    shadowOpacity: 0.08,
-    shadowRadius: 30,
-    elevation: 8,
-    borderWidth: 1,
-    borderColor: '#f3f4f6',
-    marginBottom: 20,
-  },
-  tabBar: {
-    flexDirection: 'row',
-    backgroundColor: '#f3f4f6',
-    borderRadius: 24,
-    padding: 4,
-    marginBottom: 8,
-  },
-  tab: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingVertical: 12,
-    borderRadius: 20,
-  },
-  activeTab: {
-    backgroundColor: 'white',
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.05,
-    shadowRadius: 5,
-  },
-  tabText: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: COLORS.muted,
-    marginLeft: 8,
-  },
-  activeTabText: {
-    color: COLORS.text,
-  },
-  mainInputArea: {
-    padding: 16,
-  },
-  textInput: {
-    fontSize: 18,
-    color: COLORS.text,
-    minHeight: 120,
-    textAlignVertical: 'top',
-    lineHeight: 26,
-  },
-  imagePreviewContainer: {
-    marginTop: 15,
-    borderRadius: 20,
-    overflow: 'hidden',
-    position: 'relative',
-  },
-  imagePreview: {
-    width: '100%',
-    height: 200,
-  },
-  removeImgBtn: {
-    position: 'absolute',
-    top: 10,
-    right: 10,
-    backgroundColor: 'rgba(0,0,0,0.5)',
-    padding: 6,
-    borderRadius: 15,
-  },
-  actionRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    padding: 12,
-    borderTopWidth: 1,
-    borderTopColor: '#f9fafb',
-  },
-  mediaBtns: {
-    flexDirection: 'row',
-    gap: 10,
-  },
-  mediaBtn: {
-    backgroundColor: '#f3f4f6',
-    padding: 12,
-    borderRadius: 15,
-  },
-  analyzeBtn: {
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingHorizontal: 24,
-    paddingVertical: 14,
-    borderRadius: 20,
-    gap: 8,
-    shadowColor: COLORS.primary,
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.25,
-    shadowRadius: 15,
-  },
-  disabledBtn: {
-    backgroundColor: '#e5e7eb',
-    shadowOpacity: 0,
-  },
-  analyzeBtnText: {
-    color: 'white',
-    fontWeight: '900',
-    fontSize: 14,
-    letterSpacing: 1,
-  },
-  historyContainer: {
-    marginTop: 20,
-    backgroundColor: COLORS.card,
-    borderRadius: 24,
-    padding: 20,
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  historyHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    marginBottom: 15,
-  },
-  historyTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: COLORS.text,
-  },
-  historyItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    paddingVertical: 12,
-    borderBottomWidth: 1,
-    borderBottomColor: '#f3f4f6',
-  },
-  historyItemIcon: {
-    width: 40,
-    height: 40,
-    backgroundColor: '#fff7ed',
-    borderRadius: 12,
-    alignItems: 'center',
-    justifyContent: 'center',
-    marginRight: 15,
-  },
-  historyItemName: {
-    fontSize: 15,
-    fontWeight: '600',
-    color: COLORS.text,
-  },
-  historyItemMeta: {
-    fontSize: 12,
-    color: COLORS.muted,
-    marginTop: 2,
-  },
-  emptyHistory: {
-    alignItems: 'center',
-    padding: 30,
-  },
-  emptyText: {
-    color: COLORS.muted,
-    marginTop: 10,
-    fontSize: 14,
-  },
-  modalOverlay: {
-    flex: 1,
-    backgroundColor: 'rgba(0,0,0,0.4)',
-    justifyContent: 'end',
-  },
-  modalCloser: {
-    flex: 1,
-  },
-  modalContent: {
-    backgroundColor: 'white',
-    borderTopLeftRadius: 40,
-    borderTopRightRadius: 40,
-    padding: 25,
-    maxHeight: '90%',
-  },
-  modalHandle: {
-    width: 40,
-    height: 5,
-    backgroundColor: '#e5e7eb',
-    borderRadius: 5,
-    alignSelf: 'center',
-    marginBottom: 20,
-  },
-  modalHeader: {
-    alignItems: 'center',
-    marginBottom: 25,
-  },
-  resultIconBox: {
-    backgroundColor: '#fff7ed',
-    padding: 20,
-    borderRadius: 30,
-    marginBottom: 15,
-  },
-  resultTitle: {
-    fontSize: 24,
-    fontWeight: '800',
-    color: COLORS.text,
-    textAlign: 'center',
-    textTransform: 'capitalize',
-  },
-  confidenceBadge: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#f0fdf4',
-    paddingHorizontal: 12,
-    paddingVertical: 4,
-    borderRadius: 10,
-    marginTop: 10,
-    borderWidth: 1,
-    borderColor: '#dcfce7',
-  },
-  confidenceText: {
-    fontSize: 10,
-    fontWeight: '800',
-    color: COLORS.success,
-    marginLeft: 5,
-  },
-  macroGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    gap: 12,
-    justifyContent: 'space-between',
-    marginBottom: 25,
-  },
-  macroCard: {
-    width: '48%',
-    padding: 16,
-    borderRadius: 24,
-    alignItems: 'flex-start',
-  },
-  macroValue: {
-    fontSize: 22,
-    fontWeight: '800',
-    color: COLORS.text,
-    marginVertical: 4,
-  },
-  macroLabel: {
-    fontSize: 10,
-    fontWeight: '700',
-    color: COLORS.muted,
-    letterSpacing: 0.5,
-  },
-  settingsSection: {
-    marginBottom: 30,
-  },
-  sectionTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    marginBottom: 15,
-    color: COLORS.text,
-  },
-  settingRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    backgroundColor: '#f9fafb',
-    padding: 15,
-    borderRadius: 20,
-  },
-  settingLabel: {
-    fontWeight: '600',
-    color: COLORS.muted,
-  },
-  stepper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: 15,
-  },
-  stepBtn: {
-    backgroundColor: 'white',
-    width: 30,
-    height: 30,
-    borderRadius: 10,
-    alignItems: 'center',
-    justifyContent: 'center',
-    borderWidth: 1,
-    borderColor: COLORS.border,
-  },
-  stepBtnText: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  stepValue: {
-    fontSize: 16,
-    fontWeight: '800',
-  },
-  modalActions: {
-    flexDirection: 'row',
-    gap: 15,
-    paddingBottom: 20,
-  },
-  cancelBtn: {
-    flex: 1,
-    paddingVertical: 18,
-    borderRadius: 20,
-    alignItems: 'center',
-    backgroundColor: '#f3f4f6',
-  },
-  cancelBtnText: {
-    fontWeight: '800',
-    color: COLORS.muted,
-  },
-  confirmBtn: {
-    flex: 2,
-    paddingVertical: 18,
-    borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: COLORS.primary,
-    flexDirection: 'row',
-    gap: 10,
-  },
-  confirmBtnText: {
-    fontWeight: '800',
-    color: 'white',
-  },
-  tipsSection: {
-    marginTop: 40,
-  },
-  tipsCard: {
-    flexDirection: 'row',
-    backgroundColor: '#fff7ed',
-    padding: 20,
-    borderRadius: 24,
-    borderWidth: 1,
-    borderColor: '#ffedd5',
-  },
-  tipsTitle: {
-    fontSize: 16,
-    fontWeight: '700',
-    color: '#9a3412',
-    marginBottom: 4,
-  },
-  tipsText: {
-    fontSize: 14,
-    color: '#c2410c',
-    lineHeight: 20,
-  }
-});
-
-// Helper Icon non présent dans lucide initial
-const ChevronRight = ({ size, color }) => (
-  <ChevronDown size={size} color={color} style={{ transform: [{ rotate: '-90deg' }] }} />
-);
-
-export default MealInput;
+}
