@@ -10,7 +10,7 @@
     <meta name="apple-mobile-web-app-capable" content="yes" />
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="NutriScan" />
-    <link rel="apple-touch-icon" href="/pwa-icon-192.png" />
+    <link rel="apple-touch-icon" href="./pwa-icon-192.png" />
 
     <meta property="og:title" content="NutriScan — Suivi Nutritionnel" />
     <meta property="og:description" content="Suivi nutritionnel intelligent avec analyse IA, micronutriments et composition corporelle" />
@@ -20,10 +20,30 @@
     <meta name="twitter:card" content="summary_large_image" />
     <meta name="twitter:site" content="@Lovable" />
     <meta name="twitter:image" content="https://lovable.dev/opengraph-image-p98pqg.png" />
+    
+    <!-- DEBUG MOBILE: Capture des erreurs JS -->
+    <script>
+      window.onerror = function(msg, url, line, col, error) {
+        var errorMsg = 'ERREUR: ' + msg + '\\nURL: ' + url + '\\nLigne: ' + line + ':' + col;
+        console.error(errorMsg);
+        // Afficher sur l'écran pour debug mobile
+        if (document.getElementById('root')) {
+          document.getElementById('root').innerHTML = '<div style="padding:20px;color:red;font-family:monospace;white-space:pre-wrap;">' + errorMsg + '</div>';
+        }
+        return false;
+      };
+      window.onunhandledrejection = function(event) {
+        var errorMsg = 'PROMISE REJETEE: ' + event.reason;
+        console.error(errorMsg);
+        if (document.getElementById('root')) {
+          document.getElementById('root').innerHTML = '<div style="padding:20px;color:red;font-family:monospace;white-space:pre-wrap;">' + errorMsg + '</div>';
+        }
+      };
+    </script>
   </head>
 
   <body>
     <div id="root"></div>
-    <script type="module" src="/src/main.tsx"></script>
+    <script type="module" src="./src/main.tsx"></script>
   </body>
 </html>

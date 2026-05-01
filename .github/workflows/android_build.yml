@@ -40,8 +40,15 @@ jobs:
 
       - name: Clean and Sync Capacitor
         run: |
+          # Nettoyage complet assets
           rm -rf android/app/src/main/assets/public/*
+          # Vérifier que dist/index.html existe
+          ls -la dist/index.html
+          # Copier les assets web
           npx cap copy android
+          # Vérifier la copie
+          ls -la android/app/src/main/assets/public/
+          # Sync complet
           npx cap sync android
 
       - name: Setup Java 21
