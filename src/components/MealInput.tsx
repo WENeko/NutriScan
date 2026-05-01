@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';[]
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Camera, Image as ImageIcon, Send, X, Check, AlertCircle, ChefHat, 
   Flame, Utensils, Info, History, Sparkles, ChevronDown, ChevronUp, 
@@ -7,14 +7,18 @@ import {
   Settings, Save, RefreshCw, Smartphone
 } from 'lucide-react';
 
+// --- SERVICE IMPORTS ---
+import { analyzeMealWithGemini } from '@/services/geminiAiService';
+import { saveMealWithDualWrite } from '@/services/mealPersistenceService';
+import { localToUtcIso } from '@/lib/timezoneUtils';
+
 // --- FIREBASE IMPORTS ---
 import { initializeApp } from 'firebase/app';
 import { 
   getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged 
 } from 'firebase/auth';
 import { 
-  getFirestore, collection, addDoc, query, onSnapshot, 
-  serverTimestamp, deleteDoc, doc 
+  getFirestore, collection, onSnapshot, deleteDoc, doc 
 } from 'firebase/firestore';
 
 /**
@@ -170,59 +174,6 @@ export default function App() {
     setShowCamera(false);
   };
 
-  /**
-   * ANALYSE PAR L'IA GEMINI
-   */
-  const analyzeMealWithGemini = async (text, base64Image) => {
-    const apiKey = ""; // Fourni par l'environnement
-    const model = "gemini-2.5-flash-preview-09-2025";
-    
-    const prompt = `En tant qu'expert nutritionnel, analyse ce repas : "${text}". 
-    Si une image est fournie, base-toi principalement sur le visuel pour estimer les portions.
-    Renvoie EXCLUSIVEMENT un objet JSON avec cette structure précise :
-    {
-      "name": "Nom du plat",
-      "calories": 123,
-      "protein": 12,
-      "carbs": 45,
-      "fat": 10,
-      "description": "Brève description des ingrédients détectés"
-    }`;
-
-    const payload = {
-      contents: [{
-        parts: [
-          { text: prompt },
-          ...(base64Image ? [{ inlineData: { mimeType: "image/jpeg", data: base64Image.split(',')[1] } }] : [])
-        ]
-      }],
-      generationConfig: { responseMimeType: "application/json" }
-    };
-
-    let retries = 0;
-    const maxRetries = 5;
-
-    while (retries < maxRetries) {
-      try {
-        const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload)
-        });
-        
-        if (!response.ok) throw new Error('API Error');
-        
-        const data = await response.json();
-        const resultText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-        return JSON.parse(resultText);
-      } catch (err) {
-        retries++;
-        if (retries === maxRetries) throw err;
-        await new Promise(resolve => setTimeout(resolve, Math.pow(2, retries) * 1000));
-      }
-    }
-  };
-
   const handleRunAnalysis = async () => {
     if (!inputText && !selectedImage) {
       showFeedback("Veuillez entrer du texte ou une photo.", "error");
@@ -231,8 +182,20 @@ export default function App() {
 
     setIsAnalyzing(true);
     try {
-      const result = await analyzeMealWithGemini(inputText, selectedImage);
-      setAnalysisResult(result);
+      const result = await analyzeMealWithGemini({ 
+        text: inputText || undefined, 
+        image: selectedImage || undefined 
+      });
+      // Mapper la réponse du service vers le format attendu par l'UI
+      setAnalysisResult({
+        name: result.meal_name,
+        calories: result.items?.reduce((sum, item) => sum + (item.calories || 0), 0) || 0,
+        protein: result.items?.reduce((sum, item) => sum + (item.proteins || 0), 0) || 0,
+        carbs: result.items?.reduce((sum, item) => sum + (item.carbs || 0), 0) || 0,
+        fat: result.items?.reduce((sum, item) => sum + (item.fats || 0), 0) || 0,
+        description: result.items?.map(item => item.food_name).join(', ') || '',
+        items: result.items || []
+      });
       setShowAnalysisResult(true);
       showFeedback("Analyse réussie !");
     } catch (err) {
@@ -242,24 +205,32 @@ export default function App() {
     }
   };
 
-  /**
-   * ENREGISTREMENT DANS FIRESTORE
-   */
-  const saveMealWithDualWrite = async () => {
+  const handleSaveMeal = async () => {
     if (!user || !analysisResult) return;
     
     setIsSaving(true);
     try {
-      const collectionRef = collection(db, 'artifacts', appId, 'users', user.uid, 'meals');
-      await addDoc(collectionRef, {
-        ...analysisResult,
-        calories: Math.round(analysisResult.calories * portionSize),
-        protein: Math.round(analysisResult.protein * portionSize),
-        carbs: Math.round(analysisResult.carbs * portionSize),
-        fat: Math.round(analysisResult.fat * portionSize),
-        portionSize,
-        mealType,
-        timestamp: localToUtcIso()
+      // Préparer les items pour la sauvegarde
+      const items = analysisResult.items?.map(item => ({
+        food_name: item.food_name,
+        calories: Math.round((item.calories || 0) * portionSize),
+        proteins: Math.round((item.proteins || 0) * portionSize),
+        carbs: Math.round((item.carbs || 0) * portionSize),
+        fats: Math.round((item.fats || 0) * portionSize),
+        estimated_weight_g: item.estimated_weight_g || item.unit_weight_g || 100
+      })) || [];
+
+      await saveMealWithDualWrite({
+        userId: user.uid,
+        mealData: {
+          meal_name: analysisResult.name,
+          total_calories: Math.round(analysisResult.calories * portionSize),
+          total_proteins: Math.round(analysisResult.protein * portionSize),
+          total_carbs: Math.round(analysisResult.carbs * portionSize),
+          total_fats: Math.round(analysisResult.fat * portionSize),
+          timestamp: localToUtcIso(new Date())
+        },
+        items
       });
       
       showFeedback("Repas enregistré avec succès !");
@@ -661,7 +632,7 @@ export default function App() {
                 </button>
                 <button 
                   disabled={isSaving}
-                  onClick={saveMealWithDualWrite}
+                  onClick={handleSaveMeal}
                   className="flex-[2] py-5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 text-white rounded-2xl font-black text-xs tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-orange-100 transition-all active:scale-95"
                 >
                   {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}

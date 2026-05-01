@@ -45,7 +45,7 @@ function AuthGuard() {
 }
 
 const App = () => (
-  <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="nutrivibe-theme" disableTransitionOnChange>
+  <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="nutriscan-theme" disableTransitionOnChange>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />

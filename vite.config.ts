@@ -30,8 +30,8 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "pwa-icon-192.png", "pwa-icon-512.png"],
       manifest: {
-        name: "NutriVibe — Suivi Nutritionnel",
-        short_name: "NutriVibe",
+        name: "NutriScan — Suivi Nutritionnel",
+        short_name: "NutriScan",
         description: "Suivi nutritionnel intelligent avec analyse IA et micronutriments",
         theme_color: "#33a06f",
         background_color: "#f5faf7",

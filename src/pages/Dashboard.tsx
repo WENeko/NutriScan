@@ -239,7 +239,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <div className="w-8 h-8 rounded-lg nutri-gradient flex items-center justify-center">
               <Leaf className="w-4 h-4 text-primary-foreground" />
             </div>
-            <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriVibe</h1>
+            <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
         </header>
         <main className="max-w-lg mx-auto px-4 mt-6">
@@ -298,7 +298,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <div className="w-8 h-8 rounded-lg nutri-gradient flex items-center justify-center">
               <Leaf className="w-4 h-4 text-primary-foreground" />
             </div>
-            <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriVibe</h1>
+            <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
             <button onClick={() => setShowDataSources(true)} className="p-2 rounded-xl hover:bg-muted transition-colors" title="Sources de données">

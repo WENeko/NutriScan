@@ -1,5 +1,5 @@
 /**
- * NutriVibe Intelligence Engine - v1.0.0
+ * NutriScan Intelligence Engine - v1.0.0
  * Source Unique de Vérité pour la logique nutritionnelle.
  */
 

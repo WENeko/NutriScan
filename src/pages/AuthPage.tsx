@@ -53,7 +53,7 @@ const AuthPage: React.FC = () => {
             <Leaf className="w-8 h-8 text-primary-foreground" />
           </div>
           <h1 className="text-3xl font-display font-bold nutri-gradient-text">
-            NutriVibe
+            NutriScan
           </h1>
           <p className="text-sm text-muted-foreground text-center">
             Analysez vos repas par IA, atteignez vos objectifs
