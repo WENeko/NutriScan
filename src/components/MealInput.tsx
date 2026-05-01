@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useMemo } from 'react';[]
 import { 
   Camera, Image as ImageIcon, Send, X, Check, AlertCircle, ChefHat, 
   Flame, Utensils, Info, History, Sparkles, ChevronDown, ChevronUp, 

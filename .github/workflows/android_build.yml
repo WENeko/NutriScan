@@ -18,20 +18,19 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v1
         with:
-          node-version: 24
-          cache: npm
+          bun-version: latest
 
       - name: Install dependencies
         run: |
-          npm install
-          npm install @capacitor/android@^8.0.0 @capacitor/core@^8.0.0 @capgo/capacitor-health@^8.4.2
+          bun install
+          bun add @capacitor/android@^8.0.0 @capacitor/core@^8.0.0 @capgo/capacitor-health@^8.4.2
 
 
       - name: Build web app
-        run: npm run build
+        run: bun run build
 
       - name: Sync Capacitor
         run: npx cap sync android
