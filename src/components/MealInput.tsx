@@ -12,24 +12,19 @@ import { analyzeMealWithGemini } from '@/services/geminiAiService';
 import { saveMealWithDualWrite } from '@/services/mealPersistenceService';
 import { localToUtcIso } from '@/lib/timezoneUtils';
 
-// --- FIREBASE IMPORTS ---
-import { initializeApp } from 'firebase/app';
-import { 
-  getAuth, signInWithCustomToken, signInAnonymously, onAuthStateChanged 
-} from 'firebase/auth';
-import { 
-  getFirestore, collection, onSnapshot, deleteDoc, doc 
-} from 'firebase/firestore';
+// --- SUPABASE IMPORTS ---
+import { supabase as supabaseLovable } from '@/integrations/supabase/client';
+import { createClient } from '@supabase/supabase-js';
 
-/**
- * CONFIGURATION ET INITIALISATION FIREBASE
- * Respect strict des règles de sécurité et de structure de données.
- */
-const firebaseConfig = JSON.parse(__firebase_config);
-const app = initializeApp(firebaseConfig);
-const auth = getAuth(app);
-const db = getFirestore(app);
-const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-app-id';
+// --- CONFIGURATION SUPABASE PERSONNEL ---
+const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
+const PERSONAL_SUPABASE_ANON_KEY = import.meta.env.VITE_PERSONAL_SUPABASE_ANON_KEY;
+
+const supabasePerso = (PERSONAL_SUPABASE_URL && PERSONAL_SUPABASE_ANON_KEY)
+  ? createClient(PERSONAL_SUPABASE_URL, PERSONAL_SUPABASE_ANON_KEY, {
+      auth: { storage: localStorage, persistSession: true, autoRefreshToken: true }
+    })
+  : null;
 
 /**
  * COMPOSANT PRINCIPAL : NUTRISCAN WEB PRO
@@ -64,16 +59,21 @@ export default function App() {
   const fileInputRef = useRef(null);
 
   /**
-   * INITIALISATION DE L'AUTHENTIFICATION (RULE 3)
+   * INITIALISATION DE L'AUTHENTIFICATION SUPABASE
    */
   useEffect(() => {
     const initAuth = async () => {
       try {
         setAuthLoading(true);
-        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-          await signInWithCustomToken(auth, __initial_auth_token);
+        // Vérifier session existante
+        const { data: { session } } = await supabaseLovable.auth.getSession();
+        if (session?.user) {
+          setUser(session.user);
         } else {
-          await signInAnonymously(auth);
+          // Sign in anonyme si pas de session
+          const { data, error } = await supabaseLovable.auth.signInAnonymously();
+          if (error) throw error;
+          setUser(data.user);
         }
       } catch (err) {
         showFeedback("Erreur de connexion : " + err.message, "error");
@@ -82,39 +82,58 @@ export default function App() {
       }
     };
     initAuth();
-    const unsubscribe = onAuthStateChanged(auth, (u) => setUser(u));
-    return () => unsubscribe();
+    
+    // Écouter les changements d'auth
+    const { data: { subscription } } = supabaseLovable.auth.onAuthStateChange((_event, session) => {
+      setUser(session?.user || null);
+    });
+    
+    return () => subscription.unsubscribe();
   }, []);
 
   /**
-   * SYNCHRONISATION FIRESTORE EN TEMPS RÉEL (RULE 1 & 2)
+   * SYNCHRONISATION SUPABASE EN TEMPS RÉEL
    */
   useEffect(() => {
     if (!user) return;
 
-    // Chemin obligatoire : /artifacts/{appId}/users/{userId}/{collectionName}
-    const mealsCollection = collection(db, 'artifacts', appId, 'users', user.uid, 'meals');
+    // Chargement initial des repas
+    const loadMeals = async () => {
+      const { data, error } = await supabaseLovable
+        .from('meals')
+        .select('*')
+        .eq('user_id', user.id)
+        .order('timestamp', { ascending: false });
+      
+      if (error) {
+        console.error("Erreur Supabase:", error);
+        showFeedback("Impossible de charger l'historique", "error");
+        return;
+      }
+      
+      setHistoryMeals(data || []);
+    };
     
-    const unsubscribe = onSnapshot(mealsCollection, (snapshot) => {
-      const meals = [];
-      snapshot.forEach((doc) => {
-        meals.push({ id: doc.id, ...doc.data() });
-      });
-      
-      // Tri par date en mémoire (évite les index complexes Firestore)
-      meals.sort((a, b) => {
-        const dateA = a.timestamp?.seconds || 0;
-        const dateB = b.timestamp?.seconds || 0;
-        return dateB - dateA;
-      });
-      
-      setHistoryMeals(meals);
-    }, (error) => {
-      console.error("Erreur Firestore:", error);
-      showFeedback("Impossible de charger l'historique", "error");
-    });
+    loadMeals();
+    
+    // Souscription temps réel
+    const subscription = supabaseLovable
+      .channel('meals-channel')
+      .on('postgres_changes', 
+        { event: '*', schema: 'public', table: 'meals', filter: `user_id=eq.${user.id}` },
+        (payload) => {
+          if (payload.eventType === 'INSERT') {
+            setHistoryMeals(prev => [payload.new, ...prev]);
+          } else if (payload.eventType === 'DELETE') {
+            setHistoryMeals(prev => prev.filter(m => m.id !== payload.old.id));
+          } else if (payload.eventType === 'UPDATE') {
+            setHistoryMeals(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
+          }
+        }
+      )
+      .subscribe();
 
-    return () => unsubscribe();
+    return () => { subscription.unsubscribe(); };
   }, [user]);
 
   /**
@@ -221,7 +240,7 @@ export default function App() {
       })) || [];
 
       await saveMealWithDualWrite({
-        userId: user.uid,
+        userId: user.id,
         mealData: {
           meal_name: analysisResult.name,
           total_calories: Math.round(analysisResult.calories * portionSize),
@@ -245,7 +264,8 @@ export default function App() {
 
   const handleDeleteMeal = async (id) => {
     try {
-      await deleteDoc(doc(db, 'artifacts', appId, 'users', user.uid, 'meals', id));
+      const { error } = await supabaseLovable.from('meals').delete().eq('id', id);
+      if (error) throw error;
       showFeedback("Entrée supprimée.");
     } catch (err) {
       showFeedback("Erreur de suppression.", "error");
