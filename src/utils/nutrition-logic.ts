@@ -56,9 +56,6 @@ export interface UserProfile {
   isPregnant?: boolean;
 }
 
-// Type pour l'objet de retour (ex: { iron_mg: number, ... })
-export type MicroGoals = Record<string, number>;
-
 /**
  * Calcule les objectifs de micronutriments personnalisés
  */
@@ -72,7 +69,9 @@ export const calculateMicroGoals = (profile: UserProfile = {}): MicroGoals => {
   const isSmoker = !!profile.isSmoker;
   const isPregnant = !!profile.isPregnant;
 
-  const goals: MicroGoals = {};
+  // Initialiser avec toutes les clés à 0
+  const goals = {} as MicroGoals;
+  NUTRIENTS_MASTER_LIST.forEach(n => { goals[n.key as keyof MicroGoals] = 0; });
 
   // --- LOGIQUE DE CALCUL PAR CLÉ ---
   NUTRIENTS_MASTER_LIST.forEach((n) => {
@@ -137,8 +136,55 @@ export const calculateMicroGoals = (profile: UserProfile = {}): MicroGoals => {
         value = 0;
     }
 
-    goals[n.key] = Math.round(value);
+    (goals as any)[n.key] = Math.round(value);
   });
 
   return goals;
 };
+
+// --- COMPATIBILITÉ AVEC MealMicros.tsx ---
+
+// Type legacy pour les composants qui attendent des clés spécifiques
+export interface MicroGoals extends Record<string, number> {
+  fiber: number;
+  sugar: number;
+  saturated_fat: number;
+  omega3_mg: number;
+  sodium_mg: number;
+  potassium_mg: number;
+  magnesium_mg: number;
+  calcium_mg: number;
+  iron_mg: number;
+  zinc_mg: number;
+  vitamin_c_mg: number;
+  vitamin_d_mcg: number;
+  vitamin_b9_mcg: number;
+  vitamin_b12_mcg: number;
+  vitamin_e_mg: number;
+}
+
+/** Description textuelle des micronutriments pour l'UI */
+export function getMicroInfo(key: string, goal: number): string {
+  const nutrient = NUTRIENTS_MASTER_LIST.find(n => n.key === key);
+  if (!nutrient) return "";
+
+  const descriptions: Record<string, (g: number, unit: string) => string> = {
+    fiber: (g, u) => `Digestion et satiété. Objectif : ${g}${u}/jour.`,
+    sugar: (g, u) => `Glucides simples. Limitez à <${g}${u}/jour.`,
+    saturated_fat: (g, u) => `Santé cardiovasculaire. Limitez à <${g}${u}/jour.`,
+    omega3_mg: (g, u) => `Inflammation et santé cardiaque. ${g}${u}/jour.`,
+    sodium_mg: (g, u) => `Équilibre hydrique. <${g}${u}/jour.`,
+    potassium_mg: (g, u) => `Équilibre hydrique et muscles. ${g}${u}/jour.`,
+    magnesium_mg: (g, u) => `Récupération et santé osseuse. ${g}${u}/jour.`,
+    calcium_mg: (g, u) => `Santé osseuse. ${g}${u}/jour.`,
+    iron_mg: (g, u) => `Transport d'oxygène. ${g}${u}/jour.`,
+    zinc_mg: (g, u) => `Immunité et cicatrisation. ${g}${u}/jour.`,
+    vitamin_c_mg: (g, u) => `Antioxydants et immunité. ${g}${u}/jour.`,
+    vitamin_d_mcg: (g, u) => `Immunité et hormones. ${g}${u}/jour.`,
+    vitamin_b9_mcg: (g, u) => `Métabolisme cellulaire. ${g}${u}/jour.`,
+    vitamin_b12_mcg: (g, u) => `Énergie et système nerveux. ${g}${u}/jour.`,
+    vitamin_e_mg: (g, u) => `Antioxydants. ${g}${u}/jour.`,
+  };
+
+  return descriptions[key]?.(goal, nutrient.unit) ?? `${nutrient.label}. Objectif: ${goal}${nutrient.unit}/jour.`;
+}
