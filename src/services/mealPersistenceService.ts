@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createClient } from "@supabase/supabase-js";
+import type { MicroTotalFields, MicroNutrientFields } from "@/utils/nutrition-logic";
 
 // Initialisation du client personnel (Base secondaire)
 // Ces variables doivent être ajoutées à ton fichier .env
@@ -21,8 +22,18 @@ interface SaveMealParams {
     total_fats: number;
     image_url?: string | null;
     timestamp?: string;
-  };
-  items: any[];
+    // Totaux de micronutriments dynamiques (basés sur NUTRIENTS_MASTER_LIST)
+    // Génère automatiquement: total_fiber, total_sugar, total_sodium_mg, etc.
+  } & MicroTotalFields;
+  // Items avec leurs micronutriments individuels (optionnels, extraits par l'IA)
+  items: Array<{
+    food_name: string;
+    calories: number;
+    proteins: number;
+    carbs: number;
+    fats: number;
+    estimated_weight_g: number;
+  } & MicroNutrientFields>;
 }
 
 /**

@@ -28,6 +28,24 @@ export const NUTRIENTS_MASTER_LIST: NutrientDef[] = [
   { key: "vitamin_e_mg", label: "Vit. E", unit: "mg", category: "vitamin" },
 ];
 
+// --- TYPES DYNAMIQUES BASÉS SUR NUTRIENTS_MASTER_LIST ---
+
+// Extrait toutes les clés de la liste maître
+type NutrientKey = typeof NUTRIENTS_MASTER_LIST[number]['key'];
+
+// Type pour un item alimentaire avec tous les micronutriments (optionnels car dépend de l'IA)
+export type MicroNutrientFields = {
+  [K in NutrientKey]?: number;
+};
+
+// Type pour les totaux de micronutriments dans un repas (préfixés par 'total_')
+export type MicroTotalFields = {
+  [K in NutrientKey as `total_${K}`]?: number;
+};
+
+// Helper pour obtenir la liste des clés dynamiquement
+export const getNutrientKeys = (): string[] => NUTRIENTS_MASTER_LIST.map(n => n.key);
+
 export interface UserProfile {
   age?: number;
   gender?: 'male' | 'female';

@@ -11,6 +11,7 @@ import {
 import { analyzeMealWithGemini } from '@/services/geminiAiService';
 import { saveMealWithDualWrite } from '@/services/mealPersistenceService';
 import { localToUtcIso } from '@/lib/timezoneUtils';
+import { NUTRIENTS_MASTER_LIST, getNutrientKeys } from '@/utils/nutrition-logic';
 
 // --- SUPABASE IMPORTS ---
 import { supabase as supabaseLovable } from '@/integrations/supabase/client';
@@ -201,11 +202,17 @@ export default function App() {
 
     setIsAnalyzing(true);
     try {
+      // Récupérer la liste dynamique des micronutriments depuis la source unique
+      const microKeys = getNutrientKeys();
+      
       const result = await analyzeMealWithGemini({ 
         text: inputText || undefined, 
-        image: selectedImage || undefined 
+        image: selectedImage || undefined,
+        requestedMicros: microKeys
       });
+      
       // Mapper la réponse du service vers le format attendu par l'UI
+      // Conserver les micronutriments dans chaque item
       setAnalysisResult({
         name: result.meal_name,
         calories: result.items?.reduce((sum, item) => sum + (item.calories || 0), 0) || 0,
@@ -229,15 +236,49 @@ export default function App() {
     
     setIsSaving(true);
     try {
-      // Préparer les items pour la sauvegarde
+      // Préparer les items pour la sauvegarde (conserver les micronutriments de l'IA)
       const items = analysisResult.items?.map(item => ({
         food_name: item.food_name,
         calories: Math.round((item.calories || 0) * portionSize),
         proteins: Math.round((item.proteins || 0) * portionSize),
         carbs: Math.round((item.carbs || 0) * portionSize),
         fats: Math.round((item.fats || 0) * portionSize),
-        estimated_weight_g: item.estimated_weight_g || item.unit_weight_g || 100
+        estimated_weight_g: item.estimated_weight_g || item.unit_weight_g || 100,
+        // Micronutriments (déjà calculés pour la portion par l'IA)
+        fiber: (item.fiber || 0) * portionSize,
+        sugar: (item.sugar || 0) * portionSize,
+        sodium_mg: (item.sodium_mg || 0) * portionSize,
+        potassium_mg: (item.potassium_mg || 0) * portionSize,
+        magnesium_mg: (item.magnesium_mg || 0) * portionSize,
+        calcium_mg: (item.calcium_mg || 0) * portionSize,
+        iron_mg: (item.iron_mg || 0) * portionSize,
+        zinc_mg: (item.zinc_mg || 0) * portionSize,
+        vitamin_c_mg: (item.vitamin_c_mg || 0) * portionSize,
+        vitamin_d_mcg: (item.vitamin_d_mcg || 0) * portionSize,
+        vitamin_b9_mcg: (item.vitamin_b9_mcg || 0) * portionSize,
+        vitamin_b12_mcg: (item.vitamin_b12_mcg || 0) * portionSize,
+        vitamin_e_mg: (item.vitamin_e_mg || 0) * portionSize,
+        omega3_mg: (item.omega3_mg || 0) * portionSize,
+        saturated_fat: (item.saturated_fat || 0) * portionSize
       })) || [];
+
+      // Calculer les totaux de micronutriments
+      const microTotals = {
+        total_fiber: items.reduce((sum, item) => sum + (item.fiber || 0), 0),
+        total_sugar: items.reduce((sum, item) => sum + (item.sugar || 0), 0),
+        total_sodium_mg: items.reduce((sum, item) => sum + (item.sodium_mg || 0), 0),
+        total_potassium_mg: items.reduce((sum, item) => sum + (item.potassium_mg || 0), 0),
+        total_magnesium_mg: items.reduce((sum, item) => sum + (item.magnesium_mg || 0), 0),
+        total_calcium_mg: items.reduce((sum, item) => sum + (item.calcium_mg || 0), 0),
+        total_iron_mg: items.reduce((sum, item) => sum + (item.iron_mg || 0), 0),
+        total_zinc_mg: items.reduce((sum, item) => sum + (item.zinc_mg || 0), 0),
+        total_vitamin_c_mg: items.reduce((sum, item) => sum + (item.vitamin_c_mg || 0), 0),
+        total_vitamin_d_mcg: items.reduce((sum, item) => sum + (item.vitamin_d_mcg || 0), 0),
+        total_vitamin_b9_mcg: items.reduce((sum, item) => sum + (item.vitamin_b9_mcg || 0), 0),
+        total_vitamin_b12_mcg: items.reduce((sum, item) => sum + (item.vitamin_b12_mcg || 0), 0),
+        total_vitamin_e_mg: items.reduce((sum, item) => sum + (item.vitamin_e_mg || 0), 0),
+        total_omega3_mg: items.reduce((sum, item) => sum + (item.omega3_mg || 0), 0)
+      };
 
       await saveMealWithDualWrite({
         userId: user.id,
@@ -247,7 +288,8 @@ export default function App() {
           total_proteins: Math.round(analysisResult.protein * portionSize),
           total_carbs: Math.round(analysisResult.carbs * portionSize),
           total_fats: Math.round(analysisResult.fat * portionSize),
-          timestamp: localToUtcIso(new Date())
+          timestamp: localToUtcIso(new Date()),
+          ...microTotals
         },
         items
       });
