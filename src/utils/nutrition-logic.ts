@@ -46,7 +46,8 @@ export type MicroTotalFields = {
 // Helper pour obtenir la liste des clés dynamiquement
 export const getNutrientKeys = (): string[] => NUTRIENTS_MASTER_LIST.map(n => n.key);
 
-export interface UserProfile {
+/** Interface interne pour le calcul des objectifs nutritionnels */
+export interface NutritionUserProfile {
   age?: number;
   gender?: 'male' | 'female';
   weight?: number;
@@ -56,10 +57,21 @@ export interface UserProfile {
   isPregnant?: boolean;
 }
 
+/** Type legacy pour compatibilité avec les anciens composants (Dashboard.tsx) */
+export interface UserProfile {
+  gender?: string | null;
+  age?: number | null;
+  weight_kg?: number | null;
+  activity_level?: string | null;
+  totalCaloriesGoal?: number | null;
+  isSmoker?: boolean;
+  isPregnant?: boolean;
+}
+
 /**
  * Calcule les objectifs de micronutriments personnalisés
  */
-export const calculateMicroGoals = (profile: UserProfile = {}): MicroGoals => {
+export const calculateMicroGoals = (profile: NutritionUserProfile = {}): MicroGoals => {
   // --- FALLBACKS ---
   const age = profile.age ?? 30;
   const gender = profile.gender ?? 'male';
@@ -187,4 +199,25 @@ export function getMicroInfo(key: string, goal: number): string {
   };
 
   return descriptions[key]?.(goal, nutrient.unit) ?? `${nutrient.label}. Objectif: ${goal}${nutrient.unit}/jour.`;
+}
+
+// --- FONCTIONS DE COMPATIBILITÉ pour les anciens imports ---
+
+/** Convertit un UserProfile legacy vers le format interne NutritionUserProfile */
+export function normalizeUserProfile(legacy: UserProfile): NutritionUserProfile {
+  const isActive = legacy.activity_level === "active" || legacy.activity_level === "very_active" || legacy.activity_level === "athletic";
+  return {
+    age: legacy.age ?? 30,
+    gender: (legacy.gender === "male" || legacy.gender === "female") ? legacy.gender : "male",
+    weight: legacy.weight_kg ?? 75,
+    totalCaloriesGoal: legacy.totalCaloriesGoal ?? 2000,
+    isAthlete: isActive,
+    isSmoker: legacy.isSmoker ?? false,
+    isPregnant: legacy.isPregnant ?? false,
+  };
+}
+
+/** Fonction legacy wrapper pour compatibilité Dashboard.tsx */
+export function getPersonalizedMicroGoals(profile: UserProfile = {}): MicroGoals {
+  return calculateMicroGoals(normalizeUserProfile(profile));
 }
