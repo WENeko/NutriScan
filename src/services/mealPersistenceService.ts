@@ -1,16 +1,32 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createClient } from "@supabase/supabase-js";
-import type { MicroTotalFields, MicroNutrientFields } from "@/utils/nutrition-logic";
+import type { MicroNutrientFields, getNutrientKeys } from "@/utils/nutrition-logic";
 
 // Initialisation du client personnel (Base secondaire)
-// Ces variables doivent être ajoutées à ton fichier .env
 const personalUrl = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
 const personalKey = import.meta.env.VITE_PERSONAL_SUPABASE_ANON_KEY;
 
-// Création d'une instance conditionnelle pour ne pas bloquer l'app si les clés manquent
 const personalSupabase = (personalUrl && personalKey) 
   ? createClient(personalUrl, personalKey) 
   : null;
+
+// Type pour un item alimentaire
+interface MealItem {
+  food_name: string;
+  name?: string; // alias pour compatibilité BDD perso
+  calories: number;
+  proteins: number;
+  carbs: number;
+  fats: number;
+  quantity?: number; // pour BDD perso
+  estimated_weight_g?: number;
+  unit_count?: number;
+  unit_label?: string;
+  unit_weight_g?: number;
+}
+
+// Type étendu avec micronutriments
+type MealItemWithMicros = MealItem & MicroNutrientFields;
 
 interface SaveMealParams {
   userId: string;
@@ -22,83 +38,219 @@ interface SaveMealParams {
     total_fats: number;
     image_url?: string | null;
     timestamp?: string;
-    // Totaux de micronutriments dynamiques (basés sur NUTRIENTS_MASTER_LIST)
-    // Génère automatiquement: total_fiber, total_sugar, total_sodium_mg, etc.
-  } & MicroTotalFields;
-  // Items avec leurs micronutriments individuels (optionnels, extraits par l'IA)
-  items: Array<{
-    food_name: string;
-    calories: number;
-    proteins: number;
-    carbs: number;
-    fats: number;
-    estimated_weight_g: number;
-  } & MicroNutrientFields>;
+    // Micronutriments agrégés
+    total_fiber?: number;
+    total_sugar?: number;
+    total_sodium_mg?: number;
+    total_potassium_mg?: number;
+    total_magnesium_mg?: number;
+    total_calcium_mg?: number;
+    total_iron_mg?: number;
+    total_zinc_mg?: number;
+    total_vitamin_c_mg?: number;
+    total_vitamin_d_mcg?: number;
+    total_vitamin_b9_mcg?: number;
+    total_vitamin_b12_mcg?: number;
+    total_vitamin_e_mg?: number;
+    total_omega3_mg?: number;
+    total_saturated_fat?: number;
+  };
+  items: MealItemWithMicros[];
+}
+
+/**
+ * Construit l'objet meal pour la base Lovable (structure avec colonnes individuelles)
+ */
+function buildLovableMeal(mealData: SaveMealParams['mealData'], userId: string) {
+  return {
+    user_id: userId,
+    timestamp: mealData.timestamp || new Date().toISOString(),
+    image_url: mealData.image_url,
+    raw_ai_analysis: mealData.meal_name, // Lovable utilise raw_ai_analysis
+    total_calories: mealData.total_calories,
+    total_proteins: mealData.total_proteins,
+    total_carbs: mealData.total_carbs,
+    total_fats: mealData.total_fats,
+    // Micronutriments totaux
+    total_fiber: mealData.total_fiber,
+    total_sugar: mealData.total_sugar,
+    total_sodium_mg: mealData.total_sodium_mg,
+    total_potassium_mg: mealData.total_potassium_mg,
+    total_magnesium_mg: mealData.total_magnesium_mg,
+    total_calcium_mg: mealData.total_calcium_mg,
+    total_iron_mg: mealData.total_iron_mg,
+    total_zinc_mg: mealData.total_zinc_mg,
+    total_vitamin_c_mg: mealData.total_vitamin_c_mg,
+    total_vitamin_d_mcg: mealData.total_vitamin_d_mcg,
+    total_vitamin_b9_mcg: mealData.total_vitamin_b9_mcg,
+    total_vitamin_b12_mcg: mealData.total_vitamin_b12_mcg,
+    total_vitamin_e_mg: mealData.total_vitamin_e_mg,
+    total_omega3_mg: mealData.total_omega3_mg,
+    total_saturated_fat: mealData.total_saturated_fat,
+    is_confirmed: true
+  };
+}
+
+/**
+ * Construit l'objet meal pour la base perso (structure minimaliste)
+ * Les totaux sont calculés côté client si besoin, ou stockés dans les items
+ */
+function buildPersonalMeal(mealData: SaveMealParams['mealData'], userId: string) {
+  return {
+    user_id: userId,
+    meal_name: mealData.meal_name,
+    created_at: mealData.timestamp || new Date().toISOString()
+    // Note: La BDD perso n'a pas de colonnes de totaux dans meals
+  };
+}
+
+/**
+ * Construit les items pour la base Lovable (colonnes individuelles)
+ */
+function buildLovableItems(items: MealItemWithMicros[], mealId: string, userId: string) {
+  return items.map(item => ({
+    meal_id: mealId,
+    user_id: userId,
+    name: item.food_name,
+    quantity: item.unit_count ? `${item.unit_count} ${item.unit_label || 'unité'}` : `${item.estimated_weight_g || 100}g`,
+    calories: item.calories,
+    proteins: item.proteins,
+    carbs: item.carbs,
+    fats: item.fats,
+    // Micronutriments
+    fiber: item.fiber,
+    sugar: item.sugar,
+    sodium_mg: item.sodium_mg,
+    potassium_mg: item.potassium_mg,
+    magnesium_mg: item.magnesium_mg,
+    calcium_mg: item.calcium_mg,
+    iron_mg: item.iron_mg,
+    zinc_mg: item.zinc_mg,
+    vitamin_c_mg: item.vitamin_c_mg,
+    vitamin_d_mcg: item.vitamin_d_mcg,
+    vitamin_b9_mcg: item.vitamin_b9_mcg,
+    vitamin_b12_mcg: item.vitamin_b12_mcg,
+    vitamin_e_mg: item.vitamin_e_mg,
+    omega3_mg: item.omega3_mg,
+    saturated_fat: item.saturated_fat
+  }));
+}
+
+/**
+ * Construit les items pour la base perso (avec nutrients_std en JSONB)
+ */
+function buildPersonalItems(items: MealItemWithMicros[], mealId: string) {
+  return items.map(item => {
+    // Regrouper les micronutriments dans nutrients_std
+    const nutrientsStd: Record<string, number> = {};
+    
+    // Ajouter tous les micronutriments définis
+    if (item.fiber !== undefined) nutrientsStd.fiber = item.fiber;
+    if (item.sugar !== undefined) nutrientsStd.sugar = item.sugar;
+    if (item.sodium_mg !== undefined) nutrientsStd.sodium_mg = item.sodium_mg;
+    if (item.potassium_mg !== undefined) nutrientsStd.potassium_mg = item.potassium_mg;
+    if (item.magnesium_mg !== undefined) nutrientsStd.magnesium_mg = item.magnesium_mg;
+    if (item.calcium_mg !== undefined) nutrientsStd.calcium_mg = item.calcium_mg;
+    if (item.iron_mg !== undefined) nutrientsStd.iron_mg = item.iron_mg;
+    if (item.zinc_mg !== undefined) nutrientsStd.zinc_mg = item.zinc_mg;
+    if (item.vitamin_c_mg !== undefined) nutrientsStd.vitamin_c_mg = item.vitamin_c_mg;
+    if (item.vitamin_d_mcg !== undefined) nutrientsStd.vitamin_d_mcg = item.vitamin_d_mcg;
+    if (item.vitamin_b9_mcg !== undefined) nutrientsStd.vitamin_b9_mcg = item.vitamin_b9_mcg;
+    if (item.vitamin_b12_mcg !== undefined) nutrientsStd.vitamin_b12_mcg = item.vitamin_b12_mcg;
+    if (item.vitamin_e_mg !== undefined) nutrientsStd.vitamin_e_mg = item.vitamin_e_mg;
+    if (item.omega3_mg !== undefined) nutrientsStd.omega3_mg = item.omega3_mg;
+    if (item.saturated_fat !== undefined) nutrientsStd.saturated_fat = item.saturated_fat;
+
+    return {
+      meal_id: mealId,
+      name: item.food_name,
+      quantity: item.estimated_weight_g || 100,
+      calories: item.calories,
+      proteins: item.proteins,
+      carbs: item.carbs,
+      fats: item.fats,
+      nutrients_std: nutrientsStd
+    };
+  });
 }
 
 /**
  * Sauvegarde un repas et ses composants sur deux instances Supabase en parallèle.
- * La réussite sur l'instance Lovable (primaire) est bloquante.
- * La réussite sur l'instance Personnelle (secondaire) est facultative (silencieuse).
+ * Adapte automatiquement le format aux schémas différents :
+ * - Lovable : colonnes individuelles pour chaque nutriment
+ * - Perso : JSONB nutrients_std pour les micronutriments
  */
 export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMealParams) => {
-  const timestamp = mealData.timestamp || new Date().toISOString();
-
+  console.log("[saveMealWithDualWrite] Démarrage sauvegarde:", { 
+    userId, 
+    mealName: mealData.meal_name,
+    itemsCount: items?.length || 0,
+    hasPersonalDb: !!personalSupabase
+  });
+  
   // --- 1. ÉCRITURE SUR LA BASE PRIMAIRE (LOVABLE) ---
+  const lovableMeal = buildLovableMeal(mealData, userId);
+  console.log("[saveMealWithDualWrite] Données Lovable:", JSON.stringify(lovableMeal, null, 2));
+  
   const { data: primaryMeal, error: primaryError } = await supabase
     .from("meals")
-    .insert([{ ...mealData, user_id: userId, timestamp }])
+    .insert([lovableMeal])
     .select()
     .single();
 
   if (primaryError) {
-    console.error("Erreur critique sur la base primaire :", primaryError.message);
-    throw primaryError; // On stoppe tout si la base principale échoue
+    console.error("Erreur critique sur la base primaire (Lovable) :", primaryError.message);
+    throw primaryError;
   }
 
   // Insertion des items sur la base primaire
   if (items && items.length > 0) {
-    const itemsToInsert = items.map(item => ({
-      ...item,
-      meal_id: primaryMeal.id,
-      user_id: userId
-    }));
-    const { error: itemsError } = await supabase.from("meal_items").insert(itemsToInsert);
-    if (itemsError) console.error("Erreur items base primaire :", itemsError.message);
+    const lovableItems = buildLovableItems(items, primaryMeal.id, userId);
+    const { error: itemsError } = await supabase.from("meal_items").insert(lovableItems);
+    if (itemsError) {
+      console.error("Erreur items base Lovable :", itemsError.message);
+      console.error("Items tentés :", JSON.stringify(lovableItems[0], null, 2));
+    }
   }
 
   // --- 2. ÉCRITURE SUR LA BASE SECONDAIRE (PERSONNELLE) ---
   if (personalSupabase) {
     try {
-      // On insère le repas sur la base perso
+      console.log("[saveMealWithDualWrite] Tentative écriture DB Perso...");
+      const personalMeal = buildPersonalMeal(mealData, userId);
+      console.log("[saveMealWithDualWrite] Données Perso:", JSON.stringify(personalMeal, null, 2));
+      
       const { data: secondaryMeal, error: secondaryError } = await personalSupabase
         .from("meals")
-        .insert([{ ...mealData, user_id: userId, timestamp }])
+        .insert([personalMeal])
         .select()
         .single();
 
-      if (!secondaryError && secondaryMeal && items.length > 0) {
-        // On insère les items liés au NOUVEL ID du repas de la base perso
-        const secondaryItems = items.map(item => ({
-          ...item,
-          meal_id: secondaryMeal.id,
-          user_id: userId
-        }));
-        await personalSupabase.from("meal_items").insert(secondaryItems);
-      }
-      
       if (secondaryError) {
-        console.warn("Échec de synchronisation secondaire (DB Perso) :", secondaryError.message);
-      } else {
-        console.log("Synchronisation DB Perso effectuée avec succès.");
+        console.error("[saveMealWithDualWrite] Échec insertion meal sur DB Perso:", secondaryError);
+        // Si erreur FK sur user_id, c'est que l'utilisateur n'existe pas dans auth.users
+        if (secondaryError.message?.includes('foreign key')) {
+          console.error("[saveMealWithDualWrite] L'utilisateur n'existe probablement pas dans la BDD perso. UserId:", userId);
+        }
+      } else if (secondaryMeal && items.length > 0) {
+        const personalItems = buildPersonalItems(items, secondaryMeal.id);
+        console.log("[saveMealWithDualWrite] Insertion items Perso:", personalItems.length, "items");
+        const { error: itemsError } = await personalSupabase.from("meal_items").insert(personalItems);
+        
+        if (itemsError) {
+          console.error("[saveMealWithDualWrite] Échec insertion items sur DB Perso:", itemsError);
+          console.error("[saveMealWithDualWrite] Items tentés:", JSON.stringify(personalItems[0], null, 2));
+        } else {
+          console.log("[saveMealWithDualWrite] Synchronisation DB Perso effectuée avec succès.");
+        }
+      } else if (secondaryMeal) {
+        console.log("[saveMealWithDualWrite] Meal inséré en DB Perso (sans items). ID:", secondaryMeal.id);
       }
-      
     } catch (err) {
-      // On capture l'erreur pour ne pas faire crash l'UI si la base perso est offline
-      console.warn("Erreur silencieuse lors de la double écriture :", err);
+      console.error("[saveMealWithDualWrite] Erreur lors de la double écriture:", err);
     }
   } else {
-    console.warn("Configuration manquante : VITE_PERSONAL_SUPABASE_URL / KEY");
+    console.warn("[saveMealWithDualWrite] Pas de DB perso configurée (VITE_PERSONAL_SUPABASE_URL manquant)");
   }
 
   return primaryMeal;

@@ -10,6 +10,7 @@ import {
 // --- SERVICE IMPORTS ---
 import { analyzeMealWithGemini } from '@/services/geminiAiService';
 import { saveMealWithDualWrite } from '@/services/mealPersistenceService';
+import { ensureUserInPersonalDB, logDatabaseHealth } from '@/services/databaseSyncService';
 import { localToUtcIso } from '@/lib/timezoneUtils';
 import { NUTRIENTS_MASTER_LIST, getNutrientKeys } from '@/utils/nutrition-logic';
 
@@ -70,12 +71,19 @@ export default function App() {
         const { data: { session } } = await supabaseLovable.auth.getSession();
         if (session?.user) {
           setUser(session.user);
+          // Synchroniser l'utilisateur dans la BDD perso si nécessaire
+          await ensureUserInPersonalDB(session.user.id, session.user.email);
         } else {
           // Sign in anonyme si pas de session
           const { data, error } = await supabaseLovable.auth.signInAnonymously();
           if (error) throw error;
           setUser(data.user);
+          // Synchroniser l'utilisateur anonyme aussi
+          await ensureUserInPersonalDB(data.user.id, data.user.email);
         }
+        
+        // Vérifier la santé de la BDD perso (une fois au démarrage)
+        await logDatabaseHealth();
       } catch (err) {
         showFeedback("Erreur de connexion : " + err.message, "error");
       } finally {
@@ -280,7 +288,17 @@ export default function App() {
         total_omega3_mg: items.reduce((sum, item) => sum + (item.omega3_mg || 0), 0)
       };
 
-      await saveMealWithDualWrite({
+      // S'assurer que l'utilisateur existe dans la BDD perso avant de sauvegarder
+      await ensureUserInPersonalDB(user.id, user.email);
+      
+      console.log("[MealInput] Sauvegarde avec userId:", user.id);
+      console.log("[MealInput] Données meal:", {
+        name: analysisResult.name,
+        calories: analysisResult.calories,
+        itemsCount: items.length
+      });
+      
+      const savedMeal = await saveMealWithDualWrite({
         userId: user.id,
         mealData: {
           meal_name: analysisResult.name,
@@ -294,10 +312,12 @@ export default function App() {
         items
       });
       
+      console.log("[MealInput] Repas sauvegardé:", savedMeal);
       showFeedback("Repas enregistré avec succès !");
       resetForm();
     } catch (err) {
-      showFeedback("Erreur lors de l'enregistrement.", "error");
+      console.error("[MealInput] Erreur lors de l'enregistrement:", err);
+      showFeedback("Erreur lors de l'enregistrement: " + (err.message || "Erreur inconnue"), "error");
     } finally {
       setIsSaving(false);
       setShowAnalysisResult(false);
@@ -594,18 +614,31 @@ export default function App() {
             <div className="w-12" />
           </div>
 
-          <video ref={videoRef} autoPlay playsInline className="flex-1 object-cover" />
+          {/* Container vidéo avec contraintes pour mobile */}
+          <div className="flex-1 relative overflow-hidden">
+            <video 
+              ref={videoRef} 
+              autoPlay 
+              playsInline 
+              muted
+              className="absolute inset-0 w-full h-full object-contain"
+              style={{ 
+                maxHeight: '100vh',
+                maxWidth: '100vw'
+              }}
+            />
+          </div>
           <canvas ref={canvasRef} className="hidden" />
 
-          <div className="absolute bottom-0 inset-x-0 p-12 flex flex-col items-center gap-8 bg-gradient-to-t from-black/80 to-transparent">
+          <div className="absolute bottom-0 inset-x-0 p-8 pb-12 flex flex-col items-center gap-6 bg-gradient-to-t from-black/80 to-transparent">
             <p className="text-white/60 text-xs font-bold text-center max-w-xs">
               Placez le repas au centre du cadre pour une analyse optimale des portions.
             </p>
             <button 
               onClick={handleCapture}
-              className="w-24 h-24 bg-white rounded-full border-8 border-white/20 flex items-center justify-center active:scale-90 transition-transform shadow-2xl"
+              className="w-20 h-20 bg-white rounded-full border-4 border-white/20 flex items-center justify-center active:scale-90 transition-transform shadow-2xl"
             >
-              <div className="w-16 h-16 rounded-full border-2 border-black/5" />
+              <div className="w-14 h-14 rounded-full border-2 border-black/5" />
             </button>
           </div>
         </div>
