@@ -27,8 +27,36 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, local_t
   const defaultMicroKeys = NUTRIENTS_MASTER_LIST.map(n => n.key);
   const microKeysToRequest = requestedMicros.length ? requestedMicros : defaultMicroKeys;
 
-  // System prompt avec instructions claires pour les micronutriments
-  const basePrompt = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.\nIMPORTANT - Extraction temporelle : Si le texte contient une indication de temps (ex: \'hier à 22h\'), retourne-la dans le champ \'suggested_timestamp\' au format ISO 8601.\nIMPORTANT - Détection des aliments comptables en unités : Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut.\nRÈGLE PRINCIPALE : Si l'utilisateur mentionne un nombre SANS unité de poids ou volume après (g, kg, ml, cl, L), c'est un indice TRÈS FORT que cet aliment se compte en unités (ex: \'2 tranches de jambon\' → unit_count=2, unit_label=\'tranche\').\nSi l'aliment compte en unités, remplis: unit_count (entier), unit_weight_g (entier), unit_label (ex: 'oeuf'). estimated_weight_g = unit_count * unit_weight_g.\nIMPORTANT - MICRONUTRIMENTS À EXTRAIRE (valeurs pour LA PORTION ESTIMÉE, pas pour 100g) : ${microKeysToRequest.join(", ")}. Si tu ne connais pas la valeur pour une clé, mets 0. Ne crée pas d'autres clés.\nRéponds UNIQUEMENT en JSON strict, sans markdown, format : { meal_name, confidence_score, suggested_timestamp (optionnel), items: [...] }`;
+  // Construire la liste des micronutriments pour le prompt
+  const microFieldsList = microKeysToRequest.join(", ");
+  
+  // System prompt avec instructions EXPLICITES pour le format JSON
+  const basePrompt = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient.
+
+RÈGLES DE FORMAT JSON STRICT - Chaque item doit avoir ces champs EXACTS:
+- food_name: string
+- calories: number (total pour la portion)
+- proteins: number (grammes)
+- carbs: number (grammes)
+- fats: number (grammes)
+- estimated_weight_g: number (grammes)
+- unit_count: number ou null
+- unit_label: string ou null
+- unit_weight_g: number ou null
+- ET tous les micronutriments: ${microFieldsList}
+
+IMPORTANT: Les valeurs de micronutriments sont pour LA PORTION ESTIMÉE, pas pour 100g. Mets 0 si inconnu.
+
+RÈGLES D'ANALYSE:
+- Image: +5-10g lipides si aspect brillant/frit
+- Portions: utilise couteau/fourchette/assiette comme référence taille
+- Ambigu: choisir l'option la plus calorique
+- Unités: "2 tranches" → unit_count=2, unit_label="tranche"
+
+FORMAT JSON DE SORTIE:
+{"meal_name":"...","confidence_score":0.95,"suggested_timestamp":"2024-...","items":[{"food_name":"...","calories":0,"proteins":0,"carbs":0,"fats":0,"estimated_weight_g":0,"unit_count":null,"unit_label":null,"unit_weight_g":null,${microKeysToRequest.map(k => `"${k}":0`).join(",")}}]}
+
+Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
 
   // Gestion du contexte Custom Foods
   let customFoodsContext = "";
