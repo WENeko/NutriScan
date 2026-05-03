@@ -17,8 +17,12 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, local_t
   check_nutrient?: string;
   requestedMicros?: string[];
 }): Promise<any> {
-  const apiKey = import.meta.env.VITE_GEMINI_API_KEY;
-  if (!apiKey) throw new Error("VITE_GEMINI_API_KEY non configurée");
+  // Priorité : localStorage > .env
+  const apiKey = typeof window !== 'undefined'
+    ? (localStorage.getItem('user_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY)
+    : import.meta.env.VITE_GEMINI_API_KEY;
+  
+  if (!apiKey) throw new Error("Clé API Gemini non configurée (localStorage 'user_gemini_api_key' ou VITE_GEMINI_API_KEY)");
 
   // Gemini model et endpoint API
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;

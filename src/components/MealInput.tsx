@@ -1,26 +1,26 @@
-import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { 
-  Camera, Image as ImageIcon, Send, X, Check, AlertCircle, ChefHat, 
-  Flame, Utensils, Info, History, Sparkles, ChevronDown, ChevronUp, 
-  Plus, Trash2, Clock, Calendar, Zap, Coffee, ArrowRight, Loader2, 
-  Target, Scale, PieChart, Activity, TrendingUp, HelpCircle, 
-  Settings, Save, RefreshCw, Smartphone
-} from 'lucide-react';
-
-// --- SERVICE IMPORTS ---
-import { analyzeMealWithGemini } from '@/services/geminiAiService';
-import { saveMealWithDualWrite } from '@/services/mealPersistenceService';
-import { ensureUserInPersonalDB, logDatabaseHealth } from '@/services/databaseSyncService';
-import { localToUtcIso } from '@/lib/timezoneUtils';
-import { NUTRIENTS_MASTER_LIST, getNutrientKeys } from '@/utils/nutrition-logic';
-
-// --- SUPABASE IMPORTS ---
-import { supabase as supabaseLovable } from '@/integrations/supabase/client';
-import { createClient } from '@supabase/supabase-js';
+import React, { useRef, useState, useEffect } from "react";
+import { supabase as supabaseLovable } from "@/integrations/supabase/client";
+import { createClient } from "@supabase/supabase-js";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, AlertCircle } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import BarcodeScanner from "./BarcodeScanner";
+import NumericInput from "./NumericInput";
+import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
+import { analyzeMealWithGemini } from "@/services/geminiAiService";
+import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
+import { ensureUserInPersonalDB, logDatabaseHealth } from "@/services/databaseSyncService";
+import { localToUtcIso } from "@/lib/timezoneUtils";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
 const PERSONAL_SUPABASE_ANON_KEY = import.meta.env.VITE_PERSONAL_SUPABASE_ANON_KEY;
+
+// Validation et logging des variables d'environnement
+console.log("[MealInput] VITE_PERSONAL_SUPABASE_URL:", PERSONAL_SUPABASE_URL ? "✅ Définie" : "❌ Non définie");
+console.log("[MealInput] VITE_PERSONAL_SUPABASE_ANON_KEY:", PERSONAL_SUPABASE_ANON_KEY ? "✅ Définie" : "❌ Non définie");
 
 const supabasePerso = (PERSONAL_SUPABASE_URL && PERSONAL_SUPABASE_ANON_KEY)
   ? createClient(PERSONAL_SUPABASE_URL, PERSONAL_SUPABASE_ANON_KEY, {
@@ -28,716 +28,803 @@ const supabasePerso = (PERSONAL_SUPABASE_URL && PERSONAL_SUPABASE_ANON_KEY)
     })
   : null;
 
-/**
- * COMPOSANT PRINCIPAL : NUTRISCAN WEB PRO
- * Une application complète de suivi nutritionnel par IA.
- */
-export default function App() {
-  // --- ÉTATS D'AUTHENTIFICATION ---
-  const [user, setUser] = useState(null);
-  const [authLoading, setAuthLoading] = useState(true);
+if (!supabasePerso) {
+  console.warn("[MealInput] ⚠️ Client Supabase Perso non initialisé - vérifiez le .env");
+}
 
-  // --- ÉTATS DE L'INTERFACE (UI) ---
-  const [activeTab, setActiveTab] = useState('text'); // 'text' | 'camera'
-  const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [showAnalysisResult, setShowAnalysisResult] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [showCamera, setShowCamera] = useState(false);
-  const [notification, setNotification] = useState(null);
-  const [isProcessingImage, setIsProcessingImage] = useState(false);
+interface MealItem {
+  name: string;
+  quantity: string;
+  calories: number;
+  proteins: number;
+  carbs: number;
+  fats: number;
+  protDensity: number;
+  carbsDensity: number;
+  fatsDensity: number;
+  isCustom?: boolean;
+  fiber?: number;
+  sugar?: number;
+  saturated_fat?: number;
+  omega3_mg?: number;
+  sodium_mg?: number;
+  potassium_mg?: number;
+  magnesium_mg?: number;
+  calcium_mg?: number;
+  vitamin_b_mg?: number;
+  vitamin_c_mg?: number;
+  vitamin_d_mcg?: number;
+  vitamin_e_mg?: number;
+  unitCount?: number;
+  unitWeightG?: number;
+  unitLabel?: string;
+  isCooked?: boolean;
+}
 
-  // --- ÉTATS DES DONNÉES DU REPAS ---
-  const [inputText, setInputText] = useState('');
-  const [selectedImage, setSelectedImage] = useState(null);
-  const [analysisResult, setAnalysisResult] = useState(null);
-  const [portionSize, setPortionSize] = useState(1);
-  const [mealType, setMealType] = useState('lunch');
-  const [historyMeals, setHistoryMeals] = useState([]);
+const roundNutrient = (value: number) => Math.round(value * 10) / 10;
 
-  // --- RÉFÉRENCES DOM ---
-  const videoRef = useRef(null);
-  const canvasRef = useRef(null);
-  const fileInputRef = useRef(null);
+const getItemWeight = (item: MealItem) => {
+  if (item.unitCount && item.unitWeightG) return item.unitCount * item.unitWeightG;
+  return parseFloat((item.quantity || "").replace("g", "")) || 0;
+};
 
-  /**
-   * INITIALISATION DE L'AUTHENTIFICATION SUPABASE
-   */
+const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial<MealItem> = {}): MealItem => {
+  const currentWeight = getItemWeight(item);
+  const factor = currentWeight > 0 ? newWeight / currentWeight : 1;
+
+  return {
+    ...item,
+    ...overrides,
+    quantity: `${newWeight}g`,
+    calories: Math.round(item.calories * factor),
+    proteins: roundNutrient(item.proteins * factor),
+    carbs: roundNutrient(item.carbs * factor),
+    fats: roundNutrient(item.fats * factor),
+    fiber: roundNutrient((item.fiber || 0) * factor),
+    sugar: roundNutrient((item.sugar || 0) * factor),
+    saturated_fat: roundNutrient((item.saturated_fat || 0) * factor),
+    omega3_mg: roundNutrient((item.omega3_mg || 0) * factor),
+    sodium_mg: roundNutrient((item.sodium_mg || 0) * factor),
+    potassium_mg: roundNutrient((item.potassium_mg || 0) * factor),
+    magnesium_mg: roundNutrient((item.magnesium_mg || 0) * factor),
+    calcium_mg: roundNutrient((item.calcium_mg || 0) * factor),
+    vitamin_b_mg: roundNutrient((item.vitamin_b_mg || 0) * factor),
+    vitamin_c_mg: roundNutrient((item.vitamin_c_mg || 0) * factor),
+    vitamin_d_mcg: roundNutrient((item.vitamin_d_mcg || 0) * factor),
+    vitamin_e_mg: roundNutrient((item.vitamin_e_mg || 0) * factor),
+  };
+};
+
+// Raw/cooked ratio: cooked weight = raw weight * 2.5 (for starches/grains)
+const RAW_TO_COOKED_RATIO = 2.5;
+
+interface MealInputProps {
+  userId: string;
+  onMealSaved: () => void;
+}
+
+type InputMode = "image" | "text" | "barcode";
+
+const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const galleryInputRef = useRef<HTMLInputElement>(null);
+  const [mode, setMode] = useState<InputMode>("image");
+  const [preview, setPreview] = useState<string | null>(null);
+  const [analyzing, setAnalyzing] = useState(false);
+  const [items, setItems] = useState<MealItem[]>([]);
+  const [rawAnalysis, setRawAnalysis] = useState("");
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [textInput, setTextInput] = useState("");
+  const [mealName, setMealName] = useState("");
+  const [editingName, setEditingName] = useState(false);
+  const [mealTimestamp, setMealTimestamp] = useState("");
+  const [source, setSource] = useState<"ai" | "text" | "barcode">("ai");
+  const [addingManual, setAddingManual] = useState(false);
+  const [manualItem, setManualItem] = useState({ name: "", weight: "" });
+  const [manualIsCooked, setManualIsCooked] = useState(false);
+
+  // Initialisation - vérifier la santé de la BDD perso
   useEffect(() => {
-    const initAuth = async () => {
-      try {
-        setAuthLoading(true);
-        // Vérifier session existante
-        const { data: { session } } = await supabaseLovable.auth.getSession();
-        if (session?.user) {
-          setUser(session.user);
-          // Synchroniser l'utilisateur dans la BDD perso si nécessaire
-          await ensureUserInPersonalDB(session.user.id, session.user.email);
-        } else {
-          // Sign in anonyme si pas de session
-          const { data, error } = await supabaseLovable.auth.signInAnonymously();
-          if (error) throw error;
-          setUser(data.user);
-          // Synchroniser l'utilisateur anonyme aussi
-          await ensureUserInPersonalDB(data.user.id, data.user.email);
-        }
-        
-        // Vérifier la santé de la BDD perso (une fois au démarrage)
-        await logDatabaseHealth();
-      } catch (err) {
-        showFeedback("Erreur de connexion : " + err.message, "error");
-      } finally {
-        setAuthLoading(false);
-      }
+    const init = async () => {
+      await logDatabaseHealth();
     };
-    initAuth();
-    
-    // Écouter les changements d'auth
-    const { data: { subscription } } = supabaseLovable.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user || null);
-    });
-    
-    return () => subscription.unsubscribe();
+    init();
   }, []);
 
-  /**
-   * SYNCHRONISATION SUPABASE EN TEMPS RÉEL
-   */
-  useEffect(() => {
-    if (!user) return;
-
-    // Chargement initial des repas
-    const loadMeals = async () => {
-      const { data, error } = await supabaseLovable
-        .from('meals')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('timestamp', { ascending: false });
-      
-      if (error) {
-        console.error("Erreur Supabase:", error);
-        showFeedback("Impossible de charger l'historique", "error");
-        return;
-      }
-      
-      setHistoryMeals(data || []);
-    };
-    
-    loadMeals();
-    
-    // Souscription temps réel
-    const subscription = supabaseLovable
-      .channel('meals-channel')
-      .on('postgres_changes', 
-        { event: '*', schema: 'public', table: 'meals', filter: `user_id=eq.${user.id}` },
-        (payload) => {
-          if (payload.eventType === 'INSERT') {
-            setHistoryMeals(prev => [payload.new, ...prev]);
-          } else if (payload.eventType === 'DELETE') {
-            setHistoryMeals(prev => prev.filter(m => m.id !== payload.old.id));
-          } else if (payload.eventType === 'UPDATE') {
-            setHistoryMeals(prev => prev.map(m => m.id === payload.new.id ? payload.new : m));
-          }
-        }
-      )
-      .subscribe();
-
-    return () => { subscription.unsubscribe(); };
-  }, [user]);
-
-  /**
-   * CALCULS DES STATISTIQUES (MÉMOÏSÉS)
-   */
-  const stats = useMemo(() => {
-    const totalCalories = historyMeals.reduce((acc, m) => acc + (Number(m.calories) || 0), 0);
-    const avgCalories = historyMeals.length > 0 ? (totalCalories / historyMeals.length).toFixed(0) : 0;
-    const totalProtein = historyMeals.reduce((acc, m) => acc + (Number(m.protein) || 0), 0);
-    return { totalCalories, avgCalories, totalProtein, count: historyMeals.length };
-  }, [historyMeals]);
-
-  /**
-   * SYSTÈME DE FEEDBACK (SANS ALERT)
-   */
-  const showFeedback = (message, type = 'success') => {
-    setNotification({ message, type });
-    setTimeout(() => setNotification(null), 4000);
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setImageFile(file);
+    setPreview(URL.createObjectURL(file));
+    setSource("ai");
+    await analyzeImage(file);
   };
 
-  /**
-   * LOGIQUE CAMERA (NAVIGATEUR)
-   */
-  const handleStartCamera = async () => {
-    setShowCamera(true);
+  const analyzeImage = async (file: File) => {
+    setAnalyzing(true);
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'environment', width: { ideal: 1280 }, height: { ideal: 720 } } 
+      const reader = new FileReader();
+      const base64 = await new Promise<string>((resolve) => {
+        reader.onload = () => resolve(reader.result as string);
+        reader.readAsDataURL(file);
       });
-      if (videoRef.current) {
-        videoRef.current.srcObject = stream;
-      }
-    } catch (err) {
-      showFeedback("Accès caméra refusé ou non disponible.", "error");
-      setShowCamera(false);
-    }
-  };
 
-  const handleCapture = () => {
-    if (videoRef.current && canvasRef.current) {
-      const context = canvasRef.current.getContext('2d');
-      const video = videoRef.current;
-      canvasRef.current.width = video.videoWidth;
-      canvasRef.current.height = video.videoHeight;
-      context.drawImage(video, 0, 0, video.videoWidth, video.videoHeight);
-      
-      const dataUrl = canvasRef.current.toDataURL('image/jpeg', 0.8);
-      setSelectedImage(dataUrl);
-      handleStopCamera();
-    }
-  };
+      const { data: customFoods } = await supabaseLovable
+        .from("custom_foods")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
+        .eq("user_id", userId);
 
-  const handleStopCamera = () => {
-    if (videoRef.current && videoRef.current.srcObject) {
-      videoRef.current.srcObject.getTracks().forEach(track => track.stop());
-    }
-    setShowCamera(false);
-  };
-
-  const handleRunAnalysis = async () => {
-    if (!inputText && !selectedImage) {
-      showFeedback("Veuillez entrer du texte ou une photo.", "error");
-      return;
-    }
-
-    setIsAnalyzing(true);
-    try {
-      // Récupérer la liste dynamique des micronutriments depuis la source unique
-      const microKeys = getNutrientKeys();
-      
       const result = await analyzeMealWithGemini({ 
-        text: inputText || undefined, 
-        image: selectedImage || undefined,
-        requestedMicros: microKeys
+        image: base64, 
+        custom_foods: customFoods || [] 
       });
       
-      // Mapper la réponse du service vers le format attendu par l'UI
-      // Conserver les micronutriments dans chaque item
-      setAnalysisResult({
-        name: result.meal_name,
-        calories: result.items?.reduce((sum, item) => sum + (item.calories || 0), 0) || 0,
-        protein: result.items?.reduce((sum, item) => sum + (item.proteins || 0), 0) || 0,
-        carbs: result.items?.reduce((sum, item) => sum + (item.carbs || 0), 0) || 0,
-        fat: result.items?.reduce((sum, item) => sum + (item.fats || 0), 0) || 0,
-        description: result.items?.map(item => item.food_name).join(', ') || '',
-        items: result.items || []
-      });
-      setShowAnalysisResult(true);
-      showFeedback("Analyse réussie !");
-    } catch (err) {
-      showFeedback("L'analyse a échoué. Réessayez.", "error");
+      handleAIResponse(result, customFoods || []);
+    } catch (error: any) {
+      toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
     } finally {
-      setIsAnalyzing(false);
+      setAnalyzing(false);
     }
   };
 
-  const handleSaveMeal = async () => {
-    if (!user || !analysisResult) return;
-    
-    setIsSaving(true);
+  const analyzeText = async () => {
+    if (!textInput.trim()) return;
+    setAnalyzing(true);
+    setSource("text");
     try {
-      // Préparer les items pour la sauvegarde (conserver les micronutriments de l'IA)
-      const items = analysisResult.items?.map(item => ({
-        food_name: item.food_name,
-        calories: Math.round((item.calories || 0) * portionSize),
-        proteins: Math.round((item.proteins || 0) * portionSize),
-        carbs: Math.round((item.carbs || 0) * portionSize),
-        fats: Math.round((item.fats || 0) * portionSize),
-        estimated_weight_g: item.estimated_weight_g || item.unit_weight_g || 100,
-        // Micronutriments (déjà calculés pour la portion par l'IA)
-        fiber: (item.fiber || 0) * portionSize,
-        sugar: (item.sugar || 0) * portionSize,
-        sodium_mg: (item.sodium_mg || 0) * portionSize,
-        potassium_mg: (item.potassium_mg || 0) * portionSize,
-        magnesium_mg: (item.magnesium_mg || 0) * portionSize,
-        calcium_mg: (item.calcium_mg || 0) * portionSize,
-        iron_mg: (item.iron_mg || 0) * portionSize,
-        zinc_mg: (item.zinc_mg || 0) * portionSize,
-        vitamin_c_mg: (item.vitamin_c_mg || 0) * portionSize,
-        vitamin_d_mcg: (item.vitamin_d_mcg || 0) * portionSize,
-        vitamin_b9_mcg: (item.vitamin_b9_mcg || 0) * portionSize,
-        vitamin_b12_mcg: (item.vitamin_b12_mcg || 0) * portionSize,
-        vitamin_e_mg: (item.vitamin_e_mg || 0) * portionSize,
-        omega3_mg: (item.omega3_mg || 0) * portionSize,
-        saturated_fat: (item.saturated_fat || 0) * portionSize
-      })) || [];
+      const { data: customFoods } = await supabaseLovable
+        .from("custom_foods")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
+        .eq("user_id", userId);
 
-      // Calculer les totaux de micronutriments
-      const microTotals = {
-        total_fiber: items.reduce((sum, item) => sum + (item.fiber || 0), 0),
-        total_sugar: items.reduce((sum, item) => sum + (item.sugar || 0), 0),
-        total_sodium_mg: items.reduce((sum, item) => sum + (item.sodium_mg || 0), 0),
-        total_potassium_mg: items.reduce((sum, item) => sum + (item.potassium_mg || 0), 0),
-        total_magnesium_mg: items.reduce((sum, item) => sum + (item.magnesium_mg || 0), 0),
-        total_calcium_mg: items.reduce((sum, item) => sum + (item.calcium_mg || 0), 0),
-        total_iron_mg: items.reduce((sum, item) => sum + (item.iron_mg || 0), 0),
-        total_zinc_mg: items.reduce((sum, item) => sum + (item.zinc_mg || 0), 0),
-        total_vitamin_c_mg: items.reduce((sum, item) => sum + (item.vitamin_c_mg || 0), 0),
-        total_vitamin_d_mcg: items.reduce((sum, item) => sum + (item.vitamin_d_mcg || 0), 0),
-        total_vitamin_b9_mcg: items.reduce((sum, item) => sum + (item.vitamin_b9_mcg || 0), 0),
-        total_vitamin_b12_mcg: items.reduce((sum, item) => sum + (item.vitamin_b12_mcg || 0), 0),
-        total_vitamin_e_mg: items.reduce((sum, item) => sum + (item.vitamin_e_mg || 0), 0),
-        total_omega3_mg: items.reduce((sum, item) => sum + (item.omega3_mg || 0), 0)
+      const result = await analyzeMealWithGemini({ 
+        text: textInput, 
+        custom_foods: customFoods || [], 
+        local_time: new Date().toLocaleString("fr-FR") 
+      });
+      
+      handleAIResponse(result, customFoods || []);
+    } catch (error: any) {
+      toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
+    } finally {
+      setAnalyzing(false);
+    }
+  };
+
+  const handleAIResponse = (data: any, customFoods: any[]) => {
+    setRawAnalysis(JSON.stringify(data));
+    setMealName(data.meal_name || "");
+    if (data.suggested_timestamp) {
+      setMealTimestamp(data.suggested_timestamp);
+    }
+    const customFoodMap = new Map(customFoods.map((f: any) => [f.name.toLowerCase(), f]));
+
+    const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
+      const customMatch = customFoodMap.get(item.name?.toLowerCase());
+      const aiWeight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
+      const hasExplicitWeight = Boolean(item.estimated_weight_g || item.weight_g);
+      const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
+      const weight = customMatch && (!hasExplicitWeight || aiWeight === 100) ? customDefaultWeight : aiWeight;
+      let proteins = Number(item.proteins) || 0;
+      let carbs = Number(item.carbs) || 0;
+      let fats = Number(item.fats) || 0;
+      let calories = Number(item.calories) || Math.round(proteins * 4 + carbs * 4 + fats * 9);
+      let fiber = Number(item.fiber) || 0;
+      let sugar = Number(item.sugar) || 0;
+      let saturated_fat = Number(item.saturated_fat) || 0;
+      let omega3_mg = Number(item.omega3_mg) || 0;
+      let sodium_mg = Number(item.sodium_mg) || 0;
+      let potassium_mg = Number(item.potassium_mg) || 0;
+      let magnesium_mg = Number(item.magnesium_mg) || 0;
+      let calcium_mg = Number(item.calcium_mg) || 0;
+      let vitamin_b_mg = Number(item.vitamin_b_mg) || 0;
+      let vitamin_c_mg = Number(item.vitamin_c_mg) || 0;
+      let vitamin_d_mcg = Number(item.vitamin_d_mcg) || 0;
+      let vitamin_e_mg = Number(item.vitamin_e_mg) || 0;
+      let isCustom = false;
+
+      if (customMatch) {
+        proteins = roundNutrient((Number(customMatch.proteins_per_100g) || 0) * weight / 100);
+        carbs = roundNutrient((Number(customMatch.carbs_per_100g) || 0) * weight / 100);
+        fats = roundNutrient((Number(customMatch.fats_per_100g) || 0) * weight / 100);
+        calories = Math.round((Number(customMatch.calories_per_100g) || 0) * weight / 100);
+        fiber = roundNutrient((Number(customMatch.fiber_per_100g) || 0) * weight / 100);
+        sugar = roundNutrient((Number(customMatch.sugar_per_100g) || 0) * weight / 100);
+        saturated_fat = roundNutrient((Number(customMatch.saturated_fat_per_100g) || 0) * weight / 100);
+        omega3_mg = roundNutrient((Number(customMatch.omega3_mg_per_100g) || 0) * weight / 100);
+        sodium_mg = roundNutrient((Number(customMatch.sodium_mg_per_100g) || 0) * weight / 100);
+        potassium_mg = roundNutrient((Number(customMatch.potassium_mg_per_100g) || 0) * weight / 100);
+        magnesium_mg = roundNutrient((Number(customMatch.magnesium_mg_per_100g) || 0) * weight / 100);
+        calcium_mg = roundNutrient((Number(customMatch.calcium_mg_per_100g) || 0) * weight / 100);
+        vitamin_b_mg = roundNutrient((Number(customMatch.vitamin_b_per_100g) || 0) * weight / 100);
+        vitamin_c_mg = roundNutrient((Number(customMatch.vitamin_c_per_100g) || 0) * weight / 100);
+        vitamin_d_mcg = roundNutrient((Number(customMatch.vitamin_d_per_100g) || 0) * weight / 100);
+        vitamin_e_mg = roundNutrient((Number(customMatch.vitamin_e_per_100g) || 0) * weight / 100);
+        isCustom = true;
+      }
+
+      const unitCount = item.unit_count ? parseInt(item.unit_count) : undefined;
+      const unitWeightG = item.unit_weight_g ? parseInt(item.unit_weight_g) : undefined;
+      const unitLabel = item.unit_label || undefined;
+
+      return {
+        name: item.name,
+        quantity: `${weight}g`,
+        calories, proteins, carbs, fats,
+        protDensity: proteins / weight,
+        carbsDensity: carbs / weight,
+        fatsDensity: fats / weight,
+        isCustom,
+        fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
+        vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+        ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
-
-      // S'assurer que l'utilisateur existe dans la BDD perso avant de sauvegarder
-      await ensureUserInPersonalDB(user.id, user.email);
-      
-      console.log("[MealInput] Sauvegarde avec userId:", user.id);
-      console.log("[MealInput] Données meal:", {
-        name: analysisResult.name,
-        calories: analysisResult.calories,
-        itemsCount: items.length
-      });
-      
-      const savedMeal = await saveMealWithDualWrite({
-        userId: user.id,
-        mealData: {
-          meal_name: analysisResult.name,
-          total_calories: Math.round(analysisResult.calories * portionSize),
-          total_proteins: Math.round(analysisResult.protein * portionSize),
-          total_carbs: Math.round(analysisResult.carbs * portionSize),
-          total_fats: Math.round(analysisResult.fat * portionSize),
-          timestamp: localToUtcIso(new Date()),
-          ...microTotals
-        },
-        items
-      });
-      
-      console.log("[MealInput] Repas sauvegardé:", savedMeal);
-      showFeedback("Repas enregistré avec succès !");
-      resetForm();
-    } catch (err) {
-      console.error("[MealInput] Erreur lors de l'enregistrement:", err);
-      showFeedback("Erreur lors de l'enregistrement: " + (err.message || "Erreur inconnue"), "error");
-    } finally {
-      setIsSaving(false);
-      setShowAnalysisResult(false);
-    }
+    });
+    setItems((prev) => [...prev, ...mappedItems]);
   };
 
-  const handleDeleteMeal = async (id) => {
-    try {
-      const { error } = await supabaseLovable.from('meals').delete().eq('id', id);
-      if (error) throw error;
-      showFeedback("Entrée supprimée.");
-    } catch (err) {
-      showFeedback("Erreur de suppression.", "error");
-    }
+  const handleBarcodeProduct = (product: any) => {
+    setSource("barcode");
+    if (!mealName) setMealName(product.name);
+    const weight = product.weight_g || 100;
+    const proteins = product.proteins || 0;
+    const carbs = product.carbs || 0;
+    const fats = product.fats || 0;
+    setItems((prev) => [...prev, {
+      name: product.name,
+      quantity: `${weight}g`,
+      calories: product.calories || Math.round(proteins * 4 + carbs * 4 + fats * 9),
+      proteins, carbs, fats,
+      protDensity: proteins / weight,
+      carbsDensity: carbs / weight,
+      fatsDensity: fats / weight,
+      fiber: product.fiber || 0,
+      sugar: product.sugar || 0,
+      saturated_fat: product.saturated_fat || 0,
+      omega3_mg: product.omega3_mg || 0,
+      sodium_mg: product.sodium_mg || 0,
+      potassium_mg: product.potassium_mg || 0,
+      magnesium_mg: product.magnesium_mg || 0,
+      calcium_mg: product.calcium_mg || 0,
+      vitamin_b_mg: product.vitamin_b_mg || 0,
+      vitamin_c_mg: product.vitamin_c_mg || 0,
+      vitamin_d_mcg: product.vitamin_d_mcg || 0,
+      vitamin_e_mg: product.vitamin_e_mg || 0,
+    }]);
   };
 
-  const resetForm = () => {
-    setInputText('');
-    setSelectedImage(null);
-    setAnalysisResult(null);
-    setPortionSize(1);
-  };
-
-  // --- RENDU UI ---
-
-  if (authLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50">
-        <div className="text-center space-y-4">
-          <Loader2 className="animate-spin mx-auto text-orange-500" size={48} />
-          <p className="font-bold text-slate-400 animate-pulse">Initialisation de NutriScan...</p>
-        </div>
-      </div>
+  const updateItemWeight = (idx: number, rawValue: string) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const newWeight = parseFloat(rawValue);
+        if (!isNaN(newWeight) && newWeight > 0) {
+          return scaleItemToWeight(item, newWeight);
+        }
+        return { ...item, quantity: rawValue ? `${rawValue}g` : "" };
+      })
     );
-  }
+  };
+
+  const updateItemUnits = (idx: number, delta: number) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx || !item.unitCount || !item.unitWeightG) return item;
+        const newCount = Math.max(1, item.unitCount + delta);
+        const newWeight = newCount * item.unitWeightG;
+        return scaleItemToWeight(item, newWeight, { unitCount: newCount });
+      })
+    );
+  };
+
+  const updateItemName = (idx: number, name: string) => {
+    setItems((prev) => prev.map((item, i) => i === idx ? { ...item, name } : item));
+  };
+
+  const removeItem = (idx: number) => {
+    setItems((prev) => prev.filter((_, i) => i !== idx));
+  };
+
+  const toggleItemCooked = (idx: number) => {
+    setItems((prev) =>
+      prev.map((item, i) => {
+        if (i !== idx) return item;
+        const currentWeight = getItemWeight(item);
+        if (item.isCooked) {
+          const rawWeight = Math.round(currentWeight / RAW_TO_COOKED_RATIO);
+          return { ...item, isCooked: false, quantity: `${rawWeight}g` };
+        } else {
+          const cookedWeight = Math.round(currentWeight * RAW_TO_COOKED_RATIO);
+          return { ...item, isCooked: true, quantity: `${cookedWeight}g` };
+        }
+      })
+    );
+  };
+
+  const addManualItem = async () => {
+    if (!manualItem.name.trim()) return;
+
+    const { data: customFoods } = await supabaseLovable
+      .from("custom_foods")
+      .select("*")
+      .eq("user_id", userId)
+      .ilike("name", `%${manualItem.name}%`)
+      .limit(1);
+
+    if (customFoods && customFoods.length > 0) {
+      const cf = customFoods[0] as any;
+      let weight = manualItem.weight ? (parseFloat(manualItem.weight) || cf.serving_size_g || 100) : (cf.serving_size_g || 100);
+      const nutrientWeight = manualIsCooked ? weight / RAW_TO_COOKED_RATIO : weight;
+      const proteins = roundNutrient((cf.proteins_per_100g || 0) * nutrientWeight / 100);
+      const carbs = roundNutrient((cf.carbs_per_100g || 0) * nutrientWeight / 100);
+      const fats = roundNutrient((cf.fats_per_100g || 0) * nutrientWeight / 100);
+      const fiber = roundNutrient((cf.fiber_per_100g || 0) * nutrientWeight / 100);
+      const sugar = roundNutrient((cf.sugar_per_100g || 0) * nutrientWeight / 100);
+      const saturated_fat = roundNutrient((cf.saturated_fat_per_100g || 0) * nutrientWeight / 100);
+      const omega3_mg = roundNutrient((cf.omega3_mg_per_100g || 0) * nutrientWeight / 100);
+      const sodium_mg = roundNutrient((cf.sodium_mg_per_100g || 0) * nutrientWeight / 100);
+      const potassium_mg = roundNutrient((cf.potassium_mg_per_100g || 0) * nutrientWeight / 100);
+      const magnesium_mg = roundNutrient((cf.magnesium_mg_per_100g || 0) * nutrientWeight / 100);
+      const calcium_mg = roundNutrient((cf.calcium_mg_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_b_mg = roundNutrient((cf.vitamin_b_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_c_mg = roundNutrient((cf.vitamin_c_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_d_mcg = roundNutrient((cf.vitamin_d_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_e_mg = roundNutrient((cf.vitamin_e_per_100g || 0) * nutrientWeight / 100);
+      setItems((prev) => [...prev, {
+        name: cf.name + (manualIsCooked ? " (cuit)" : ""),
+        quantity: `${weight}g`,
+        calories: Math.round((cf.calories_per_100g || 0) * nutrientWeight / 100),
+        proteins, carbs, fats,
+        protDensity: cf.proteins_per_100g / 100,
+        carbsDensity: cf.carbs_per_100g / 100,
+        fatsDensity: cf.fats_per_100g / 100,
+        isCustom: true, isCooked: manualIsCooked,
+        fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
+        vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+      }]);
+      toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g${manualIsCooked ? " (cuit)" : ""}` });
+    } else {
+      const weight = parseFloat(manualItem.weight) || 100;
+      const queryWeight = manualIsCooked ? Math.round(weight / RAW_TO_COOKED_RATIO) : weight;
+      setAnalyzing(true);
+      try {
+        const result = await analyzeMealWithGemini({ 
+          text: `${queryWeight}g de ${manualItem.name}` 
+        });
+        const item = result.items?.[0];
+        if (item) {
+          const p = item.proteins || 0;
+          const c = item.carbs || 0;
+          const f = item.fats || 0;
+          setItems((prev) => [...prev, {
+            name: (item.name || manualItem.name) + (manualIsCooked ? " (cuit)" : ""),
+            quantity: `${weight}g`,
+            calories: Number(item.calories) || Math.round(p * 4 + c * 4 + f * 9),
+            proteins: p, carbs: c, fats: f,
+            protDensity: p / queryWeight,
+            carbsDensity: c / queryWeight,
+            fatsDensity: f / queryWeight,
+            isCooked: manualIsCooked,
+            fiber: Number(item.fiber) || 0,
+            sugar: Number(item.sugar) || 0,
+            saturated_fat: Number(item.saturated_fat) || 0,
+            omega3_mg: Number(item.omega3_mg) || 0,
+            sodium_mg: Number(item.sodium_mg) || 0,
+            potassium_mg: Number(item.potassium_mg) || 0,
+            magnesium_mg: Number(item.magnesium_mg) || 0,
+            calcium_mg: Number(item.calcium_mg) || 0,
+            vitamin_b_mg: Number(item.vitamin_b_mg) || 0,
+            vitamin_c_mg: Number(item.vitamin_c_mg) || 0,
+            vitamin_d_mcg: Number(item.vitamin_d_mcg) || 0,
+            vitamin_e_mg: Number(item.vitamin_e_mg) || 0,
+          }]);
+        }
+      } catch (e: any) {
+        toast({ title: "Erreur", description: e.message, variant: "destructive" });
+      } finally {
+        setAnalyzing(false);
+      }
+    }
+    setManualItem({ name: "", weight: "" });
+    setAddingManual(false);
+    setManualIsCooked(false);
+  };
+
+  const computeTotals = () =>
+    items.reduce(
+      (acc, item) => ({
+        calories: acc.calories + Number(item.calories),
+        proteins: acc.proteins + Number(item.proteins),
+        carbs: acc.carbs + Number(item.carbs),
+        fats: acc.fats + Number(item.fats),
+      }),
+      { calories: 0, proteins: 0, carbs: 0, fats: 0 }
+    );
+
+  const saveMeal = async () => {
+    if (items.length === 0) return;
+    try {
+      let imageUrl: string | null = null;
+      if (imageFile) {
+        const ext = imageFile.name.split(".").pop();
+        const path = `${userId}/${Date.now()}.${ext}`;
+        const { error: uploadError } = await supabaseLovable.storage.from("meal-images").upload(path, imageFile);
+        if (uploadError) throw uploadError;
+        const { data: urlData } = supabaseLovable.storage.from("meal-images").getPublicUrl(path);
+        imageUrl = urlData.publicUrl;
+      }
+
+      const totals = computeTotals();
+      const timestamp = mealTimestamp ? localDateTimeToISO(mealTimestamp) : new Date().toISOString();
+
+      // S'assurer que l'utilisateur existe dans la BDD perso
+      await ensureUserInPersonalDB(userId);
+
+      // Sauvegarde Dual Write (Lovable + Perso)
+      await saveMealWithDualWrite({
+        userId,
+        mealData: {
+          meal_name: mealName || "Repas",
+          total_calories: totals.calories,
+          total_proteins: totals.proteins,
+          total_carbs: totals.carbs,
+          total_fats: totals.fats,
+          image_url: imageUrl,
+          timestamp
+        },
+        items: items.map(item => ({
+          food_name: item.name,
+          name: item.name,
+          calories: Number(item.calories),
+          proteins: Number(item.proteins),
+          carbs: Number(item.carbs),
+          fats: Number(item.fats),
+          fiber: item.fiber || 0,
+          sugar: item.sugar || 0,
+          sodium_mg: item.sodium_mg || 0,
+          potassium_mg: item.potassium_mg || 0,
+          magnesium_mg: item.magnesium_mg || 0,
+          calcium_mg: item.calcium_mg || 0,
+          iron_mg: 0,
+          zinc_mg: 0,
+          vitamin_c_mg: item.vitamin_c_mg || 0,
+          vitamin_d_mcg: item.vitamin_d_mcg || 0,
+          vitamin_b9_mcg: 0,
+          vitamin_b12_mcg: 0,
+          vitamin_e_mg: item.vitamin_e_mg || 0,
+          omega3_mg: item.omega3_mg || 0,
+          saturated_fat: item.saturated_fat || 0,
+          vitamin_b_mg: item.vitamin_b_mg || 0,
+          quantity: 1,
+          estimated_weight_g: parseFloat(item.quantity?.replace("g", "") || "100") || 100
+        }))
+      });
+
+      toast({ title: "Repas enregistré !" });
+      resetState();
+      onMealSaved();
+    } catch (error: any) {
+      console.error("[MealInput] Erreur sauvegarde:", error);
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+    }
+  };
+
+  const resetState = () => {
+    setPreview(null);
+    setItems([]);
+    setImageFile(null);
+    setTextInput("");
+    setRawAnalysis("");
+    setMealName("");
+    setMealTimestamp("");
+    setEditingIdx(null);
+    setEditingName(false);
+    setAddingManual(false);
+    setManualIsCooked(false);
+  };
+
+  const totals = computeTotals();
+  const hasResults = items.length > 0;
+
+  const tabs: { id: InputMode; label: string; icon: React.ReactNode }[] = [
+    { id: "image", label: "Photo", icon: <Camera className="w-4 h-4" /> },
+    { id: "text", label: "Texte", icon: <MessageSquareText className="w-4 h-4" /> },
+    { id: "barcode", label: "Code-barres", icon: <ScanBarcode className="w-4 h-4" /> },
+  ];
 
   return (
-    <div className="min-h-screen bg-slate-50 text-slate-900 font-sans selection:bg-orange-100 pb-24">
-      {/* NOTIFICATIONS VOLANTES */}
-      {notification && (
-        <div className={`fixed top-6 left-1/2 -translate-x-1/2 z-[100] px-6 py-3 rounded-2xl shadow-2xl flex items-center gap-3 animate-in slide-in-from-top-10 duration-300 ${
-          notification.type === 'error' ? 'bg-red-600 text-white' : 'bg-slate-900 text-white'
-        }`}>
-          {notification.type === 'error' ? <AlertCircle size={18} /> : <Check size={18} className="text-green-400" />}
-          <span className="font-bold text-sm">{notification.message}</span>
+    <div className="space-y-4">
+      {/* Validation env vars warning */}
+      {!supabasePerso && (
+        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-2 text-sm text-yellow-800">
+          <AlertCircle className="w-4 h-4" />
+          <span>Configuration BDD perso manquante - vérifiez le .env</span>
         </div>
       )}
 
-      {/* HEADER PREMIUM */}
-      <header className="bg-white/80 backdrop-blur-md border-b sticky top-0 z-40 px-4 py-3">
-        <div className="max-w-4xl mx-auto flex justify-between items-center">
-          <div className="flex items-center gap-3">
-            <div className="bg-gradient-to-tr from-orange-500 to-amber-400 p-2 rounded-2xl shadow-lg shadow-orange-200">
-              <ChefHat size={24} className="text-white" />
+      {!hasResults && (
+        <div className="flex rounded-xl bg-muted p-1 gap-1">
+          {tabs.map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setMode(tab.id)}
+              className={`flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-lg text-xs font-semibold transition-all ${
+                mode === tab.id ? "bg-card text-foreground shadow-card" : "text-muted-foreground hover:text-foreground"
+              }`}
+            >
+              {tab.icon}
+              {tab.label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {mode === "image" && !hasResults && (
+        <>
+          <input ref={fileInputRef} type="file" accept="image/*" capture="environment" className="hidden" onChange={handleFileChange} />
+          <input ref={galleryInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+          {!preview && (
+            <div className="flex gap-3">
+              <button
+                onClick={() => fileInputRef.current?.click()}
+                className="flex-1 h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
+                  <Camera className="w-6 h-6 text-primary-foreground" />
+                </div>
+                <span className="text-sm font-semibold text-primary">Photo</span>
+              </button>
+              <button
+                onClick={() => galleryInputRef.current?.click()}
+                className="flex-1 h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
+              >
+                <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">
+                  <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                </div>
+                <span className="text-sm font-semibold text-primary">Galerie</span>
+              </button>
             </div>
-            <div>
-              <h1 className="text-xl font-black tracking-tighter">
-                NUTRI<span className="text-orange-500">SCAN</span>
-                <span className="ml-1 text-[10px] bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded uppercase font-bold tracking-widest">v2.0</span>
-              </h1>
-              <p className="text-[10px] text-slate-400 font-bold uppercase flex items-center gap-1">
-                <Smartphone size={10} /> Web Optimized
-              </p>
+          )}
+          {preview && (
+            <div className="relative rounded-2xl overflow-hidden shadow-card">
+              <img src={preview} alt="Repas" className="w-full h-44 object-cover" />
+              {analyzing && (
+                <div className="absolute inset-0 bg-foreground/50 flex items-center justify-center">
+                  <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-full">
+                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
+                    <span className="text-sm font-medium">Analyse en cours...</span>
+                  </div>
+                </div>
+              )}
             </div>
+          )}
+        </>
+      )}
+
+      {mode === "text" && !hasResults && (
+        <div className="space-y-3">
+          <Textarea
+            value={textInput}
+            onChange={(e) => setTextInput(e.target.value)}
+            placeholder="Décrivez votre repas... Ex: Hier à 22h, un café au lait et deux tartines de beurre"
+            className="min-h-[100px] rounded-xl text-sm resize-none"
+          />
+          <Button
+            onClick={analyzeText}
+            disabled={analyzing || !textInput.trim()}
+            className="w-full rounded-xl h-11 bg-primary text-primary-foreground hover:opacity-90"
+          >
+            {analyzing ? (
+              <><Loader2 className="w-4 h-4 animate-spin mr-2" /> Analyse en cours...</>
+            ) : (
+              "Analyser mon repas"
+            )}
+          </Button>
+        </div>
+      )}
+
+      {mode === "barcode" && !hasResults && (
+        <BarcodeScanner onProductFound={handleBarcodeProduct} />
+      )}
+
+      {hasResults && (
+        <div className="space-y-3 animate-fade-up">
+          <div className="flex items-center gap-2">
+            {editingName ? (
+              <Input
+                value={mealName}
+                onChange={(e) => setMealName(e.target.value)}
+                onBlur={() => setEditingName(false)}
+                onKeyDown={(e) => e.key === "Enter" && setEditingName(false)}
+                className="h-9 rounded-lg font-semibold"
+                autoFocus
+              />
+            ) : (
+              <button onClick={() => setEditingName(true)} className="flex items-center gap-1.5 text-left">
+                <h3 className="font-semibold text-base">{mealName || "Mon repas"}</h3>
+                <Pencil className="w-3 h-3 text-muted-foreground" />
+              </button>
+            )}
           </div>
 
           <div className="flex items-center gap-2">
-            <button 
-              onClick={() => setIsHistoryOpen(!isHistoryOpen)}
-              className={`p-2.5 rounded-xl transition-all ${isHistoryOpen ? 'bg-orange-100 text-orange-600' : 'bg-slate-100 text-slate-500 hover:bg-slate-200'}`}
-            >
-              <History size={20} />
-            </button>
-            <div className="h-8 w-[1px] bg-slate-200 mx-1 hidden sm:block"></div>
-            <div className="hidden sm:flex items-center gap-3 bg-slate-100 px-4 py-2 rounded-xl">
-              <div className="text-right">
-                <p className="text-[9px] font-bold text-slate-400 uppercase">Aujourd'hui</p>
-                <p className="text-sm font-black text-slate-700">{stats.totalCalories} kcal</p>
-              </div>
-              <div className="w-8 h-8 rounded-lg bg-white flex items-center justify-center text-orange-500 shadow-sm">
-                <Flame size={18} />
-              </div>
-            </div>
-          </div>
-        </div>
-      </header>
-
-      <main className="max-w-4xl mx-auto p-4 lg:p-8 grid grid-cols-1 lg:grid-cols-12 gap-8">
-        
-        {/* COLONNE GAUCHE : SAISIE (8 cols) */}
-        <div className="lg:col-span-7 space-y-6">
-          <section className="bg-white rounded-[2.5rem] shadow-xl shadow-slate-200/50 border border-slate-100 overflow-hidden transition-all hover:shadow-2xl hover:shadow-slate-200/60">
-            <div className="flex p-2 bg-slate-50/50">
-              <button 
-                onClick={() => setActiveTab('text')}
-                className={`flex-1 py-3 rounded-2xl text-xs font-black tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'text' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
-              >
-                <Utensils size={16} /> TEXTE
-              </button>
-              <button 
-                onClick={() => setActiveTab('camera')}
-                className={`flex-1 py-3 rounded-2xl text-xs font-black tracking-widest flex items-center justify-center gap-2 transition-all ${activeTab === 'camera' ? 'bg-white text-orange-600 shadow-sm' : 'text-slate-400 hover:text-slate-500'}`}
-              >
-                <Camera size={16} /> APPAREIL PHOTO
-              </button>
-            </div>
-
-            <div className="p-8">
-              {activeTab === 'text' ? (
-                <textarea
-                  className="w-full h-40 text-xl font-medium bg-transparent border-none focus:ring-0 resize-none placeholder:text-slate-200"
-                  placeholder="Décrivez votre repas... (ex: Un bowl de riz, saumon grillé et avocat)"
-                  value={inputText}
-                  onChange={(e) => setInputText(e.target.value)}
-                />
-              ) : (
-                <div className="space-y-4">
-                  {selectedImage ? (
-                    <div className="relative rounded-3xl overflow-hidden group aspect-video bg-slate-100">
-                      <img src={selectedImage} alt="Repas" className="w-full h-full object-cover" />
-                      <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center gap-3">
-                        <button onClick={() => setSelectedImage(null)} className="p-4 bg-white/20 backdrop-blur-md rounded-full text-white hover:bg-white/40 transition-all">
-                          <X size={24} />
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <div 
-                      onClick={handleStartCamera}
-                      className="aspect-video border-4 border-dashed border-slate-100 rounded-[2rem] flex flex-col items-center justify-center gap-4 text-slate-300 hover:text-orange-400 hover:border-orange-100 hover:bg-orange-50/30 cursor-pointer transition-all group"
-                    >
-                      <div className="p-6 bg-slate-50 rounded-full group-hover:scale-110 transition-transform">
-                        <Camera size={48} />
-                      </div>
-                      <p className="font-black text-sm tracking-widest">CLIQUEZ POUR CAPTURER</p>
-                    </div>
-                  )}
-                  <div className="flex gap-2">
-                    <button onClick={() => fileInputRef.current.click()} className="flex-1 py-3 bg-slate-100 rounded-xl text-slate-500 text-[10px] font-black tracking-tighter hover:bg-slate-200 transition-all">
-                      OUVRIR LA GALERIE
-                    </button>
-                    <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={(e) => {
-                      const file = e.target.files[0];
-                      if (!file) return;
-                      const reader = new FileReader();
-                      reader.onload = () => setSelectedImage(reader.result);
-                      reader.readAsDataURL(file);
-                    }} />
-                  </div>
-                </div>
-              )}
-
-              <div className="mt-8 flex items-center justify-between border-t pt-8">
-                <div className="flex -space-x-2">
-                  {[1, 2, 3].map(i => (
-                    <div key={i} className="w-10 h-10 rounded-full border-2 border-white bg-slate-200 flex items-center justify-center overflow-hidden">
-                      <img src={`https://i.pravatar.cc/100?img=${i+10}`} alt="user" />
-                    </div>
-                  ))}
-                  <div className="w-10 h-10 rounded-full border-2 border-white bg-orange-500 flex items-center justify-center text-[10px] font-bold text-white">
-                    +1k
-                  </div>
-                </div>
-
-                <button
-                  disabled={isAnalyzing || (!inputText && !selectedImage)}
-                  onClick={handleRunAnalysis}
-                  className="group relative bg-slate-900 disabled:bg-slate-200 text-white px-10 py-4 rounded-2xl font-black tracking-widest flex items-center gap-3 overflow-hidden transition-all active:scale-95 shadow-xl shadow-slate-200"
-                >
-                  {isAnalyzing ? (
-                    <Loader2 className="animate-spin" size={20} />
-                  ) : (
-                    <>
-                      <Sparkles size={20} className="group-hover:rotate-12 transition-transform" />
-                      ANALYSER AVEC L'IA
-                    </>
-                  )}
-                  <div className="absolute inset-0 bg-gradient-to-r from-orange-500 to-amber-500 opacity-0 group-hover:opacity-100 transition-opacity -z-10" />
-                </button>
-              </div>
-            </div>
-          </section>
-
-          {/* DASHBOARD STATS */}
-          <section className="grid grid-cols-2 sm:grid-cols-4 gap-4">
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Total</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-800">{stats.totalCalories}</span>
-                <span className="text-[10px] font-bold text-slate-400">kcal</span>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Moyenne</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-800">{stats.avgCalories}</span>
-                <span className="text-[10px] font-bold text-slate-400">kcal</span>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Protéines</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-800">{stats.totalProtein}</span>
-                <span className="text-[10px] font-bold text-slate-400">g</span>
-              </div>
-            </div>
-            <div className="bg-white p-6 rounded-[2rem] border border-slate-100">
-              <p className="text-[10px] font-black text-slate-400 uppercase mb-2">Repas</p>
-              <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-black text-slate-800">{stats.count}</span>
-                <span className="text-[10px] font-bold text-slate-400">enregistrés</span>
-              </div>
-            </div>
-          </section>
-        </div>
-
-        {/* COLONNE DROITE : HISTORIQUE ET ASTUCES (4 cols) */}
-        <aside className="lg:col-span-5 space-y-6">
-          <div className="bg-slate-900 rounded-[2.5rem] p-8 text-white relative overflow-hidden shadow-2xl shadow-slate-300">
-            <div className="relative z-10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-10 h-10 bg-white/10 rounded-xl flex items-center justify-center">
-                  <TrendingUp size={20} className="text-orange-400" />
-                </div>
-                <h3 className="text-lg font-black tracking-tight">Objectif du jour</h3>
-              </div>
-              <div className="space-y-4">
-                <div className="flex justify-between items-end">
-                  <span className="text-xs font-bold text-slate-400 uppercase tracking-widest">Calories</span>
-                  <span className="text-xl font-black">{stats.totalCalories} / 2200 <span className="text-[10px] text-slate-500">kcal</span></span>
-                </div>
-                <div className="h-3 bg-white/5 rounded-full overflow-hidden">
-                  <div 
-                    className="h-full bg-gradient-to-r from-orange-500 to-amber-400 transition-all duration-1000"
-                    style={{ width: `${Math.min((stats.totalCalories / 2200) * 100, 100)}%` }}
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="absolute -bottom-10 -right-10 w-40 h-40 bg-orange-500/10 rounded-full blur-3xl" />
-          </div>
-
-          <div className="bg-white rounded-[2.5rem] border border-slate-100 p-8">
-            <div className="flex items-center justify-between mb-6">
-              <h3 className="font-black text-slate-800 uppercase tracking-widest text-xs flex items-center gap-2">
-                <History size={16} className="text-orange-500" /> Historique
-              </h3>
-              <button className="text-[10px] font-black text-orange-500 uppercase">Voir tout</button>
-            </div>
-            
-            <div className="space-y-4">
-              {historyMeals.slice(0, 5).map((meal) => (
-                <div key={meal.id} className="group flex items-center gap-4 p-3 hover:bg-slate-50 rounded-2xl transition-all">
-                  <div className="w-12 h-12 bg-slate-100 rounded-2xl flex items-center justify-center text-slate-400 group-hover:bg-orange-100 group-hover:text-orange-500 transition-colors">
-                    <Utensils size={20} />
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="font-bold text-slate-800 truncate">{meal.name}</p>
-                    <p className="text-[10px] font-bold text-slate-400 uppercase tracking-tighter">
-                      {meal.calories} kcal • {meal.mealType}
-                    </p>
-                  </div>
-                  <button 
-                    onClick={() => handleDeleteMeal(meal.id)}
-                    className="p-2 text-slate-200 hover:text-red-500 transition-colors opacity-0 group-hover:opacity-100"
-                  >
-                    <Trash2 size={16} />
-                  </button>
-                </div>
-              ))}
-              {historyMeals.length === 0 && (
-                <div className="py-12 text-center space-y-4">
-                  <div className="w-16 h-16 bg-slate-50 rounded-full flex items-center justify-center mx-auto text-slate-200">
-                    <PieChart size={32} />
-                  </div>
-                  <p className="text-sm font-bold text-slate-300">Aucun repas aujourd'hui</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </aside>
-      </main>
-
-      {/* MODAL CAMERA FULLSCREEN */}
-      {showCamera && (
-        <div className="fixed inset-0 z-[100] bg-black flex flex-col animate-in fade-in duration-300">
-          <div className="absolute top-0 inset-x-0 p-6 flex justify-between items-center z-20">
-            <button onClick={handleStopCamera} className="w-12 h-12 bg-black/40 backdrop-blur-md rounded-full text-white flex items-center justify-center">
-              <X size={24} />
-            </button>
-            <div className="px-4 py-2 bg-black/40 backdrop-blur-md rounded-full text-white text-[10px] font-black tracking-widest">
-              MODE CAPTURE ALIMENTAIRE
-            </div>
-            <div className="w-12" />
-          </div>
-
-          {/* Container vidéo avec contraintes pour mobile */}
-          <div className="flex-1 relative overflow-hidden">
-            <video 
-              ref={videoRef} 
-              autoPlay 
-              playsInline 
-              muted
-              className="absolute inset-0 w-full h-full object-contain"
-              style={{ 
-                maxHeight: '100vh',
-                maxWidth: '100vw'
-              }}
+            <Clock className="w-3.5 h-3.5 text-muted-foreground" />
+            <Input
+              type="datetime-local"
+              value={mealTimestamp || getLocalDateTimeString()}
+              onChange={(e) => setMealTimestamp(e.target.value)}
+              className="h-8 text-xs rounded-lg flex-1"
             />
           </div>
-          <canvas ref={canvasRef} className="hidden" />
 
-          <div className="absolute bottom-0 inset-x-0 p-8 pb-12 flex flex-col items-center gap-6 bg-gradient-to-t from-black/80 to-transparent">
-            <p className="text-white/60 text-xs font-bold text-center max-w-xs">
-              Placez le repas au centre du cadre pour une analyse optimale des portions.
-            </p>
-            <button 
-              onClick={handleCapture}
-              className="w-20 h-20 bg-white rounded-full border-4 border-white/20 flex items-center justify-center active:scale-90 transition-transform shadow-2xl"
-            >
-              <div className="w-14 h-14 rounded-full border-2 border-black/5" />
-            </button>
-          </div>
-        </div>
-      )}
-
-      {/* MODAL DE RÉSULTAT D'ANALYSE (OVERLAY) */}
-      {showAnalysisResult && analysisResult && (
-        <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-md animate-in fade-in">
-          <div className="bg-white w-full max-w-xl rounded-[3rem] shadow-2xl overflow-hidden animate-in zoom-in-95 duration-300">
-            <div className="p-10">
-              <div className="flex justify-between items-start mb-8">
-                <div className="bg-orange-50 text-orange-600 px-4 py-2 rounded-full text-[10px] font-black tracking-widest flex items-center gap-2">
-                  <Activity size={14} /> RAPPORT NUTRITIONNEL
+          {items.map((item, idx) => (
+            <div key={idx} className="bg-card rounded-xl p-3 shadow-card space-y-2">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-1.5">
+                  {item.isCustom && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">✓ Vérifié</span>}
+                  {item.isCooked && <span className="text-[10px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded font-semibold">🍳 Cuit</span>}
+                  {editingIdx === idx ? (
+                    <Input
+                      value={item.name}
+                      onChange={(e) => updateItemName(idx, e.target.value)}
+                      className="h-7 text-sm rounded-md w-32"
+                    />
+                  ) : (
+                    <>
+                      <span className="font-semibold text-sm">{item.name}</span>
+                      <span className="text-xs text-muted-foreground">{item.quantity}</span>
+                    </>
+                  )}
                 </div>
-                <button onClick={() => setShowAnalysisResult(false)} className="text-slate-300 hover:text-slate-500 transition-colors">
-                  <X size={24} />
-                </button>
-              </div>
-
-              <div className="text-center mb-10">
-                <h2 className="text-3xl font-black text-slate-800 uppercase tracking-tighter mb-2">{analysisResult.name}</h2>
-                <p className="text-slate-400 text-sm font-medium italic">"{analysisResult.description}"</p>
-              </div>
-
-              <div className="grid grid-cols-2 gap-4 mb-10">
-                <div className="bg-orange-50/50 p-6 rounded-[2rem] border border-orange-100 flex flex-col items-center text-center">
-                  <Flame size={20} className="text-orange-500 mb-2" />
-                  <p className="text-3xl font-black text-orange-600">{Math.round(analysisResult.calories * portionSize)}</p>
-                  <p className="text-[10px] font-bold text-orange-400 uppercase tracking-widest">Calories</p>
-                </div>
-                <div className="bg-blue-50/50 p-6 rounded-[2rem] border border-blue-100 flex flex-col items-center text-center">
-                  <Target size={20} className="text-blue-500 mb-2" />
-                  <p className="text-3xl font-black text-blue-600">{Math.round(analysisResult.protein * portionSize)}g</p>
-                  <p className="text-[10px] font-bold text-blue-400 uppercase tracking-widest">Protéines</p>
-                </div>
-                <div className="bg-yellow-50/50 p-6 rounded-[2rem] border border-yellow-100 flex flex-col items-center text-center">
-                  <Utensils size={20} className="text-yellow-500 mb-2" />
-                  <p className="text-3xl font-black text-yellow-600">{Math.round(analysisResult.carbs * portionSize)}g</p>
-                  <p className="text-[10px] font-bold text-yellow-400 uppercase tracking-widest">Glucides</p>
-                </div>
-                <div className="bg-purple-50/50 p-6 rounded-[2rem] border border-purple-100 flex flex-col items-center text-center">
-                  <Scale size={20} className="text-purple-500 mb-2" />
-                  <p className="text-3xl font-black text-purple-600">{Math.round(analysisResult.fat * portionSize)}g</p>
-                  <p className="text-[10px] font-bold text-purple-400 uppercase tracking-widest">Lipides</p>
+                <div className="flex items-center gap-1">
+                  <button onClick={() => setEditingIdx(editingIdx === idx ? null : idx)} className="p-1 rounded-lg hover:bg-muted">
+                    <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+                  </button>
+                  <button onClick={() => removeItem(idx)} className="p-1 rounded-lg hover:bg-destructive/10">
+                    <X className="w-3.5 h-3.5 text-destructive" />
+                  </button>
                 </div>
               </div>
 
-              <div className="space-y-6">
-                <div className="flex items-center justify-between px-6 py-4 bg-slate-50 rounded-2xl border border-slate-100">
-                  <div className="flex items-center gap-3">
-                    <PieChart size={18} className="text-slate-400" />
-                    <span className="text-sm font-black text-slate-500 uppercase tracking-widest">Portions</span>
+              {item.unitCount && item.unitWeightG && (
+                <div className="flex items-center gap-3 bg-accent rounded-lg px-3 py-1.5">
+                  <span className="text-xs text-muted-foreground capitalize flex-1">{item.unitLabel}</span>
+                  <button
+                    onClick={() => updateItemUnits(idx, -1)}
+                    className="w-7 h-7 rounded-full bg-muted flex items-center justify-center hover:bg-muted/80 active:scale-95 transition-all"
+                  >
+                    <Minus className="w-3.5 h-3.5 text-foreground" />
+                  </button>
+                  <span className="text-sm font-bold min-w-[2ch] text-center">{item.unitCount}</span>
+                  <button
+                    onClick={() => updateItemUnits(idx, 1)}
+                    className="w-7 h-7 rounded-full bg-primary flex items-center justify-center hover:opacity-90 active:scale-95 transition-all"
+                  >
+                    <Plus className="w-3.5 h-3.5 text-primary-foreground" />
+                  </button>
+                  <span className="text-[10px] text-muted-foreground ml-1">({item.unitWeightG}g/u)</span>
+                </div>
+              )}
+
+              {editingIdx === idx ? (
+                <div className="space-y-2">
+                  <div className="flex items-center gap-2">
+                    <label className="text-[10px] text-muted-foreground">Poids (g)</label>
+                     <NumericInput
+                       value={parseFloat(item.quantity || "0") || 0}
+                       onChange={(v, raw) => updateItemWeight(idx, raw)}
+                       className="h-8 text-sm rounded-lg w-24"
+                     />
+                    <span className="text-xs text-muted-foreground ml-auto">
+                      P:{Math.round(Number(item.proteins))}g G:{Math.round(Number(item.carbs))}g L:{Math.round(Number(item.fats))}g
+                    </span>
                   </div>
-                  <div className="flex items-center gap-6">
-                    <button 
-                      onClick={() => setPortionSize(p => Math.max(0.5, p - 0.5))}
-                      className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center font-black text-lg hover:border-orange-500 transition-colors shadow-sm"
-                    >-</button>
-                    <span className="text-xl font-black text-slate-800 w-8 text-center">{portionSize}</span>
-                    <button 
-                      onClick={() => setPortionSize(p => p + 0.5)}
-                      className="w-10 h-10 bg-white border border-slate-200 rounded-xl flex items-center justify-center font-black text-lg hover:border-orange-500 transition-colors shadow-sm"
-                    >+</button>
-                  </div>
+                  <button
+                    onClick={() => toggleItemCooked(idx)}
+                    className={`text-[10px] px-2 py-1 rounded-lg font-semibold transition-all ${
+                      item.isCooked ? "bg-secondary/20 text-secondary" : "bg-muted text-muted-foreground"
+                    }`}
+                  >
+                    {item.isCooked ? "🍳 Cuit (÷2.5)" : "🥩 Cru"}
+                  </button>
                 </div>
+              ) : (
+                <div className="flex gap-3 text-xs text-muted-foreground">
+                  <span>P: {Math.round(Number(item.proteins))}g</span>
+                  <span>G: {Math.round(Number(item.carbs))}g</span>
+                  <span>L: {Math.round(Number(item.fats))}g</span>
+                  <span className="ml-auto font-medium text-foreground">
+                    {Math.round(Number(item.calories))} kcal
+                  </span>
+                </div>
+              )}
+            </div>
+          ))}
 
-                <div className="grid grid-cols-4 gap-2">
-                  {['Petit-dej', 'Déjeuner', 'Dîner', 'Snack'].map((type) => (
-                    <button
-                      key={type}
-                      onClick={() => setMealType(type.toLowerCase())}
-                      className={`py-3 rounded-xl text-[10px] font-black uppercase tracking-tighter transition-all ${mealType === type.toLowerCase() ? 'bg-slate-900 text-white shadow-lg shadow-slate-200' : 'bg-slate-100 text-slate-400 hover:bg-slate-200'}`}
-                    >
-                      {type}
-                    </button>
-                  ))}
-                </div>
+          {addingManual ? (
+            <div className="bg-accent rounded-xl p-3 space-y-2 animate-fade-up">
+              <div className="flex gap-2">
+                <Input
+                  value={manualItem.name}
+                  onChange={(e) => setManualItem((p) => ({ ...p, name: e.target.value }))}
+                  placeholder="Nom de l'aliment"
+                  className="h-8 text-sm rounded-lg flex-1"
+                />
+                <Input
+                  type="number"
+                  value={manualItem.weight}
+                  onChange={(e) => setManualItem((p) => ({ ...p, weight: e.target.value }))}
+                  placeholder="Poids (g)"
+                  className="h-8 text-sm rounded-lg w-24"
+                />
               </div>
-
-              <div className="mt-10 flex gap-4">
-                <button 
-                  onClick={() => setShowAnalysisResult(false)}
-                  className="flex-1 py-5 font-black text-slate-400 text-xs tracking-widest hover:text-slate-600 transition-colors uppercase"
-                >
-                  Annuler
-                </button>
-                <button 
-                  disabled={isSaving}
-                  onClick={handleSaveMeal}
-                  className="flex-[2] py-5 bg-orange-500 hover:bg-orange-600 disabled:bg-slate-200 text-white rounded-2xl font-black text-xs tracking-[0.2em] flex items-center justify-center gap-3 shadow-xl shadow-orange-100 transition-all active:scale-95"
-                >
-                  {isSaving ? <Loader2 className="animate-spin" size={18} /> : <Save size={18} />}
-                  VALIDER LE REPAS
+              <div className="flex gap-2">
+                <button
+                  onClick={() => setManualIsCooked(false)}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                    !manualIsCooked ? "bg-primary text-primary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >🥩 Cru</button>
+                <button
+                  onClick={() => setManualIsCooked(true)}
+                  className={`flex-1 py-1.5 rounded-lg text-[10px] font-semibold transition-all ${
+                    manualIsCooked ? "bg-secondary text-secondary-foreground" : "bg-muted text-muted-foreground"
+                  }`}
+                >🍳 Cuit (÷2.5)</button>
+              </div>
+              <div className="flex gap-2">
+                <button onClick={() => { setAddingManual(false); setManualIsCooked(false); }} className="flex-1 py-1.5 rounded-lg text-xs bg-muted hover:bg-muted/80">Annuler</button>
+                <button onClick={addManualItem} disabled={analyzing} className="flex-1 py-1.5 rounded-lg text-xs bg-primary text-primary-foreground">
+                  {analyzing ? "..." : "Ajouter"}
                 </button>
               </div>
             </div>
+          ) : (
+            <div className="flex gap-2">
+              <button onClick={() => setAddingManual(true)} className="flex-1 flex items-center justify-center gap-1.5 py-2.5 rounded-xl border border-dashed border-primary/30 text-xs font-semibold text-primary hover:border-primary/60">
+                <Plus className="w-3.5 h-3.5" /> Ajouter un aliment
+              </button>
+              <button
+                onClick={() => { setMode("barcode"); }}
+                className="p-2.5 rounded-xl border border-dashed border-primary/30 text-primary hover:border-primary/60"
+                title="Scanner un code-barres"
+              >
+                <ScanBarcode className="w-4 h-4" />
+              </button>
+            </div>
+          )}
+
+          {hasResults && mode === "barcode" && (
+            <div className="mt-2">
+              <BarcodeScanner onProductFound={(product) => { handleBarcodeProduct(product); setMode("image"); }} />
+            </div>
+          )}
+
+          <div className="bg-accent rounded-xl p-3">
+            <div className="flex items-center justify-between text-sm">
+              <span className="font-semibold">Total</span>
+              <span className="font-bold text-primary">{Math.round(totals.calories)} kcal</span>
+            </div>
+            <div className="flex gap-3 text-xs text-muted-foreground mt-1">
+              <span>P: {Math.round(totals.proteins)}g</span>
+              <span>G: {Math.round(totals.carbs)}g</span>
+              <span>L: {Math.round(totals.fats)}g</span>
+            </div>
+          </div>
+
+          <div className="flex gap-2">
+            <Button onClick={resetState} variant="outline" className="flex-1 rounded-xl h-11">
+              <X className="w-4 h-4 mr-1" /> Annuler
+            </Button>
+            <Button onClick={saveMeal} className="flex-1 rounded-xl h-11 bg-primary text-primary-foreground hover:opacity-90">
+              <Check className="w-4 h-4 mr-1" /> Valider
+            </Button>
           </div>
         </div>
       )}
     </div>
   );
-}
+};
+
+export default MealInput;
