@@ -132,6 +132,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [addingManual, setAddingManual] = useState(false);
   const [manualItem, setManualItem] = useState({ name: "", weight: "" });
   const [manualIsCooked, setManualIsCooked] = useState(false);
+  const [showLogsModal, setShowLogsModal] = useState(false);
+  const [logsContent, setLogsContent] = useState("");
 
   // Initialisation - vérifier la santé de la BDD perso
   useEffect(() => {
@@ -222,8 +224,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
       const itemName = item.food_name || item.name || "Aliment";
       const customMatch = customFoodMap.get(itemName.toLowerCase());
-      const aiWeight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
-      const hasExplicitWeight = Boolean(item.estimated_weight_g || item.weight_g);
+      const aiWeight = parseFloat(item.quantity || item.estimated_weight_g || item.weight_g || "100") || 100;
+      const hasExplicitWeight = Boolean(item.quantity || item.estimated_weight_g || item.weight_g);
       const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
       const weight = customMatch && (!hasExplicitWeight || aiWeight === 100) ? customDefaultWeight : aiWeight;
       let proteins = Number(item.proteins) || 0;
@@ -540,10 +542,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           omega3_mg: item.omega3_mg || 0,
           saturated_fat: item.saturated_fat || 0,
           vitamin_b_mg: item.vitamin_b_mg || 0,
-          quantity: item.unitCount || 1,
-          unit_count: item.unitCount || 1,
-          unit_label: item.unitLabel || "portion",
-          unit_weight_g: item.unitWeightG || parseFloat(item.quantity?.replace("g", "") || "100") || 100
+          quantity: parseFloat(item.quantity?.replace("g", "") || "100") || 100,
+          unit_count: item.unitCount || null,
+          unit_label: item.unitLabel || null,
+          unit_weight_g: item.unitWeightG || null
         }))
       });
       
@@ -594,9 +596,13 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       {/* Bouton export logs (debug) */}
       <div className="flex justify-end">
         <button
-          onClick={() => appLogger.downloadLogs()}
+          onClick={() => {
+            const logs = appLogger.getLogs();
+            setLogsContent(logs.map(l => `[${l.timestamp}] [${l.level}] ${l.module}: ${l.message}`).join('\n'));
+            setShowLogsModal(true);
+          }}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
-          title="Télécharger les logs pour debug"
+          title="Voir les logs pour debug"
         >
           <Download className="w-3 h-3" />
           Logs
@@ -880,6 +886,45 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             <Button onClick={saveMeal} className="flex-1 rounded-xl h-11 bg-primary text-primary-foreground hover:opacity-90">
               <Check className="w-4 h-4 mr-1" /> Valider
             </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de logs debug */}
+      {showLogsModal && (
+        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4">
+          <div className="bg-card rounded-xl w-full max-w-lg max-h-[80vh] flex flex-col">
+            <div className="flex items-center justify-between p-4 border-b">
+              <h3 className="font-semibold">Logs de debug</h3>
+              <button 
+                onClick={() => setShowLogsModal(false)}
+                className="p-1 hover:bg-muted rounded"
+              >
+                <X className="w-4 h-4" />
+              </button>
+            </div>
+            <div className="flex-1 overflow-auto p-4">
+              <textarea
+                readOnly
+                value={logsContent}
+                className="w-full h-64 text-xs font-mono bg-muted rounded p-2 resize-none"
+              />
+            </div>
+            <div className="p-4 border-t flex gap-2">
+              <Button 
+                variant="outline" 
+                onClick={() => {
+                  navigator.clipboard.writeText(logsContent);
+                  toast({ title: "Logs copiés !" });
+                }}
+                className="flex-1"
+              >
+                Copier
+              </Button>
+              <Button onClick={() => setShowLogsModal(false)} className="flex-1">
+                Fermer
+              </Button>
+            </div>
           </div>
         </div>
       )}

@@ -143,6 +143,7 @@ function buildLovableItems(items: MealItemWithMicros[], mealId: string) {
     vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
     vitamin_e_mg: item.vitamin_e_mg ?? 0,
     // Unités
+    quantity: item.quantity || (item.unit_count && item.unit_weight_g ? item.unit_count * item.unit_weight_g : 100),
     unit_count: item.unit_count ?? null,
     unit_label: item.unit_label ?? null,
     unit_weight_g: item.unit_weight_g ?? null
@@ -232,6 +233,7 @@ function buildPersonalItems(
       vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
       vitamin_e_mg: item.vitamin_e_mg ?? 0,
       // Unités
+      quantity: item.quantity || (item.unit_count && item.unit_weight_g ? item.unit_count * item.unit_weight_g : 100),
       unit_count: item.unit_count ?? null,
       unit_label: item.unit_label ?? null,
       unit_weight_g: item.unit_weight_g ?? null

@@ -35,7 +35,7 @@ const mealAnalysisSchema = {
             type: SchemaType.STRING,
             description: "Food item name"
           },
-          estimated_weight_g: {
+          quantity: {
             type: SchemaType.NUMBER,
             description: "Estimated weight in grams"
           },
@@ -72,7 +72,7 @@ const mealAnalysisSchema = {
             description: "Average weight of one unit in grams"
           }
         },
-        required: ["name", "estimated_weight_g", "calories", "proteins", "carbs", "fats"]
+        required: ["name", "quantity", "calories", "proteins", "carbs", "fats"]
       }
     }
   },
@@ -85,7 +85,7 @@ export interface MealAnalysisResult {
   suggested_timestamp?: string;
   items: Array<{
     name: string;
-    estimated_weight_g: number;
+    quantity: number;
     calories: number;
     proteins: number;
     carbs: number;
@@ -153,7 +153,7 @@ Si l'aliment se compte en unités, remplis ces 3 champs :
 - "unit_count": nombre d'unités (entier)
 - "unit_weight_g": poids moyen d'UNE unité en grammes
 - "unit_label": libellé court de l'unité
-Le champ "estimated_weight_g" doit être = unit_count * unit_weight_g.
+Le champ "quantity" doit être = unit_count * unit_weight_g.
 Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne mets PAS ces champs.
 
 IMPORTANT - MICRONUTRIMENTS DYNAMIQUES :

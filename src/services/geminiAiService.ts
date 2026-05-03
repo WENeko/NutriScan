@@ -7,7 +7,7 @@ import { appLogger } from './appLogger';
  * Analyse une image ou du texte d'un repas avec l'API Gemini.
  * @param input Objet: { image?: string (URL/base64), text?: string, custom_foods?: CustomFood[], local_time?: string, check_nutrient?: string, requestedMicros?: string[] }
  * @returns Réponse IA structurée ({ meal_name, confidence_score, suggested_timestamp?, items: [...] })
- * Chaque item contient: food_name, calories, proteins, carbs, fats, estimated_weight_g, unit_count?, unit_label?, unit_weight_g?, 
+ * Chaque item contient: food_name, calories, proteins, carbs, fats, quantity, unit_count?, unit_label?, unit_weight_g?, 
  * PLUS tous les micronutriments de NUTRIENTS_MASTER_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
  */
 export async function analyzeMealWithGemini({ image, text, custom_foods, local_time, check_nutrient, requestedMicros = [] }: {
@@ -47,7 +47,7 @@ RÈGLES DE FORMAT JSON STRICT - Chaque item doit avoir ces champs EXACTS:
 - proteins: number (grammes)
 - carbs: number (grammes)
 - fats: number (grammes)
-- estimated_weight_g: number (grammes)
+- quantity: number (grammes, poids total estimé)
 - unit_count: number ou null
 - unit_label: string ou null
 - unit_weight_g: number ou null
@@ -62,7 +62,7 @@ RÈGLES D'ANALYSE:
 - Unités: "2 tranches" → unit_count=2, unit_label="tranche"
 
 FORMAT JSON DE SORTIE:
-{"meal_name":"...","confidence_score":0.95,"suggested_timestamp":"2024-...","items":[{"food_name":"...","calories":0,"proteins":0,"carbs":0,"fats":0,"estimated_weight_g":0,"unit_count":null,"unit_label":null,"unit_weight_g":null,${microKeysToRequest.map(k => `"${k}":0`).join(",")}}]}
+{"meal_name":"...","confidence_score":0.95,"suggested_timestamp":"2024-...","items":[{"food_name":"...","calories":0,"proteins":0,"carbs":0,"fats":0,"quantity":0,"unit_count":null,"unit_label":null,"unit_weight_g":null,${microKeysToRequest.map(k => `"${k}":0`).join(",")}}]}
 
 Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
 
