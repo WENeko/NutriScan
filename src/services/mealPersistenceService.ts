@@ -116,10 +116,9 @@ function buildLovableMeal(mealData: SaveMealParams["mealData"], userId: string) 
   };
 }
 
-function buildLovableItems(items: MealItemWithMicros[], mealId: string, userId: string) {
+function buildLovableItems(items: MealItemWithMicros[], mealId: string) {
   return items.map(item => ({
     meal_id: mealId,
-    user_id: userId,
     name: item.food_name || item.name || "Aliment",
     // Macros
     calories: item.calories,
@@ -177,14 +176,12 @@ function buildPersonalMeal(
 
 function buildPersonalItems(
   items: MealItemWithMicros[], 
-  mealId: string, 
-  userId: string,
+  mealId: string,
   schema: { hasIndividualColumns: boolean; hasJsonbColumns: boolean }
 ) {
   return items.map(item => {
     const base = {
       meal_id: mealId,
-      user_id: userId,
       name: item.food_name || item.name || "Aliment",
       quantity: item.quantity ?? 1,
       calories: item.calories,
@@ -299,7 +296,7 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
 
   // Insertion des items sur Lovable
   if (items && items.length > 0) {
-    const lovableItems = buildLovableItems(items, primaryMeal.id, userId);
+    const lovableItems = buildLovableItems(items, primaryMeal.id);
     appLogger.debug("MealSave", `Insertion ${lovableItems.length} items Lovable`, { premierItem: lovableItems[0] });
     const { data: insertedItems, error: itemsError } = await supabase.from("meal_items").insert(lovableItems).select();
     if (itemsError) {
@@ -359,7 +356,7 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
           ? { hasIndividualColumns: false, hasJsonbColumns: false }
           : schema;
         
-        const personalItems = buildPersonalItems(items, secondaryMeal.id, userId, effectiveSchema);
+        const personalItems = buildPersonalItems(items, secondaryMeal.id, effectiveSchema);
         appLogger.debug("MealSave", `Items perso: ${personalItems.length}`, { premierItem: personalItems[0] });
         
         let { error: insertedItemsError } = await personalSupabase.from("meal_items").insert(personalItems);
@@ -367,7 +364,7 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
         // Fallback items si colonnes manquantes
         if (insertedItemsError && insertedItemsError.message?.includes("Could not find the")) {
           appLogger.warn("MealSave", "Fallback items structure minimale");
-          const minimalItems = buildPersonalItems(items, secondaryMeal.id, userId, { 
+          const minimalItems = buildPersonalItems(items, secondaryMeal.id, { 
             hasIndividualColumns: false, hasJsonbColumns: false 
           });
           const retryItems = await personalSupabase.from("meal_items").insert(minimalItems);
