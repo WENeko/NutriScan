@@ -51,7 +51,11 @@ interface MealItem {
   potassium_mg?: number;
   magnesium_mg?: number;
   calcium_mg?: number;
+  iron_mg?: number;
+  zinc_mg?: number;
   vitamin_b_mg?: number;
+  vitamin_b9_mcg?: number;
+  vitamin_b12_mcg?: number;
   vitamin_c_mg?: number;
   vitamin_d_mcg?: number;
   vitamin_e_mg?: number;
@@ -88,7 +92,11 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
     potassium_mg: roundNutrient((item.potassium_mg || 0) * factor),
     magnesium_mg: roundNutrient((item.magnesium_mg || 0) * factor),
     calcium_mg: roundNutrient((item.calcium_mg || 0) * factor),
+    iron_mg: roundNutrient((item.iron_mg || 0) * factor),
+    zinc_mg: roundNutrient((item.zinc_mg || 0) * factor),
     vitamin_b_mg: roundNutrient((item.vitamin_b_mg || 0) * factor),
+    vitamin_b9_mcg: roundNutrient((item.vitamin_b9_mcg || 0) * factor),
+    vitamin_b12_mcg: roundNutrient((item.vitamin_b12_mcg || 0) * factor),
     vitamin_c_mg: roundNutrient((item.vitamin_c_mg || 0) * factor),
     vitamin_d_mcg: roundNutrient((item.vitamin_d_mcg || 0) * factor),
     vitamin_e_mg: roundNutrient((item.vitamin_e_mg || 0) * factor),
@@ -152,7 +160,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
       const { data: customFoods } = await supabaseLovable
         .from("custom_foods")
-        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, iron_mg_per_100g, zinc_mg_per_100g, vitamin_b_per_100g, vitamin_b9_mcg_per_100g, vitamin_b12_mcg_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
         .eq("user_id", userId);
 
       const result = await analyzeMealWithGemini({ 
@@ -175,7 +183,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     try {
       const { data: customFoods } = await supabaseLovable
         .from("custom_foods")
-        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, vitamin_b_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, iron_mg_per_100g, zinc_mg_per_100g, vitamin_b_per_100g, vitamin_b9_mcg_per_100g, vitamin_b12_mcg_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
         .eq("user_id", userId);
 
       const result = await analyzeMealWithGemini({ 
@@ -194,14 +202,25 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
   const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
-    setMealName(data.meal_name || "");
-    if (data.suggested_timestamp) {
-      setMealTimestamp(data.suggested_timestamp);
+    // Gérer différents formats de nom de repas
+    const extractedMealName = data.meal_name || data.name || "";
+    setMealName(extractedMealName);
+    
+    // Gérer le timestamp (format ISO ou datetime-local)
+    const timestamp = data.suggested_timestamp || data.timestamp || data.meal_timestamp;
+    if (timestamp) {
+      // Convertir en format datetime-local si nécessaire
+      const date = new Date(timestamp);
+      if (!isNaN(date.getTime())) {
+        const localISO = new Date(date.getTime() - (date.getTimezoneOffset() * 60000)).toISOString().slice(0, 16);
+        setMealTimestamp(localISO);
+      }
     }
     const customFoodMap = new Map(customFoods.map((f: any) => [f.name.toLowerCase(), f]));
 
     const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
-      const customMatch = customFoodMap.get(item.name?.toLowerCase());
+      const itemName = item.food_name || item.name || "Aliment";
+      const customMatch = customFoodMap.get(itemName.toLowerCase());
       const aiWeight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
       const hasExplicitWeight = Boolean(item.estimated_weight_g || item.weight_g);
       const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
@@ -218,7 +237,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       let potassium_mg = Number(item.potassium_mg) || 0;
       let magnesium_mg = Number(item.magnesium_mg) || 0;
       let calcium_mg = Number(item.calcium_mg) || 0;
+      let iron_mg = Number(item.iron_mg) || 0;
+      let zinc_mg = Number(item.zinc_mg) || 0;
       let vitamin_b_mg = Number(item.vitamin_b_mg) || 0;
+      let vitamin_b9_mcg = Number(item.vitamin_b9_mcg) || 0;
+      let vitamin_b12_mcg = Number(item.vitamin_b12_mcg) || 0;
       let vitamin_c_mg = Number(item.vitamin_c_mg) || 0;
       let vitamin_d_mcg = Number(item.vitamin_d_mcg) || 0;
       let vitamin_e_mg = Number(item.vitamin_e_mg) || 0;
@@ -237,7 +260,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         potassium_mg = roundNutrient((Number(customMatch.potassium_mg_per_100g) || 0) * weight / 100);
         magnesium_mg = roundNutrient((Number(customMatch.magnesium_mg_per_100g) || 0) * weight / 100);
         calcium_mg = roundNutrient((Number(customMatch.calcium_mg_per_100g) || 0) * weight / 100);
+        iron_mg = roundNutrient((Number(customMatch.iron_mg_per_100g) || 0) * weight / 100);
+        zinc_mg = roundNutrient((Number(customMatch.zinc_mg_per_100g) || 0) * weight / 100);
         vitamin_b_mg = roundNutrient((Number(customMatch.vitamin_b_per_100g) || 0) * weight / 100);
+        vitamin_b9_mcg = roundNutrient((Number(customMatch.vitamin_b9_mcg_per_100g) || 0) * weight / 100);
+        vitamin_b12_mcg = roundNutrient((Number(customMatch.vitamin_b12_mcg_per_100g) || 0) * weight / 100);
         vitamin_c_mg = roundNutrient((Number(customMatch.vitamin_c_per_100g) || 0) * weight / 100);
         vitamin_d_mcg = roundNutrient((Number(customMatch.vitamin_d_per_100g) || 0) * weight / 100);
         vitamin_e_mg = roundNutrient((Number(customMatch.vitamin_e_per_100g) || 0) * weight / 100);
@@ -249,7 +276,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const unitLabel = item.unit_label || undefined;
 
       return {
-        name: item.name,
+        name: itemName,
         quantity: `${weight}g`,
         calories, proteins, carbs, fats,
         protDensity: proteins / weight,
@@ -257,7 +284,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         fatsDensity: fats / weight,
         isCustom,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
-        vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+        iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
@@ -287,7 +314,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       potassium_mg: product.potassium_mg || 0,
       magnesium_mg: product.magnesium_mg || 0,
       calcium_mg: product.calcium_mg || 0,
+      iron_mg: product.iron_mg || 0,
+      zinc_mg: product.zinc_mg || 0,
       vitamin_b_mg: product.vitamin_b_mg || 0,
+      vitamin_b9_mcg: product.vitamin_b9_mcg || 0,
+      vitamin_b12_mcg: product.vitamin_b12_mcg || 0,
       vitamin_c_mg: product.vitamin_c_mg || 0,
       vitamin_d_mcg: product.vitamin_d_mcg || 0,
       vitamin_e_mg: product.vitamin_e_mg || 0,
@@ -367,7 +398,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const potassium_mg = roundNutrient((cf.potassium_mg_per_100g || 0) * nutrientWeight / 100);
       const magnesium_mg = roundNutrient((cf.magnesium_mg_per_100g || 0) * nutrientWeight / 100);
       const calcium_mg = roundNutrient((cf.calcium_mg_per_100g || 0) * nutrientWeight / 100);
+      const iron_mg = roundNutrient((cf.iron_mg_per_100g || 0) * nutrientWeight / 100);
+      const zinc_mg = roundNutrient((cf.zinc_mg_per_100g || 0) * nutrientWeight / 100);
       const vitamin_b_mg = roundNutrient((cf.vitamin_b_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_b9_mcg = roundNutrient((cf.vitamin_b9_mcg_per_100g || 0) * nutrientWeight / 100);
+      const vitamin_b12_mcg = roundNutrient((cf.vitamin_b12_mcg_per_100g || 0) * nutrientWeight / 100);
       const vitamin_c_mg = roundNutrient((cf.vitamin_c_per_100g || 0) * nutrientWeight / 100);
       const vitamin_d_mcg = roundNutrient((cf.vitamin_d_per_100g || 0) * nutrientWeight / 100);
       const vitamin_e_mg = roundNutrient((cf.vitamin_e_per_100g || 0) * nutrientWeight / 100);
@@ -381,7 +416,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         fatsDensity: cf.fats_per_100g / 100,
         isCustom: true, isCooked: manualIsCooked,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
-        vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+        iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
       }]);
       toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g${manualIsCooked ? " (cuit)" : ""}` });
     } else {
@@ -414,7 +449,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             potassium_mg: Number(item.potassium_mg) || 0,
             magnesium_mg: Number(item.magnesium_mg) || 0,
             calcium_mg: Number(item.calcium_mg) || 0,
+            iron_mg: Number(item.iron_mg) || 0,
+            zinc_mg: Number(item.zinc_mg) || 0,
             vitamin_b_mg: Number(item.vitamin_b_mg) || 0,
+            vitamin_b9_mcg: Number(item.vitamin_b9_mcg) || 0,
+            vitamin_b12_mcg: Number(item.vitamin_b12_mcg) || 0,
             vitamin_c_mg: Number(item.vitamin_c_mg) || 0,
             vitamin_d_mcg: Number(item.vitamin_d_mcg) || 0,
             vitamin_e_mg: Number(item.vitamin_e_mg) || 0,
@@ -471,7 +510,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           total_carbs: totals.carbs,
           total_fats: totals.fats,
           image_url: imageUrl,
-          timestamp
+          timestamp,
+          raw_ai_analysis: rawAnalysis || null,
+          is_confirmed: true,
+          source: source
         },
         items: items.map(item => ({
           food_name: item.name,
@@ -486,12 +528,12 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           potassium_mg: item.potassium_mg || 0,
           magnesium_mg: item.magnesium_mg || 0,
           calcium_mg: item.calcium_mg || 0,
-          iron_mg: 0,
-          zinc_mg: 0,
+          iron_mg: item.iron_mg || 0,
+          zinc_mg: item.zinc_mg || 0,
           vitamin_c_mg: item.vitamin_c_mg || 0,
           vitamin_d_mcg: item.vitamin_d_mcg || 0,
-          vitamin_b9_mcg: 0,
-          vitamin_b12_mcg: 0,
+          vitamin_b9_mcg: item.vitamin_b9_mcg || 0,
+          vitamin_b12_mcg: item.vitamin_b12_mcg || 0,
           vitamin_e_mg: item.vitamin_e_mg || 0,
           omega3_mg: item.omega3_mg || 0,
           saturated_fat: item.saturated_fat || 0,

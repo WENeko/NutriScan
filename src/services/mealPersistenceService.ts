@@ -19,28 +19,27 @@ const personalSupabase = (personalUrl && personalKey)
 let personalDbSchema: { 
   hasIndividualColumns: boolean; 
   hasJsonbColumns: boolean;
-  detected: boolean;
 } | null = null;
 
 /**
  * Détecte la structure de la BDD perso (colonnes individuelles vs JSONB)
+ * Conforme aux schémas fournis - meals n'a que les macros totales
  */
 async function detectPersonalDbSchema(): Promise<{ 
   hasIndividualColumns: boolean; 
   hasJsonbColumns: boolean;
-  detected: boolean;
 }> {
-  if (!personalSupabase) return { hasIndividualColumns: false, hasJsonbColumns: false, detected: false };
+  if (!personalSupabase) return { hasIndividualColumns: false, hasJsonbColumns: false };
   if (personalDbSchema) return personalDbSchema;
 
   try {
-    // Tester si la colonne total_calcium_mg existe (indique structure complète Lovable)
-    const { error: colError } = await personalSupabase
-      .from("meals")
-      .select("total_calcium_mg")
+    // Tester si meal_items a les colonnes micro individuelles (calcium_mg, etc.)
+    const { error: microError } = await personalSupabase
+      .from("meal_items")
+      .select("calcium_mg")
       .limit(1);
     
-    const hasIndividualColumns = !colError?.message?.includes("total_calcium_mg");
+    const hasIndividualColumns = !microError?.message?.includes("calcium_mg");
 
     // Tester si nutrients_std existe (structure JSONB)
     const { error: jsonbError } = await personalSupabase
@@ -50,15 +49,15 @@ async function detectPersonalDbSchema(): Promise<{
     
     const hasJsonbColumns = !jsonbError?.message?.includes("nutrients_std");
 
-    personalDbSchema = { hasIndividualColumns, hasJsonbColumns, detected: true };
+    personalDbSchema = { hasIndividualColumns, hasJsonbColumns };
     
     console.log("[DB Schema] Détecté:", personalDbSchema);
     
     return personalDbSchema;
   } catch (err) {
     console.error("[DB Schema] Erreur détection:", err);
-    // Fallback : assume structure Lovable (individuel)
-    return { hasIndividualColumns: true, hasJsonbColumns: false, detected: false };
+    // Fallback : assume structure minimale (pas de colonnes micro dans items)
+    return { hasIndividualColumns: false, hasJsonbColumns: false };
   }
 }
 
@@ -89,21 +88,9 @@ interface SaveMealParams {
     total_fats: number;
     image_url?: string | null;
     timestamp?: string;
-    total_fiber?: number;
-    total_sugar?: number;
-    total_sodium_mg?: number;
-    total_potassium_mg?: number;
-    total_magnesium_mg?: number;
-    total_calcium_mg?: number;
-    total_iron_mg?: number;
-    total_zinc_mg?: number;
-    total_vitamin_c_mg?: number;
-    total_vitamin_d_mcg?: number;
-    total_vitamin_b9_mcg?: number;
-    total_vitamin_b12_mcg?: number;
-    total_vitamin_e_mg?: number;
-    total_omega3_mg?: number;
-    total_saturated_fat?: number;
+    raw_ai_analysis?: string | null;
+    is_confirmed?: boolean;
+    source?: string;
   };
   items: MealItemWithMicros[];
 }
@@ -120,23 +107,11 @@ function buildLovableMeal(mealData: SaveMealParams["mealData"], userId: string) 
     total_proteins: mealData.total_proteins,
     total_carbs: mealData.total_carbs,
     total_fats: mealData.total_fats,
-    total_fiber: mealData.total_fiber ?? 0,
-    total_sugar: mealData.total_sugar ?? 0,
-    total_sodium_mg: mealData.total_sodium_mg ?? 0,
-    total_potassium_mg: mealData.total_potassium_mg ?? 0,
-    total_magnesium_mg: mealData.total_magnesium_mg ?? 0,
-    total_calcium_mg: mealData.total_calcium_mg ?? 0,
-    total_iron_mg: mealData.total_iron_mg ?? 0,
-    total_zinc_mg: mealData.total_zinc_mg ?? 0,
-    total_vitamin_c_mg: mealData.total_vitamin_c_mg ?? 0,
-    total_vitamin_d_mcg: mealData.total_vitamin_d_mcg ?? 0,
-    total_vitamin_b9_mcg: mealData.total_vitamin_b9_mcg ?? 0,
-    total_vitamin_b12_mcg: mealData.total_vitamin_b12_mcg ?? 0,
-    total_vitamin_e_mg: mealData.total_vitamin_e_mg ?? 0,
-    total_omega3_mg: mealData.total_omega3_mg ?? 0,
-    total_saturated_fat: mealData.total_saturated_fat ?? 0,
     timestamp: mealData.timestamp ?? new Date().toISOString(),
-    image_url: mealData.image_url ?? null
+    image_url: mealData.image_url ?? null,
+    raw_ai_analysis: mealData.raw_ai_analysis ?? null,
+    is_confirmed: mealData.is_confirmed ?? true,
+    source: mealData.source ?? "ai"
   };
 }
 
@@ -145,26 +120,29 @@ function buildLovableItems(items: MealItemWithMicros[], mealId: string, userId: 
     meal_id: mealId,
     user_id: userId,
     food_name: item.food_name || item.name || "Aliment",
+    // Macros
     calories: item.calories,
     proteins: item.proteins,
     carbs: item.carbs,
     fats: item.fats,
     fiber: item.fiber ?? 0,
     sugar: item.sugar ?? 0,
+    saturated_fat: item.saturated_fat ?? 0,
+    // Micros (conforme au schéma meal_items complet)
     sodium_mg: item.sodium_mg ?? 0,
     potassium_mg: item.potassium_mg ?? 0,
     magnesium_mg: item.magnesium_mg ?? 0,
     calcium_mg: item.calcium_mg ?? 0,
     iron_mg: item.iron_mg ?? 0,
     zinc_mg: item.zinc_mg ?? 0,
-    vitamin_c_mg: item.vitamin_c_mg ?? 0,
-    vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
+    omega3_mg: item.omega3_mg ?? 0,
+    vitamin_b_mg: item.vitamin_b_mg ?? 0,
     vitamin_b9_mcg: item.vitamin_b9_mcg ?? 0,
     vitamin_b12_mcg: item.vitamin_b12_mcg ?? 0,
+    vitamin_c_mg: item.vitamin_c_mg ?? 0,
+    vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
     vitamin_e_mg: item.vitamin_e_mg ?? 0,
-    omega3_mg: item.omega3_mg ?? 0,
-    saturated_fat: item.saturated_fat ?? 0,
-    estimated_weight_g: item.estimated_weight_g ?? null,
+    // Unités
     unit_count: item.unit_count ?? null,
     unit_label: item.unit_label ?? null,
     unit_weight_g: item.unit_weight_g ?? null
@@ -180,47 +158,20 @@ function buildPersonalMeal(
   userId: string, 
   schema: { hasIndividualColumns: boolean; hasJsonbColumns: boolean }
 ) {
-  const base = {
+  // Structure conforme au schéma exact de la table meals
+  return {
     user_id: userId,
     meal_name: mealData.meal_name,
     timestamp: mealData.timestamp ?? new Date().toISOString(),
-    image_url: mealData.image_url ?? null
+    image_url: mealData.image_url ?? null,
+    total_calories: mealData.total_calories,
+    total_proteins: mealData.total_proteins,
+    total_carbs: mealData.total_carbs,
+    total_fats: mealData.total_fats,
+    raw_ai_analysis: mealData.raw_ai_analysis ?? null,
+    is_confirmed: mealData.is_confirmed ?? true,
+    source: mealData.source ?? "ai"
   };
-
-  if (schema.hasIndividualColumns) {
-    // Structure complète (importée de Lovable)
-    return {
-      ...base,
-      total_calories: mealData.total_calories,
-      total_proteins: mealData.total_proteins,
-      total_carbs: mealData.total_carbs,
-      total_fats: mealData.total_fats,
-      total_fiber: mealData.total_fiber ?? 0,
-      total_sugar: mealData.total_sugar ?? 0,
-      total_sodium_mg: mealData.total_sodium_mg ?? 0,
-      total_potassium_mg: mealData.total_potassium_mg ?? 0,
-      total_magnesium_mg: mealData.total_magnesium_mg ?? 0,
-      total_calcium_mg: mealData.total_calcium_mg ?? 0,
-      total_iron_mg: mealData.total_iron_mg ?? 0,
-      total_zinc_mg: mealData.total_zinc_mg ?? 0,
-      total_vitamin_c_mg: mealData.total_vitamin_c_mg ?? 0,
-      total_vitamin_d_mcg: mealData.total_vitamin_d_mcg ?? 0,
-      total_vitamin_b9_mcg: mealData.total_vitamin_b9_mcg ?? 0,
-      total_vitamin_b12_mcg: mealData.total_vitamin_b12_mcg ?? 0,
-      total_vitamin_e_mg: mealData.total_vitamin_e_mg ?? 0,
-      total_omega3_mg: mealData.total_omega3_mg ?? 0,
-      total_saturated_fat: mealData.total_saturated_fat ?? 0
-    };
-  } else {
-    // Structure minimale (ancienne BDD perso)
-    return {
-      ...base,
-      total_calories: mealData.total_calories,
-      total_proteins: mealData.total_proteins,
-      total_carbs: mealData.total_carbs,
-      total_fats: mealData.total_fats
-    };
-  }
 }
 
 function buildPersonalItems(
@@ -241,79 +192,63 @@ function buildPersonalItems(
       fats: item.fats
     };
 
-    // Construction du payload JSONB pour nutrients_std
+    // Construction du payload JSONB pour nutrients_std (conforme au schéma meal_items complet)
     const nutrientsStd = {
       fiber: item.fiber ?? 0,
       sugar: item.sugar ?? 0,
+      saturated_fat: item.saturated_fat ?? 0,
       sodium_mg: item.sodium_mg ?? 0,
       potassium_mg: item.potassium_mg ?? 0,
       magnesium_mg: item.magnesium_mg ?? 0,
       calcium_mg: item.calcium_mg ?? 0,
       iron_mg: item.iron_mg ?? 0,
       zinc_mg: item.zinc_mg ?? 0,
-      vitamin_c_mg: item.vitamin_c_mg ?? 0,
-      vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
+      omega3_mg: item.omega3_mg ?? 0,
+      vitamin_b_mg: item.vitamin_b_mg ?? 0,
       vitamin_b9_mcg: item.vitamin_b9_mcg ?? 0,
       vitamin_b12_mcg: item.vitamin_b12_mcg ?? 0,
-      vitamin_e_mg: item.vitamin_e_mg ?? 0,
-      omega3_mg: item.omega3_mg ?? 0,
-      saturated_fat: item.saturated_fat ?? 0
+      vitamin_c_mg: item.vitamin_c_mg ?? 0,
+      vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
+      vitamin_e_mg: item.vitamin_e_mg ?? 0
     };
 
-    if (schema.hasIndividualColumns && schema.hasJsonbColumns) {
-      // Structure complète avec JSONB (meilleur des deux mondes)
+    // Construction conforme au schéma meal_items
+    const fullItem = {
+      ...base,
+      // Macros
+      fiber: item.fiber ?? 0,
+      sugar: item.sugar ?? 0,
+      saturated_fat: item.saturated_fat ?? 0,
+      // Micros (conforme au schéma complet)
+      sodium_mg: item.sodium_mg ?? 0,
+      potassium_mg: item.potassium_mg ?? 0,
+      magnesium_mg: item.magnesium_mg ?? 0,
+      calcium_mg: item.calcium_mg ?? 0,
+      iron_mg: item.iron_mg ?? 0,
+      zinc_mg: item.zinc_mg ?? 0,
+      omega3_mg: item.omega3_mg ?? 0,
+      vitamin_b_mg: item.vitamin_b_mg ?? 0,
+      vitamin_b9_mcg: item.vitamin_b9_mcg ?? 0,
+      vitamin_b12_mcg: item.vitamin_b12_mcg ?? 0,
+      vitamin_c_mg: item.vitamin_c_mg ?? 0,
+      vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
+      vitamin_e_mg: item.vitamin_e_mg ?? 0,
+      // Unités
+      unit_count: item.unit_count ?? null,
+      unit_label: item.unit_label ?? null,
+      unit_weight_g: item.unit_weight_g ?? null
+    };
+
+    if (schema.hasJsonbColumns) {
+      // Ajouter JSONB si la colonne existe
       return {
-        ...base,
-        // Colonnes individuelles
-        fiber: item.fiber ?? 0,
-        sugar: item.sugar ?? 0,
-        sodium_mg: item.sodium_mg ?? 0,
-        potassium_mg: item.potassium_mg ?? 0,
-        magnesium_mg: item.magnesium_mg ?? 0,
-        calcium_mg: item.calcium_mg ?? 0,
-        iron_mg: item.iron_mg ?? 0,
-        zinc_mg: item.zinc_mg ?? 0,
-        vitamin_c_mg: item.vitamin_c_mg ?? 0,
-        vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
-        vitamin_b9_mcg: item.vitamin_b9_mcg ?? 0,
-        vitamin_b12_mcg: item.vitamin_b12_mcg ?? 0,
-        vitamin_e_mg: item.vitamin_e_mg ?? 0,
-        omega3_mg: item.omega3_mg ?? 0,
-        saturated_fat: item.saturated_fat ?? 0,
-        // JSONB pour compatibilité future
+        ...fullItem,
         nutrients_std: nutrientsStd,
         nutrients_custom: {}
-      };
-    } else if (schema.hasJsonbColumns) {
-      // Structure JSONB uniquement
-      return {
-        ...base,
-        nutrients_std: nutrientsStd,
-        nutrients_custom: {}
-      };
-    } else if (schema.hasIndividualColumns) {
-      // Structure individuelle uniquement
-      return {
-        ...base,
-        fiber: item.fiber ?? 0,
-        sugar: item.sugar ?? 0,
-        sodium_mg: item.sodium_mg ?? 0,
-        potassium_mg: item.potassium_mg ?? 0,
-        magnesium_mg: item.magnesium_mg ?? 0,
-        calcium_mg: item.calcium_mg ?? 0,
-        iron_mg: item.iron_mg ?? 0,
-        zinc_mg: item.zinc_mg ?? 0,
-        vitamin_c_mg: item.vitamin_c_mg ?? 0,
-        vitamin_d_mcg: item.vitamin_d_mcg ?? 0,
-        vitamin_b9_mcg: item.vitamin_b9_mcg ?? 0,
-        vitamin_b12_mcg: item.vitamin_b12_mcg ?? 0,
-        vitamin_e_mg: item.vitamin_e_mg ?? 0,
-        omega3_mg: item.omega3_mg ?? 0,
-        saturated_fat: item.saturated_fat ?? 0
       };
     } else {
-      // Fallback minimal
-      return base;
+      // Structure simple sans JSONB
+      return fullItem;
     }
   });
 }
@@ -361,14 +296,36 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
   // --- 2. ÉCRITURE SUR LA BASE SECONDAIRE (PERSONNELLE) ---
   if (personalSupabase) {
     try {
-      const personalMeal = buildPersonalMeal(mealData, userId, schema);
+      let personalMeal = buildPersonalMeal(mealData, userId, schema);
       console.log("[saveMealWithDualWrite] Données Perso:", JSON.stringify(personalMeal, null, 2));
       
-      const { data: secondaryMeal, error: secondaryError } = await personalSupabase
+      let { data: secondaryMeal, error: secondaryError } = await personalSupabase
         .from("meals")
         .insert([personalMeal])
         .select()
         .single();
+
+      // FALLBACK : Si erreur de colonne manquante, retry avec structure minimale
+      if (secondaryError && (
+        secondaryError.message?.includes("total_calcium_mg") ||
+        secondaryError.message?.includes("total_sodium_mg") ||
+        secondaryError.message?.includes("total_fiber") ||
+        secondaryError.message?.includes("Could not find the")
+      )) {
+        console.warn("[saveMealWithDualWrite] Colonnes étendues manquantes, fallback vers structure minimale");
+        // Forcer structure minimale
+        const minimalSchema = { hasIndividualColumns: false, hasJsonbColumns: false, detected: true };
+        personalMeal = buildPersonalMeal(mealData, userId, minimalSchema);
+        
+        const retry = await personalSupabase
+          .from("meals")
+          .insert([personalMeal])
+          .select()
+          .single();
+        
+        secondaryMeal = retry.data;
+        secondaryError = retry.error;
+      }
 
       if (secondaryError) {
         console.error("[saveMealWithDualWrite] Échec meal perso:", secondaryError);
@@ -376,11 +333,26 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
           console.error("[saveMealWithDualWrite] L'utilisateur n'existe pas dans auth.users perso");
         }
       } else if (secondaryMeal && items.length > 0) {
-        const personalItems = buildPersonalItems(items, secondaryMeal.id, userId, schema);
+        // Déterminer le schéma à utiliser (original ou fallback minimal)
+        const effectiveSchema = (secondaryError && schema.hasIndividualColumns) 
+          ? { hasIndividualColumns: false, hasJsonbColumns: false }
+          : schema;
+        
+        const personalItems = buildPersonalItems(items, secondaryMeal.id, userId, effectiveSchema);
         console.log("[saveMealWithDualWrite] Items perso:", personalItems.length, "items");
         console.log("[saveMealWithDualWrite] Premier item:", JSON.stringify(personalItems[0], null, 2));
         
-        const { error: itemsError } = await personalSupabase.from("meal_items").insert(personalItems);
+        let { error: itemsError } = await personalSupabase.from("meal_items").insert(personalItems);
+        
+        // Fallback items si colonnes manquantes
+        if (itemsError && itemsError.message?.includes("Could not find the")) {
+          console.warn("[saveMealWithDualWrite] Fallback items vers structure minimale");
+          const minimalItems = buildPersonalItems(items, secondaryMeal.id, userId, { 
+            hasIndividualColumns: false, hasJsonbColumns: false 
+          });
+          const retryItems = await personalSupabase.from("meal_items").insert(minimalItems);
+          itemsError = retryItems.error;
+        }
         
         if (itemsError) {
           console.error("[saveMealWithDualWrite] Échec items perso:", itemsError);

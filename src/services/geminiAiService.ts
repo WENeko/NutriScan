@@ -7,7 +7,7 @@ import { NUTRIENTS_MASTER_LIST } from '@/utils/nutrition-logic';
  * @param input Objet: { image?: string (URL/base64), text?: string, custom_foods?: CustomFood[], local_time?: string, check_nutrient?: string, requestedMicros?: string[] }
  * @returns Réponse IA structurée ({ meal_name, confidence_score, suggested_timestamp?, items: [...] })
  * Chaque item contient: food_name, calories, proteins, carbs, fats, estimated_weight_g, unit_count?, unit_label?, unit_weight_g?, 
- * PLUS les micronutriments demandés (fiber, sugar, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_e_mg, omega3_mg)
+ * PLUS tous les micronutriments de NUTRIENTS_MASTER_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
  */
 export async function analyzeMealWithGemini({ image, text, custom_foods, local_time, check_nutrient, requestedMicros = [] }: {
   image?: string;
