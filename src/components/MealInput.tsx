@@ -502,7 +502,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       await ensureUserInPersonalDB(userId);
 
       // Sauvegarde Dual Write (Lovable + Perso)
-      await saveMealWithDualWrite({
+      console.log("[MealInput] Appel saveMealWithDualWrite avec", items.length, "items");
+      const result = await saveMealWithDualWrite({
         userId,
         mealData: {
           meal_name: mealName || "Repas",
@@ -539,10 +540,14 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           omega3_mg: item.omega3_mg || 0,
           saturated_fat: item.saturated_fat || 0,
           vitamin_b_mg: item.vitamin_b_mg || 0,
-          quantity: 1,
-          estimated_weight_g: parseFloat(item.quantity?.replace("g", "") || "100") || 100
+          quantity: item.unitCount || 1,
+          unit_count: item.unitCount || 1,
+          unit_label: item.unitLabel || "portion",
+          unit_weight_g: item.unitWeightG || parseFloat(item.quantity?.replace("g", "") || "100") || 100
         }))
       });
+      
+      console.log("[MealInput] Résultat saveMealWithDualWrite:", result);
 
       toast({ title: "Repas enregistré !" });
       resetState();
