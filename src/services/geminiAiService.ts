@@ -1,6 +1,7 @@
 // src/services/geminiAiService.ts
 // Couche d'intégration directe avec Google Gemini (sans Lovable)
 import { NUTRIENTS_MASTER_LIST } from '@/utils/nutrition-logic';
+import { appLogger } from './appLogger';
 
 /**
  * Analyse une image ou du texte d'un repas avec l'API Gemini.
@@ -22,7 +23,10 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, local_t
     ? (localStorage.getItem('user_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY)
     : import.meta.env.VITE_GEMINI_API_KEY;
   
-  if (!apiKey) throw new Error("Clé API Gemini non configurée (localStorage 'user_gemini_api_key' ou VITE_GEMINI_API_KEY)");
+  if (!apiKey) {
+    appLogger.error("Gemini", "Clé API Gemini non configurée");
+    throw new Error("Clé API Gemini non configurée (localStorage 'user_gemini_api_key' ou VITE_GEMINI_API_KEY)");
+  }
 
   // Gemini model et endpoint API
   const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
@@ -89,17 +93,72 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
     ]
   };
 
-  const res = await fetch(url, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(body),
-  });
-  if (!res.ok) throw new Error(`Erreur Gemini: ${await res.text()}`);
+  // Retry logic avec backoff exponentiel pour erreurs 503 (serveur surchargé)
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 1000;
+  
+  let lastError: Error | null = null;
+  let res: Response | null = null;
+  
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      res = await fetch(url, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(body),
+      });
+      
+      if (res.ok) {
+        break; // Succès, sortir de la boucle
+      }
+      
+      const errorText = await res.text();
+      const is503 = res.status === 503 || errorText.includes("503") || errorText.includes("high demand");
+      
+      if (is503 && attempt < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt); // Backoff: 1s, 2s, 4s
+        appLogger.warn("Gemini", `Erreur 503, retry ${attempt + 1}/${MAX_RETRIES} dans ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+        continue;
+      }
+      
+      // Erreur non-retryable ou dernier essai
+      throw new Error(`Erreur Gemini ${res.status}: ${errorText}`);
+      
+    } catch (err: any) {
+      lastError = err;
+      
+      // Si c'est une erreur réseau ou timeout, retry
+      const isNetworkError = err.message?.includes("fetch") || err.message?.includes("network") || err.message?.includes("timeout");
+      const is503Error = err.message?.includes("503") || err.message?.includes("high demand");
+      
+      if ((isNetworkError || is503Error) && attempt < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        appLogger.warn("Gemini", `Erreur réseau/503, retry ${attempt + 1}/${MAX_RETRIES} dans ${delay}ms`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      } else {
+        throw err; // Dernier essai ou erreur non-retryable
+      }
+    }
+  }
+  
+  if (!res || !res.ok) {
+    throw lastError || new Error("Échec de la requête Gemini après retries");
+  }
+  
   const data = await res.json();
 
   // Gemini always replies as a .candidates[] array
   const content = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}").trim();
+  
+  // Log de debug
+  appLogger.debug("Gemini", "Réponse reçue", content.substring(0, 200));
 
   // Renvoyer le JSON structuré (parse sinon retourne string brute)
-  try { return JSON.parse(content); } catch { return content; }
+  try { 
+    return JSON.parse(content); 
+  } catch (e) { 
+    appLogger.error("Gemini", "Erreur parsing JSON", { error: e, content });
+    return content; 
+  }
 }

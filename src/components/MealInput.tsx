@@ -4,7 +4,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, AlertCircle } from "lucide-react";
+import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, AlertCircle, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
@@ -13,6 +13,7 @@ import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB, logDatabaseHealth } from "@/services/databaseSyncService";
 import { localToUtcIso } from "@/lib/timezoneUtils";
+import { appLogger } from "@/services/appLogger";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -584,6 +585,18 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           <span>Configuration BDD perso manquante - vérifiez le .env</span>
         </div>
       )}
+      
+      {/* Bouton export logs (debug) */}
+      <div className="flex justify-end">
+        <button
+          onClick={() => appLogger.downloadLogs()}
+          className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
+          title="Télécharger les logs pour debug"
+        >
+          <Download className="w-3 h-3" />
+          Logs
+        </button>
+      </div>
 
       {!hasResults && (
         <div className="flex rounded-xl bg-muted p-1 gap-1">

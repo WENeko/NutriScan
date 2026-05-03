@@ -6,6 +6,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import type { MicroNutrientFields } from "@/utils/nutrition-logic";
+import { appLogger } from "./appLogger";
 
 // Initialisation du client personnel (Base secondaire)
 const personalUrl = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -51,11 +52,11 @@ async function detectPersonalDbSchema(): Promise<{
 
     personalDbSchema = { hasIndividualColumns, hasJsonbColumns };
     
-    console.log("[DB Schema] Détecté:", personalDbSchema);
+    appLogger.debug("DB Schema", "Schéma détecté", personalDbSchema);
     
     return personalDbSchema;
   } catch (err) {
-    console.error("[DB Schema] Erreur détection:", err);
+    appLogger.error("DB Schema", "Erreur détection schéma", err);
     // Fallback : assume structure minimale (pas de colonnes micro dans items)
     return { hasIndividualColumns: false, hasJsonbColumns: false };
   }
@@ -119,7 +120,7 @@ function buildLovableItems(items: MealItemWithMicros[], mealId: string, userId: 
   return items.map(item => ({
     meal_id: mealId,
     user_id: userId,
-    food_name: item.food_name || item.name || "Aliment",
+    name: item.food_name || item.name || "Aliment",
     // Macros
     calories: item.calories,
     proteins: item.proteins,
@@ -258,20 +259,32 @@ function buildPersonalItems(
 // ============================================================
 
 export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMealParams) => {
-  console.log("[saveMealWithDualWrite] Démarrage:", { 
+  const personalUrlConfigured = !!import.meta.env.VITE_PERSONAL_SUPABASE_URL;
+  const personalKeyConfigured = !!import.meta.env.VITE_PERSONAL_SUPABASE_ANON_KEY;
+  
+  appLogger.info("MealSave", "Démarrage sauvegarde repas", { 
     userId, 
     mealName: mealData.meal_name,
     itemsCount: items?.length || 0,
-    hasPersonalDb: !!personalSupabase
+    hasPersonalDb: !!personalSupabase,
+    personalUrlConfigured,
+    personalKeyConfigured
   });
+  
+  if (!personalSupabase) {
+    appLogger.warn("MealSave", "BDD perso non configurée", { 
+      VITE_PERSONAL_SUPABASE_URL: personalUrlConfigured,
+      VITE_PERSONAL_SUPABASE_ANON_KEY: personalKeyConfigured 
+    });
+  }
   
   // Détecter la structure de la BDD perso
   const schema = await detectPersonalDbSchema();
-  console.log("[saveMealWithDualWrite] Schema détecté:", schema);
+  appLogger.debug("MealSave", "Schéma détecté", schema);
   
   // --- 1. ÉCRITURE SUR LA BASE PRIMAIRE (LOVABLE) ---
   const lovableMeal = buildLovableMeal(mealData, userId);
-  console.log("[saveMealWithDualWrite] Données Lovable:", JSON.stringify(lovableMeal, null, 2));
+  appLogger.debug("MealSave", "Données Lovable", lovableMeal);
   
   const { data: primaryMeal, error: primaryError } = await supabase
     .from("meals")
@@ -280,26 +293,33 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
     .single();
 
   if (primaryError) {
-    console.error("[saveMealWithDualWrite] Erreur Lovable:", primaryError);
+    appLogger.error("MealSave", "Erreur insertion Lovable meals", primaryError);
     throw primaryError;
   }
 
   // Insertion des items sur Lovable
   if (items && items.length > 0) {
     const lovableItems = buildLovableItems(items, primaryMeal.id, userId);
-    const { error: itemsError } = await supabase.from("meal_items").insert(lovableItems);
+    appLogger.debug("MealSave", `Insertion ${lovableItems.length} items Lovable`, { premierItem: lovableItems[0] });
+    const { data: insertedItems, error: itemsError } = await supabase.from("meal_items").insert(lovableItems).select();
     if (itemsError) {
-      console.error("[saveMealWithDualWrite] Erreur items Lovable:", itemsError);
+      appLogger.error("MealSave", "Erreur insertion items Lovable", itemsError);
+      throw new Error(`Erreur insertion meal_items: ${itemsError.message}`);
+    } else {
+      appLogger.info("MealSave", `${insertedItems?.length || 0} items Lovable insérés`);
     }
   }
 
   // --- 2. ÉCRITURE SUR LA BASE SECONDAIRE (PERSONNELLE) ---
+  let secondaryMeal: any = null;
+  let itemsError: any = null;
+  
   if (personalSupabase) {
     try {
       let personalMeal = buildPersonalMeal(mealData, userId, schema);
-      console.log("[saveMealWithDualWrite] Données Perso:", JSON.stringify(personalMeal, null, 2));
+      appLogger.debug("MealSave", "Données Perso", personalMeal);
       
-      let { data: secondaryMeal, error: secondaryError } = await personalSupabase
+      let { data: insertedMeal, error: secondaryError } = await personalSupabase
         .from("meals")
         .insert([personalMeal])
         .select()
@@ -312,9 +332,9 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
         secondaryError.message?.includes("total_fiber") ||
         secondaryError.message?.includes("Could not find the")
       )) {
-        console.warn("[saveMealWithDualWrite] Colonnes étendues manquantes, fallback vers structure minimale");
+        appLogger.warn("MealSave", "Fallback structure minimale (colonnes manquantes)", { erreur: secondaryError.message });
         // Forcer structure minimale
-        const minimalSchema = { hasIndividualColumns: false, hasJsonbColumns: false, detected: true };
+        const minimalSchema = { hasIndividualColumns: false, hasJsonbColumns: false };
         personalMeal = buildPersonalMeal(mealData, userId, minimalSchema);
         
         const retry = await personalSupabase
@@ -323,49 +343,57 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
           .select()
           .single();
         
-        secondaryMeal = retry.data;
+        insertedMeal = retry.data;
         secondaryError = retry.error;
       }
 
       if (secondaryError) {
-        console.error("[saveMealWithDualWrite] Échec meal perso:", secondaryError);
+        appLogger.error("MealSave", "Échec insertion meal perso", secondaryError);
         if (secondaryError.message?.includes("foreign key")) {
-          console.error("[saveMealWithDualWrite] L'utilisateur n'existe pas dans auth.users perso");
+          appLogger.error("MealSave", "Utilisateur non existant dans auth.users perso - créez le profil manuellement");
         }
-      } else if (secondaryMeal && items.length > 0) {
+      } else if (insertedMeal && items.length > 0) {
+        secondaryMeal = insertedMeal;
         // Déterminer le schéma à utiliser (original ou fallback minimal)
         const effectiveSchema = (secondaryError && schema.hasIndividualColumns) 
           ? { hasIndividualColumns: false, hasJsonbColumns: false }
           : schema;
         
         const personalItems = buildPersonalItems(items, secondaryMeal.id, userId, effectiveSchema);
-        console.log("[saveMealWithDualWrite] Items perso:", personalItems.length, "items");
-        console.log("[saveMealWithDualWrite] Premier item:", JSON.stringify(personalItems[0], null, 2));
+        appLogger.debug("MealSave", `Items perso: ${personalItems.length}`, { premierItem: personalItems[0] });
         
-        let { error: itemsError } = await personalSupabase.from("meal_items").insert(personalItems);
+        let { error: insertedItemsError } = await personalSupabase.from("meal_items").insert(personalItems);
         
         // Fallback items si colonnes manquantes
-        if (itemsError && itemsError.message?.includes("Could not find the")) {
-          console.warn("[saveMealWithDualWrite] Fallback items vers structure minimale");
+        if (insertedItemsError && insertedItemsError.message?.includes("Could not find the")) {
+          appLogger.warn("MealSave", "Fallback items structure minimale");
           const minimalItems = buildPersonalItems(items, secondaryMeal.id, userId, { 
             hasIndividualColumns: false, hasJsonbColumns: false 
           });
           const retryItems = await personalSupabase.from("meal_items").insert(minimalItems);
-          itemsError = retryItems.error;
+          insertedItemsError = retryItems.error;
         }
         
-        if (itemsError) {
-          console.error("[saveMealWithDualWrite] Échec items perso:", itemsError);
+        itemsError = insertedItemsError;
+        if (insertedItemsError) {
+          appLogger.error("MealSave", "Échec insertion items perso", insertedItemsError);
         } else {
-          console.log("[saveMealWithDualWrite] Synchronisation perso OK");
+          appLogger.info("MealSave", "Synchronisation perso OK");
         }
       }
     } catch (err) {
-      console.error("[saveMealWithDualWrite] Erreur perso:", err);
+      appLogger.error("MealSave", "Erreur inattendue BDD perso", err);
     }
   }
 
-  return primaryMeal;
+  // Retourner les deux résultats pour permettre le diagnostic
+  return { 
+    lovable: primaryMeal, 
+    personal: personalSupabase ? { 
+      mealSaved: !!secondaryMeal, 
+      itemsSaved: !itemsError 
+    } : null 
+  };
 };
 
 // Export pour réinitialiser le cache si nécessaire
