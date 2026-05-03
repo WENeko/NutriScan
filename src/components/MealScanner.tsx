@@ -1,9 +1,12 @@
 import React, { useRef, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { supabase as supabaseLovable } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Camera, Loader2, Check, X, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
+import { analyzeMealWithGemini } from "@/services/geminiAiService";
+import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
+import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
 
 interface MealItem {
   name: string;
@@ -47,18 +50,17 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
         reader.readAsDataURL(file);
       });
 
-      const response = await supabase.functions.invoke("analyze-meal", {
-        body: { image: base64 },
+      const result = await analyzeMealWithGemini({
+        image: base64,
       });
 
-      if (response.error) throw new Error(response.error.message);
+      if (!result) throw new Error("Aucun résultat de l'analyse");
 
-      const data = response.data;
-      setRawAnalysis(JSON.stringify(data));
+      setRawAnalysis(JSON.stringify(result));
       // Map items from the new AI response format
-      const mappedItems: MealItem[] = (data.items || []).map((item: any) => ({
-        name: item.name,
-        quantity: item.estimated_weight_g ? `${item.estimated_weight_g}g` : item.quantity || "",
+      const mappedItems: MealItem[] = (result.items || []).map((item: any) => ({
+        name: item.food_name || item.name,
+        quantity: item.quantity ? `${item.quantity}g` : "",
         calories: item.calories || 0,
         proteins: item.proteins || 0,
         carbs: item.carbs || 0,
@@ -97,52 +99,67 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
   const saveMeal = async () => {
     if (!imageFile || items.length === 0) return;
     try {
-      // Upload image
+      // Upload image vers Lovable
       const ext = imageFile.name.split(".").pop();
       const path = `${userId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
+      const { error: uploadError } = await supabaseLovable.storage
         .from("meal-images")
         .upload(path, imageFile);
       if (uploadError) throw uploadError;
 
-      const { data: urlData } = supabase.storage
+      const { data: urlData } = supabaseLovable.storage
         .from("meal-images")
         .getPublicUrl(path);
 
       const totals = computeTotals();
 
-      // Insert meal
-      const { data: meal, error: mealError } = await supabase
-        .from("meals")
-        .insert({
-          user_id: userId,
-          image_url: urlData.publicUrl,
-          raw_ai_analysis: rawAnalysis,
+      // S'assurer que l'utilisateur existe dans la BDD perso
+      await ensureUserInPersonalDB(userId);
+
+      // Sauvegarde Dual Write (Lovable + Perso)
+      await saveMealWithDualWrite({
+        userId,
+        mealData: {
+          meal_name: "Repas scanné",
           total_calories: totals.calories,
           total_proteins: totals.proteins,
           total_carbs: totals.carbs,
           total_fats: totals.fats,
+          image_url: urlData.publicUrl,
+          timestamp: new Date().toISOString(),
+          raw_ai_analysis: rawAnalysis || null,
           is_confirmed: true,
-        })
-        .select()
-        .single();
-
-      if (mealError) throw mealError;
-
-      // Insert items
-      const { error: itemsError } = await supabase.from("meal_items").insert(
-        items.map((item) => ({
-          meal_id: meal.id,
+          source: "scan"
+        },
+        items: items.map(item => ({
+          food_name: item.name,
           name: item.name,
-          quantity: item.quantity,
           calories: item.proteins * 4 + item.carbs * 4 + item.fats * 9,
           proteins: item.proteins,
           carbs: item.carbs,
           fats: item.fats,
+          fiber: 0,
+          sugar: 0,
+          sodium_mg: 0,
+          potassium_mg: 0,
+          magnesium_mg: 0,
+          calcium_mg: 0,
+          iron_mg: 0,
+          zinc_mg: 0,
+          vitamin_c_mg: 0,
+          vitamin_d_mcg: 0,
+          vitamin_b9_mcg: 0,
+          vitamin_b12_mcg: 0,
+          vitamin_e_mg: 0,
+          omega3_mg: 0,
+          saturated_fat: 0,
+          vitamin_b_mg: 0,
+          quantity: parseFloat(item.quantity?.replace("g", "") || "100") || 100,
+          unit_count: null,
+          unit_label: null,
+          unit_weight_g: null
         }))
-      );
-
-      if (itemsError) throw itemsError;
+      });
 
       toast({ title: "Repas enregistré !" });
       setPreview(null);

@@ -347,9 +347,14 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
       }
 
       if (secondaryError) {
-        appLogger.error("MealSave", "Échec insertion meal perso", secondaryError);
+        appLogger.error("MealSave", `Échec insertion meal perso: ${secondaryError.message}`, { 
+          code: secondaryError.code,
+          details: secondaryError.details,
+          hint: secondaryError.hint,
+          mealDataKeys: Object.keys(personalMeal)
+        });
         if (secondaryError.message?.includes("foreign key")) {
-          appLogger.error("MealSave", "Utilisateur non existant dans auth.users perso - créez le profil manuellement");
+          appLogger.error("MealSave", "Problème FK: L'utilisateur n'existe pas dans auth.users de la BDD perso");
         }
       } else if (insertedMeal && items.length > 0) {
         secondaryMeal = insertedMeal;
