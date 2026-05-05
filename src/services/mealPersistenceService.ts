@@ -23,6 +23,63 @@ const personalSupabase = (personalUrl && personalKey)
   : null;
 
 /**
+ * Crée automatiquement l'utilisateur dans la BDD perso via edge function
+ * Appelé quand un utilisateur se connecte pour la première fois
+ */
+async function ensureUserInPersonalDb(userId: string, email: string, name?: string): Promise<boolean> {
+  if (!personalSupabase) {
+    appLogger.debug("MealSave", "Pas de BDD perso configurée - skip création user");
+    return false;
+  }
+
+  const personalUrl = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
+  const functionUrl = `${personalUrl}/functions/v1/create-user-in-personal-db`;
+
+  try {
+    appLogger.info("MealSave", "Création utilisateur dans BDD perso...", { userId, email });
+
+    // Récupérer la session actuelle pour le token
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      appLogger.error("MealSave", "Pas de session pour appeler l'edge function");
+      return false;
+    }
+
+    const response = await fetch(functionUrl, {
+      method: "POST",
+      headers: {
+        "Authorization": `Bearer ${session.access_token}`,
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        id: userId,
+        email,
+        name: name || email.split("@")[0],
+      }),
+    });
+
+    const result = await response.json();
+
+    if (!response.ok) {
+      // Si l'utilisateur existe déjà, c'est OK
+      if (result.message?.includes("already exists")) {
+        appLogger.info("MealSave", "Utilisateur existe déjà dans BDD perso");
+        return true;
+      }
+      appLogger.error("MealSave", "Erreur création user dans BDD perso", result);
+      return false;
+    }
+
+    appLogger.info("MealSave", "Utilisateur créé avec succès dans BDD perso", result);
+    return true;
+
+  } catch (error) {
+    appLogger.error("MealSave", "Exception création user dans BDD perso", error);
+    return false;
+  }
+}
+
+/**
  * Synchronise la session d'authentification de Supabase Lovable vers la BDD perso
  * Nécessaire pour que RLS fonctionne (auth.uid() doit être défini)
  */
@@ -378,110 +435,64 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
   
   if (personalSupabase) {
     try {
-      // 1. Synchroniser la session d'authentification (CRITIQUE pour RLS)
-      const sessionSynced = await syncAuthSessionToPersonalDb();
-      if (!sessionSynced) {
-        appLogger.warn("MealSave", "Impossible de synchroniser la session - tentative d'insertion avec token anon");
-      }
+      appLogger.info("MealSave", "Sauvegarde via RPC (contourne RLS)");
       
-      // 2. Vérifier la session sur la BDD perso après synchronisation
-      const { data: { session }, error: sessionError } = await personalSupabase.auth.getSession();
-      const authUserId = session?.user?.id;
+      // Préparer les items au format JSONB pour la fonction RPC
+      const itemsJsonb = items.map(item => ({
+        name: item.food_name || item.name,
+        quantity: item.quantity || 1,
+        unit_count: item.unit_count || 1,
+        unit_label: item.unit_label || 'unit',
+        unit_weight_g: item.unit_weight_g || 0,
+        calories: item.calories || 0,
+        protein: item.protein || 0,
+        carbs: item.carbs || 0,
+        fat: item.fat || 0,
+        vitamin_a: item.vitamin_a || 0,
+        vitamin_c: item.vitamin_c || 0,
+        vitamin_d: item.vitamin_d || 0,
+        calcium: item.calcium || 0,
+        iron: item.iron || 0,
+        magnesium: item.magnesium || 0,
+        omega_3: item.omega_3 || 0,
+      }));
       
-      appLogger.debug("MealSave", "Session BDD perso après sync", { 
-        hasSession: !!session, 
-        authUserId,
-        mealUserId: userId,
-        userIdsMatch: authUserId === userId,
-        sessionError: sessionError?.message,
-        sessionSynced
+      // Appeler la fonction RPC qui contourne RLS avec SECURITY DEFINER
+      const { data: rpcResult, error: rpcError } = await personalSupabase.rpc('save_meal_with_items', {
+        p_user_id: userId,
+        p_name: mealData.meal_name,
+        p_meal_type: (mealData as any).meal_type || 'snack',
+        p_eaten_at: (mealData as any).eaten_at || mealData.timestamp || new Date().toISOString(),
+        p_total_calories: mealData.total_calories || null,
+        p_total_protein: mealData.total_proteins || null,
+        p_total_carbs: mealData.total_carbs || null,
+        p_total_fat: mealData.total_fats || null,
+        p_image_url: mealData.image_url || null,
+        p_items: itemsJsonb
       });
       
-      let personalMeal = buildPersonalMeal(mealData, userId, schema);
-      appLogger.debug("MealSave", "Données Perso", { 
-        ...personalMeal,
-        user_id_type: typeof personalMeal.user_id,
-        user_id_value: personalMeal.user_id
-      });
+      appLogger.debug("MealSave", "Résultat RPC", { rpcResult, rpcError });
       
-      let { data: insertedMeal, error: secondaryError } = await personalSupabase
-        .from("meals")
-        .insert([personalMeal])
-        .select()
-        .single();
-
-      // FALLBACK : Si erreur de colonne manquante, retry avec structure minimale
-      if (secondaryError && (
-        secondaryError.message?.includes("total_calcium_mg") ||
-        secondaryError.message?.includes("total_sodium_mg") ||
-        secondaryError.message?.includes("total_fiber") ||
-        secondaryError.message?.includes("Could not find the")
-      )) {
-        appLogger.warn("MealSave", "Fallback structure minimale (colonnes manquantes)", { erreur: secondaryError.message });
-        // Forcer structure minimale
-        const minimalSchema = { hasIndividualColumns: false, hasJsonbColumns: false };
-        personalMeal = buildPersonalMeal(mealData, userId, minimalSchema);
-        
-        const retry = await personalSupabase
-          .from("meals")
-          .insert([personalMeal])
-          .select()
-          .single();
-        
-        insertedMeal = retry.data;
-        secondaryError = retry.error;
+      let secondaryError = rpcError;
+      let insertedMeal = null;
+      
+      if (!rpcError && rpcResult?.success) {
+        insertedMeal = { id: rpcResult.meal_id };
+        secondaryMeal = insertedMeal;
+        appLogger.info("MealSave", `Repas perso sauvegardé via RPC: ${rpcResult.meal_id}`);
+      } else if (!rpcError && !rpcResult?.success) {
+        // Erreur retournée par la fonction
+        secondaryError = new Error(rpcResult?.error || 'Erreur inconnue dans la fonction RPC');
       }
 
       if (secondaryError) {
-        appLogger.error("MealSave", `Échec insertion meal perso: ${secondaryError.message}`, { 
+        appLogger.error("MealSave", `Échec RPC meal perso: ${secondaryError.message}`, { 
           code: secondaryError.code,
           details: secondaryError.details,
-          hint: secondaryError.hint,
-          mealDataKeys: Object.keys(personalMeal),
-          user_id_sent: personalMeal.user_id,
-          user_id_type: typeof personalMeal.user_id,
-          auth_uid_from_session: authUserId,
-          isRlsError: secondaryError.message?.includes("row-level security")
+          rpcResult
         });
-        if (secondaryError.message?.includes("foreign key")) {
-          appLogger.error("MealSave", "Problème FK: L'utilisateur n'existe pas dans auth.users de la BDD perso");
-        }
-        if (secondaryError.message?.includes("row-level security")) {
-          appLogger.error("MealSave", "RLS Error: La policy refuse l'insertion. Vérifiez que:", {
-            check1: "1. L'utilisateur existe dans auth.users de la BDD perso",
-            check2: "2. Le JWT/token est valide et non expiré",
-            check3: "3. user_id dans le meal correspond à auth.uid()",
-            suggestedFix: "Exécuter dans SQL Editor perso: SELECT * FROM auth.users WHERE id = '" + userId + "'"
-          });
-        }
-      } else if (insertedMeal && items.length > 0) {
-        secondaryMeal = insertedMeal;
-        // Déterminer le schéma à utiliser (original ou fallback minimal)
-        const effectiveSchema = (secondaryError && schema.hasIndividualColumns) 
-          ? { hasIndividualColumns: false, hasJsonbColumns: false }
-          : schema;
-        
-        const personalItems = buildPersonalItems(items, secondaryMeal.id, effectiveSchema);
-        appLogger.debug("MealSave", `Items perso: ${personalItems.length}`, { premierItem: personalItems[0] });
-        
-        let { error: insertedItemsError } = await personalSupabase.from("meal_items").insert(personalItems);
-        
-        // Fallback items si colonnes manquantes
-        if (insertedItemsError && insertedItemsError.message?.includes("Could not find the")) {
-          appLogger.warn("MealSave", "Fallback items structure minimale");
-          const minimalItems = buildPersonalItems(items, secondaryMeal.id, { 
-            hasIndividualColumns: false, hasJsonbColumns: false 
-          });
-          const retryItems = await personalSupabase.from("meal_items").insert(minimalItems);
-          insertedItemsError = retryItems.error;
-        }
-        
-        itemsError = insertedItemsError;
-        if (insertedItemsError) {
-          appLogger.error("MealSave", "Échec insertion items perso", insertedItemsError);
-        } else {
-          appLogger.info("MealSave", "Synchronisation perso OK");
-        }
+      } else if (rpcResult?.success) {
+        appLogger.info("MealSave", `Repas perso sauvegardé via RPC: ${rpcResult.meal_id}, ${rpcResult.items_count} items`);
       }
     } catch (err) {
       appLogger.error("MealSave", "Erreur inattendue BDD perso", err);
