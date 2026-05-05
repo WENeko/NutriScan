@@ -13,8 +13,71 @@ const personalUrl = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
 const personalKey = import.meta.env.VITE_PERSONAL_SUPABASE_ANON_KEY;
 
 const personalSupabase = (personalUrl && personalKey) 
-  ? createClient(personalUrl, personalKey) 
+  ? createClient(personalUrl, personalKey, {
+      auth: {
+        storage: localStorage,
+        persistSession: true,
+        autoRefreshToken: true,
+      }
+    }) 
   : null;
+
+/**
+ * Synchronise la session d'authentification de Supabase Lovable vers la BDD perso
+ * Nécessaire pour que RLS fonctionne (auth.uid() doit être défini)
+ */
+async function syncAuthSessionToPersonalDb(): Promise<boolean> {
+  if (!personalSupabase) {
+    appLogger.debug("MealSave", "Pas de BDD perso configurée");
+    return false;
+  }
+  
+  try {
+    // Récupérer la session actuelle de Lovable
+    const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+    
+    if (sessionError) {
+      appLogger.error("MealSave", "Erreur récupération session Lovable", sessionError);
+      return false;
+    }
+    
+    if (!session) {
+      appLogger.warn("MealSave", "Pas de session active sur Lovable");
+      return false;
+    }
+    
+    appLogger.debug("MealSave", "Session Lovable trouvée", { 
+      userId: session.user.id,
+      expiresAt: session.expires_at 
+    });
+    
+    // Vérifier si personalSupabase a déjà la même session
+    const { data: { session: personalSession } } = await personalSupabase.auth.getSession();
+    
+    if (personalSession?.access_token === session.access_token) {
+      appLogger.debug("MealSave", "Session déjà synchronisée");
+      return true;
+    }
+    
+    // Définir la session sur personalSupabase
+    const { error: setSessionError } = await personalSupabase.auth.setSession({
+      access_token: session.access_token,
+      refresh_token: session.refresh_token,
+    });
+    
+    if (setSessionError) {
+      appLogger.error("MealSave", "Erreur définition session perso", setSessionError);
+      return false;
+    }
+    
+    appLogger.info("MealSave", "Session synchronisée vers BDD perso");
+    return true;
+    
+  } catch (error) {
+    appLogger.error("MealSave", "Exception synchronisation session", error);
+    return false;
+  }
+}
 
 // Cache de détection des colonnes
 let personalDbSchema: { 
@@ -315,8 +378,31 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
   
   if (personalSupabase) {
     try {
+      // 1. Synchroniser la session d'authentification (CRITIQUE pour RLS)
+      const sessionSynced = await syncAuthSessionToPersonalDb();
+      if (!sessionSynced) {
+        appLogger.warn("MealSave", "Impossible de synchroniser la session - tentative d'insertion avec token anon");
+      }
+      
+      // 2. Vérifier la session sur la BDD perso après synchronisation
+      const { data: { session }, error: sessionError } = await personalSupabase.auth.getSession();
+      const authUserId = session?.user?.id;
+      
+      appLogger.debug("MealSave", "Session BDD perso après sync", { 
+        hasSession: !!session, 
+        authUserId,
+        mealUserId: userId,
+        userIdsMatch: authUserId === userId,
+        sessionError: sessionError?.message,
+        sessionSynced
+      });
+      
       let personalMeal = buildPersonalMeal(mealData, userId, schema);
-      appLogger.debug("MealSave", "Données Perso", personalMeal);
+      appLogger.debug("MealSave", "Données Perso", { 
+        ...personalMeal,
+        user_id_type: typeof personalMeal.user_id,
+        user_id_value: personalMeal.user_id
+      });
       
       let { data: insertedMeal, error: secondaryError } = await personalSupabase
         .from("meals")
@@ -351,10 +437,22 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
           code: secondaryError.code,
           details: secondaryError.details,
           hint: secondaryError.hint,
-          mealDataKeys: Object.keys(personalMeal)
+          mealDataKeys: Object.keys(personalMeal),
+          user_id_sent: personalMeal.user_id,
+          user_id_type: typeof personalMeal.user_id,
+          auth_uid_from_session: authUserId,
+          isRlsError: secondaryError.message?.includes("row-level security")
         });
         if (secondaryError.message?.includes("foreign key")) {
           appLogger.error("MealSave", "Problème FK: L'utilisateur n'existe pas dans auth.users de la BDD perso");
+        }
+        if (secondaryError.message?.includes("row-level security")) {
+          appLogger.error("MealSave", "RLS Error: La policy refuse l'insertion. Vérifiez que:", {
+            check1: "1. L'utilisateur existe dans auth.users de la BDD perso",
+            check2: "2. Le JWT/token est valide et non expiré",
+            check3: "3. user_id dans le meal correspond à auth.uid()",
+            suggestedFix: "Exécuter dans SQL Editor perso: SELECT * FROM auth.users WHERE id = '" + userId + "'"
+          });
         }
       } else if (insertedMeal && items.length > 0) {
         secondaryMeal = insertedMeal;
