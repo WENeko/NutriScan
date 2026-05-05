@@ -3,6 +3,86 @@
 import { NUTRIENTS_MASTER_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
 
+// ============================================================
+// CONFIGURATION MULTI-MODÈLES
+// ============================================================
+
+interface GeminiModel {
+  name: string;
+  endpoint: string;
+  priority: number; // 1 = principal, 2 = fallback
+}
+
+const GEMINI_MODELS: GeminiModel[] = [
+  { name: "gemini-2.5-flash", endpoint: "v1beta/models/gemini-2.5-flash:generateContent", priority: 1 },
+  { name: "gemini-3.1-flash-lite", endpoint: "v1beta/models/gemini-3.1-flash-lite:generateContent", priority: 2 },
+];
+
+// ============================================================
+// SYSTÈME DE CACHE
+// ============================================================
+
+interface CacheEntry {
+  result: any;
+  timestamp: number;
+  imageHash: string;
+}
+
+class AnalysisCache {
+  private cache = new Map<string, CacheEntry>();
+  private maxSize = 50; // Max 50 analyses en cache
+  private ttlMs = 24 * 60 * 60 * 1000; // 24h de validité
+
+  private hashImage(imageData: string): string {
+    // Hash simple basé sur les 100 premiers caractères
+    return imageData.slice(0, 100) + imageData.slice(-50);
+  }
+
+  get(imageData: string, text?: string): any | null {
+    const key = this.hashImage(imageData) + (text || "");
+    const entry = this.cache.get(key);
+    
+    if (!entry) return null;
+    
+    // Vérifier TTL
+    if (Date.now() - entry.timestamp > this.ttlMs) {
+      this.cache.delete(key);
+      return null;
+    }
+    
+    appLogger.debug("GeminiCache", "Cache hit", { age: Date.now() - entry.timestamp });
+    return entry.result;
+  }
+
+  set(imageData: string, text: string | undefined, result: any): void {
+    // Nettoyer si trop de cache
+    if (this.cache.size >= this.maxSize) {
+      const oldestKey = this.cache.keys().next().value;
+      this.cache.delete(oldestKey);
+    }
+    
+    const key = this.hashImage(imageData) + (text || "");
+    this.cache.set(key, {
+      result,
+      timestamp: Date.now(),
+      imageHash: this.hashImage(imageData)
+    });
+    
+    appLogger.debug("GeminiCache", "Stored in cache", { cacheSize: this.cache.size });
+  }
+
+  clear(): void {
+    this.cache.clear();
+    appLogger.info("GeminiCache", "Cache cleared");
+  }
+}
+
+const analysisCache = new AnalysisCache();
+
+// ============================================================
+// ANALYSE GEMINI AVEC FALLBACK ET CACHE
+// ============================================================
+
 /**
  * Analyse une image ou du texte d'un repas avec l'API Gemini.
  * @param input Objet: { image?: string (URL/base64), text?: string, custom_foods?: CustomFood[], local_time?: string, check_nutrient?: string, requestedMicros?: string[] }
@@ -28,8 +108,14 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, local_t
     throw new Error("Clé API Gemini non configurée (localStorage 'user_gemini_api_key' ou VITE_GEMINI_API_KEY)");
   }
 
-  // Gemini model et endpoint API
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`;
+  // Vérifier le cache si on a une image
+  if (image) {
+    const cached = analysisCache.get(image, text);
+    if (cached) {
+      appLogger.info("Gemini", "Analyse servie depuis le cache");
+      return cached;
+    }
+  }
 
   // Liste complète des clés de micronutriments par défaut
   const defaultMicroKeys = NUTRIENTS_MASTER_LIST.map(n => n.key);
@@ -93,57 +179,95 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
     ]
   };
 
-  // Retry logic avec backoff exponentiel pour erreurs 503 (serveur surchargé)
-  const MAX_RETRIES = 3;
-  const BASE_DELAY_MS = 1000;
+  // ============================================================
+  // MULTI-MODÈLES AVEC FALLBACK ET RETRY
+  // ============================================================
+  
+  // Paramètres retry augmentés
+  const MAX_RETRIES_PER_MODEL = 3;
+  const BASE_DELAY_MS = 2000; // 2s (augmenté)
   
   let lastError: Error | null = null;
   let res: Response | null = null;
+  let usedModel = GEMINI_MODELS[0].name;
   
-  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
-    try {
-      res = await fetch(url, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-      
-      if (res.ok) {
-        break; // Succès, sortir de la boucle
+  // Essayer chaque modèle en cascade
+  for (const model of GEMINI_MODELS) {
+    const url = `https://generativelanguage.googleapis.com/${model.endpoint}?key=${apiKey}`;
+    appLogger.info("Gemini", `Tentative avec modèle ${model.name}`);
+    
+    // Retry sur ce modèle
+    for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
+      try {
+        res = await fetch(url, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(body),
+        });
+        
+        if (res.ok) {
+          usedModel = model.name;
+          appLogger.info("Gemini", `Succès avec ${model.name} après ${attempt + 1} tentative(s)`);
+          break; // Succès avec ce modèle
+        }
+        
+        const errorText = await res.text();
+        const is429 = res.status === 429 || errorText.includes("429") || errorText.includes("quota") || errorText.includes("Resource has been exhausted");
+        const is503 = res.status === 503 || errorText.includes("503") || errorText.includes("high demand");
+        
+        // Si 429 (quota) → passer au modèle suivant immédiatement
+        if (is429) {
+          appLogger.warn("Gemini", `Erreur 429 (quota) sur ${model.name}, passage au modèle fallback`);
+          break; // Sortir du retry pour passer au modèle suivant
+        }
+        
+        // Si 503 ou autre retryable → attendre et retry
+        if ((is503 || res.status >= 500) && attempt < MAX_RETRIES_PER_MODEL - 1) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt); // Backoff: 2s, 4s, 8s
+          appLogger.warn("Gemini", `Erreur ${res.status} sur ${model.name}, retry ${attempt + 1}/${MAX_RETRIES_PER_MODEL} dans ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+          continue;
+        }
+        
+        // Erreur non-retryable
+        throw new Error(`Erreur Gemini ${res.status}: ${errorText}`);
+        
+      } catch (err: any) {
+        lastError = err;
+        
+        const isNetworkError = err.message?.includes("fetch") || err.message?.includes("network") || err.message?.includes("timeout");
+        const is429Error = err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("Resource has been exhausted");
+        const is503Error = err.message?.includes("503") || err.message?.includes("high demand");
+        
+        // Si 429 → passer au modèle suivant
+        if (is429Error) {
+          appLogger.warn("Gemini", `Erreur 429 détectée sur ${model.name}, passage au modèle fallback`);
+          break;
+        }
+        
+        // Retry sur erreur réseau/503
+        if ((isNetworkError || is503Error) && attempt < MAX_RETRIES_PER_MODEL - 1) {
+          const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+          appLogger.warn("Gemini", `Erreur réseau/503 sur ${model.name}, retry ${attempt + 1}/${MAX_RETRIES_PER_MODEL} dans ${delay}ms`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        } else if (model === GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
+          // Dernier modèle, dernière tentative
+          throw err;
+        } else {
+          // Passer au modèle suivant
+          break;
+        }
       }
-      
-      const errorText = await res.text();
-      const is503 = res.status === 503 || errorText.includes("503") || errorText.includes("high demand");
-      
-      if (is503 && attempt < MAX_RETRIES - 1) {
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt); // Backoff: 1s, 2s, 4s
-        appLogger.warn("Gemini", `Erreur 503, retry ${attempt + 1}/${MAX_RETRIES} dans ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-        continue;
-      }
-      
-      // Erreur non-retryable ou dernier essai
-      throw new Error(`Erreur Gemini ${res.status}: ${errorText}`);
-      
-    } catch (err: any) {
-      lastError = err;
-      
-      // Si c'est une erreur réseau ou timeout, retry
-      const isNetworkError = err.message?.includes("fetch") || err.message?.includes("network") || err.message?.includes("timeout");
-      const is503Error = err.message?.includes("503") || err.message?.includes("high demand");
-      
-      if ((isNetworkError || is503Error) && attempt < MAX_RETRIES - 1) {
-        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
-        appLogger.warn("Gemini", `Erreur réseau/503, retry ${attempt + 1}/${MAX_RETRIES} dans ${delay}ms`);
-        await new Promise(resolve => setTimeout(resolve, delay));
-      } else {
-        throw err; // Dernier essai ou erreur non-retryable
-      }
+    }
+    
+    // Si on a une réponse OK, sortir de la boucle des modèles
+    if (res && res.ok) {
+      break;
     }
   }
   
   if (!res || !res.ok) {
-    throw lastError || new Error("Échec de la requête Gemini après retries");
+    throw lastError || new Error("Échec de la requête Gemini après tous les modèles");
   }
   
   const data = await res.json();
@@ -155,10 +279,32 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
   appLogger.debug("Gemini", "Réponse reçue", content.substring(0, 200));
 
   // Renvoyer le JSON structuré (parse sinon retourne string brute)
+  let result: any;
   try { 
-    return JSON.parse(content); 
+    result = JSON.parse(content); 
   } catch (e) { 
     appLogger.error("Gemini", "Erreur parsing JSON", { error: e, content });
-    return content; 
+    result = content; 
   }
+  
+  // Stocker dans le cache si on a une image
+  if (image && typeof result === 'object') {
+    analysisCache.set(image, text, result);
+    appLogger.info("Gemini", `Résultat mis en cache (modèle: ${usedModel})`);
+  }
+  
+  return result;
+}
+
+// ============================================================
+// UTILITAIRES CACHE (exportés pour usage externe)
+// ============================================================
+
+export function clearGeminiCache(): void {
+  analysisCache.clear();
+}
+
+export function getGeminiCacheSize(): number {
+  // @ts-ignore - accès privé pour debug
+  return analysisCache.cache?.size || 0;
 }

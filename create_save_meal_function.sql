@@ -2,6 +2,10 @@
 -- FONCTION PSQL POUR SAUVER UN REPAS (contourne RLS)
 -- ============================================================
 
+-- Supprimer l'ancienne version si elle existe (pour éviter conflit de signature)
+DROP FUNCTION IF EXISTS public.save_meal_with_items(UUID, TEXT, TEXT, TIMESTAMP WITH TIME ZONE, INTEGER, NUMERIC, NUMERIC, NUMERIC, TEXT, JSONB);
+DROP FUNCTION IF EXISTS public.save_meal_with_items(UUID, TEXT, TEXT, TIMESTAMP WITH TIME ZONE, NUMERIC, NUMERIC, NUMERIC, NUMERIC, TEXT, JSONB);
+
 -- Cette fonction s'exécute avec les privilèges du créateur (postgres)
 -- et ignore les policies RLS grâce à SECURITY DEFINER
 
@@ -10,7 +14,7 @@ CREATE OR REPLACE FUNCTION public.save_meal_with_items(
   p_name TEXT,
   p_meal_type TEXT,
   p_eaten_at TIMESTAMP WITH TIME ZONE,
-  p_total_calories INTEGER DEFAULT NULL,
+  p_total_calories NUMERIC DEFAULT NULL,
   p_total_protein NUMERIC DEFAULT NULL,
   p_total_carbs NUMERIC DEFAULT NULL,
   p_total_fat NUMERIC DEFAULT NULL,
@@ -40,28 +44,26 @@ BEGIN
     ON CONFLICT (id) DO NOTHING;
   END IF;
 
-  -- Insérer le repas
+  -- Insérer le repas (avec les vrais noms de colonnes)
   INSERT INTO meals (
-    user_id, name, meal_type, eaten_at, 
-    total_calories, total_protein, total_carbs, total_fat, 
-    image_url
+    user_id, meal_name, 
+    total_calories, total_proteins, total_carbs, total_fats, 
+    timestamp, image_url, raw_ai_analysis, is_confirmed, source
   ) VALUES (
-    p_user_id, p_name, p_meal_type, p_eaten_at,
+    p_user_id, p_name,
     p_total_calories, p_total_protein, p_total_carbs, p_total_fat,
-    p_image_url
+    p_eaten_at, p_image_url, NULL, true, 'ai'
   )
   RETURNING id INTO v_meal_id;
 
-  -- Insérer les items
+  -- Insérer les items (sans user_id qui n'existe pas dans meal_items)
   FOR v_item IN SELECT * FROM jsonb_array_elements(p_items)
   LOOP
     INSERT INTO meal_items (
-      meal_id, user_id, name, quantity, unit_count, unit_label, unit_weight_g,
-      calories, protein, carbs, fat,
-      vitamin_a, vitamin_c, vitamin_d, calcium, iron, magnesium, omega_3
+      meal_id, name, quantity, unit_count, unit_label, unit_weight_g,
+      calories, proteins, carbs, fats
     ) VALUES (
       v_meal_id,
-      p_user_id,
       v_item->>'name',
       COALESCE((v_item->>'quantity')::numeric, 1),
       COALESCE((v_item->>'unit_count')::numeric, 1),
@@ -70,14 +72,7 @@ BEGIN
       COALESCE((v_item->>'calories')::numeric, 0),
       COALESCE((v_item->>'protein')::numeric, 0),
       COALESCE((v_item->>'carbs')::numeric, 0),
-      COALESCE((v_item->>'fat')::numeric, 0),
-      COALESCE((v_item->>'vitamin_a')::numeric, 0),
-      COALESCE((v_item->>'vitamin_c')::numeric, 0),
-      COALESCE((v_item->>'vitamin_d')::numeric, 0),
-      COALESCE((v_item->>'calcium')::numeric, 0),
-      COALESCE((v_item->>'iron')::numeric, 0),
-      COALESCE((v_item->>'magnesium')::numeric, 0),
-      COALESCE((v_item->>'omega_3')::numeric, 0)
+      COALESCE((v_item->>'fat')::numeric, 0)
     );
   END LOOP;
 
