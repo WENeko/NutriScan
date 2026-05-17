@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from "react";
 import { Switch } from "@/components/ui/switch";
-import { ArrowLeft, Smartphone, Weight, Activity, Moon, Flame, Shield, RefreshCw } from "lucide-react";
+import { ArrowLeft, Smartphone, Weight, Activity, Moon, Flame, Shield, RefreshCw, Database } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
 import {
@@ -15,6 +15,8 @@ import {
   type HealthConnectPreferences,
 } from "@/services/health-connect";
 import { supabase } from "@/integrations/supabase/client";
+import { pingPersoBridge, isPersonalDbEnabled } from "@/services/mealPersistenceService";
+import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
 
 // Import direct pour le debug si nécessaire
 const getHealthPlugin = async () => {
