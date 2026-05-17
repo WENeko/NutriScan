@@ -61,6 +61,7 @@ export type Database = {
           fats_per_100g: number
           fiber_per_100g: number | null
           id: string
+          iron_mg_per_100g: number | null
           magnesium_mg_per_100g: number | null
           name: string
           omega3_mg_per_100g: number | null
@@ -73,9 +74,12 @@ export type Database = {
           updated_at: string
           user_id: string
           vitamin_b_per_100g: number | null
+          vitamin_b12_mcg_per_100g: number | null
+          vitamin_b9_mcg_per_100g: number | null
           vitamin_c_per_100g: number | null
           vitamin_d_per_100g: number | null
           vitamin_e_per_100g: number | null
+          zinc_mg_per_100g: number | null
         }
         Insert: {
           barcode?: string | null
@@ -87,6 +91,7 @@ export type Database = {
           fats_per_100g?: number
           fiber_per_100g?: number | null
           id?: string
+          iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number | null
           name: string
           omega3_mg_per_100g?: number | null
@@ -99,9 +104,12 @@ export type Database = {
           updated_at?: string
           user_id: string
           vitamin_b_per_100g?: number | null
+          vitamin_b12_mcg_per_100g?: number | null
+          vitamin_b9_mcg_per_100g?: number | null
           vitamin_c_per_100g?: number | null
           vitamin_d_per_100g?: number | null
           vitamin_e_per_100g?: number | null
+          zinc_mg_per_100g?: number | null
         }
         Update: {
           barcode?: string | null
@@ -113,6 +121,7 @@ export type Database = {
           fats_per_100g?: number
           fiber_per_100g?: number | null
           id?: string
+          iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number | null
           name?: string
           omega3_mg_per_100g?: number | null
@@ -125,9 +134,12 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vitamin_b_per_100g?: number | null
+          vitamin_b12_mcg_per_100g?: number | null
+          vitamin_b9_mcg_per_100g?: number | null
           vitamin_c_per_100g?: number | null
           vitamin_d_per_100g?: number | null
           vitamin_e_per_100g?: number | null
+          zinc_mg_per_100g?: number | null
         }
         Relationships: []
       }
@@ -139,6 +151,7 @@ export type Database = {
           fats: number | null
           fiber: number | null
           id: string
+          iron_mg: number | null
           magnesium_mg: number | null
           meal_id: string
           name: string
@@ -153,9 +166,12 @@ export type Database = {
           unit_label: string | null
           unit_weight_g: number | null
           vitamin_b_mg: number | null
+          vitamin_b12_mcg: number | null
+          vitamin_b9_mcg: number | null
           vitamin_c_mg: number | null
           vitamin_d_mcg: number | null
           vitamin_e_mg: number | null
+          zinc_mg: number | null
         }
         Insert: {
           calcium_mg?: number | null
@@ -164,6 +180,7 @@ export type Database = {
           fats?: number | null
           fiber?: number | null
           id?: string
+          iron_mg?: number | null
           magnesium_mg?: number | null
           meal_id: string
           name: string
@@ -178,9 +195,12 @@ export type Database = {
           unit_label?: string | null
           unit_weight_g?: number | null
           vitamin_b_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b9_mcg?: number | null
           vitamin_c_mg?: number | null
           vitamin_d_mcg?: number | null
           vitamin_e_mg?: number | null
+          zinc_mg?: number | null
         }
         Update: {
           calcium_mg?: number | null
@@ -189,6 +209,7 @@ export type Database = {
           fats?: number | null
           fiber?: number | null
           id?: string
+          iron_mg?: number | null
           magnesium_mg?: number | null
           meal_id?: string
           name?: string
@@ -203,9 +224,12 @@ export type Database = {
           unit_label?: string | null
           unit_weight_g?: number | null
           vitamin_b_mg?: number | null
+          vitamin_b12_mcg?: number | null
+          vitamin_b9_mcg?: number | null
           vitamin_c_mg?: number | null
           vitamin_d_mcg?: number | null
           vitamin_e_mg?: number | null
+          zinc_mg?: number | null
         }
         Relationships: [
           {
@@ -370,6 +394,7 @@ export type Database = {
           fats_per_100g: number
           fiber_per_100g: number
           id: string
+          iron_mg_per_100g: number | null
           magnesium_mg_per_100g: number
           name: string
           omega3_mg_per_100g: number
@@ -379,10 +404,13 @@ export type Database = {
           sodium_mg_per_100g: number
           sugar_per_100g: number
           vitamin_b_per_100g: number
+          vitamin_b12_mcg_per_100g: number | null
+          vitamin_b9_mcg_per_100g: number | null
           vitamin_c_per_100g: number
           vitamin_d_per_100g: number
           vitamin_e_per_100g: number
           weight_g: number
+          zinc_mg_per_100g: number | null
         }
         Insert: {
           calcium_mg_per_100g?: number
@@ -392,6 +420,7 @@ export type Database = {
           fats_per_100g?: number
           fiber_per_100g?: number
           id?: string
+          iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number
           name: string
           omega3_mg_per_100g?: number
@@ -401,10 +430,13 @@ export type Database = {
           sodium_mg_per_100g?: number
           sugar_per_100g?: number
           vitamin_b_per_100g?: number
+          vitamin_b12_mcg_per_100g?: number | null
+          vitamin_b9_mcg_per_100g?: number | null
           vitamin_c_per_100g?: number
           vitamin_d_per_100g?: number
           vitamin_e_per_100g?: number
           weight_g?: number
+          zinc_mg_per_100g?: number | null
         }
         Update: {
           calcium_mg_per_100g?: number
@@ -414,6 +446,7 @@ export type Database = {
           fats_per_100g?: number
           fiber_per_100g?: number
           id?: string
+          iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number
           name?: string
           omega3_mg_per_100g?: number
@@ -423,10 +456,13 @@ export type Database = {
           sodium_mg_per_100g?: number
           sugar_per_100g?: number
           vitamin_b_per_100g?: number
+          vitamin_b12_mcg_per_100g?: number | null
+          vitamin_b9_mcg_per_100g?: number | null
           vitamin_c_per_100g?: number
           vitamin_d_per_100g?: number
           vitamin_e_per_100g?: number
           weight_g?: number
+          zinc_mg_per_100g?: number | null
         }
         Relationships: [
           {
