@@ -270,6 +270,9 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         })}
       </div>
 
+      {/* BDD perso — double sauvegarde */}
+      <PersoBridgeCard />
+
       {/* Privacy notice */}
       <div className="bg-accent/50 rounded-2xl p-4 flex gap-3">
         <Shield className="w-5 h-5 text-primary shrink-0 mt-0.5" />
@@ -280,6 +283,69 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
           </p>
         </div>
       </div>
+    </div>
+  );
+};
+
+const PersoBridgeCard: React.FC = () => {
+  const enabled = isPersonalDbEnabled();
+  const [testing, setTesting] = useState(false);
+  const [status, setStatus] = useState<"idle" | "ok" | "ko">("idle");
+  const [detail, setDetail] = useState<string>("");
+
+  const handleTest = async () => {
+    setTesting(true);
+    setStatus("idle");
+    setDetail("");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        setStatus("ko"); setDetail("Pas d'utilisateur connecté");
+        return;
+      }
+      await ensureUserInPersonalDB(user.id, user.email ?? undefined);
+      const ping = await pingPersoBridge(user.id);
+      if (ping.ok) {
+        setStatus("ok");
+        setDetail("Bridge perso joignable et user créé / déjà présent.");
+        toast({ title: "BDD perso OK", description: "La double sauvegarde est opérationnelle." });
+      } else {
+        setStatus("ko");
+        setDetail(ping.error ?? "Erreur inconnue");
+        toast({ title: "BDD perso KO", description: ping.error, variant: "destructive" });
+      }
+    } finally {
+      setTesting(false);
+    }
+  };
+
+  return (
+    <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
+      <div className="flex items-start gap-3">
+        <div className={`w-9 h-9 rounded-xl flex items-center justify-center shrink-0 ${enabled ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}>
+          <Database className="w-4.5 h-4.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">Double sauvegarde — BDD perso</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            {enabled
+              ? "Les repas sont aussi envoyés vers ta base Supabase personnelle via un bridge service-role."
+              : "Inactive. Configure VITE_PERSONAL_SUPABASE_URL et VITE_PERSONAL_BRIDGE_SECRET dans .env."}
+          </p>
+        </div>
+      </div>
+      {enabled && (
+        <>
+          <Button onClick={handleTest} disabled={testing} variant="outline" size="sm" className="w-full">
+            {testing ? "Test en cours…" : "Tester la connexion BDD perso"}
+          </Button>
+          {status !== "idle" && (
+            <p className={`text-xs leading-relaxed ${status === "ok" ? "text-primary" : "text-destructive"}`}>
+              {status === "ok" ? "✓ " : "✗ "} {detail}
+            </p>
+          )}
+        </>
+      )}
     </div>
   );
 };
