@@ -4,14 +4,13 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
-import type { MicroNutrientFields } from "@/utils/nutrition-logic";
 import { appLogger } from "./appLogger";
 
 const PERSO_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL as string | undefined;
 const PERSO_BRIDGE_SECRET = import.meta.env.VITE_PERSONAL_BRIDGE_SECRET as string | undefined;
 const PERSO_ENABLED = !!(PERSO_URL && PERSO_BRIDGE_SECRET);
 
-interface MealItem {
+export type MealItemWithMicros = {
   food_name?: string;
   name?: string;
   calories: number;
@@ -23,8 +22,24 @@ interface MealItem {
   unit_count?: number;
   unit_label?: string;
   unit_weight_g?: number;
-}
-type MealItemWithMicros = MealItem & Partial<MicroNutrientFields>;
+  fiber?: number;
+  sugar?: number;
+  saturated_fat?: number;
+  sodium_mg?: number;
+  potassium_mg?: number;
+  magnesium_mg?: number;
+  calcium_mg?: number;
+  iron_mg?: number;
+  zinc_mg?: number;
+  omega3_mg?: number;
+  vitamin_b_mg?: number;
+  vitamin_b9_mcg?: number;
+  vitamin_b12_mcg?: number;
+  vitamin_c_mg?: number;
+  vitamin_d_mcg?: number;
+  vitamin_e_mg?: number;
+  [extra: string]: unknown;
+};
 
 interface SaveMealParams {
   userId: string;
