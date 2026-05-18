@@ -7,7 +7,8 @@ import {
 } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } from "date-fns";
 import { fr } from "date-fns/locale";
-import { calculateMicroGoals, NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import { calculateMicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
+import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface EvolutionPageProps {
   userId: string;
@@ -19,11 +20,13 @@ interface EvolutionPageProps {
   targetBodyFat?: number | null;
   targetMuscleMass?: number | null;
   userProfile?: any;
+  customNutrients?: CustomNutrientDef[];
 }
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
   userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
-  targetWeight, targetBodyFat, targetMuscleMass, userProfile 
+  targetWeight, targetBodyFat, targetMuscleMass, userProfile,
+  customNutrients = []
 }) => {
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
   const [nutritionData, setNutritionData] = useState<any[]>([]);
@@ -42,7 +45,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     });
   }, [userProfile, calorieGoal]);
 
-  useEffect(() => { fetchData(); }, [userId, period]);
+  const allMicros = useMemo(() => getMasterList(customNutrients), [customNutrients]);
+
+  useEffect(() => { fetchData(); }, [userId, period, customNutrients]);
 
   const fetchData = async () => {
     const startDate = period === "7d" ? subDays(new Date(), 6) : period === "30d" ? subDays(new Date(), 29) : subMonths(new Date(), 6);
@@ -57,17 +62,22 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       .lte("timestamp", endOfDay(today).toISOString());
 
     const mealIds = (meals || []).map((m: any) => m.id);
-    let microsByMeal: Record<string, any> = {};
+    const microsByMeal: Record<string, Record<string, number>> = {};
 
     if (mealIds.length > 0) {
-      const safeColumns = ["fiber", "sugar", "saturated_fat", "sodium_mg", "potassium_mg", "magnesium_mg", "calcium_mg", "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg", "omega3_mg"];
-      const { data: items } = await supabase.from("meal_items").select(`meal_id, ${safeColumns.join(', ')}`).in("meal_id", mealIds);
+      // Source unique de vérité : JSONB nutrients_std + nutrients_custom
+      const { data: items } = await supabase
+        .from("meal_items")
+        .select("meal_id, nutrients_std, nutrients_custom")
+        .in("meal_id", mealIds);
       if (items) {
-        items.forEach((item: any) => {
+        (items as any[]).forEach((item) => {
           if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
-          NUTRIENTS_STD_LIST.forEach((n) => {
-            microsByMeal[item.meal_id][n.key] = (microsByMeal[item.meal_id][n.key] || 0) + (Number(item[n.key]) || 0);
-          });
+          const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
+          for (const [k, v] of Object.entries(merged)) {
+            const n = Number(v) || 0;
+            microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + n;
+          }
         });
       }
     }
@@ -81,7 +91,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         date: format(d, "dd/MM/yyyy"),
         calories: 0, proteins: 0, carbs: 0, fats: 0
       };
-      NUTRIENTS_STD_LIST.forEach(n => dayMap[key][n.key] = 0);
+      allMicros.forEach(n => dayMap[key][n.key] = 0);
     }
 
     (meals || []).forEach((m: any) => {
@@ -92,7 +102,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         dayMap[key].carbs += Math.round(Number(m.total_carbs));
         dayMap[key].fats += Math.round(Number(m.total_fats));
         const micros = microsByMeal[m.id];
-        if (micros) Object.keys(micros).forEach((k) => { dayMap[key][k] += micros[k]; });
+        if (micros) Object.keys(micros).forEach((k) => {
+          dayMap[key][k] = (dayMap[key][k] || 0) + micros[k];
+        });
       }
     });
     setNutritionData(Object.values(dayMap));
@@ -109,9 +121,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
   const radarData = useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
-    return NUTRIENTS_STD_LIST.map((m) => {
+    const stdKeys = new Set(NUTRIENTS_STD_LIST.map(n => n.key));
+    return allMicros.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
-      const goal = dynamicGoals[m.key] || 1;
+      const isStd = stdKeys.has(m.key);
+      const goal = isStd
+        ? (dynamicGoals[m.key] || 1)
+        : (Number((m as any).goal) > 0 ? Number((m as any).goal) : 1);
       const pct = (avg / goal) * 100;
       return { 
         nutrient: m.label, 
@@ -123,7 +139,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         goalMarker: 100
       };
     });
-  }, [nutritionData, dynamicGoals]);
+  }, [nutritionData, dynamicGoals, allMicros]);
 
   const tooltipStyle = {
     backgroundColor: "#1A1F2C",
