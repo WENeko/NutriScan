@@ -90,10 +90,11 @@ const analysisCache = new AnalysisCache();
  * Chaque item contient: food_name, calories, proteins, carbs, fats, quantity, unit_count?, unit_label?, unit_weight_g?, 
  * PLUS tous les micronutriments de NUTRIENTS_MASTER_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
  */
-export async function analyzeMealWithGemini({ image, text, custom_foods, local_time, check_nutrient, requestedMicros = [] }: {
+export async function analyzeMealWithGemini({ image, text, custom_foods, custom_nutrients, local_time, check_nutrient, requestedMicros = [] }: {
   image?: string;
   text?: string;
   custom_foods?: any[];
+  custom_nutrients?: { key: string; label?: string; unit: string }[];
   local_time?: string;
   check_nutrient?: string;
   requestedMicros?: string[];
@@ -117,9 +118,10 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, local_t
     }
   }
 
-  // Liste complète des clés de micronutriments par défaut
+  // Liste master + custom user
   const defaultMicroKeys = NUTRIENTS_MASTER_LIST.map(n => n.key);
-  const microKeysToRequest = requestedMicros.length ? requestedMicros : defaultMicroKeys;
+  const customKeys = (custom_nutrients || []).map(c => c.key).filter(Boolean);
+  const microKeysToRequest = requestedMicros.length ? requestedMicros : [...defaultMicroKeys, ...customKeys];
 
   // Construire la liste des micronutriments pour le prompt
   const microFieldsList = microKeysToRequest.join(", ");
@@ -160,13 +162,20 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
       .join("\n");
   }
 
+  // Nutriments custom (suivis en plus de la master list)
+  let customNutrientsContext = "";
+  if (custom_nutrients?.length) {
+    customNutrientsContext = "\nNUTRIMENTS CUSTOM à estimer pour CHAQUE item (clé JSON exacte = valeur numérique dans l'unité indiquée, 0 si inconnu) :\n" +
+      custom_nutrients.map(c => `- ${c.key} (${c.unit})${c.label ? ` — ${c.label}` : ""}`).join("\n");
+  }
+
   // Nettoyer l'image base64 si elle a un préfixe data:image
   const cleanImageData = image ? image.replace(/^data:image\/\w+;base64,/, '') : null;
 
   // Construction du payload Gemini (format API Google)
   type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
   const userParts: GeminiPart[] = [
-    { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
+    { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
   ];
   
   if (cleanImageData) {

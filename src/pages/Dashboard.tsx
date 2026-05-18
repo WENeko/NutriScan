@@ -1,6 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getPersonalizedMicroGoals, getMicroInfo, type UserProfile } from "@/lib/micro-goals";
+import { NUTRIENTS_MASTER_LIST } from "@/utils/nutrition-logic";
+import { mergedNutrientList, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
@@ -58,21 +60,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [targetMuscleMass, setTargetMuscleMass] = useState<number | null>(null);
   const [proteinTargetPerKg, setProteinTargetPerKg] = useState(2.0);
   const [userProfile, setUserProfile] = useState<UserProfile>({});
-  const [todayMicros, setTodayMicros] = useState({
-    fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
-    calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0,
-    vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
-  });
-  const [weekMicros, setWeekMicros] = useState({
-    fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0,
-    calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0,
-    vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
-  });
+  const [customNutrients, setCustomNutrients] = useState<CustomNutrientDef[]>([]);
+  const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
+  const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level")
+      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients")
       .eq("user_id", userId)
       .single();
 
@@ -103,6 +98,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         weight_kg: Number(profile.weight_kg) || null,
         activity_level: profile.activity_level,
       });
+      const cn = (profile as any).custom_nutrients;
+      setCustomNutrients(Array.isArray(cn) ? cn : []);
 
       const { data: weekBody } = await supabase
         .from("body_composition")
@@ -167,51 +164,41 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeekTotalCalories(Math.round(weekTotal));
       setWeekAvgCalories(Math.round(weekTotal / mondayBased));
 
-      // Fetch week micros
+      // Fetch week micros via JSONB (source unique de vérité)
       const todayMealIds = today.map((m) => m.id);
       const weekMealIds = weekMeals.map((m) => m.id);
-      const emptyMicros = { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 };
       if (weekMealIds.length > 0) {
         const { data: items } = await supabase
           .from("meal_items")
-          .select("meal_id, fiber, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, sugar, saturated_fat, omega3_mg, vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg")
+          .select("meal_id, nutrients_std, nutrients_custom")
           .in("meal_id", weekMealIds);
         if (items) {
           const todayMealIdSet = new Set(todayMealIds);
-          const addMicros = (acc: typeof emptyMicros, item: any) => ({
-            fiber: acc.fiber + (Number(item.fiber) || 0),
-            sodium_mg: acc.sodium_mg + (Number(item.sodium_mg) || 0),
-            potassium_mg: acc.potassium_mg + (Number(item.potassium_mg) || 0),
-            magnesium_mg: acc.magnesium_mg + (Number(item.magnesium_mg) || 0),
-            calcium_mg: acc.calcium_mg + (Number(item.calcium_mg) || 0),
-            sugar: acc.sugar + (Number(item.sugar) || 0),
-            saturated_fat: acc.saturated_fat + (Number(item.saturated_fat) || 0),
-            omega3_mg: acc.omega3_mg + (Number(item.omega3_mg) || 0),
-            vitamin_b_mg: acc.vitamin_b_mg + (Number(item.vitamin_b_mg) || 0),
-            vitamin_c_mg: acc.vitamin_c_mg + (Number(item.vitamin_c_mg) || 0),
-            vitamin_d_mcg: acc.vitamin_d_mcg + (Number(item.vitamin_d_mcg) || 0),
-            vitamin_e_mg: acc.vitamin_e_mg + (Number(item.vitamin_e_mg) || 0),
+          const weekTotals: Record<string, number> = {};
+          const dayTotals: Record<string, number> = {};
+          (items as any[]).forEach((item) => {
+            const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
+            const isToday = todayMealIdSet.has(item.meal_id);
+            for (const [k, v] of Object.entries(merged)) {
+              const n = Number(v) || 0;
+              weekTotals[k] = (weekTotals[k] || 0) + n;
+              if (isToday) dayTotals[k] = (dayTotals[k] || 0) + n;
+            }
           });
-          const allWeekMicros = (items as any[]).reduce((acc, item) => addMicros(acc, item), emptyMicros);
-          const currentDayMicros = (items as any[]).reduce(
-            (acc, item) => (todayMealIdSet.has(item.meal_id) ? addMicros(acc, item) : acc),
-            emptyMicros
-          );
-          setWeekMicros(allWeekMicros);
-          setTodayMicros(currentDayMicros);
+          setWeekMicros(weekTotals);
+          setTodayMicros(dayTotals);
         }
       } else {
-        setTodayMicros(emptyMicros);
-        setWeekMicros(emptyMicros);
+        setTodayMicros({});
+        setWeekMicros({});
       }
     } else {
-      const emptyMicros = { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 };
       setTodayMeals([]);
       setAllMeals([]);
       setFavoriteMeals([]);
       setTodayTotals({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
-      setTodayMicros(emptyMicros);
-      setWeekMicros(emptyMicros);
+      setTodayMicros({});
+      setWeekMicros({});
       setWeekTotalCalories(0);
       setWeekAvgCalories(0);
     }
@@ -267,23 +254,26 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const proteinPerKgMax = proteinTargetPerKg;
 
   const showElectrolyteWarning = sportCalories >= 500 && (
-    todayMicros.sodium_mg < 1500 || todayMicros.potassium_mg < 2000 || todayMicros.magnesium_mg < 200
+    (todayMicros.sodium_mg || 0) < 1500 || (todayMicros.potassium_mg || 0) < 2000 || (todayMicros.magnesium_mg || 0) < 200
   );
 
-  const microsList = [
-    { name: "Fibres", value: todayMicros.fiber, unit: "g", info: getMicroInfo("fiber", microGoals.fiber), goal: microGoals.fiber },
-    { name: "Sucres", value: todayMicros.sugar, unit: "g", info: getMicroInfo("sugar", microGoals.sugar), goal: microGoals.sugar, isLimit: true },
-    { name: "AG Saturés", value: todayMicros.saturated_fat, unit: "g", info: getMicroInfo("saturated_fat", microGoals.saturated_fat), goal: microGoals.saturated_fat, isLimit: true },
-    { name: "Oméga-3", value: todayMicros.omega3_mg, unit: "mg", info: getMicroInfo("omega3_mg", microGoals.omega3_mg), goal: microGoals.omega3_mg },
-    { name: "Sodium", value: todayMicros.sodium_mg, unit: "mg", info: getMicroInfo("sodium_mg", microGoals.sodium_mg), goal: microGoals.sodium_mg, isLimit: true },
-    { name: "Potassium", value: todayMicros.potassium_mg, unit: "mg", info: getMicroInfo("potassium_mg", microGoals.potassium_mg), goal: microGoals.potassium_mg },
-    { name: "Magnésium", value: todayMicros.magnesium_mg, unit: "mg", info: getMicroInfo("magnesium_mg", microGoals.magnesium_mg), goal: microGoals.magnesium_mg },
-    { name: "Calcium", value: todayMicros.calcium_mg, unit: "mg", info: getMicroInfo("calcium_mg", microGoals.calcium_mg), goal: microGoals.calcium_mg },
-    { name: "Vitamine B", value: todayMicros.vitamin_b_mg, unit: "mg", info: getMicroInfo("vitamin_b_mg", microGoals.vitamin_b_mg), goal: microGoals.vitamin_b_mg },
-    { name: "Vitamine C", value: todayMicros.vitamin_c_mg, unit: "mg", info: getMicroInfo("vitamin_c_mg", microGoals.vitamin_c_mg), goal: microGoals.vitamin_c_mg },
-    { name: "Vitamine D", value: todayMicros.vitamin_d_mcg, unit: "µg", info: getMicroInfo("vitamin_d_mcg", microGoals.vitamin_d_mcg), goal: microGoals.vitamin_d_mcg },
-    { name: "Vitamine E", value: todayMicros.vitamin_e_mg, unit: "mg", info: getMicroInfo("vitamin_e_mg", microGoals.vitamin_e_mg), goal: microGoals.vitamin_e_mg },
-  ];
+  // Limit-type keys (les nutriments à limiter plutôt qu'à atteindre)
+  const LIMIT_KEYS = new Set(["sugar", "saturated_fat", "sodium_mg"]);
+
+  // Liste micros dérivée dynamiquement de la master list + custom user
+  const allNutrients = mergedNutrientList(customNutrients);
+  const microsList = allNutrients.map((n) => {
+    const isStd = NUTRIENTS_MASTER_LIST.some((s) => s.key === n.key);
+    const goal = isStd ? (microGoals as any)[n.key] ?? 0 : (n as any).goal ?? 0;
+    return {
+      name: n.label,
+      value: todayMicros[n.key] || 0,
+      unit: n.unit,
+      info: isStd ? getMicroInfo(n.key, goal) : `${n.label} (custom)`,
+      goal,
+      isLimit: LIMIT_KEYS.has(n.key),
+    };
+  });
 
   // Radar uses SAME todayMicros as the bars to ensure alignment
   const radarMicrosList = microsList;
@@ -500,7 +490,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {todayMeals.length > 0 && (
               <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
                 <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
-                <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
+                <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
               </section>
             )}
 
@@ -519,7 +509,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
                 </button>
                 {showFavorites && (
-                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
+                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
                 )}
               </section>
             )}
@@ -527,7 +517,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {/* All history */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
+              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
             </section>
           </>
         )}

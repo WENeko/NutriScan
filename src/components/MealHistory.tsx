@@ -57,11 +57,12 @@ interface MealHistoryProps {
   onSelect: (id: string) => void;
   onRefresh: () => void;
   microGoals?: MicroGoals;
+  customDefs?: import("@/utils/nutrients-helpers").CustomNutrientDef[];
 }
 
 type AddMode = "manual" | "text" | "barcode";
 
-const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals }) => {
+const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
   const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number; fiberD: number; sugarD: number; satFatD: number; omega3D: number; sodiumD: number; potassiumD: number; magnesiumD: number; calciumD: number; vitBD: number; vitCD: number; vitDD: number; vitED: number }[]>([]);
@@ -570,7 +571,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           </button>
           {/* Meal micros */}
           <div className="px-3 pb-2">
-            <MealMicros mealId={meal.id} microGoals={microGoals} />
+            <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} />
           </div>
 
           {/* Inline edit panel */}

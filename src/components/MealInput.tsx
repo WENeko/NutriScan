@@ -64,6 +64,8 @@ interface MealItem {
   unitWeightG?: number;
   unitLabel?: string;
   isCooked?: boolean;
+  /** Valeurs des nutriments custom (clé technique -> valeur) retournées par l'IA */
+  customExtras?: Record<string, number>;
 }
 
 const roundNutrient = (value: number) => Math.round(value * 10) / 10;
@@ -134,14 +136,22 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [manualIsCooked, setManualIsCooked] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [logsContent, setLogsContent] = useState("");
+  const [customNutrients, setCustomNutrients] = useState<{ key: string; label?: string; unit: string }[]>([]);
 
-  // Initialisation - vérifier la santé de la BDD perso
+  // Initialisation - vérifier la santé de la BDD perso + charger nutriments custom
   useEffect(() => {
     const init = async () => {
       await logDatabaseHealth();
+      const { data } = await supabaseLovable
+        .from("profiles")
+        .select("custom_nutrients")
+        .eq("user_id", userId)
+        .single();
+      const arr = Array.isArray((data as any)?.custom_nutrients) ? (data as any).custom_nutrients : [];
+      setCustomNutrients(arr);
     };
     init();
-  }, []);
+  }, [userId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -168,7 +178,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
       const result = await analyzeMealWithGemini({ 
         image: base64, 
-        custom_foods: customFoods || [] 
+        custom_foods: customFoods || [],
+        custom_nutrients: customNutrients,
       });
       
       handleAIResponse(result, customFoods || []);
@@ -191,7 +202,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
       const result = await analyzeMealWithGemini({ 
         text: textInput, 
-        custom_foods: customFoods || [], 
+        custom_foods: customFoods || [],
+        custom_nutrients: customNutrients,
         local_time: new Date().toLocaleString("fr-FR") 
       });
       
@@ -278,6 +290,13 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const unitWeightG = item.unit_weight_g ? parseInt(item.unit_weight_g) : undefined;
       const unitLabel = item.unit_label || undefined;
 
+      // Extraire les valeurs custom_nutrients renvoyées par l'IA
+      const customExtras: Record<string, number> = {};
+      for (const c of customNutrients) {
+        const v = Number(item[c.key]);
+        if (Number.isFinite(v) && v !== 0) customExtras[c.key] = v;
+      }
+
       return {
         name: itemName,
         quantity: `${weight}g`,
@@ -288,6 +307,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         isCustom,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+        ...(Object.keys(customExtras).length ? { customExtras } : {}),
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
@@ -545,7 +565,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           quantity: parseFloat(item.quantity?.replace("g", "") || "100") || 100,
           unit_count: item.unitCount || null,
           unit_label: item.unitLabel || null,
-          unit_weight_g: item.unitWeightG || null
+          unit_weight_g: item.unitWeightG || null,
+          // Spread custom nutrient values so buildCustomNutrients() can pick them up
+          ...(item.customExtras || {}),
         }))
       });
       
