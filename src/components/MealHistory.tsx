@@ -305,6 +305,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const removeEditItem = (idx: number) => {
     setEditItems((prev) => prev.filter((_, i) => i !== idx));
     setEditDensities((prev) => prev.filter((_, i) => i !== idx));
+    setEditCustomPerGram((prev) => prev.filter((_, i) => i !== idx));
     setEditWeightInputs((prev) => prev.filter((_, i) => i !== idx));
   };
 
