@@ -8,6 +8,7 @@ import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle 
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
+import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 
 interface ProfilePageProps {
   userId: string;
@@ -595,6 +596,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             </div>
           </div>
         </section>
+
+        {/* Nutriments personnalisés */}
+        <CustomNutrientsEditor userId={userId} />
 
         {/* Theme */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
