@@ -202,7 +202,8 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
     throw primaryErr;
   }
 
-  const itemRows = items?.length ? buildItemRows(items, primaryMeal.id) : [];
+  const customDefs = items?.length ? await loadCustomNutrientDefs(userId) : [];
+  const itemRows = items?.length ? buildItemRows(items, primaryMeal.id, customDefs) : [];
   if (itemRows.length > 0) {
     const { error: itemsErr } = await supabase.from("meal_items").insert(itemRows);
     if (itemsErr) {
