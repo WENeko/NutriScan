@@ -290,6 +290,13 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const unitWeightG = item.unit_weight_g ? parseInt(item.unit_weight_g) : undefined;
       const unitLabel = item.unit_label || undefined;
 
+      // Extraire les valeurs custom_nutrients renvoyées par l'IA
+      const customExtras: Record<string, number> = {};
+      for (const c of customNutrients) {
+        const v = Number(item[c.key]);
+        if (Number.isFinite(v) && v !== 0) customExtras[c.key] = v;
+      }
+
       return {
         name: itemName,
         quantity: `${weight}g`,
@@ -300,6 +307,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         isCustom,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+        ...(Object.keys(customExtras).length ? { customExtras } : {}),
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
