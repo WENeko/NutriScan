@@ -2,7 +2,7 @@ import React, { useState, useEffect, useId } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTooltipCtx } from "./TooltipContext";
-import { getMicroInfo, type MicroGoals, NUTRIENTS_MASTER_LIST } from "@/utils/nutrition-logic";
+import { getMicroInfo, type MicroGoals, NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { mergedNutrientList, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface MealMicrosProps {
@@ -72,7 +72,7 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
           {micros && hasMicros ? (
             allNutrients.filter((n) => (micros[n.key] || 0) > 0).map((n, i) => {
               const goal = microGoals ? (microGoals as any)[n.key] ?? 0 : 0;
-              const isStd = NUTRIENTS_MASTER_LIST.some((s) => s.key === n.key);
+              const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
               const info = isStd && microGoals ? getMicroInfo(n.key, goal) : `${n.label} (custom)`;
               return (
                 <div key={n.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">

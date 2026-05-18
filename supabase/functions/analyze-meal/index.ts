@@ -36,7 +36,7 @@ Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne m
 
 IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g).
-Liste STANDARD (NUTRIENTS_MASTER_LIST — source unique de vérité côté client) :
+Liste STANDARD (NUTRIENTS_STD_LIST — source unique de vérité côté client) :
 - fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
 - sodium_mg (mg), potassium_mg (mg), magnesium_mg (mg), calcium_mg (mg)
 - iron_mg (mg), zinc_mg (mg)

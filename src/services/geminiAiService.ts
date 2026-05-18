@@ -1,6 +1,6 @@
 // src/services/geminiAiService.ts
 // Couche d'intégration directe avec Google Gemini (sans Lovable)
-import { NUTRIENTS_MASTER_LIST } from '@/utils/nutrition-logic';
+import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
 
 // ============================================================
@@ -88,7 +88,7 @@ const analysisCache = new AnalysisCache();
  * @param input Objet: { image?: string (URL/base64), text?: string, custom_foods?: CustomFood[], local_time?: string, check_nutrient?: string, requestedMicros?: string[] }
  * @returns Réponse IA structurée ({ meal_name, confidence_score, suggested_timestamp?, items: [...] })
  * Chaque item contient: food_name, calories, proteins, carbs, fats, quantity, unit_count?, unit_label?, unit_weight_g?, 
- * PLUS tous les micronutriments de NUTRIENTS_MASTER_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
+ * PLUS tous les micronutriments de NUTRIENTS_STD_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
  */
 export async function analyzeMealWithGemini({ image, text, custom_foods, custom_nutrients, local_time, check_nutrient, requestedMicros = [] }: {
   image?: string;
@@ -119,7 +119,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   }
 
   // Liste master + custom user
-  const defaultMicroKeys = NUTRIENTS_MASTER_LIST.map(n => n.key);
+  const defaultMicroKeys = NUTRIENTS_STD_LIST.map(n => n.key);
   const customKeys = (custom_nutrients || []).map(c => c.key).filter(Boolean);
   const microKeysToRequest = requestedMicros.length ? requestedMicros : [...defaultMicroKeys, ...customKeys];
 
