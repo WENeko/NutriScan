@@ -121,9 +121,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
   const radarData = useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
-    return NUTRIENTS_STD_LIST.map((m) => {
+    const stdKeys = new Set(NUTRIENTS_STD_LIST.map(n => n.key));
+    return allMicros.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
-      const goal = dynamicGoals[m.key] || 1;
+      const isStd = stdKeys.has(m.key);
+      const goal = isStd
+        ? (dynamicGoals[m.key] || 1)
+        : (Number((m as any).goal) > 0 ? Number((m as any).goal) : 1);
       const pct = (avg / goal) * 100;
       return { 
         nutrient: m.label, 
@@ -135,7 +139,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         goalMarker: 100
       };
     });
-  }, [nutritionData, dynamicGoals]);
+  }, [nutritionData, dynamicGoals, allMicros]);
 
   const tooltipStyle = {
     backgroundColor: "#1A1F2C",
