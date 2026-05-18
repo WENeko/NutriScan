@@ -17,10 +17,7 @@ interface HealthDetailsProps {
   radarMicros?: MicroNutrient[];
 }
 
-const RADAR_AXES = [
-  "Fibres", "Sucres", "AG Saturés", "Oméga-3", "Sodium", "Potassium",
-  "Magnésium", "Calcium", "Vitamine B", "Vitamine C", "Vitamine D", "Vitamine E",
-];
+// Les axes du radar sont dérivés dynamiquement des micros fournis (master list + custom)
 
 // 1. Définition du Tooltip (doit être AVANT HealthDetails)
 const CustomRadarTooltip = ({ active, payload }: any) => {
