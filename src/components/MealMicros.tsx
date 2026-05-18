@@ -9,6 +9,7 @@ interface MealMicrosProps {
   mealId: string;
   microGoals?: MicroGoals;
   customDefs?: CustomNutrientDef[];
+  refreshKey?: number | string;
 }
 
 const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
