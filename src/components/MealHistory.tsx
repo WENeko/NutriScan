@@ -11,6 +11,7 @@ import MealMicros from "./MealMicros";
 import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
+import { buildStdNutrients } from "@/utils/nutrients-helpers";
 
 
 interface MealItem {
@@ -484,9 +485,15 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             vitamin_c_mg: item.vitamin_c_mg || 0,
             vitamin_d_mcg: item.vitamin_d_mcg || 0,
             vitamin_e_mg: item.vitamin_e_mg || 0,
+            vitamin_b9_mcg: (item as any).vitamin_b9_mcg || 0,
+            vitamin_b12_mcg: (item as any).vitamin_b12_mcg || 0,
+            iron_mg: (item as any).iron_mg || 0,
+            zinc_mg: (item as any).zinc_mg || 0,
             unit_count: item.unitCount || null,
             unit_weight_g: item.unitWeightG || null,
             unit_label: item.unitLabel || null,
+            nutrients_std: buildStdNutrients(item as unknown as Record<string, unknown>),
+            nutrients_custom: (item as any).nutrients_custom ?? {},
           } as any))
         );
       }
