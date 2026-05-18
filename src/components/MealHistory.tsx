@@ -67,6 +67,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
   const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number; fiberD: number; sugarD: number; satFatD: number; omega3D: number; sodiumD: number; potassiumD: number; magnesiumD: number; calciumD: number; vitBD: number; vitCD: number; vitDD: number; vitED: number }[]>([]);
+  const [editCustomPerGram, setEditCustomPerGram] = useState<Record<string, number>[]>([]);
   const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
@@ -244,6 +245,14 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         };
       });
       setEditDensities(densities);
+      const customPerGram = items.map((item: MealItem) => {
+        const w = parseFloat(item.quantity || "100") || 100;
+        const custom = (item as any).nutrients_custom || {};
+        const out: Record<string, number> = {};
+        Object.entries(custom).forEach(([k, v]) => { out[k] = (Number(v) || 0) / w; });
+        return out;
+      });
+      setEditCustomPerGram(customPerGram);
       setEditWeightInputs(items.map((item: MealItem) => String(parseFloat(item.quantity || "0") || 0)));
       setEditingMealId(mealId);
     } catch (error: any) {
@@ -281,7 +290,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           vitamin_c_mg: Math.round(density.vitCD * newWeight * 10) / 10,
           vitamin_d_mcg: Math.round(density.vitDD * newWeight * 10) / 10,
           vitamin_e_mg: Math.round(density.vitED * newWeight * 10) / 10,
-        };
+          nutrients_custom: Object.fromEntries(
+            Object.entries(editCustomPerGram[idx] || {}).map(([k, perG]) => [k, Math.round(perG * newWeight * 1000) / 1000])
+          ),
+        } as any;
       })
     );
   };
@@ -293,6 +305,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const removeEditItem = (idx: number) => {
     setEditItems((prev) => prev.filter((_, i) => i !== idx));
     setEditDensities((prev) => prev.filter((_, i) => i !== idx));
+    setEditCustomPerGram((prev) => prev.filter((_, i) => i !== idx));
     setEditWeightInputs((prev) => prev.filter((_, i) => i !== idx));
   };
 
@@ -326,7 +339,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           vitamin_c_mg: Math.round(density.vitCD * newWeight * 10) / 10,
           vitamin_d_mcg: Math.round(density.vitDD * newWeight * 10) / 10,
           vitamin_e_mg: Math.round(density.vitED * newWeight * 10) / 10,
-        };
+          nutrients_custom: Object.fromEntries(
+            Object.entries(editCustomPerGram[idx] || {}).map(([k, perG]) => [k, Math.round(perG * newWeight * 1000) / 1000])
+          ),
+        } as any;
       })
     );
   };
@@ -590,7 +606,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           </button>
           {/* Meal micros */}
           <div className="px-3 pb-2">
-            <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} />
+            <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} refreshKey={`${meal.total_calories}-${meal.total_proteins}-${meal.total_carbs}-${meal.total_fats}`} />
           </div>
 
           {/* Inline edit panel */}

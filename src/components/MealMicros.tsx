@@ -9,6 +9,7 @@ interface MealMicrosProps {
   mealId: string;
   microGoals?: MicroGoals;
   customDefs?: CustomNutrientDef[];
+  refreshKey?: number | string;
 }
 
 const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
@@ -28,7 +29,7 @@ const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) =
   );
 };
 
-const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs = [] }) => {
+const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs = [], refreshKey }) => {
   const [open, setOpen] = useState(false);
   const [micros, setMicros] = useState<Record<string, number> | null>(null);
   const prefix = useId();
@@ -36,9 +37,8 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
   const allNutrients = getMasterList(customDefs);
 
   useEffect(() => {
-    if (!open || micros) return;
+    if (!open) return;
     (async () => {
-      // On lit les JSONB (source unique de vérité) + fallback colonnes legacy
       const { data } = await supabase
         .from("meal_items")
         .select("nutrients_std, nutrients_custom")
@@ -57,7 +57,7 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
         setMicros(totals);
       }
     })();
-  }, [open, micros, mealId, allNutrients]);
+  }, [open, mealId, refreshKey]);
 
   const hasMicros = micros && allNutrients.some((n) => (micros[n.key] || 0) > 0);
 
