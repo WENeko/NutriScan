@@ -290,7 +290,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           vitamin_c_mg: Math.round(density.vitCD * newWeight * 10) / 10,
           vitamin_d_mcg: Math.round(density.vitDD * newWeight * 10) / 10,
           vitamin_e_mg: Math.round(density.vitED * newWeight * 10) / 10,
-        };
+          nutrients_custom: Object.fromEntries(
+            Object.entries(editCustomPerGram[idx] || {}).map(([k, perG]) => [k, Math.round(perG * newWeight * 1000) / 1000])
+          ),
+        } as any;
       })
     );
   };
