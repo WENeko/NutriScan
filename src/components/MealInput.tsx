@@ -565,7 +565,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           quantity: parseFloat(item.quantity?.replace("g", "") || "100") || 100,
           unit_count: item.unitCount || null,
           unit_label: item.unitLabel || null,
-          unit_weight_g: item.unitWeightG || null
+          unit_weight_g: item.unitWeightG || null,
+          // Spread custom nutrient values so buildCustomNutrients() can pick them up
+          ...(item.customExtras || {}),
         }))
       });
       
