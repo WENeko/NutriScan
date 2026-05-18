@@ -67,6 +67,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
   const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number; fiberD: number; sugarD: number; satFatD: number; omega3D: number; sodiumD: number; potassiumD: number; magnesiumD: number; calciumD: number; vitBD: number; vitCD: number; vitDD: number; vitED: number }[]>([]);
+  const [editCustomPerGram, setEditCustomPerGram] = useState<Record<string, number>[]>([]);
   const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
