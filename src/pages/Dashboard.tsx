@@ -141,7 +141,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         typedMeals
           .filter((m) => m.is_favorite)
           .filter((meal, index, self) => 
-            index === self.findIndex((t) => (t.meal_name || t.name) === (meal.meal_name || meal.name))
+            index === self.findIndex((t) => t.meal_name === meal.meal_name)
           )
       );
 
