@@ -162,6 +162,13 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
       .join("\n");
   }
 
+  // Nutriments custom (suivis en plus de la master list)
+  let customNutrientsContext = "";
+  if (custom_nutrients?.length) {
+    customNutrientsContext = "\nNUTRIMENTS CUSTOM à estimer pour CHAQUE item (clé JSON exacte = valeur numérique dans l'unité indiquée, 0 si inconnu) :\n" +
+      custom_nutrients.map(c => `- ${c.key} (${c.unit})${c.label ? ` — ${c.label}` : ""}`).join("\n");
+  }
+
   // Nettoyer l'image base64 si elle a un préfixe data:image
   const cleanImageData = image ? image.replace(/^data:image\/\w+;base64,/, '') : null;
 
