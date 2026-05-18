@@ -64,6 +64,8 @@ interface MealItem {
   unitWeightG?: number;
   unitLabel?: string;
   isCooked?: boolean;
+  /** Valeurs des nutriments custom (clé technique -> valeur) retournées par l'IA */
+  customExtras?: Record<string, number>;
 }
 
 const roundNutrient = (value: number) => Math.round(value * 10) / 10;
