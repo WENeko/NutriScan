@@ -164,51 +164,41 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeekTotalCalories(Math.round(weekTotal));
       setWeekAvgCalories(Math.round(weekTotal / mondayBased));
 
-      // Fetch week micros
+      // Fetch week micros via JSONB (source unique de vérité)
       const todayMealIds = today.map((m) => m.id);
       const weekMealIds = weekMeals.map((m) => m.id);
-      const emptyMicros = { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 };
       if (weekMealIds.length > 0) {
         const { data: items } = await supabase
           .from("meal_items")
-          .select("meal_id, fiber, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, sugar, saturated_fat, omega3_mg, vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg")
+          .select("meal_id, nutrients_std, nutrients_custom")
           .in("meal_id", weekMealIds);
         if (items) {
           const todayMealIdSet = new Set(todayMealIds);
-          const addMicros = (acc: typeof emptyMicros, item: any) => ({
-            fiber: acc.fiber + (Number(item.fiber) || 0),
-            sodium_mg: acc.sodium_mg + (Number(item.sodium_mg) || 0),
-            potassium_mg: acc.potassium_mg + (Number(item.potassium_mg) || 0),
-            magnesium_mg: acc.magnesium_mg + (Number(item.magnesium_mg) || 0),
-            calcium_mg: acc.calcium_mg + (Number(item.calcium_mg) || 0),
-            sugar: acc.sugar + (Number(item.sugar) || 0),
-            saturated_fat: acc.saturated_fat + (Number(item.saturated_fat) || 0),
-            omega3_mg: acc.omega3_mg + (Number(item.omega3_mg) || 0),
-            vitamin_b_mg: acc.vitamin_b_mg + (Number(item.vitamin_b_mg) || 0),
-            vitamin_c_mg: acc.vitamin_c_mg + (Number(item.vitamin_c_mg) || 0),
-            vitamin_d_mcg: acc.vitamin_d_mcg + (Number(item.vitamin_d_mcg) || 0),
-            vitamin_e_mg: acc.vitamin_e_mg + (Number(item.vitamin_e_mg) || 0),
+          const weekTotals: Record<string, number> = {};
+          const dayTotals: Record<string, number> = {};
+          (items as any[]).forEach((item) => {
+            const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
+            const isToday = todayMealIdSet.has(item.meal_id);
+            for (const [k, v] of Object.entries(merged)) {
+              const n = Number(v) || 0;
+              weekTotals[k] = (weekTotals[k] || 0) + n;
+              if (isToday) dayTotals[k] = (dayTotals[k] || 0) + n;
+            }
           });
-          const allWeekMicros = (items as any[]).reduce((acc, item) => addMicros(acc, item), emptyMicros);
-          const currentDayMicros = (items as any[]).reduce(
-            (acc, item) => (todayMealIdSet.has(item.meal_id) ? addMicros(acc, item) : acc),
-            emptyMicros
-          );
-          setWeekMicros(allWeekMicros);
-          setTodayMicros(currentDayMicros);
+          setWeekMicros(weekTotals);
+          setTodayMicros(dayTotals);
         }
       } else {
-        setTodayMicros(emptyMicros);
-        setWeekMicros(emptyMicros);
+        setTodayMicros({});
+        setWeekMicros({});
       }
     } else {
-      const emptyMicros = { fiber: 0, sodium_mg: 0, potassium_mg: 0, magnesium_mg: 0, calcium_mg: 0, sugar: 0, saturated_fat: 0, omega3_mg: 0, vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0 };
       setTodayMeals([]);
       setAllMeals([]);
       setFavoriteMeals([]);
       setTodayTotals({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
-      setTodayMicros(emptyMicros);
-      setWeekMicros(emptyMicros);
+      setTodayMicros({});
+      setWeekMicros({});
       setWeekTotalCalories(0);
       setWeekAvgCalories(0);
     }
