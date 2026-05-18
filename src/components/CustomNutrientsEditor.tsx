@@ -18,6 +18,9 @@ interface Props {
   userId: string;
 }
 
+const UNIT_OPTIONS = ["g", "mg", "µg", "kcal", "kJ", "IU", "ml"] as const;
+const UNIT_SUFFIX: Record<string, string> = { g: "g", mg: "mg", "µg": "mcg", kcal: "kcal", kJ: "kj", IU: "iu", ml: "ml" };
+
 const EMPTY: Partial<CustomNutrientDef> = {
   key: "",
   label: "",
@@ -32,6 +35,19 @@ const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
   { value: "lipid", label: "Lipide" },
   { value: "macro", label: "Macro" },
 ];
+
+/** Génère une clé technique à partir du label + unité. */
+function generateKey(label: string, unit: string): string {
+  const slug = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 30);
+  const suffix = UNIT_SUFFIX[unit] ?? unit.toLowerCase();
+  return slug ? `${slug}_${suffix}` : "";
+}
 
 const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
   const [items, setItems] = useState<CustomNutrientDef[]>([]);
