@@ -136,14 +136,22 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [manualIsCooked, setManualIsCooked] = useState(false);
   const [showLogsModal, setShowLogsModal] = useState(false);
   const [logsContent, setLogsContent] = useState("");
+  const [customNutrients, setCustomNutrients] = useState<{ key: string; label?: string; unit: string }[]>([]);
 
-  // Initialisation - vérifier la santé de la BDD perso
+  // Initialisation - vérifier la santé de la BDD perso + charger nutriments custom
   useEffect(() => {
     const init = async () => {
       await logDatabaseHealth();
+      const { data } = await supabaseLovable
+        .from("profiles")
+        .select("custom_nutrients")
+        .eq("user_id", userId)
+        .single();
+      const arr = Array.isArray((data as any)?.custom_nutrients) ? (data as any).custom_nutrients : [];
+      setCustomNutrients(arr);
     };
     init();
-  }, []);
+  }, [userId]);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
