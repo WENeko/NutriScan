@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getPersonalizedMicroGoals, getMicroInfo, type UserProfile } from "@/lib/micro-goals";
-import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
-import { mergedNutrientList, type CustomNutrientDef } from "@/utils/nutrients-helpers";
+import { NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
+import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
@@ -261,7 +261,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const LIMIT_KEYS = new Set(["sugar", "saturated_fat", "sodium_mg"]);
 
   // Liste micros dérivée dynamiquement de la master list + custom user
-  const allNutrients = mergedNutrientList(customNutrients);
+  const allNutrients = getMasterList(customNutrients);
   const microsList = allNutrients.map((n) => {
     const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
     const goal = isStd ? (microGoals as any)[n.key] ?? 0 : (n as any).goal ?? 0;
