@@ -148,7 +148,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT + customFoodsContext },
+          { role: "system", content: SYSTEM_PROMPT + customFoodsContext + customNutrientsContext },
           { role: "user", content: userContent },
         ],
       }),
