@@ -67,7 +67,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level")
+      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients")
       .eq("user_id", userId)
       .single();
 
