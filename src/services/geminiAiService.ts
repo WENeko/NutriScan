@@ -175,7 +175,7 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
   // Construction du payload Gemini (format API Google)
   type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
   const userParts: GeminiPart[] = [
-    { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
+    { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
   ];
   
   if (cleanImageData) {
