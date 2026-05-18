@@ -92,8 +92,8 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
     if (!draft) return;
     const existingKeys = items.filter((i) => i.key !== editKey).map((i) => i.key);
     const v = validateCustomNutrient(draft, existingKeys);
-    if (!v.ok) {
-      toast({ title: "Champs invalides", description: v.error, variant: "destructive" });
+    if (v.ok !== true) {
+      toast({ title: "Champs invalides", description: (v as { error: string }).error, variant: "destructive" });
       return;
     }
     const value = v.value;
