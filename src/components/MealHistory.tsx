@@ -590,7 +590,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
           </button>
           {/* Meal micros */}
           <div className="px-3 pb-2">
-            <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} />
+            <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} refreshKey={`${meal.total_calories}-${meal.total_proteins}-${meal.total_carbs}-${meal.total_fats}`} />
           </div>
 
           {/* Inline edit panel */}
