@@ -18,6 +18,9 @@ interface Props {
   userId: string;
 }
 
+const UNIT_OPTIONS = ["g", "mg", "µg", "kcal", "kJ", "IU", "ml"] as const;
+const UNIT_SUFFIX: Record<string, string> = { g: "g", mg: "mg", "µg": "mcg", kcal: "kcal", kJ: "kj", IU: "iu", ml: "ml" };
+
 const EMPTY: Partial<CustomNutrientDef> = {
   key: "",
   label: "",
@@ -32,6 +35,19 @@ const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
   { value: "lipid", label: "Lipide" },
   { value: "macro", label: "Macro" },
 ];
+
+/** Génère une clé technique à partir du label + unité. */
+function generateKey(label: string, unit: string): string {
+  const slug = label
+    .toLowerCase()
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/[^a-z0-9]+/g, "_")
+    .replace(/^_+|_+$/g, "")
+    .slice(0, 30);
+  const suffix = UNIT_SUFFIX[unit] ?? unit.toLowerCase();
+  return slug ? `${slug}_${suffix}` : "";
+}
 
 const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
   const [items, setItems] = useState<CustomNutrientDef[]>([]);
@@ -157,33 +173,40 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
           {draft ? (
             <div className="bg-accent rounded-xl p-3 space-y-2 animate-fade-up">
               <div className="grid grid-cols-2 gap-2">
-                <div>
+                <div className="col-span-2">
                   <Label className="text-[10px] uppercase text-muted-foreground">Nom</Label>
                   <Input
                     value={draft.label ?? ""}
-                    onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+                    onChange={(e) => {
+                      const label = e.target.value;
+                      setDraft((d) => {
+                        const next = { ...(d ?? {}), label };
+                        if (!editKey) next.key = generateKey(label, next.unit ?? "mg");
+                        return next;
+                      });
+                    }}
                     placeholder="Choline"
                     className="h-9"
                   />
                 </div>
                 <div>
-                  <Label className="text-[10px] uppercase text-muted-foreground">Clé technique</Label>
-                  <Input
-                    value={draft.key ?? ""}
-                    onChange={(e) => setDraft({ ...draft, key: e.target.value })}
-                    placeholder="choline_mg"
-                    className="h-9 font-mono text-xs"
-                    disabled={!!editKey}
-                  />
-                </div>
-                <div>
                   <Label className="text-[10px] uppercase text-muted-foreground">Unité</Label>
-                  <Input
-                    value={draft.unit ?? ""}
-                    onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
-                    placeholder="mg"
-                    className="h-9"
-                  />
+                  <select
+                    value={draft.unit ?? "mg"}
+                    onChange={(e) => {
+                      const unit = e.target.value;
+                      setDraft((d) => {
+                        const next = { ...(d ?? {}), unit };
+                        if (!editKey) next.key = generateKey(next.label ?? "", unit);
+                        return next;
+                      });
+                    }}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {UNIT_OPTIONS.map((u) => (
+                      <option key={u} value={u}>{u}</option>
+                    ))}
+                  </select>
                 </div>
                 <div>
                   <Label className="text-[10px] uppercase text-muted-foreground">Catégorie</Label>
@@ -197,6 +220,16 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
                     ))}
                   </select>
                 </div>
+                <div className="col-span-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Clé technique (auto)</Label>
+                  <Input
+                    value={draft.key ?? ""}
+                    readOnly
+                    disabled
+                    className="h-9 font-mono text-xs opacity-70"
+                  />
+                </div>
+
                 <div className="col-span-2">
                   <Label className="text-[10px] uppercase text-muted-foreground">Objectif quotidien (optionnel)</Label>
                   <Input

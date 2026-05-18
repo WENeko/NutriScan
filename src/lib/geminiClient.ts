@@ -175,18 +175,18 @@ ${customFoodsContext ? `\n\nUTILISE CES DONNÉES DE LA BIBLIOTHÈQUE EN PRIORIT�
       contents: [
         {
           role: "user",
-          parts: Array.isArray(userMessage)
+          parts: (Array.isArray(userMessage)
             ? userMessage.map(p =>
                 p.type === "text"
                   ? { text: p.text }
                   : { inlineData: { mimeType: "image/jpeg", data: p.image_url.url.split(",")[1] } }
               )
-            : [{ text: userMessage }]
+            : [{ text: userMessage }]) as any
         }
       ],
       generationConfig: {
-        responseSchema: mealAnalysisSchema,
-        responseType: "application/json"
+        responseSchema: mealAnalysisSchema as any,
+        responseMimeType: "application/json"
       },
       systemInstruction: systemPrompt
     });
