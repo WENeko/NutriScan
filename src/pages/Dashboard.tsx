@@ -98,6 +98,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         weight_kg: Number(profile.weight_kg) || null,
         activity_level: profile.activity_level,
       });
+      const cn = (profile as any).custom_nutrients;
+      setCustomNutrients(Array.isArray(cn) ? cn : []);
 
       const { data: weekBody } = await supabase
         .from("body_composition")
