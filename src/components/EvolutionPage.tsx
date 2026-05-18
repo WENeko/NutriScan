@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } from "date-fns";
 import { fr } from "date-fns/locale";
-import { calculateMicroGoals, NUTRIENTS_MASTER_LIST } from "@/utils/nutrition-logic";
+import { calculateMicroGoals, NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 
 interface EvolutionPageProps {
   userId: string;
@@ -65,7 +65,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       if (items) {
         items.forEach((item: any) => {
           if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
-          NUTRIENTS_MASTER_LIST.forEach((n) => {
+          NUTRIENTS_STD_LIST.forEach((n) => {
             microsByMeal[item.meal_id][n.key] = (microsByMeal[item.meal_id][n.key] || 0) + (Number(item[n.key]) || 0);
           });
         });
@@ -81,7 +81,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         date: format(d, "dd/MM/yyyy"),
         calories: 0, proteins: 0, carbs: 0, fats: 0
       };
-      NUTRIENTS_MASTER_LIST.forEach(n => dayMap[key][n.key] = 0);
+      NUTRIENTS_STD_LIST.forEach(n => dayMap[key][n.key] = 0);
     }
 
     (meals || []).forEach((m: any) => {
@@ -109,7 +109,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
   const radarData = useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
-    return NUTRIENTS_MASTER_LIST.map((m) => {
+    return NUTRIENTS_STD_LIST.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
       const goal = dynamicGoals[m.key] || 1;
       const pct = (avg / goal) * 100;

@@ -12,7 +12,7 @@ import { analyzeMealWithGemini } from '@/services/geminiAiService';
 import { saveMealWithDualWrite } from '@/services/mealPersistenceService';
 import { ensureUserInPersonalDB, logDatabaseHealth } from '@/services/databaseSyncService';
 import { localToUtcIso } from '@/lib/timezoneUtils';
-import { NUTRIENTS_MASTER_LIST, getNutrientKeys } from '@/utils/nutrition-logic';
+import { NUTRIENTS_STD_LIST, getNutrientKeys } from '@/utils/nutrition-logic';
 
 // --- SUPABASE IMPORTS ---
 import { supabase as supabaseLovable } from '@/integrations/supabase/client';

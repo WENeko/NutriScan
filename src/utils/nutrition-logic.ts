@@ -10,7 +10,7 @@ export interface NutrientDef {
   category: 'macro' | 'mineral' | 'vitamin' | 'lipid';
 }
 
-export const NUTRIENTS_MASTER_LIST: NutrientDef[] = [
+export const NUTRIENTS_STD_LIST: NutrientDef[] = [
   { key: "fiber", label: "Fibres", unit: "g", category: "macro" },
   { key: "sugar", label: "Sucres", unit: "g", category: "macro" },
   { key: "saturated_fat", label: "AG Sat.", unit: "g", category: "macro" },
@@ -28,10 +28,10 @@ export const NUTRIENTS_MASTER_LIST: NutrientDef[] = [
   { key: "vitamin_e_mg", label: "Vit. E", unit: "mg", category: "vitamin" },
 ];
 
-// --- TYPES DYNAMIQUES BASÉS SUR NUTRIENTS_MASTER_LIST ---
+// --- TYPES DYNAMIQUES BASÉS SUR NUTRIENTS_STD_LIST ---
 
 // Extrait toutes les clés de la liste maître
-type NutrientKey = typeof NUTRIENTS_MASTER_LIST[number]['key'];
+type NutrientKey = typeof NUTRIENTS_STD_LIST[number]['key'];
 
 // Type pour un item alimentaire avec tous les micronutriments (optionnels car dépend de l'IA)
 export type MicroNutrientFields = {
@@ -44,7 +44,21 @@ export type MicroTotalFields = {
 };
 
 // Helper pour obtenir la liste des clés dynamiquement
-export const getNutrientKeys = (): string[] => NUTRIENTS_MASTER_LIST.map(n => n.key);
+export const getNutrientKeys = (): string[] => NUTRIENTS_STD_LIST.map(n => n.key);
+
+/**
+ * Master List = liste STD + nutriments CUSTOM de l'utilisateur.
+ * Source unique de vérité pour tous les affichages élargis.
+ */
+export function getMasterList<T extends NutrientDef = NutrientDef>(
+  custom: T[] = [],
+): NutrientDef[] {
+  const stdKeys = new Set(NUTRIENTS_STD_LIST.map((n) => n.key));
+  return [
+    ...NUTRIENTS_STD_LIST,
+    ...custom.filter((c) => c.key && !stdKeys.has(c.key)),
+  ];
+}
 
 /** Interface interne pour le calcul des objectifs nutritionnels */
 export interface NutritionUserProfile {
@@ -83,10 +97,10 @@ export const calculateMicroGoals = (profile: NutritionUserProfile = {}): MicroGo
 
   // Initialiser avec toutes les clés à 0
   const goals = {} as MicroGoals;
-  NUTRIENTS_MASTER_LIST.forEach(n => { goals[n.key as keyof MicroGoals] = 0; });
+  NUTRIENTS_STD_LIST.forEach(n => { goals[n.key as keyof MicroGoals] = 0; });
 
   // --- LOGIQUE DE CALCUL PAR CLÉ ---
-  NUTRIENTS_MASTER_LIST.forEach((n) => {
+  NUTRIENTS_STD_LIST.forEach((n) => {
     let value = 0;
 
     switch (n.key) {
@@ -177,7 +191,7 @@ export interface MicroGoals extends Record<string, number> {
 
 /** Description textuelle des micronutriments pour l'UI */
 export function getMicroInfo(key: string, goal: number): string {
-  const nutrient = NUTRIENTS_MASTER_LIST.find(n => n.key === key);
+  const nutrient = NUTRIENTS_STD_LIST.find(n => n.key === key);
   if (!nutrient) return "";
 
   const descriptions: Record<string, (g: number, unit: string) => string> = {
