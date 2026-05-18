@@ -490,7 +490,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {todayMeals.length > 0 && (
               <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
                 <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
-                <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
+                <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
               </section>
             )}
 
@@ -509,7 +509,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
                 </button>
                 {showFavorites && (
-                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
+                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
                 )}
               </section>
             )}
@@ -517,7 +517,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {/* All history */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} />
+              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
             </section>
           </>
         )}
