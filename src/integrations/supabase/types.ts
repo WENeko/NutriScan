@@ -155,6 +155,8 @@ export type Database = {
           magnesium_mg: number | null
           meal_id: string
           name: string
+          nutrients_custom: Json
+          nutrients_std: Json
           omega3_mg: number | null
           potassium_mg: number | null
           proteins: number | null
@@ -184,6 +186,8 @@ export type Database = {
           magnesium_mg?: number | null
           meal_id: string
           name: string
+          nutrients_custom?: Json
+          nutrients_std?: Json
           omega3_mg?: number | null
           potassium_mg?: number | null
           proteins?: number | null
@@ -213,6 +217,8 @@ export type Database = {
           magnesium_mg?: number | null
           meal_id?: string
           name?: string
+          nutrients_custom?: Json
+          nutrients_std?: Json
           omega3_mg?: number | null
           potassium_mg?: number | null
           proteins?: number | null
@@ -300,6 +306,7 @@ export type Database = {
           bmr_method: string | null
           body_fat_percent: number | null
           created_at: string
+          custom_nutrients: Json
           date_of_birth: string | null
           email: string | null
           gender: string | null
@@ -330,6 +337,7 @@ export type Database = {
           bmr_method?: string | null
           body_fat_percent?: number | null
           created_at?: string
+          custom_nutrients?: Json
           date_of_birth?: string | null
           email?: string | null
           gender?: string | null
@@ -360,6 +368,7 @@ export type Database = {
           bmr_method?: string | null
           body_fat_percent?: number | null
           created_at?: string
+          custom_nutrients?: Json
           date_of_birth?: string | null
           email?: string | null
           gender?: string | null

@@ -5,6 +5,11 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { appLogger } from "./appLogger";
+import {
+  buildStdNutrients,
+  buildCustomNutrients,
+  type CustomNutrientDef,
+} from "@/utils/nutrients-helpers";
 
 const PERSO_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL as string | undefined;
 const PERSO_BRIDGE_SECRET = import.meta.env.VITE_PERSONAL_BRIDGE_SECRET as string | undefined;
@@ -77,7 +82,11 @@ function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
   };
 }
 
-function buildItemRows(items: MealItemWithMicros[], mealId: string) {
+function buildItemRows(
+  items: MealItemWithMicros[],
+  mealId: string,
+  customDefs: CustomNutrientDef[] = [],
+) {
   return items.map((it) => {
     const qtyNumeric =
       it.quantity ??
@@ -109,8 +118,21 @@ function buildItemRows(items: MealItemWithMicros[], mealId: string) {
       unit_count: it.unit_count ?? null,
       unit_label: it.unit_label ?? null,
       unit_weight_g: it.unit_weight_g ?? null,
+      // Source unique de vérité : nutrients_std (master list) + nutrients_custom (user-defined)
+      nutrients_std: buildStdNutrients(it as Record<string, unknown>),
+      nutrients_custom: buildCustomNutrients(it as Record<string, unknown>, customDefs),
     };
   });
+}
+
+async function loadCustomNutrientDefs(userId: string): Promise<CustomNutrientDef[]> {
+  const { data } = await supabase
+    .from("profiles")
+    .select("custom_nutrients")
+    .eq("user_id", userId)
+    .single();
+  const arr = Array.isArray((data as any)?.custom_nutrients) ? (data as any).custom_nutrients : [];
+  return arr as CustomNutrientDef[];
 }
 
 // ------------------------------------------------------------------
@@ -180,7 +202,8 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
     throw primaryErr;
   }
 
-  const itemRows = items?.length ? buildItemRows(items, primaryMeal.id) : [];
+  const customDefs = items?.length ? await loadCustomNutrientDefs(userId) : [];
+  const itemRows = items?.length ? buildItemRows(items, primaryMeal.id, customDefs) : [];
   if (itemRows.length > 0) {
     const { error: itemsErr } = await supabase.from("meal_items").insert(itemRows);
     if (itemsErr) {
