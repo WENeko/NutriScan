@@ -96,9 +96,10 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
       toast({ title: "Champs invalides", description: v.error, variant: "destructive" });
       return;
     }
+    const value = v.value;
     const next = editKey
-      ? items.map((i) => (i.key === editKey ? v.value : i))
-      : [...items, v.value];
+      ? items.map((i) => (i.key === editKey ? value : i))
+      : [...items, value];
     const ok = await persist(next);
     if (ok) {
       toast({ title: editKey ? "Nutriment modifié" : "Nutriment ajouté" });
