@@ -245,6 +245,14 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         };
       });
       setEditDensities(densities);
+      const customPerGram = items.map((item: MealItem) => {
+        const w = parseFloat(item.quantity || "100") || 100;
+        const custom = (item as any).nutrients_custom || {};
+        const out: Record<string, number> = {};
+        Object.entries(custom).forEach(([k, v]) => { out[k] = (Number(v) || 0) / w; });
+        return out;
+      });
+      setEditCustomPerGram(customPerGram);
       setEditWeightInputs(items.map((item: MealItem) => String(parseFloat(item.quantity || "0") || 0)));
       setEditingMealId(mealId);
     } catch (error: any) {
