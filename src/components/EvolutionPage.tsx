@@ -7,7 +7,8 @@ import {
 } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } from "date-fns";
 import { fr } from "date-fns/locale";
-import { calculateMicroGoals, NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import { calculateMicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
+import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface EvolutionPageProps {
   userId: string;
@@ -19,6 +20,7 @@ interface EvolutionPageProps {
   targetBodyFat?: number | null;
   targetMuscleMass?: number | null;
   userProfile?: any;
+  customNutrients?: CustomNutrientDef[];
 }
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
