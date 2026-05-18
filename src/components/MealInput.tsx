@@ -202,7 +202,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
       const result = await analyzeMealWithGemini({ 
         text: textInput, 
-        custom_foods: customFoods || [], 
+        custom_foods: customFoods || [],
+        custom_nutrients: customNutrients,
         local_time: new Date().toLocaleString("fr-FR") 
       });
       
