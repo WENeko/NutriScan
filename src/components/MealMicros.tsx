@@ -2,27 +2,14 @@ import React, { useState, useEffect, useId } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTooltipCtx } from "./TooltipContext";
-import { getMicroInfo, type MicroGoals } from "@/lib/micro-goals";
+import { getMicroInfo, type MicroGoals, NUTRIENTS_MASTER_LIST } from "@/utils/nutrition-logic";
+import { mergedNutrientList, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface MealMicrosProps {
   mealId: string;
   microGoals?: MicroGoals;
+  customDefs?: CustomNutrientDef[];
 }
-
-const MICRO_KEYS: { key: string; name: string; unit: string; goalKey: keyof MicroGoals }[] = [
-  { key: "fiber", name: "Fibres", unit: "g", goalKey: "fiber" },
-  { key: "sugar", name: "Sucres", unit: "g", goalKey: "sugar" },
-  { key: "saturated_fat", name: "AG Saturés", unit: "g", goalKey: "saturated_fat" },
-  { key: "omega3_mg", name: "Oméga-3", unit: "mg", goalKey: "omega3_mg" },
-  { key: "sodium_mg", name: "Sodium", unit: "mg", goalKey: "sodium_mg" },
-  { key: "potassium_mg", name: "Potassium", unit: "mg", goalKey: "potassium_mg" },
-  { key: "magnesium_mg", name: "Magnésium", unit: "mg", goalKey: "magnesium_mg" },
-  { key: "calcium_mg", name: "Calcium", unit: "mg", goalKey: "calcium_mg" },
-  { key: "vitamin_b_mg", name: "Vitamine B", unit: "mg", goalKey: "vitamin_b_mg" },
-  { key: "vitamin_c_mg", name: "Vitamine C", unit: "mg", goalKey: "vitamin_c_mg" },
-  { key: "vitamin_d_mcg", name: "Vitamine D", unit: "µg", goalKey: "vitamin_d_mcg" },
-  { key: "vitamin_e_mg", name: "Vitamine E", unit: "mg", goalKey: "vitamin_e_mg" },
-];
 
 const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
   const { openId, open } = useTooltipCtx();
@@ -41,32 +28,38 @@ const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) =
   );
 };
 
-const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals }) => {
+const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs = [] }) => {
   const [open, setOpen] = useState(false);
   const [micros, setMicros] = useState<Record<string, number> | null>(null);
   const prefix = useId();
 
+  const allNutrients = mergedNutrientList(customDefs);
+
   useEffect(() => {
     if (!open || micros) return;
     (async () => {
+      // On lit les JSONB (source unique de vérité) + fallback colonnes legacy
       const { data } = await supabase
         .from("meal_items")
-        .select("fiber, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, sugar, saturated_fat, omega3_mg, vitamin_b_mg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg")
+        .select("nutrients_std, nutrients_custom")
         .eq("meal_id", mealId);
       if (data) {
         const totals: Record<string, number> = {};
-        MICRO_KEYS.forEach((m) => (totals[m.key] = 0));
+        allNutrients.forEach((n) => (totals[n.key] = 0));
         (data as any[]).forEach((item) => {
-          MICRO_KEYS.forEach((m) => {
-            totals[m.key] += Number(item[m.key]) || 0;
+          const std = item.nutrients_std || {};
+          const custom = item.nutrients_custom || {};
+          allNutrients.forEach((n) => {
+            const v = Number(std[n.key] ?? custom[n.key] ?? 0);
+            if (Number.isFinite(v)) totals[n.key] += v;
           });
         });
         setMicros(totals);
       }
     })();
-  }, [open, micros, mealId]);
+  }, [open, micros, mealId, allNutrients]);
 
-  const hasMicros = micros && MICRO_KEYS.some((m) => (micros[m.key] || 0) > 0);
+  const hasMicros = micros && allNutrients.some((n) => (micros[n.key] || 0) > 0);
 
   return (
     <div className="mt-1">
@@ -77,16 +70,17 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals }) => {
       {open && (
         <div className="grid grid-cols-2 gap-1.5 mt-1.5 animate-fade-up">
           {micros && hasMicros ? (
-            MICRO_KEYS.filter((m) => (micros[m.key] || 0) > 0).map((m, i) => {
-              const goal = microGoals ? microGoals[m.goalKey] : 0;
-              const info = microGoals ? getMicroInfo(m.key, goal) : "";
+            allNutrients.filter((n) => (micros[n.key] || 0) > 0).map((n, i) => {
+              const goal = microGoals ? (microGoals as any)[n.key] ?? 0 : 0;
+              const isStd = NUTRIENTS_MASTER_LIST.some((s) => s.key === n.key);
+              const info = isStd && microGoals ? getMicroInfo(n.key, goal) : `${n.label} (custom)`;
               return (
-                <div key={m.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
+                <div key={n.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
                   <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-medium">{m.name}</span>
+                    <span className="text-[10px] font-medium">{n.label}</span>
                     {info && <MicroInfoBubble info={info} id={`${prefix}-mm-${i}`} />}
                   </div>
-                  <span className="text-[10px] font-bold">{Math.round((micros[m.key] || 0) * 10) / 10}{m.unit}</span>
+                  <span className="text-[10px] font-bold">{Math.round((micros[n.key] || 0) * 10) / 10}{n.unit}</span>
                 </div>
               );
             })
