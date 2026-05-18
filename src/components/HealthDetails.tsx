@@ -77,22 +77,19 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
   const densityScore = useMemo(() => computeDensityScore(micros), [micros]);
 
   const radarData = useMemo(() => {
-    return RADAR_AXES.map((axisName) => {
-      const micro = radarSource.find((m) => m.name === axisName);
-      const value = micro?.value || 0;
-      const goal = micro?.goal || 1;
-      
+    return radarSource.map((micro) => {
+      const value = micro.value || 0;
+      const goal = micro.goal || 1;
       const realPct = Math.round((value / goal) * 100);
       const pct = Math.min(realPct, 150);
-
       return {
-        name: axisName.replace("Vitamine ", "Vit. "),
-        fullName: axisName,
+        name: micro.name.replace("Vitamine ", "Vit. "),
+        fullName: micro.name,
         pct,
         realPct,
         value: Math.round(value * 10) / 10,
         goal: Math.round(goal * 10) / 10,
-        unit: micro?.unit || "",
+        unit: micro.unit || "",
       };
     });
   }, [radarSource]);
