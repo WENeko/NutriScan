@@ -1,8 +1,8 @@
 /**
- * Helpers pour manipuler `nutrients_std` / `nutrients_custom` (JSONB meal_items)
- * en s'appuyant sur la source unique de vérité NUTRIENTS_MASTER_LIST.
+ * Helpers pour manipuler `nutrients_std` / `nutrients_custom` (JSONB meal_items).
+ * La Master List = NUTRIENTS_STD_LIST + custom (voir `getMasterList` dans nutrition-logic.ts).
  */
-import { NUTRIENTS_MASTER_LIST, type NutrientDef } from "@/utils/nutrition-logic";
+import { NUTRIENTS_STD_LIST, type NutrientDef } from "@/utils/nutrition-logic";
 
 export interface CustomNutrientDef extends NutrientDef {
   /** Objectif quotidien optionnel (unité = NutrientDef.unit) */
@@ -12,7 +12,7 @@ export interface CustomNutrientDef extends NutrientDef {
 /** Construit nutrients_std (JSONB) à partir d'un item d'IA / formulaire. */
 export function buildStdNutrients(item: Record<string, unknown>): Record<string, number> {
   const out: Record<string, number> = {};
-  for (const n of NUTRIENTS_MASTER_LIST) {
+  for (const n of NUTRIENTS_STD_LIST) {
     const v = Number(item[n.key]);
     if (Number.isFinite(v) && v > 0) out[n.key] = v;
   }
@@ -30,15 +30,6 @@ export function buildCustomNutrients(
     if (Number.isFinite(v) && v > 0) out[d.key] = v;
   }
   return out;
-}
-
-/** Fusionne std + custom pour les affichages "master list élargie". */
-export function mergedNutrientList(custom: CustomNutrientDef[] = []): NutrientDef[] {
-  const keys = new Set(NUTRIENTS_MASTER_LIST.map((n) => n.key));
-  return [
-    ...NUTRIENTS_MASTER_LIST,
-    ...custom.filter((c) => c.key && !keys.has(c.key)),
-  ];
 }
 
 /** Validation d'une définition de nutriment custom. */
@@ -60,7 +51,7 @@ export function validateCustomNutrient(
   if (!["macro", "mineral", "vitamin", "lipid"].includes(category)) {
     return { ok: false, error: "Catégorie invalide" };
   }
-  if (NUTRIENTS_MASTER_LIST.some((n) => n.key === key)) {
+  if (NUTRIENTS_STD_LIST.some((n) => n.key === key)) {
     return { ok: false, error: "Clé déjà utilisée par la liste standard" };
   }
   if (existingKeys.includes(key)) {
