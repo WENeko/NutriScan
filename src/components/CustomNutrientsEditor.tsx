@@ -1,0 +1,233 @@
+/**
+ * CRUD pour les nutriments personnalisés de l'utilisateur.
+ * Stocke dans profiles.custom_nutrients (JSONB) — typage : CustomNutrientDef[].
+ */
+import React, { useEffect, useState } from "react";
+import { supabase } from "@/integrations/supabase/client";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Plus, Trash2, FlaskConical, Save, X, Pencil } from "lucide-react";
+import { toast } from "@/hooks/use-toast";
+import {
+  type CustomNutrientDef,
+  validateCustomNutrient,
+} from "@/utils/nutrients-helpers";
+
+interface Props {
+  userId: string;
+}
+
+const EMPTY: Partial<CustomNutrientDef> = {
+  key: "",
+  label: "",
+  unit: "mg",
+  category: "vitamin",
+  goal: undefined,
+};
+
+const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
+  { value: "vitamin", label: "Vitamine" },
+  { value: "mineral", label: "Minéral" },
+  { value: "lipid", label: "Lipide" },
+  { value: "macro", label: "Macro" },
+];
+
+const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
+  const [items, setItems] = useState<CustomNutrientDef[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [draft, setDraft] = useState<Partial<CustomNutrientDef> | null>(null);
+  const [editKey, setEditKey] = useState<string | null>(null);
+  const [saving, setSaving] = useState(false);
+
+  useEffect(() => { load(); }, [userId]);
+
+  async function load() {
+    setLoading(true);
+    const { data, error } = await supabase
+      .from("profiles")
+      .select("custom_nutrients")
+      .eq("user_id", userId)
+      .single();
+    if (error) {
+      toast({ title: "Erreur de chargement", description: error.message, variant: "destructive" });
+    } else {
+      const arr = Array.isArray((data as any)?.custom_nutrients) ? (data as any).custom_nutrients : [];
+      setItems(arr as CustomNutrientDef[]);
+    }
+    setLoading(false);
+  }
+
+  async function persist(next: CustomNutrientDef[]) {
+    setSaving(true);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_nutrients: next as any })
+      .eq("user_id", userId);
+    setSaving(false);
+    if (error) {
+      toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+      return false;
+    }
+    setItems(next);
+    return true;
+  }
+
+  function startCreate() {
+    setEditKey(null);
+    setDraft({ ...EMPTY });
+  }
+
+  function startEdit(n: CustomNutrientDef) {
+    setEditKey(n.key);
+    setDraft({ ...n });
+  }
+
+  function cancelDraft() {
+    setDraft(null);
+    setEditKey(null);
+  }
+
+  async function submitDraft() {
+    if (!draft) return;
+    const existingKeys = items.filter((i) => i.key !== editKey).map((i) => i.key);
+    const v = validateCustomNutrient(draft, existingKeys);
+    if (!v.ok) {
+      toast({ title: "Champs invalides", description: v.error, variant: "destructive" });
+      return;
+    }
+    const next = editKey
+      ? items.map((i) => (i.key === editKey ? v.value : i))
+      : [...items, v.value];
+    const ok = await persist(next);
+    if (ok) {
+      toast({ title: editKey ? "Nutriment modifié" : "Nutriment ajouté" });
+      cancelDraft();
+    }
+  }
+
+  async function remove(key: string) {
+    if (!confirm("Supprimer ce nutriment custom ?")) return;
+    const next = items.filter((i) => i.key !== key);
+    const ok = await persist(next);
+    if (ok) toast({ title: "Supprimé" });
+  }
+
+  return (
+    <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+      <div className="flex items-center gap-2 mb-3">
+        <FlaskConical className="w-4 h-4 text-primary" />
+        <h2 className="font-display font-semibold text-base">Nutriments personnalisés</h2>
+      </div>
+      <p className="text-xs text-muted-foreground mb-4">
+        Ajoutez des nutriments à suivre en plus de la liste standard. Ils seront
+        enregistrés dans <code className="text-[10px]">nutrients_custom</code> de chaque repas.
+      </p>
+
+      {loading ? (
+        <p className="text-sm text-muted-foreground">Chargement…</p>
+      ) : (
+        <div className="space-y-2">
+          {items.length === 0 && !draft && (
+            <p className="text-xs text-muted-foreground italic">Aucun nutriment personnalisé.</p>
+          )}
+          {items.map((n) => (
+            <div
+              key={n.key}
+              className="flex items-center gap-2 bg-accent rounded-xl p-3"
+            >
+              <div className="flex-1 min-w-0">
+                <div className="text-sm font-medium truncate">
+                  {n.label} <span className="text-xs text-muted-foreground">({n.unit})</span>
+                </div>
+                <div className="text-[10px] text-muted-foreground truncate">
+                  {n.key} · {n.category}{n.goal != null ? ` · obj. ${n.goal}${n.unit}` : ""}
+                </div>
+              </div>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => startEdit(n)} aria-label="Modifier">
+                <Pencil className="w-4 h-4" />
+              </Button>
+              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => remove(n.key)} aria-label="Supprimer">
+                <Trash2 className="w-4 h-4 text-destructive" />
+              </Button>
+            </div>
+          ))}
+
+          {draft ? (
+            <div className="bg-accent rounded-xl p-3 space-y-2 animate-fade-up">
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Nom</Label>
+                  <Input
+                    value={draft.label ?? ""}
+                    onChange={(e) => setDraft({ ...draft, label: e.target.value })}
+                    placeholder="Choline"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Clé technique</Label>
+                  <Input
+                    value={draft.key ?? ""}
+                    onChange={(e) => setDraft({ ...draft, key: e.target.value })}
+                    placeholder="choline_mg"
+                    className="h-9 font-mono text-xs"
+                    disabled={!!editKey}
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Unité</Label>
+                  <Input
+                    value={draft.unit ?? ""}
+                    onChange={(e) => setDraft({ ...draft, unit: e.target.value })}
+                    placeholder="mg"
+                    className="h-9"
+                  />
+                </div>
+                <div>
+                  <Label className="text-[10px] uppercase text-muted-foreground">Catégorie</Label>
+                  <select
+                    value={draft.category ?? "vitamin"}
+                    onChange={(e) => setDraft({ ...draft, category: e.target.value as CustomNutrientDef["category"] })}
+                    className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
+                  >
+                    {CATEGORIES.map((c) => (
+                      <option key={c.value} value={c.value}>{c.label}</option>
+                    ))}
+                  </select>
+                </div>
+                <div className="col-span-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground">Objectif quotidien (optionnel)</Label>
+                  <Input
+                    type="number"
+                    inputMode="decimal"
+                    value={draft.goal ?? ""}
+                    onChange={(e) => setDraft({ ...draft, goal: e.target.value === "" ? undefined : Number(e.target.value) })}
+                    placeholder="400"
+                    className="h-9"
+                  />
+                </div>
+              </div>
+              <div className="flex gap-2 pt-1">
+                <Button onClick={submitDraft} disabled={saving} className="flex-1 h-9">
+                  <Save className="w-4 h-4 mr-1" />
+                  {editKey ? "Modifier" : "Ajouter"}
+                </Button>
+                <Button onClick={cancelDraft} variant="ghost" className="h-9">
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+            </div>
+          ) : (
+            <Button onClick={startCreate} variant="outline" className="w-full h-10 rounded-xl">
+              <Plus className="w-4 h-4 mr-1" />
+              Ajouter un nutriment
+            </Button>
+          )}
+        </div>
+      )}
+    </section>
+  );
+};
+
+export default CustomNutrientsEditor;
