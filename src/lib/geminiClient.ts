@@ -185,7 +185,7 @@ ${customFoodsContext ? `\n\nUTILISE CES DONNÉES DE LA BIBLIOTHÈQUE EN PRIORIT�
         }
       ],
       generationConfig: {
-        responseSchema: mealAnalysisSchema,
+        responseSchema: mealAnalysisSchema as any,
         responseMimeType: "application/json"
       },
       systemInstruction: systemPrompt
