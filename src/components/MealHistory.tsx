@@ -146,9 +146,15 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
             vitamin_c_mg: item.vitamin_c_mg,
             vitamin_d_mcg: item.vitamin_d_mcg,
             vitamin_e_mg: item.vitamin_e_mg,
+            vitamin_b9_mcg: item.vitamin_b9_mcg,
+            vitamin_b12_mcg: item.vitamin_b12_mcg,
+            iron_mg: item.iron_mg,
+            zinc_mg: item.zinc_mg,
             unit_count: item.unit_count,
             unit_weight_g: item.unit_weight_g,
             unit_label: item.unit_label,
+            nutrients_std: item.nutrients_std ?? {},
+            nutrients_custom: item.nutrients_custom ?? {},
           } as any))
         );
       }
