@@ -46,6 +46,20 @@ export type MicroTotalFields = {
 // Helper pour obtenir la liste des clés dynamiquement
 export const getNutrientKeys = (): string[] => NUTRIENTS_STD_LIST.map(n => n.key);
 
+/**
+ * Master List = liste STD + nutriments CUSTOM de l'utilisateur.
+ * Source unique de vérité pour tous les affichages élargis.
+ */
+export function getMasterList<T extends NutrientDef = NutrientDef>(
+  custom: T[] = [],
+): NutrientDef[] {
+  const stdKeys = new Set(NUTRIENTS_STD_LIST.map((n) => n.key));
+  return [
+    ...NUTRIENTS_STD_LIST,
+    ...custom.filter((c) => c.key && !stdKeys.has(c.key)),
+  ];
+}
+
 /** Interface interne pour le calcul des objectifs nutritionnels */
 export interface NutritionUserProfile {
   age?: number;
