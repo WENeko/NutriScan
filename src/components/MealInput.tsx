@@ -178,7 +178,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
       const result = await analyzeMealWithGemini({ 
         image: base64, 
-        custom_foods: customFoods || [] 
+        custom_foods: customFoods || [],
+        custom_nutrients: customNutrients,
       });
       
       handleAIResponse(result, customFoods || []);
