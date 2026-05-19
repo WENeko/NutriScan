@@ -182,17 +182,27 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
       custom_nutrients.map(c => `- ${c.key} (${c.unit})${c.label ? ` — ${c.label}` : ""}`).join("\n");
   }
 
-  // Nettoyer l'image base64 si elle a un préfixe data:image
-  const cleanImageData = image ? image.replace(/^data:image\/\w+;base64,/, '') : null;
+  // Détecte le mime type depuis le préfixe data:image/xxx;base64,
+  let imageMime = "image/jpeg";
+  let cleanImageData: string | null = null;
+  if (image) {
+    const m = image.match(/^data:(image\/[\w+.-]+);base64,(.*)$/);
+    if (m) {
+      imageMime = m[1];
+      cleanImageData = m[2];
+    } else {
+      cleanImageData = image;
+    }
+  }
 
   // Construction du payload Gemini (format API Google)
   type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
   const userParts: GeminiPart[] = [
     { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
   ];
-  
+
   if (cleanImageData) {
-    userParts.push({ inline_data: { mime_type: "image/jpeg", data: cleanImageData }});
+    userParts.push({ inline_data: { mime_type: imageMime, data: cleanImageData }});
   }
 
   const body = {
