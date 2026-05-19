@@ -15,7 +15,8 @@ interface GeminiModel {
 
 const GEMINI_MODELS: GeminiModel[] = [
   { name: "gemini-2.5-flash", endpoint: "v1beta/models/gemini-2.5-flash:generateContent", priority: 1 },
-  { name: "gemini-3.1-flash-lite", endpoint: "v1beta/models/gemini-3.1-flash-lite:generateContent", priority: 2 },
+  { name: "gemini-2.5-flash-lite", endpoint: "v1beta/models/gemini-2.5-flash-lite:generateContent", priority: 2 },
+  { name: "gemini-1.5-flash", endpoint: "v1beta/models/gemini-1.5-flash:generateContent", priority: 3 },
 ];
 
 // ============================================================
