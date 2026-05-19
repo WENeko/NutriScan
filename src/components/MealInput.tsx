@@ -10,6 +10,7 @@ import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB, logDatabaseHealth } from "@/services/databaseSyncService";
 import { localToUtcIso } from "@/lib/timezoneUtils";
