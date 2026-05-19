@@ -448,8 +448,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const queryWeight = manualIsCooked ? Math.round(weight / RAW_TO_COOKED_RATIO) : weight;
       setAnalyzing(true);
       try {
-        const result = await analyzeMealWithGemini({ 
-          text: `${queryWeight}g de ${manualItem.name}` 
+        const result = await analyzeMeal({
+          text: `${queryWeight}g de ${manualItem.name}`,
         });
         const item = result.items?.[0];
         if (item) {
