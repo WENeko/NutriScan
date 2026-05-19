@@ -15,7 +15,8 @@ interface GeminiModel {
 
 const GEMINI_MODELS: GeminiModel[] = [
   { name: "gemini-2.5-flash", endpoint: "v1beta/models/gemini-2.5-flash:generateContent", priority: 1 },
-  { name: "gemini-3.1-flash-lite", endpoint: "v1beta/models/gemini-3.1-flash-lite:generateContent", priority: 2 },
+  { name: "gemini-2.5-flash-lite", endpoint: "v1beta/models/gemini-2.5-flash-lite:generateContent", priority: 2 },
+  { name: "gemini-1.5-flash", endpoint: "v1beta/models/gemini-1.5-flash:generateContent", priority: 3 },
 ];
 
 // ============================================================
@@ -126,33 +127,46 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   // Construire la liste des micronutriments pour le prompt
   const microFieldsList = microKeysToRequest.join(", ");
   
-  // System prompt avec instructions EXPLICITES pour le format JSON
-  const basePrompt = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient.
+  // System prompt ALIGNÉ sur la function Lovable `analyze-meal`
+  // (mêmes noms de champs : name, estimated_weight_g, unit_count, unit_weight_g, unit_label)
+  const basePrompt = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
 
-RÈGLES DE FORMAT JSON STRICT - Chaque item doit avoir ces champs EXACTS:
-- food_name: string
-- calories: number (total pour la portion)
-- proteins: number (grammes)
-- carbs: number (grammes)
-- fats: number (grammes)
-- quantity: number (grammes, poids total estimé)
-- unit_count: number ou null
-- unit_label: string ou null
-- unit_weight_g: number ou null
-- ET tous les micronutriments: ${microFieldsList}
+IMPORTANT - Extraction temporelle :
+Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin"), retourne-la dans "suggested_timestamp" au format ISO 8601.
 
-IMPORTANT: Les valeurs de micronutriments sont pour LA PORTION ESTIMÉE, pas pour 100g. Mets 0 si inconnu.
+IMPORTANT - Aliments comptables en unités :
+Si l'utilisateur mentionne un nombre SANS unité de poids (g/kg/ml/cl/L), c'est un aliment en unités.
+- "2 tranches", "3 oeufs", "1 portion de Kiri", "2 Babybel", "4 biscuits" → unit_count, unit_label, unit_weight_g
+- "200g de riz" → poids brut (PAS d'unités)
+Si l'aliment se compte en unités : unit_count, unit_weight_g (poids moyen d'UNE unité), unit_label.
+estimated_weight_g = unit_count * unit_weight_g.
 
-RÈGLES D'ANALYSE:
-- Image: +5-10g lipides si aspect brillant/frit
-- Portions: utilise couteau/fourchette/assiette comme référence taille
-- Ambigu: choisir l'option la plus calorique
-- Unités: "2 tranches" → unit_count=2, unit_label="tranche"
+IMPORTANT - Micronutriments :
+Pour chaque aliment, estime les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g) :
+${microFieldsList}
+Mets 0 si inconnu.
 
-FORMAT JSON DE SORTIE:
-{"meal_name":"...","confidence_score":0.95,"suggested_timestamp":"2024-...","items":[{"food_name":"...","calories":0,"proteins":0,"carbs":0,"fats":0,"quantity":0,"unit_count":null,"unit_label":null,"unit_weight_g":null,${microKeysToRequest.map(k => `"${k}":0`).join(",")}}]}
-
-Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
+FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
+{
+  "meal_name": "string",
+  "confidence_score": 0.85,
+  "suggested_timestamp": "2025-01-15T22:00:00",
+  "items": [
+    {
+      "name": "string",
+      "estimated_weight_g": 150,
+      "unit_count": 3,
+      "unit_weight_g": 50,
+      "unit_label": "portion",
+      "calories": 250,
+      "proteins": 25,
+      "carbs": 2,
+      "fats": 15,
+      ${microKeysToRequest.map(k => `"${k}": 0`).join(",\n      ")}
+    }
+  ],
+  "total_summary": { "calories": 0, "proteins": 0, "carbs": 0, "fats": 0 }
+}`;
 
   // Gestion du contexte Custom Foods
   let customFoodsContext = "";
@@ -169,17 +183,27 @@ Réponds UNIQUEMENT le JSON, sans markdown, sans explication.`;
       custom_nutrients.map(c => `- ${c.key} (${c.unit})${c.label ? ` — ${c.label}` : ""}`).join("\n");
   }
 
-  // Nettoyer l'image base64 si elle a un préfixe data:image
-  const cleanImageData = image ? image.replace(/^data:image\/\w+;base64,/, '') : null;
+  // Détecte le mime type depuis le préfixe data:image/xxx;base64,
+  let imageMime = "image/jpeg";
+  let cleanImageData: string | null = null;
+  if (image) {
+    const m = image.match(/^data:(image\/[\w+.-]+);base64,(.*)$/);
+    if (m) {
+      imageMime = m[1];
+      cleanImageData = m[2];
+    } else {
+      cleanImageData = image;
+    }
+  }
 
   // Construction du payload Gemini (format API Google)
   type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
   const userParts: GeminiPart[] = [
     { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
   ];
-  
+
   if (cleanImageData) {
-    userParts.push({ inline_data: { mime_type: "image/jpeg", data: cleanImageData }});
+    userParts.push({ inline_data: { mime_type: imageMime, data: cleanImageData }});
   }
 
   const body = {

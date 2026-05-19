@@ -10,6 +10,7 @@ import BarcodeScanner from "./BarcodeScanner";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB, logDatabaseHealth } from "@/services/databaseSyncService";
 import { localToUtcIso } from "@/lib/timezoneUtils";
@@ -176,8 +177,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, iron_mg_per_100g, zinc_mg_per_100g, vitamin_b_per_100g, vitamin_b9_mcg_per_100g, vitamin_b12_mcg_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
         .eq("user_id", userId);
 
-      const result = await analyzeMealWithGemini({ 
-        image: base64, 
+      const result = await analyzeMeal({
+        image: base64,
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
       });
@@ -200,11 +201,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, iron_mg_per_100g, zinc_mg_per_100g, vitamin_b_per_100g, vitamin_b9_mcg_per_100g, vitamin_b12_mcg_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g")
         .eq("user_id", userId);
 
-      const result = await analyzeMealWithGemini({ 
-        text: textInput, 
+      const result = await analyzeMeal({
+        text: textInput,
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
-        local_time: new Date().toLocaleString("fr-FR") 
+        local_time: new Date().toLocaleString("fr-FR"),
       });
       
       handleAIResponse(result, customFoods || []);
@@ -447,8 +448,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const queryWeight = manualIsCooked ? Math.round(weight / RAW_TO_COOKED_RATIO) : weight;
       setAnalyzing(true);
       try {
-        const result = await analyzeMealWithGemini({ 
-          text: `${queryWeight}g de ${manualItem.name}` 
+        const result = await analyzeMeal({
+          text: `${queryWeight}g de ${manualItem.name}`,
         });
         const item = result.items?.[0];
         if (item) {
