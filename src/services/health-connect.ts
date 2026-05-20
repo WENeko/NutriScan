@@ -94,13 +94,13 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  const [weights, fats, bones, activeEnergy, steps] = await Promise.all([
+  const [weights, fats, activeEnergy, steps] = await Promise.all([
     fetchSamples("weight"),
     fetchSamples("bodyFat"),
-    fetchSamples("boneMass"),
-    fetchSamples("active_energy_burned"),
+    fetchSamples("totalCalories"),
     fetchSamples("steps")
   ]);
+  const bones: any[] = [];
 
   // 1. Composition Corporelle
   data.weight = weights.map((s: any) => ({ 
