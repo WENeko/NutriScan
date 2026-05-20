@@ -113,11 +113,23 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weighinHour, setWeighinHour] = useState<number>(8);
   const [weighinMinute, setWeighinMinute] = useState<number>(0);
 
+  // Goals mode (scientific / manual / ai_coach)
+  const [goalsMode, setGoalsMode] = useState<GoalsMode>("scientific");
+  const [manualUnit, setManualUnit] = useState<"g" | "percent">("g");
+  const [aiPrompt, setAiPrompt] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiRationale, setAiRationale] = useState<string>("");
+  const [suggestedCustoms, setSuggestedCustoms] = useState<SuggestedCustom[]>([]);
+  const [existingCustoms, setExistingCustoms] = useState<CustomNutrientDef[]>([]);
+  const [customsRefreshKey, setCustomsRefreshKey] = useState(0);
+
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
   const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
 
   useEffect(() => { loadProfile(); }, []);
-  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase]);
+  useEffect(() => {
+    if (goalsMode === "scientific") calculateTargets();
+  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase, goalsMode]);
 
   const loadProfile = async () => {
     const { data } = await supabase
