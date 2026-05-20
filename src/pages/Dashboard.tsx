@@ -61,6 +61,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [proteinTargetPerKg, setProteinTargetPerKg] = useState(2.0);
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [customNutrients, setCustomNutrients] = useState<CustomNutrientDef[]>([]);
+  const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
