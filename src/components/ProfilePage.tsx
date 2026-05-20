@@ -492,6 +492,35 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
         </section>
 
+        {/* Goals mode switcher */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
+          <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { value: "scientific" as GoalsMode, label: "Scientifique", icon: Calculator, desc: "Formules classiques" },
+              { value: "manual" as GoalsMode, label: "Manuel", icon: Sliders, desc: "Valeurs ou %" },
+              { value: "ai_coach" as GoalsMode, label: "Coach IA", icon: Sparkles, desc: "Prompt libre" },
+            ].map((m) => {
+              const Icon = m.icon;
+              return (
+                <button
+                  key={m.value}
+                  onClick={() => setGoalsMode(m.value)}
+                  className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${
+                    goalsMode === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-xs font-semibold">{m.label}</span>
+                  <span className={`text-[9px] ${goalsMode === m.value ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>{m.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {goalsMode === "scientific" && (
+          <>
         {/* BMR Method */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
@@ -602,6 +631,150 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 <p className="text-xs text-muted-foreground">
                   Gain estimé : <span className="font-bold text-primary">~0.5 kg/semaine</span>
                 </p>
+              </div>
+            )}
+          </section>
+        )}
+          </>
+        )}
+
+        {/* MANUAL MODE */}
+        {goalsMode === "manual" && (
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Réglages manuels</h2>
+              </div>
+              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                {(["g", "percent"] as const).map((u) => (
+                  <button
+                    key={u}
+                    onClick={() => setManualUnit(u)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                      manualUnit === u ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    {u === "g" ? "Grammes" : "% des cal."}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Calories (kcal/jour)</Label>
+                <NumericInput
+                  value={targets.calories}
+                  onChange={(v) => setTargets({ ...targets, calories: Math.round(v) })}
+                  className="h-10 rounded-xl"
+                />
+              </div>
+
+              {(["proteins", "carbs", "fats"] as const).map((k) => {
+                const labels: Record<string, string> = { proteins: "Protéines", carbs: "Glucides", fats: "Lipides" };
+                const kcalPerG = k === "fats" ? 9 : 4;
+                const cal = targets.calories || 0;
+                const grams = targets[k];
+                const percent = cal > 0 ? Math.round((grams * kcalPerG / cal) * 100) : 0;
+                return (
+                  <div key={k}>
+                    <Label className="text-xs text-muted-foreground flex items-center justify-between">
+                      <span>{labels[k]}</span>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {manualUnit === "g" ? `≈ ${percent}% des cal.` : `≈ ${grams}g (${grams * kcalPerG} kcal)`}
+                      </span>
+                    </Label>
+                    {manualUnit === "g" ? (
+                      <NumericInput
+                        value={grams}
+                        onChange={(v) => setTargets({ ...targets, [k]: Math.round(v) })}
+                        className="h-10 rounded-xl"
+                      />
+                    ) : (
+                      <NumericInput
+                        value={percent}
+                        onChange={(v) => {
+                          const newGrams = cal > 0 ? Math.round((cal * v / 100) / kcalPerG) : 0;
+                          setTargets({ ...targets, [k]: newGrams });
+                        }}
+                        className="h-10 rounded-xl"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+
+              {(() => {
+                const c = targets.calories || 0;
+                const reconstituted = targets.proteins * 4 + targets.carbs * 4 + targets.fats * 9;
+                const diff = c - reconstituted;
+                const ok = Math.abs(diff) <= Math.max(50, c * 0.05);
+                return (
+                  <div className={`rounded-xl p-3 text-xs ${ok ? "bg-accent" : "bg-destructive/10 text-destructive"}`}>
+                    Somme macros : <strong>{reconstituted} kcal</strong> · objectif <strong>{c} kcal</strong>
+                    {!ok && <span> · écart {diff > 0 ? `+${diff}` : diff} kcal</span>}
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+
+        {/* AI COACH MODE */}
+        {goalsMode === "ai_coach" && (
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <h2 className="font-display font-semibold text-base">Coach nutrition IA</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Décris ton objectif en langage naturel. L'IA utilise ton profil pour calculer calories, macros et te suggérer des micronutriments à suivre.
+            </p>
+            <Textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Ex : Je veux prendre 3kg de muscle sec en 12 semaines, je m'entraîne 5x/semaine en force, je suis intolérant au lactose et je prends 5g de créatine par jour."
+              className="min-h-[110px] rounded-xl text-sm"
+            />
+            <Button
+              onClick={runAiCoach}
+              disabled={aiLoading}
+              className="w-full h-10 rounded-xl nutri-gradient text-primary-foreground mt-3"
+            >
+              {aiLoading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Calcul en cours…</> : <><Sparkles className="w-4 h-4 mr-1" /> Calculer mes objectifs</>}
+            </Button>
+
+            {aiRationale && (
+              <div className="bg-accent rounded-xl p-3 mt-3 text-xs">
+                <div className="flex items-start gap-1.5">
+                  <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+                  <p className="text-muted-foreground">{aiRationale}</p>
+                </div>
+              </div>
+            )}
+
+            {suggestedCustoms.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Micronutriments suggérés</h3>
+                </div>
+                {suggestedCustoms.map((s) => (
+                  <div key={s.key} className="flex items-center gap-2 bg-accent rounded-xl p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {s.label} <span className="text-xs text-muted-foreground">({s.unit})</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {s.category}{s.goal != null ? ` · obj. ${s.goal}${s.unit}` : ""}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8" onClick={() => addSuggestedCustom(s)}>
+                      <Plus className="w-3 h-3 mr-1" /> Ajouter
+                    </Button>
+                  </div>
+                ))}
               </div>
             )}
           </section>
