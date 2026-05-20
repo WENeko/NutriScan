@@ -219,7 +219,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart 
+            <ComposedChart 
               data={nutritionData} 
               onMouseMove={(state) => { if (state.activeTooltipIndex !== undefined) setActiveIndex(state.activeTooltipIndex); }}
               onMouseLeave={() => setActiveIndex(null)}
@@ -238,7 +238,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 ))}
               </Bar>
               <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
-            </BarChart>
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </section>
