@@ -814,6 +814,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <Label className="text-xs text-muted-foreground">Eau (ml / jour)</Label>
               <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
               <p className="text-[10px] text-muted-foreground mt-2">+500 ml automatiques les jours avec sport.</p>
+            </section>
+
+
 
             {goalsMode === "scientific" && (
               <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
