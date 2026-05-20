@@ -1046,6 +1046,36 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
             </section>
 
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "70ms" }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-display font-semibold text-base">Mode expert micronutriments</h2>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Personnalise les objectifs de chaque micronutriment et marque-les comme minimum à atteindre ou limite à ne pas dépasser.
+                  </p>
+                </div>
+                <Switch checked={expertMode} onCheckedChange={setExpertMode} />
+              </div>
+            </section>
+
+            {expertMode && (
+              <MicroGoalsEditor
+                userProfile={{
+                  gender,
+                  age,
+                  weight_kg: weight,
+                  activity_level: activityLevel,
+                  totalCaloriesGoal: targets.calories,
+                  isAthlete,
+                  isSmoker,
+                  isPregnant,
+                  isMenopausal,
+                }}
+                overrides={microOverrides}
+                onChange={setMicroOverrides}
+              />
+            )}
+
             <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
           </>
         )}
