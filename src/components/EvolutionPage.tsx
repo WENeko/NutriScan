@@ -35,18 +35,8 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   const [goalsHistory, setGoalsHistory] = useState<any[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  const dynamicGoals = useMemo(() => {
-    return calculateMicroGoals({
-      age: userProfile?.birth_date ? differenceInYears(new Date(), new Date(userProfile.birth_date)) : 30,
-      gender: userProfile?.gender || 'male',
-      weight: userProfile?.current_weight || 75,
-      totalCaloriesGoal: calorieGoal,
-      isAthlete: userProfile?.is_athlete,
-      isSmoker: userProfile?.is_smoker,
-      isPregnant: userProfile?.is_pregnant,
-      isMenopausal: userProfile?.is_menopausal
-    });
-  }, [userProfile, calorieGoal]);
+  // (dynamicGoals retiré — la résolution des objectifs micro passe désormais
+  // par resolveMicroGoals dans le useMemo `resolvedMicros` ci-dessous.)
 
   const allMicros = useMemo(() => getMasterList(customNutrients), [customNutrients]);
 
