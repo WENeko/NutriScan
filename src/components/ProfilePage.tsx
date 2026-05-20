@@ -313,6 +313,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           morphotype: morphotype || null,
           mass_gain_phase: massGainPhase || null,
           last_weighin_date: null,
+          goals_mode: goalsMode,
+          ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
