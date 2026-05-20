@@ -839,17 +839,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <h2 className="font-display font-semibold text-base">Objectifs calculés</h2>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
-              <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
-            </div>
-            <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">TDEE → Cible</div>
-              <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
-              {sportCalories > 0 && (
-                <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
-              )}
-            </div>
+            {goalsMode === "scientific" && (
+              <>
+                <div className="bg-card rounded-xl p-3">
+                  <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
+                  <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                </div>
+                <div className="bg-card rounded-xl p-3">
+                  <div className="text-xs text-muted-foreground">TDEE → Cible</div>
+                  <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                  {sportCalories > 0 && (
+                    <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
+                  )}
+                </div>
+              </>
+            )}
+            {goalsMode !== "scientific" && (
+              <div className="bg-card rounded-xl p-3 col-span-2">
+                <div className="text-xs text-muted-foreground">Calories cibles</div>
+                <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+              </div>
+            )}
             <div className="bg-card rounded-xl p-3">
               <div className="text-xs text-muted-foreground">Protéines</div>
               <div className="font-bold">{targets.proteins}g <span className="text-[10px] font-normal text-muted-foreground">({(targets.proteins / Math.max(weight, 1)).toFixed(1)}g/kg)</span></div>
