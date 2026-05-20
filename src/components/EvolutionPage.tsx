@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, 
   Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Cell
 } from "recharts";
