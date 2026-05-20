@@ -81,6 +81,8 @@ export interface UserProfile {
   totalCaloriesGoal?: number | null;
   isSmoker?: boolean;
   isPregnant?: boolean;
+  isAthlete?: boolean;
+  isMenopausal?: boolean;
 }
 
 /**
