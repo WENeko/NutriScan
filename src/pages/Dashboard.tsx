@@ -477,14 +477,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             </section>
 
             {/* Weekly calorie budget - Calendar week Mon-Sun */}
-            {goals.calories > 0 && (
+            {weeklyCalorieTarget > 0 && (
               <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
                 {(() => {
-                  const weeklyTarget = goals.calories * 7;
+                  const weeklyTarget = weeklyCalorieTarget;
                   const budgetDelta = weekTotalCalories - weeklyTarget;
                   const absDiff = Math.abs(budgetDelta);
                   const pct = weeklyTarget > 0 ? weekTotalCalories / weeklyTarget : 0;
-                  const expectedPct = weeklyTarget > 0 ? (goals.calories * weekDaysElapsed) / weeklyTarget : 0;
+                  const expectedPct = weeklyTarget > 0 ? weeklyElapsedTarget / weeklyTarget : 0;
                   const isBalanced = absDiff < 1;
                   const isSurplus = budgetDelta > 0 && !isBalanced;
                   const isRemaining = budgetDelta < 0 && !isBalanced;
