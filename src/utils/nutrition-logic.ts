@@ -69,6 +69,7 @@ export interface NutritionUserProfile {
   isAthlete?: boolean;
   isSmoker?: boolean;
   isPregnant?: boolean;
+  isMenopausal?: boolean;
 }
 
 /** Type legacy pour compatibilité avec les anciens composants (Dashboard.tsx) */
