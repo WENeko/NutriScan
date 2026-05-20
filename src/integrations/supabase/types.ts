@@ -143,6 +143,51 @@ export type Database = {
         }
         Relationships: []
       }
+      goals_history: {
+        Row: {
+          body_fat_percent: number | null
+          calories: number
+          carbs: number
+          created_at: string
+          fats: number
+          goals_mode: string
+          id: string
+          proteins: number
+          recorded_at: string
+          source: string
+          user_id: string
+          weight_kg: number | null
+        }
+        Insert: {
+          body_fat_percent?: number | null
+          calories?: number
+          carbs?: number
+          created_at?: string
+          fats?: number
+          goals_mode?: string
+          id?: string
+          proteins?: number
+          recorded_at?: string
+          source?: string
+          user_id: string
+          weight_kg?: number | null
+        }
+        Update: {
+          body_fat_percent?: number | null
+          calories?: number
+          carbs?: number
+          created_at?: string
+          fats?: number
+          goals_mode?: string
+          id?: string
+          proteins?: number
+          recorded_at?: string
+          source?: string
+          user_id?: string
+          weight_kg?: number | null
+        }
+        Relationships: []
+      }
       meal_items: {
         Row: {
           calcium_mg: number | null
