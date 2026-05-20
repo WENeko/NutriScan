@@ -312,10 +312,10 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   if (creating) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h2 className="font-display font-semibold text-lg">{editing ? "Modifier" : "Nouvel"} aliment</h2>
+        <h2 className="font-display font-semibold text-lg">{editing || editingRecipeId ? "Modifier" : "Nouvel"} aliment</h2>
 
         {/* Input mode tabs */}
-        {!editing && (
+        {!editing && !editingRecipeId && (
           <div className="flex rounded-xl bg-muted p-1 gap-1 flex-wrap">
             {modeTabs.map((tab) => (
               <button
