@@ -108,8 +108,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         });
       }
     });
-    setNutritionData(Object.values(dayMap));
-
     const { data: bodyComp } = await supabase.from("body_composition").select("*").eq("user_id", userId).gte("recorded_at", format(startDate, "yyyy-MM-dd")).order("recorded_at");
     setBodyData((bodyComp || []).map(b => ({
       day: format(new Date(b.recorded_at), "dd/MM"),
@@ -119,20 +117,48 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       muscleMass: b.muscle_mass_kg
     })));
 
+    // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
     const { data: goalsHist } = await supabase
       .from("goals_history")
       .select("*")
       .eq("user_id", userId)
-      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .lte("recorded_at", format(today, "yyyy-MM-dd"))
       .order("recorded_at");
-    setGoalsHistory((goalsHist || []).map((g: any) => ({
-      day: format(new Date(g.recorded_at), "dd/MM"),
-      date: format(new Date(g.recorded_at), "dd/MM/yyyy"),
+
+    const goalsList = (goalsHist || []).map((g: any) => ({
+      recorded_at: g.recorded_at,
       calories: Number(g.calories),
       proteins: Number(g.proteins),
       carbs: Number(g.carbs),
       fats: Number(g.fats),
-    })));
+    }));
+
+    // Forward-fill objectifs sur chaque jour du dayMap
+    const sortedKeys = Object.keys(dayMap).sort();
+    let gIdx = 0;
+    let current: any = null;
+    // Initialiser current avec le dernier snapshot antérieur au range
+    for (let i = 0; i < goalsList.length; i++) {
+      if (goalsList[i].recorded_at <= sortedKeys[0]) current = goalsList[i];
+      else break;
+    }
+    // Avancer gIdx au premier snapshot dans le range
+    while (gIdx < goalsList.length && goalsList[gIdx].recorded_at < sortedKeys[0]) gIdx++;
+
+    sortedKeys.forEach((key) => {
+      while (gIdx < goalsList.length && goalsList[gIdx].recorded_at <= key) {
+        current = goalsList[gIdx];
+        gIdx++;
+      }
+      const c = current;
+      dayMap[key].calorieGoal = c?.calories ?? calorieGoal;
+      dayMap[key].proteinGoal = c?.proteins ?? proteinGoal;
+      dayMap[key].carbsGoal = c?.carbs ?? carbsGoal;
+      dayMap[key].fatsGoal = c?.fats ?? fatsGoal;
+    });
+
+    setNutritionData(Object.values(dayMap));
+    setGoalsHistory(goalsList);
   };
 
   const radarData = useMemo(() => {
