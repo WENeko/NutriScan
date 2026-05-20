@@ -252,6 +252,28 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
                     className="h-9"
                   />
                 </div>
+
+                <div className="col-span-2 flex items-center justify-between bg-card rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    {draft.is_limit ? (
+                      <ArrowDown className="w-4 h-4 text-destructive" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4 text-primary" />
+                    )}
+                    <div>
+                      <div className="text-xs font-semibold">
+                        {draft.is_limit ? "Limite à ne pas dépasser" : "Minimum à atteindre"}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        Affecte la coloration des graphiques
+                      </div>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={!!draft.is_limit}
+                    onCheckedChange={(v) => setDraft({ ...draft, is_limit: v })}
+                  />
+                </div>
               </div>
               <div className="flex gap-2 pt-1">
                 <Button onClick={submitDraft} disabled={saving} className="flex-1 h-9">
