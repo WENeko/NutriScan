@@ -376,7 +376,11 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
 
         {/* Recipe mode */}
         {createMode === "recipe" && (
-          <RecipeBuilder userId={userId} onDone={() => { setCreating(false); setForm(emptyFood); fetchFoods(); }} />
+          <RecipeBuilder
+            userId={userId}
+            editFoodId={editingRecipeId || undefined}
+            onDone={() => { setCreating(false); setEditing(null); setEditingRecipeId(null); setForm(emptyFood); fetchFoods(); }}
+          />
         )}
 
         {/* Supplement mode */}
