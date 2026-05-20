@@ -4,6 +4,8 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { calculateScientificGoals } from "@/utils/goals-calc";
+import { differenceInYears } from "date-fns";
 
 // ── TYPES ───────────────────────────────────────────────────────
 export interface HealthConnectData {
@@ -156,6 +158,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
 }
 
 // ── SYNCHRONISATION SUPABASE ────────────────────────────────────
+
 export async function syncHealthData(
   userId: string,
   data: HealthConnectData,
@@ -167,19 +170,150 @@ export async function syncHealthData(
   try {
     const today = new Date().toISOString().slice(0, 10);
 
-    // Sync Poids et Composition
+    // ── Sync Poids et Composition (historisation par timestamp) ──
     if (prefs.sync_weight && data.weight?.length) {
+      // Group par date pour upsert un enregistrement par jour
+      const byDate = new Map<string, { weight?: number; fat?: number; muscle?: number; ts: string }>();
+
+      data.weight.forEach((w) => {
+        const d = w.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: w.timestamp };
+        cur.weight = w.value_kg;
+        cur.ts = w.timestamp;
+        byDate.set(d, cur);
+      });
+      data.bodyFat?.forEach((f) => {
+        const d = f.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: f.timestamp };
+        cur.fat = f.percentage;
+        byDate.set(d, cur);
+      });
+      data.muscle?.forEach((m) => {
+        const d = m.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: m.timestamp };
+        cur.muscle = m.value_kg;
+        byDate.set(d, cur);
+      });
+
+      // Upsert body_composition par jour
+      for (const [date, vals] of byDate.entries()) {
+        const { data: existing } = await supabase
+          .from("body_composition")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("recorded_at", date)
+          .maybeSingle();
+
+        const entry: any = {
+          user_id: userId,
+          recorded_at: date,
+          weight_kg: vals.weight ?? null,
+          body_fat_percent: vals.fat ?? null,
+          muscle_mass_kg: vals.muscle ?? null,
+          source: "health_connect",
+        };
+
+        if (existing) {
+          await supabase.from("body_composition").update(entry).eq("id", (existing as any).id);
+        } else {
+          await supabase.from("body_composition").insert(entry);
+        }
+      }
+
+      // Mise à jour du profil avec la mesure la plus récente
       const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const lastW = sortedW[0];
       const d = lastW.timestamp.slice(0, 10);
-      const lastFat = data.bodyFat?.find(f => f.timestamp.startsWith(d))?.percentage;
-      const lastMus = data.muscle?.find(m => m.timestamp.startsWith(d))?.value_kg;
+      const lastFat = data.bodyFat?.find((f) => f.timestamp.startsWith(d))?.percentage ?? null;
+      const lastMus = data.muscle?.find((m) => m.timestamp.startsWith(d))?.value_kg ?? null;
 
-      await supabase.from("profiles").update({ 
+      await supabase.from("profiles").update({
         weight_kg: lastW.value_kg,
-        body_fat_percent: lastFat || null,
-        muscle_mass_kg: lastMus || null
+        body_fat_percent: lastFat,
+        muscle_mass_kg: lastMus,
       }).eq("user_id", userId);
+
+      // ── Recalcul des objectifs (mode scientifique) + snapshot ──
+      const { data: profile } = await supabase
+        .from("profiles")
+        .select("*")
+        .eq("user_id", userId)
+        .single();
+
+      if (profile && (profile as any).goals_mode === "scientific") {
+        const p = profile as any;
+        const age = p.date_of_birth
+          ? differenceInYears(new Date(), new Date(p.date_of_birth))
+          : p.age || 30;
+        const currentGoals = p.goals || {};
+        const recomputed = calculateScientificGoals({
+          weight_kg: Number(p.weight_kg) || lastW.value_kg,
+          height_cm: Number(p.height_cm) || 175,
+          age,
+          gender: p.gender || "male",
+          activity_level: p.activity_level || "moderate",
+          goal_type: currentGoals.goalType || "maintain",
+          bmr_method: p.bmr_method || "mifflin",
+          body_fat_percent: lastFat ?? Number(p.body_fat_percent) ?? null,
+          morphotype: p.morphotype,
+          mass_gain_phase: p.mass_gain_phase,
+        });
+
+        await supabase.from("profiles").update({
+          bmr: recomputed.bmr,
+          goals: {
+            calories: recomputed.calories,
+            proteins: recomputed.proteins,
+            carbs: recomputed.carbs,
+            fats: recomputed.fats,
+            goalType: currentGoals.goalType || "maintain",
+          },
+        } as any).eq("user_id", userId);
+
+        // Snapshot dans goals_history pour chaque jour de mesure
+        for (const [date, vals] of byDate.entries()) {
+          if (!vals.weight) continue;
+          const dayGoals = calculateScientificGoals({
+            weight_kg: vals.weight,
+            height_cm: Number(p.height_cm) || 175,
+            age,
+            gender: p.gender || "male",
+            activity_level: p.activity_level || "moderate",
+            goal_type: currentGoals.goalType || "maintain",
+            bmr_method: p.bmr_method || "mifflin",
+            body_fat_percent: vals.fat ?? null,
+            morphotype: p.morphotype,
+            mass_gain_phase: p.mass_gain_phase,
+          });
+
+          const { data: existingGoal } = await supabase
+            .from("goals_history")
+            .select("id")
+            .eq("user_id", userId)
+            .eq("recorded_at", date)
+            .maybeSingle();
+
+          const goalEntry: any = {
+            user_id: userId,
+            recorded_at: date,
+            calories: dayGoals.calories,
+            proteins: dayGoals.proteins,
+            carbs: dayGoals.carbs,
+            fats: dayGoals.fats,
+            goals_mode: "scientific",
+            source: "health_connect",
+            weight_kg: vals.weight,
+            body_fat_percent: vals.fat ?? null,
+          };
+
+          if (existingGoal) {
+            await supabase.from("goals_history").update(goalEntry).eq("id", (existingGoal as any).id);
+          } else {
+            await supabase.from("goals_history").insert(goalEntry);
+          }
+        }
+      }
+
       synced.push("Composition");
     }
 
@@ -187,15 +321,15 @@ export async function syncHealthData(
     if (prefs.sync_calories && data.activeCalories?.length) {
       const todayEntry = data.activeCalories.find(c => c.timestamp.startsWith(today));
       const val = todayEntry ? todayEntry.value_kcal : 0;
-      
-      await supabase.from("profiles").update({ 
-        sport_calories_daily: val 
+
+      await supabase.from("profiles").update({
+        sport_calories_daily: val
       }).eq("user_id", userId);
-      
+
       synced.push("Calories Sport");
     }
-  } catch (e: any) { 
-    errors.push(e.message); 
+  } catch (e: any) {
+    errors.push(e.message);
   }
 
   return { synced, errors };

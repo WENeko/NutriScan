@@ -31,6 +31,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
   const [nutritionData, setNutritionData] = useState<any[]>([]);
   const [bodyData, setBodyData] = useState<any[]>([]);
+  const [goalsHistory, setGoalsHistory] = useState<any[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const dynamicGoals = useMemo(() => {
@@ -116,6 +117,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       weight: b.weight_kg,
       bodyFat: b.body_fat_percent,
       muscleMass: b.muscle_mass_kg
+    })));
+
+    const { data: goalsHist } = await supabase
+      .from("goals_history")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .order("recorded_at");
+    setGoalsHistory((goalsHist || []).map((g: any) => ({
+      day: format(new Date(g.recorded_at), "dd/MM"),
+      date: format(new Date(g.recorded_at), "dd/MM/yyyy"),
+      calories: Number(g.calories),
+      proteins: Number(g.proteins),
+      carbs: Number(g.carbs),
+      fats: Number(g.fats),
     })));
   };
 
@@ -253,6 +269,51 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           </ResponsiveContainer>
         </div>
       </section>
+
+      {/* 3.5 ÉVOLUTION DES OBJECTIFS */}
+      {goalsHistory.length > 1 && (
+        <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
+          <h3 className="font-display font-semibold text-sm mb-1">Évolution des objectifs</h3>
+          <p className="text-[10px] text-muted-foreground mb-3">Calories cibles au fil du temps</p>
+          <div className="h-44">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={goalsHistory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
+                <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} width={40} axisLine={false} tickLine={false} domain={['dataMin - 100', 'dataMax + 100']} />
+                <Tooltip
+                  content={({ active, payload }) => {
+                    if (active && payload && payload.length) {
+                      const d = payload[0].payload;
+                      return (
+                        <div className="bg-[#1A1F2C] border border-white/10 p-2.5 rounded-xl shadow-xl">
+                          <p className="text-white/60 text-[11px] mb-0.5">{d.date}</p>
+                          <p className="text-white font-bold text-sm">{d.calories} kcal</p>
+                        </div>
+                      );
+                    }
+                    return null;
+                  }}
+                />
+                <Line type="monotone" dataKey="calories" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 3 }} />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+          <div className="h-44 mt-4">
+            <ResponsiveContainer width="100%" height="100%">
+              <LineChart data={goalsHistory}>
+                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
+                <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} width={35} axisLine={false} tickLine={false} />
+                <Tooltip contentStyle={tooltipStyle} />
+                <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={2} dot={false} name="Prot." />
+                <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={2} dot={false} name="Gluc." />
+                <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={2} dot={false} name="Lip." />
+              </LineChart>
+            </ResponsiveContainer>
+          </div>
+        </section>
+      )}
 
       {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
