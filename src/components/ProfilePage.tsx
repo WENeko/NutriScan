@@ -160,9 +160,84 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_minute !== null && d.weighin_minute !== undefined) setWeighinMinute(Number(d.weighin_minute));
       if (d.morphotype) setMorphotype(d.morphotype);
       if (d.mass_gain_phase) setMassGainPhase(d.mass_gain_phase);
+      if (d.goals_mode) setGoalsMode(d.goals_mode as GoalsMode);
+      if (d.ai_coach_prompt) setAiPrompt(d.ai_coach_prompt);
+      if (Array.isArray(d.custom_nutrients)) setExistingCustoms(d.custom_nutrients as CustomNutrientDef[]);
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
+      // For non-scientific modes, restore saved targets so they are not overwritten
+      if (d.goals_mode && d.goals_mode !== "scientific" && goals) {
+        setTargets({
+          calories: Number(goals.calories) || 0,
+          proteins: Number(goals.proteins) || 0,
+          carbs: Number(goals.carbs) || 0,
+          fats: Number(goals.fats) || 0,
+        });
+      }
     }
+  };
+
+  const runAiCoach = async () => {
+    if (!aiPrompt.trim()) {
+      toast({ title: "Décris ton objectif", description: "Renseigne un prompt pour le coach IA.", variant: "destructive" });
+      return;
+    }
+    setAiLoading(true);
+    setSuggestedCustoms([]);
+    setAiRationale("");
+    try {
+      const profilePayload = {
+        gender, age, weight_kg: weight, height_cm: height,
+        body_fat_percent: bodyFat || null, muscle_mass_kg: muscleMass || null,
+        activity_level: activityLevel, morphotype: morphotype || null,
+        bmr, sport_calories_daily: sportCalories,
+        target_weight_kg: targetWeight || null,
+        target_body_fat_percent: targetBodyFat || null,
+        target_muscle_mass_kg: targetMuscleMass || null,
+        custom_nutrients: existingCustoms,
+      };
+      const { data, error } = await supabase.functions.invoke("coach-goals", {
+        body: { profile: profilePayload, prompt: aiPrompt.trim() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const cal = Math.round(Number(data?.calories) || 0);
+      const p = Math.round(Number(data?.proteins) || 0);
+      const c = Math.round(Number(data?.carbs) || 0);
+      const f = Math.round(Number(data?.fats) || 0);
+      if (cal > 0) setTargets({ calories: cal, proteins: p, carbs: c, fats: f });
+      setAiRationale(typeof data?.rationale === "string" ? data.rationale : "");
+      const sugg = Array.isArray(data?.suggested_custom_nutrients) ? data.suggested_custom_nutrients : [];
+      // Filter out keys already present in existing customs
+      const existingKeys = new Set(existingCustoms.map((c) => c.key));
+      const cleaned: SuggestedCustom[] = [];
+      for (const s of sugg) {
+        const v = validateCustomNutrient(s, [...existingKeys, ...cleaned.map((x) => x.key)]);
+        if (v.ok) cleaned.push(v.value);
+      }
+      setSuggestedCustoms(cleaned);
+      toast({ title: "Objectifs calculés par l'IA ✨" });
+    } catch (e: any) {
+      toast({ title: "Erreur coach IA", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const addSuggestedCustom = async (s: SuggestedCustom) => {
+    const next = [...existingCustoms, s];
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_nutrients: next as any })
+      .eq("user_id", userId);
+    if (error) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      return;
+    }
+    setExistingCustoms(next);
+    setSuggestedCustoms((prev) => prev.filter((x) => x.key !== s.key));
+    setCustomsRefreshKey((k) => k + 1);
+    toast({ title: `${s.label} ajouté` });
   };
 
   const calculateTargets = () => {
