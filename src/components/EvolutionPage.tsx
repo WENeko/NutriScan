@@ -7,7 +7,7 @@ import {
 } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } from "date-fns";
 import { fr } from "date-fns/locale";
-import { calculateMicroGoals, NUTRIENTS_STD_LIST, getMasterList, resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
+import { getMasterList, resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface EvolutionPageProps {
