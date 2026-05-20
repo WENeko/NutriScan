@@ -524,10 +524,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <h2 className="font-display font-semibold text-base mb-4">Informations corporelles</h2>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
-                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
-                </div>
-                <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Taille (cm)</Label>
                   <NumericInput value={height} onChange={(v) => setHeight(v)} className="h-10 rounded-xl" />
                 </div>
@@ -535,7 +531,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <Label className="text-xs text-muted-foreground">Date de naissance</Label>
                   <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className="h-10 rounded-xl" />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 col-span-2">
                   <Label className="text-xs text-muted-foreground">Genre</Label>
                   <div className="flex gap-2">
                     {["male", "female"].map((g) => (
@@ -561,6 +557,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
+                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
                   <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
                 </div>
@@ -572,10 +572,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
                   <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
-                  <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
-                </div>
               </div>
               {leanMass && (
                 <div className="mt-3 bg-accent rounded-xl p-2.5 text-xs">
@@ -583,6 +579,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
                 </div>
               )}
+              <Button
+                onClick={handleHealthSync}
+                disabled={isSyncing}
+                variant="outline"
+                className="w-full h-11 rounded-xl mt-4"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+                {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Importe poids, masse grasse & musculaire depuis Health Connect, avec leurs dates de mesure.
+              </p>
             </section>
           </>
         )}
