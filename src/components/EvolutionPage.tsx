@@ -21,12 +21,13 @@ interface EvolutionPageProps {
   targetMuscleMass?: number | null;
   userProfile?: any;
   customNutrients?: CustomNutrientDef[];
+  microOverrides?: MicroOverrides;
 }
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
   userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
   targetWeight, targetBodyFat, targetMuscleMass, userProfile,
-  customNutrients = []
+  customNutrients = [], microOverrides = {}
 }) => {
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
   const [nutritionData, setNutritionData] = useState<any[]>([]);
