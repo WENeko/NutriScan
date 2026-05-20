@@ -169,7 +169,19 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     fetchFoods();
   };
 
-  const startEdit = (food: CustomFood) => {
+  const startEdit = async (food: CustomFood) => {
+    // Check if this food was created from a recipe
+    const { data: ings } = await supabase
+      .from("recipe_ingredients" as any)
+      .select("id")
+      .eq("custom_food_id", food.id)
+      .limit(1);
+    if (ings && (ings as any[]).length > 0) {
+      setEditingRecipeId(food.id);
+      setCreating(true);
+      setCreateMode("recipe");
+      return;
+    }
     setEditing(food);
     setCreating(true);
     setCreateMode("manual");
