@@ -6,12 +6,20 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight, RefreshCw, Droplets } from "lucide-react";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
+import {
+  isHealthConnectAvailable,
+  checkHealthPermissions,
+  requestHealthPermissions,
+  readNativeHealthData,
+  syncHealthData,
+  getHealthConnectPreferences,
+} from "@/services/health-connect";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
 type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings";
@@ -134,6 +142,42 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
   // Sub-page navigation
   const [subPage, setSubPage] = useState<SubPage>(null);
+
+  // Health Connect sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleHealthSync = async () => {
+    setIsSyncing(true);
+    try {
+      const available = await isHealthConnectAvailable();
+      if (!available) {
+        toast({ title: "Health Connect indisponible", description: "Lance l'app native pour synchroniser.", variant: "destructive" });
+        return;
+      }
+      let granted = await checkHealthPermissions();
+      if (!granted) granted = await requestHealthPermissions();
+      if (!granted) {
+        toast({ title: "Permissions refusées", variant: "destructive" });
+        return;
+      }
+      const data = await readNativeHealthData(30);
+      const prefs = getHealthConnectPreferences();
+      const result = await syncHealthData(userId, data, prefs);
+      if (result.synced.length) {
+        toast({ title: "Synchronisation réussie", description: result.synced.join(", ") });
+        await loadProfile();
+      } else {
+        toast({ title: "Aucune donnée importée", description: "Active les sources dans Sources de données." });
+      }
+      if (result.errors.length) {
+        toast({ title: "Erreurs", description: result.errors.join("; "), variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erreur de synchronisation", description: e.message, variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
 
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
@@ -341,29 +385,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         .eq("user_id", userId);
       if (error) throw error;
 
+      // ⚠️ Pas d'insertion dans body_composition ici : ce tableau n'est
+      // alimenté que par l'import Health Connect (avec les vrais timestamps).
+
       const today = format(new Date(), "yyyy-MM-dd");
-      const { data: existing } = await supabase
-        .from("body_composition")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("recorded_at", today)
-        .single();
 
-      const bodyEntry = {
-        user_id: userId,
-        recorded_at: today,
-        weight_kg: weight,
-        body_fat_percent: bodyFat || null,
-        muscle_mass_kg: muscleMass || null,
-        sport_calories: sportCalories,
-        source: "manual",
-      };
-
-      if (existing) {
-        await supabase.from("body_composition").update(bodyEntry as any).eq("id", (existing as any).id);
-      } else {
-        await supabase.from("body_composition").insert(bodyEntry as any);
-      }
 
       // Snapshot des objectifs du jour (évolution)
       const goalsSnap: any = {
@@ -498,10 +524,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <h2 className="font-display font-semibold text-base mb-4">Informations corporelles</h2>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
-                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
-                </div>
-                <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Taille (cm)</Label>
                   <NumericInput value={height} onChange={(v) => setHeight(v)} className="h-10 rounded-xl" />
                 </div>
@@ -509,7 +531,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <Label className="text-xs text-muted-foreground">Date de naissance</Label>
                   <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className="h-10 rounded-xl" />
                 </div>
-                <div className="space-y-1">
+                <div className="space-y-1 col-span-2">
                   <Label className="text-xs text-muted-foreground">Genre</Label>
                   <div className="flex gap-2">
                     {["male", "female"].map((g) => (
@@ -535,6 +557,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
+                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
+                </div>
+                <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
                   <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
                 </div>
@@ -546,10 +572,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
                   <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
-                  <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
-                </div>
               </div>
               {leanMass && (
                 <div className="mt-3 bg-accent rounded-xl p-2.5 text-xs">
@@ -557,6 +579,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
                 </div>
               )}
+              <Button
+                onClick={handleHealthSync}
+                disabled={isSyncing}
+                variant="outline"
+                className="w-full h-11 rounded-xl mt-4"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+                {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Importe poids, masse grasse & musculaire depuis Health Connect, avec leurs dates de mesure.
+              </p>
             </section>
           </>
         )}
@@ -771,6 +805,18 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 })}
               </div>
             </section>
+
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "15ms" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Droplets className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Objectif d'hydratation</h2>
+              </div>
+              <Label className="text-xs text-muted-foreground">Eau (ml / jour)</Label>
+              <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
+              <p className="text-[10px] text-muted-foreground mt-2">+500 ml automatiques les jours avec sport.</p>
+            </section>
+
+
 
             {goalsMode === "scientific" && (
               <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
