@@ -131,6 +131,72 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         carbs: g?.carbs ?? 250,
         fats: g?.fats ?? 70,
       });
+
+      // === Persistance auto des objectifs du jour ===
+      const todayStr = format(now, "yyyy-MM-dd");
+      const todaySnap = {
+        user_id: userId,
+        recorded_at: todayStr,
+        calories: baseCalories,
+        proteins: g?.proteins ?? 150,
+        carbs: g?.carbs ?? 250,
+        fats: g?.fats ?? 70,
+        goals_mode: (profile as any).goals_mode ?? "scientific",
+        source: "auto",
+      };
+      const { data: existingSnap } = await supabase
+        .from("goals_history")
+        .select("id, calories, proteins, carbs, fats")
+        .eq("user_id", userId)
+        .eq("recorded_at", todayStr)
+        .maybeSingle();
+      if (!existingSnap) {
+        await supabase.from("goals_history").insert(todaySnap);
+      } else if (
+        Number((existingSnap as any).calories) !== todaySnap.calories ||
+        Number((existingSnap as any).proteins) !== todaySnap.proteins ||
+        Number((existingSnap as any).carbs) !== todaySnap.carbs ||
+        Number((existingSnap as any).fats) !== todaySnap.fats
+      ) {
+        await supabase
+          .from("goals_history")
+          .update(todaySnap)
+          .eq("id", (existingSnap as any).id);
+      }
+
+      // === Budget hebdo : somme des objectifs caloriques journaliers (forward-fill) ===
+      const { data: goalsHist } = await supabase
+        .from("goals_history")
+        .select("recorded_at, calories")
+        .eq("user_id", userId)
+        .lte("recorded_at", format(weekEnd, "yyyy-MM-dd"))
+        .order("recorded_at");
+      const histList = (goalsHist || []) as Array<{ recorded_at: string; calories: number }>;
+      let weeklyTarget = 0;
+      let elapsedTarget = 0;
+      let current: number | null = null;
+      // dernier snapshot antérieur au début de semaine
+      const weekStartStr = format(weekStart, "yyyy-MM-dd");
+      for (const h of histList) {
+        if (h.recorded_at < weekStartStr) current = Number(h.calories);
+        else break;
+      }
+      let hIdx = histList.findIndex((h) => h.recorded_at >= weekStartStr);
+      if (hIdx < 0) hIdx = histList.length;
+      for (let i = 0; i < 7; i++) {
+        const d = new Date(weekStart);
+        d.setDate(d.getDate() + i);
+        const key = format(d, "yyyy-MM-dd");
+        while (hIdx < histList.length && histList[hIdx].recorded_at <= key) {
+          current = Number(histList[hIdx].calories);
+          hIdx++;
+        }
+        const dailyGoal = current ?? baseCalories;
+        weeklyTarget += dailyGoal;
+        if (i < mondayBased) elapsedTarget += dailyGoal;
+      }
+      setWeeklyCalorieTarget(Math.round(weeklyTarget));
+      setWeeklyElapsedTarget(Math.round(elapsedTarget));
     }
 
     const todayStart = startOfDay(now);
