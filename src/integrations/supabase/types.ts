@@ -302,6 +302,7 @@ export type Database = {
         Row: {
           activity_level: string | null
           age: number | null
+          ai_coach_prompt: string | null
           bmr: number | null
           bmr_method: string | null
           body_fat_percent: number | null
@@ -311,6 +312,7 @@ export type Database = {
           email: string | null
           gender: string | null
           goals: Json
+          goals_mode: string
           height_cm: number | null
           id: string
           last_weighin_date: string | null
@@ -333,6 +335,7 @@ export type Database = {
         Insert: {
           activity_level?: string | null
           age?: number | null
+          ai_coach_prompt?: string | null
           bmr?: number | null
           bmr_method?: string | null
           body_fat_percent?: number | null
@@ -342,6 +345,7 @@ export type Database = {
           email?: string | null
           gender?: string | null
           goals?: Json
+          goals_mode?: string
           height_cm?: number | null
           id?: string
           last_weighin_date?: string | null
@@ -364,6 +368,7 @@ export type Database = {
         Update: {
           activity_level?: string | null
           age?: number | null
+          ai_coach_prompt?: string | null
           bmr?: number | null
           bmr_method?: string | null
           body_fat_percent?: number | null
@@ -373,6 +378,7 @@ export type Database = {
           email?: string | null
           gender?: string | null
           goals?: Json
+          goals_mode?: string
           height_cm?: number | null
           id?: string
           last_weighin_date?: string | null
