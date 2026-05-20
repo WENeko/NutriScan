@@ -158,8 +158,6 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
 }
 
 // ── SYNCHRONISATION SUPABASE ────────────────────────────────────
-import { calculateScientificGoals } from "@/utils/goals-calc";
-import { differenceInYears } from "date-fns";
 
 export async function syncHealthData(
   userId: string,
