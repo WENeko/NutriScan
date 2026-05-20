@@ -219,7 +219,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const microGoals = useMemo(
     () => getPersonalizedMicroGoals(userProfile),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level]
+    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level, userProfile.isAthlete, userProfile.isSmoker, userProfile.isPregnant, userProfile.isMenopausal]
   );
 
   if (showDataSources) {
