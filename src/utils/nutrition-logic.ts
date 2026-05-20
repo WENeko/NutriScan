@@ -69,6 +69,7 @@ export interface NutritionUserProfile {
   isAthlete?: boolean;
   isSmoker?: boolean;
   isPregnant?: boolean;
+  isMenopausal?: boolean;
 }
 
 /** Type legacy pour compatibilité avec les anciens composants (Dashboard.tsx) */
@@ -80,6 +81,8 @@ export interface UserProfile {
   totalCaloriesGoal?: number | null;
   isSmoker?: boolean;
   isPregnant?: boolean;
+  isAthlete?: boolean;
+  isMenopausal?: boolean;
 }
 
 /**
@@ -94,6 +97,7 @@ export const calculateMicroGoals = (profile: NutritionUserProfile = {}): MicroGo
   const isAthlete = !!profile.isAthlete;
   const isSmoker = !!profile.isSmoker;
   const isPregnant = !!profile.isPregnant;
+  const isMenopausal = !!profile.isMenopausal;
 
   // Initialiser avec toutes les clés à 0
   const goals = {} as MicroGoals;
@@ -123,11 +127,12 @@ export const calculateMicroGoals = (profile: NutritionUserProfile = {}): MicroGo
         value = gender === "male" ? 3500 : 3000;
         break;
       case "calcium_mg":
-        // Correction de la condition logique pour plus de clarté
-        value = (age > 70 || (gender === "female" && age > 50)) ? 1200 : 1000;
+        // Ménopause / >70 ans / femmes >50 ans → 1200 mg
+        value = (isMenopausal || age > 70 || (gender === "female" && age > 50)) ? 1200 : 1000;
         break;
       case "iron_mg":
-        value = isPregnant ? 27 : (gender === "female" && age <= 50 ? 16 : 11);
+        // Ménopause : besoins ↘ (8 mg). Grossesse : ↗ (27 mg).
+        value = isPregnant ? 27 : (isMenopausal ? 8 : (gender === "female" && age <= 50 ? 16 : 11));
         break;
       case "zinc_mg":
         value = (gender === "male" ? 11 : 8) * (isAthlete ? 1.25 : 1);
@@ -225,9 +230,10 @@ export function normalizeUserProfile(legacy: UserProfile): NutritionUserProfile 
     gender: (legacy.gender === "male" || legacy.gender === "female") ? legacy.gender : "male",
     weight: legacy.weight_kg ?? 75,
     totalCaloriesGoal: legacy.totalCaloriesGoal ?? 2000,
-    isAthlete: isActive,
+    isAthlete: legacy.isAthlete ?? isActive,
     isSmoker: legacy.isSmoker ?? false,
     isPregnant: legacy.isPregnant ?? false,
+    isMenopausal: legacy.isMenopausal ?? false,
   };
 }
 

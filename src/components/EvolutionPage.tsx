@@ -42,7 +42,8 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       totalCaloriesGoal: calorieGoal,
       isAthlete: userProfile?.is_athlete,
       isSmoker: userProfile?.is_smoker,
-      isPregnant: userProfile?.is_pregnant
+      isPregnant: userProfile?.is_pregnant,
+      isMenopausal: userProfile?.is_menopausal
     });
   }, [userProfile, calorieGoal]);
 

@@ -97,6 +97,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         age: profile.age,
         weight_kg: Number(profile.weight_kg) || null,
         activity_level: profile.activity_level,
+        isAthlete: !!(profile as any).is_athlete,
+        isSmoker: !!(profile as any).is_smoker,
+        isPregnant: !!(profile as any).is_pregnant,
+        isMenopausal: !!(profile as any).is_menopausal,
       });
       const cn = (profile as any).custom_nutrients;
       setCustomNutrients(Array.isArray(cn) ? cn : []);
@@ -215,7 +219,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const microGoals = useMemo(
     () => getPersonalizedMicroGoals(userProfile),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level]
+    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level, userProfile.isAthlete, userProfile.isSmoker, userProfile.isPregnant, userProfile.isMenopausal]
   );
 
   if (showDataSources) {
