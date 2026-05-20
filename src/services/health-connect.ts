@@ -57,8 +57,11 @@ export async function checkHealthPermissions(): Promise<boolean> {
   if (!Health) return false;
   try {
     const res = await Health.checkAuthorization({ read: HEALTH_READ_TYPES, write: [] });
-    return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
-  } catch { return false; }
+    return Array.isArray(res?.readAuthorized) && res.readAuthorized.length > 0;
+  } catch (e) {
+    console.warn("[health] checkAuthorization failed", e);
+    return false;
+  }
 }
 
 export async function requestHealthPermissions(): Promise<boolean> {
@@ -66,8 +69,11 @@ export async function requestHealthPermissions(): Promise<boolean> {
   if (!Health) return false;
   try {
     const res = await Health.requestAuthorization({ read: HEALTH_READ_TYPES, write: [] });
-    return Array.isArray(res?.readAuthorized) && res.readAuthorized.includes("weight");
-  } catch { return false; }
+    return Array.isArray(res?.readAuthorized) && res.readAuthorized.length > 0;
+  } catch (e: any) {
+    console.warn("[health] requestAuthorization failed", e);
+    throw new Error(e?.message || "Échec de la demande de permissions Health Connect");
+  }
 }
 
 // ── LECTURE DES DONNÉES ──────────────────────────────────────────
