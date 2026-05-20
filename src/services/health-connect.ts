@@ -4,6 +4,8 @@
  */
 
 import { supabase } from "@/integrations/supabase/client";
+import { calculateScientificGoals } from "@/utils/goals-calc";
+import { differenceInYears } from "date-fns";
 
 // ── TYPES ───────────────────────────────────────────────────────
 export interface HealthConnectData {
