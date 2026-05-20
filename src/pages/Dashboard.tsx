@@ -219,11 +219,17 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     await supabase.auth.signOut();
   };
 
-  const microGoals = useMemo(
-    () => getPersonalizedMicroGoals(userProfile),
+  // Objectifs micros (incluant les overrides du mode expert) sous forme d'objet
+  // pour MealHistory / MealMicros (tooltips affichant `goal`).
+  const microGoals = useMemo(() => {
+    const base = getPersonalizedMicroGoals(userProfile) as any;
+    const out: any = { ...base };
+    for (const [k, ov] of Object.entries(microOverrides || {})) {
+      if (ov && typeof (ov as any).goal === "number") out[k] = (ov as any).goal;
+    }
+    return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level, userProfile.isAthlete, userProfile.isSmoker, userProfile.isPregnant, userProfile.isMenopausal]
-  );
+  }, [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level, userProfile.isAthlete, userProfile.isSmoker, userProfile.isPregnant, userProfile.isMenopausal, microOverrides]);
 
   if (showDataSources) {
     return (
