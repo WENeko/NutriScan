@@ -389,6 +389,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           is_smoker: isSmoker,
           is_pregnant: isPregnant,
           is_menopausal: isMenopausal,
+          expert_mode: expertMode,
+          micro_overrides: microOverrides as any,
           ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
           goals: { ...targets, goalType } as any,
         } as any)
