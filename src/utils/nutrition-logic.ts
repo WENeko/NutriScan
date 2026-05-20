@@ -97,6 +97,7 @@ export const calculateMicroGoals = (profile: NutritionUserProfile = {}): MicroGo
   const isAthlete = !!profile.isAthlete;
   const isSmoker = !!profile.isSmoker;
   const isPregnant = !!profile.isPregnant;
+  const isMenopausal = !!profile.isMenopausal;
 
   // Initialiser avec toutes les clés à 0
   const goals = {} as MicroGoals;
