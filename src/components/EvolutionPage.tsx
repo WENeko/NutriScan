@@ -31,6 +31,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
   const [nutritionData, setNutritionData] = useState<any[]>([]);
   const [bodyData, setBodyData] = useState<any[]>([]);
+  const [goalsHistory, setGoalsHistory] = useState<any[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
   const dynamicGoals = useMemo(() => {
