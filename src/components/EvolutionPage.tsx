@@ -289,7 +289,19 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData} outerRadius="70%">
               <PolarGrid stroke="rgba(255,255,255,0.1)" />
-              <PolarAngleAxis dataKey="nutrient" tick={{ fontSize: 9, fill: "rgba(255,255,255,0.5)" }} />
+              <PolarAngleAxis
+                dataKey="nutrient"
+                tick={(props: any) => {
+                  const { x, y, textAnchor, payload } = props;
+                  const entry = radarData.find((d) => d.nutrient === payload.value);
+                  const fill = entry?.isLimit ? "#F43F5E" : "rgba(255,255,255,0.55)";
+                  return (
+                    <text x={x} y={y} textAnchor={textAnchor} fill={fill} fontSize={9} fontWeight={entry?.isLimit ? 600 : 400}>
+                      {payload.value}
+                    </text>
+                  );
+                }}
+              />
               <PolarRadiusAxis angle={90} domain={[0, 150]} tick={false} axisLine={false} />
               <Radar dataKey="goalMarker" stroke="rgba(255,255,255,0.3)" strokeDasharray="4 4" fill="none" />
               <Radar name="Apport" dataKey="value" stroke="#10b981" fill="#10b981" fillOpacity={0.3} strokeWidth={2} />
