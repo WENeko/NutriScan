@@ -105,6 +105,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       });
       const cn = (profile as any).custom_nutrients;
       setCustomNutrients(Array.isArray(cn) ? cn : []);
+      const mo = (profile as any).micro_overrides;
+      setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
 
       const { data: weekBody } = await supabase
         .from("body_composition")
