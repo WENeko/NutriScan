@@ -126,6 +126,16 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [existingCustoms, setExistingCustoms] = useState<CustomNutrientDef[]>([]);
   const [customsRefreshKey, setCustomsRefreshKey] = useState(0);
 
+  // Santé & mode de vie
+  const [isAthlete, setIsAthlete] = useState(false);
+  const [isSmoker, setIsSmoker] = useState(false);
+  const [isPregnant, setIsPregnant] = useState(false);
+  const [isMenopausal, setIsMenopausal] = useState(false);
+
+  // Sub-page navigation
+  const [subPage, setSubPage] = useState<SubPage>(null);
+
+
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
   const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
 
