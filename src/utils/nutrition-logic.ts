@@ -270,3 +270,49 @@ export function normalizeUserProfile(legacy: UserProfile): NutritionUserProfile 
 export function getPersonalizedMicroGoals(profile: UserProfile = {}): MicroGoals {
   return calculateMicroGoals(normalizeUserProfile(profile));
 }
+
+// --- RESOLVER UNIFIÉ : objectifs micros (std + custom) + overrides expert ---
+
+/**
+ * Source unique de vérité pour TOUS les consommateurs (Dashboard, Evolution,
+ * HealthDetails, MealMicros). Combine :
+ *  - liste std + liste custom (via getMasterList)
+ *  - valeurs scientifiques (calculateMicroGoals)
+ *  - overrides utilisateur (mode expert)
+ *  - flag is_limit (override > std isLimitDefault > custom.is_limit > false)
+ */
+export function resolveMicroGoals(
+  profile: UserProfile = {},
+  customDefs: Array<NutrientDef & { goal?: number; is_limit?: boolean }> = [],
+  overrides: MicroOverrides = {},
+): ResolvedMicroGoal[] {
+  const scientific = getPersonalizedMicroGoals(profile);
+  const stdKeys = new Set(NUTRIENTS_STD_LIST.map((n) => n.key));
+  const list = getMasterList(customDefs);
+
+  return list.map<ResolvedMicroGoal>((n) => {
+    const isCustom = !stdKeys.has(n.key);
+    const ov = overrides[n.key];
+    const scientificGoal = isCustom ? undefined : Number((scientific as any)[n.key] ?? 0);
+    const customGoal = isCustom
+      ? Number((customDefs.find((c) => c.key === n.key) as any)?.goal ?? 0)
+      : 0;
+    const goal = ov?.goal != null ? Number(ov.goal) : (scientificGoal ?? customGoal);
+    const defaultLimit = isCustom
+      ? !!(customDefs.find((c) => c.key === n.key) as any)?.is_limit
+      : !!n.isLimitDefault;
+    const isLimit = ov?.is_limit != null ? !!ov.is_limit : defaultLimit;
+    return {
+      key: n.key,
+      label: n.label,
+      unit: n.unit,
+      category: n.category,
+      goal: Number.isFinite(goal) ? goal : 0,
+      scientificGoal,
+      isLimit,
+      isCustom,
+      isOverridden: ov?.goal != null || ov?.is_limit != null,
+    };
+  });
+}
+
