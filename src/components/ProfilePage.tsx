@@ -3,12 +3,18 @@ import { supabase } from "@/integrations/supabase/client";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2 } from "lucide-react";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
+import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
+
+type GoalsMode = "scientific" | "manual" | "ai_coach";
+
+interface SuggestedCustom extends CustomNutrientDef {}
 
 interface ProfilePageProps {
   userId: string;
@@ -107,11 +113,23 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [weighinHour, setWeighinHour] = useState<number>(8);
   const [weighinMinute, setWeighinMinute] = useState<number>(0);
 
+  // Goals mode (scientific / manual / ai_coach)
+  const [goalsMode, setGoalsMode] = useState<GoalsMode>("scientific");
+  const [manualUnit, setManualUnit] = useState<"g" | "percent">("g");
+  const [aiPrompt, setAiPrompt] = useState<string>("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiRationale, setAiRationale] = useState<string>("");
+  const [suggestedCustoms, setSuggestedCustoms] = useState<SuggestedCustom[]>([]);
+  const [existingCustoms, setExistingCustoms] = useState<CustomNutrientDef[]>([]);
+  const [customsRefreshKey, setCustomsRefreshKey] = useState(0);
+
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
   const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
 
   useEffect(() => { loadProfile(); }, []);
-  useEffect(() => { calculateTargets(); }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase]);
+  useEffect(() => {
+    if (goalsMode === "scientific") calculateTargets();
+  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase, goalsMode]);
 
   const loadProfile = async () => {
     const { data } = await supabase
@@ -142,9 +160,84 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_minute !== null && d.weighin_minute !== undefined) setWeighinMinute(Number(d.weighin_minute));
       if (d.morphotype) setMorphotype(d.morphotype);
       if (d.mass_gain_phase) setMassGainPhase(d.mass_gain_phase);
+      if (d.goals_mode) setGoalsMode(d.goals_mode as GoalsMode);
+      if (d.ai_coach_prompt) setAiPrompt(d.ai_coach_prompt);
+      if (Array.isArray(d.custom_nutrients)) setExistingCustoms(d.custom_nutrients as CustomNutrientDef[]);
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
+      // For non-scientific modes, restore saved targets so they are not overwritten
+      if (d.goals_mode && d.goals_mode !== "scientific" && goals) {
+        setTargets({
+          calories: Number(goals.calories) || 0,
+          proteins: Number(goals.proteins) || 0,
+          carbs: Number(goals.carbs) || 0,
+          fats: Number(goals.fats) || 0,
+        });
+      }
     }
+  };
+
+  const runAiCoach = async () => {
+    if (!aiPrompt.trim()) {
+      toast({ title: "Décris ton objectif", description: "Renseigne un prompt pour le coach IA.", variant: "destructive" });
+      return;
+    }
+    setAiLoading(true);
+    setSuggestedCustoms([]);
+    setAiRationale("");
+    try {
+      const profilePayload = {
+        gender, age, weight_kg: weight, height_cm: height,
+        body_fat_percent: bodyFat || null, muscle_mass_kg: muscleMass || null,
+        activity_level: activityLevel, morphotype: morphotype || null,
+        bmr, sport_calories_daily: sportCalories,
+        target_weight_kg: targetWeight || null,
+        target_body_fat_percent: targetBodyFat || null,
+        target_muscle_mass_kg: targetMuscleMass || null,
+        custom_nutrients: existingCustoms,
+      };
+      const { data, error } = await supabase.functions.invoke("coach-goals", {
+        body: { profile: profilePayload, prompt: aiPrompt.trim() },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      const cal = Math.round(Number(data?.calories) || 0);
+      const p = Math.round(Number(data?.proteins) || 0);
+      const c = Math.round(Number(data?.carbs) || 0);
+      const f = Math.round(Number(data?.fats) || 0);
+      if (cal > 0) setTargets({ calories: cal, proteins: p, carbs: c, fats: f });
+      setAiRationale(typeof data?.rationale === "string" ? data.rationale : "");
+      const sugg = Array.isArray(data?.suggested_custom_nutrients) ? data.suggested_custom_nutrients : [];
+      // Filter out keys already present in existing customs
+      const existingKeys = new Set(existingCustoms.map((c) => c.key));
+      const cleaned: SuggestedCustom[] = [];
+      for (const s of sugg) {
+        const v = validateCustomNutrient(s, [...existingKeys, ...cleaned.map((x) => x.key)]);
+        if (v.ok) cleaned.push(v.value);
+      }
+      setSuggestedCustoms(cleaned);
+      toast({ title: "Objectifs calculés par l'IA ✨" });
+    } catch (e: any) {
+      toast({ title: "Erreur coach IA", description: e?.message || String(e), variant: "destructive" });
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
+  const addSuggestedCustom = async (s: SuggestedCustom) => {
+    const next = [...existingCustoms, s];
+    const { error } = await supabase
+      .from("profiles")
+      .update({ custom_nutrients: next as any })
+      .eq("user_id", userId);
+    if (error) {
+      toast({ title: "Erreur", description: error.message, variant: "destructive" });
+      return;
+    }
+    setExistingCustoms(next);
+    setSuggestedCustoms((prev) => prev.filter((x) => x.key !== s.key));
+    setCustomsRefreshKey((k) => k + 1);
+    toast({ title: `${s.label} ajouté` });
   };
 
   const calculateTargets = () => {
@@ -220,6 +313,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           morphotype: morphotype || null,
           mass_gain_phase: massGainPhase || null,
           last_weighin_date: null,
+          goals_mode: goalsMode,
+          ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
@@ -397,6 +492,35 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           </div>
         </section>
 
+        {/* Goals mode switcher */}
+        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
+          <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
+          <div className="grid grid-cols-3 gap-2">
+            {[
+              { value: "scientific" as GoalsMode, label: "Scientifique", icon: Calculator, desc: "Formules classiques" },
+              { value: "manual" as GoalsMode, label: "Manuel", icon: Sliders, desc: "Valeurs ou %" },
+              { value: "ai_coach" as GoalsMode, label: "Coach IA", icon: Sparkles, desc: "Prompt libre" },
+            ].map((m) => {
+              const Icon = m.icon;
+              return (
+                <button
+                  key={m.value}
+                  onClick={() => setGoalsMode(m.value)}
+                  className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${
+                    goalsMode === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                  }`}
+                >
+                  <Icon className="w-4 h-4" />
+                  <span className="text-xs font-semibold">{m.label}</span>
+                  <span className={`text-[9px] ${goalsMode === m.value ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>{m.desc}</span>
+                </button>
+              );
+            })}
+          </div>
+        </section>
+
+        {goalsMode === "scientific" && (
+          <>
         {/* BMR Method */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
           <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
@@ -511,6 +635,150 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             )}
           </section>
         )}
+          </>
+        )}
+
+        {/* MANUAL MODE */}
+        {goalsMode === "manual" && (
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
+            <div className="flex items-center justify-between mb-3">
+              <div className="flex items-center gap-2">
+                <Sliders className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Réglages manuels</h2>
+              </div>
+              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                {(["g", "percent"] as const).map((u) => (
+                  <button
+                    key={u}
+                    onClick={() => setManualUnit(u)}
+                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                      manualUnit === u ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                    }`}
+                  >
+                    {u === "g" ? "Grammes" : "% des cal."}
+                  </button>
+                ))}
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div>
+                <Label className="text-xs text-muted-foreground">Calories (kcal/jour)</Label>
+                <NumericInput
+                  value={targets.calories}
+                  onChange={(v) => setTargets({ ...targets, calories: Math.round(v) })}
+                  className="h-10 rounded-xl"
+                />
+              </div>
+
+              {(["proteins", "carbs", "fats"] as const).map((k) => {
+                const labels: Record<string, string> = { proteins: "Protéines", carbs: "Glucides", fats: "Lipides" };
+                const kcalPerG = k === "fats" ? 9 : 4;
+                const cal = targets.calories || 0;
+                const grams = targets[k];
+                const percent = cal > 0 ? Math.round((grams * kcalPerG / cal) * 100) : 0;
+                return (
+                  <div key={k}>
+                    <Label className="text-xs text-muted-foreground flex items-center justify-between">
+                      <span>{labels[k]}</span>
+                      <span className="text-[10px] text-muted-foreground/70">
+                        {manualUnit === "g" ? `≈ ${percent}% des cal.` : `≈ ${grams}g (${grams * kcalPerG} kcal)`}
+                      </span>
+                    </Label>
+                    {manualUnit === "g" ? (
+                      <NumericInput
+                        value={grams}
+                        onChange={(v) => setTargets({ ...targets, [k]: Math.round(v) })}
+                        className="h-10 rounded-xl"
+                      />
+                    ) : (
+                      <NumericInput
+                        value={percent}
+                        onChange={(v) => {
+                          const newGrams = cal > 0 ? Math.round((cal * v / 100) / kcalPerG) : 0;
+                          setTargets({ ...targets, [k]: newGrams });
+                        }}
+                        className="h-10 rounded-xl"
+                      />
+                    )}
+                  </div>
+                );
+              })}
+
+              {(() => {
+                const c = targets.calories || 0;
+                const reconstituted = targets.proteins * 4 + targets.carbs * 4 + targets.fats * 9;
+                const diff = c - reconstituted;
+                const ok = Math.abs(diff) <= Math.max(50, c * 0.05);
+                return (
+                  <div className={`rounded-xl p-3 text-xs ${ok ? "bg-accent" : "bg-destructive/10 text-destructive"}`}>
+                    Somme macros : <strong>{reconstituted} kcal</strong> · objectif <strong>{c} kcal</strong>
+                    {!ok && <span> · écart {diff > 0 ? `+${diff}` : diff} kcal</span>}
+                  </div>
+                );
+              })()}
+            </div>
+          </section>
+        )}
+
+        {/* AI COACH MODE */}
+        {goalsMode === "ai_coach" && (
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
+            <div className="flex items-center gap-2 mb-3">
+              <Sparkles className="w-4 h-4 text-primary" />
+              <h2 className="font-display font-semibold text-base">Coach nutrition IA</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-3">
+              Décris ton objectif en langage naturel. L'IA utilise ton profil pour calculer calories, macros et te suggérer des micronutriments à suivre.
+            </p>
+            <Textarea
+              value={aiPrompt}
+              onChange={(e) => setAiPrompt(e.target.value)}
+              placeholder="Ex : Je veux prendre 3kg de muscle sec en 12 semaines, je m'entraîne 5x/semaine en force, je suis intolérant au lactose et je prends 5g de créatine par jour."
+              className="min-h-[110px] rounded-xl text-sm"
+            />
+            <Button
+              onClick={runAiCoach}
+              disabled={aiLoading}
+              className="w-full h-10 rounded-xl nutri-gradient text-primary-foreground mt-3"
+            >
+              {aiLoading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Calcul en cours…</> : <><Sparkles className="w-4 h-4 mr-1" /> Calculer mes objectifs</>}
+            </Button>
+
+            {aiRationale && (
+              <div className="bg-accent rounded-xl p-3 mt-3 text-xs">
+                <div className="flex items-start gap-1.5">
+                  <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+                  <p className="text-muted-foreground">{aiRationale}</p>
+                </div>
+              </div>
+            )}
+
+            {suggestedCustoms.length > 0 && (
+              <div className="mt-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4 text-primary" />
+                  <h3 className="text-sm font-semibold">Micronutriments suggérés</h3>
+                </div>
+                {suggestedCustoms.map((s) => (
+                  <div key={s.key} className="flex items-center gap-2 bg-accent rounded-xl p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium truncate">
+                        {s.label} <span className="text-xs text-muted-foreground">({s.unit})</span>
+                      </div>
+                      <div className="text-[10px] text-muted-foreground truncate">
+                        {s.category}{s.goal != null ? ` · obj. ${s.goal}${s.unit}` : ""}
+                      </div>
+                    </div>
+                    <Button size="sm" variant="outline" className="h-8" onClick={() => addSuggestedCustom(s)}>
+                      <Plus className="w-3 h-3 mr-1" /> Ajouter
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            )}
+          </section>
+        )}
 
         {/* Weighin reminders */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "225ms" }}>
@@ -571,17 +839,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <h2 className="font-display font-semibold text-base">Objectifs calculés</h2>
           </div>
           <div className="grid grid-cols-2 gap-3 text-sm">
-            <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
-              <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
-            </div>
-            <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">TDEE → Cible</div>
-              <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
-              {sportCalories > 0 && (
-                <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
-              )}
-            </div>
+            {goalsMode === "scientific" && (
+              <>
+                <div className="bg-card rounded-xl p-3">
+                  <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
+                  <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                </div>
+                <div className="bg-card rounded-xl p-3">
+                  <div className="text-xs text-muted-foreground">TDEE → Cible</div>
+                  <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                  {sportCalories > 0 && (
+                    <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
+                  )}
+                </div>
+              </>
+            )}
+            {goalsMode !== "scientific" && (
+              <div className="bg-card rounded-xl p-3 col-span-2">
+                <div className="text-xs text-muted-foreground">Calories cibles</div>
+                <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+              </div>
+            )}
             <div className="bg-card rounded-xl p-3">
               <div className="text-xs text-muted-foreground">Protéines</div>
               <div className="font-bold">{targets.proteins}g <span className="text-[10px] font-normal text-muted-foreground">({(targets.proteins / Math.max(weight, 1)).toFixed(1)}g/kg)</span></div>
@@ -598,7 +876,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         </section>
 
         {/* Nutriments personnalisés */}
-        <CustomNutrientsEditor userId={userId} />
+        <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
 
         {/* Theme */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
