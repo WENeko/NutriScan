@@ -118,6 +118,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       bodyFat: b.body_fat_percent,
       muscleMass: b.muscle_mass_kg
     })));
+
+    const { data: goalsHist } = await supabase
+      .from("goals_history")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .order("recorded_at");
+    setGoalsHistory((goalsHist || []).map((g: any) => ({
+      day: format(new Date(g.recorded_at), "dd/MM"),
+      date: format(new Date(g.recorded_at), "dd/MM/yyyy"),
+      calories: Number(g.calories),
+      proteins: Number(g.proteins),
+      carbs: Number(g.carbs),
+      fats: Number(g.fats),
+    })));
   };
 
   const radarData = useMemo(() => {
