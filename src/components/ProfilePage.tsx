@@ -176,6 +176,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.goals_mode) setGoalsMode(d.goals_mode as GoalsMode);
       if (d.ai_coach_prompt) setAiPrompt(d.ai_coach_prompt);
       if (Array.isArray(d.custom_nutrients)) setExistingCustoms(d.custom_nutrients as CustomNutrientDef[]);
+      setIsAthlete(!!d.is_athlete);
+      setIsSmoker(!!d.is_smoker);
+      setIsPregnant(!!d.is_pregnant);
+      setIsMenopausal(!!d.is_menopausal);
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
       // For non-scientific modes, restore saved targets so they are not overwritten
