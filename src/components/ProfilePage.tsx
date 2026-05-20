@@ -344,6 +344,31 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         await supabase.from("body_composition").insert(bodyEntry as any);
       }
 
+      // Snapshot des objectifs du jour (évolution)
+      const goalsSnap: any = {
+        user_id: userId,
+        recorded_at: today,
+        calories: targets.calories,
+        proteins: targets.proteins,
+        carbs: targets.carbs,
+        fats: targets.fats,
+        goals_mode: goalsMode,
+        source: "manual",
+        weight_kg: weight,
+        body_fat_percent: bodyFat || null,
+      };
+      const { data: existingGoal } = await supabase
+        .from("goals_history")
+        .select("id")
+        .eq("user_id", userId)
+        .eq("recorded_at", today)
+        .maybeSingle();
+      if (existingGoal) {
+        await supabase.from("goals_history").update(goalsSnap).eq("id", (existingGoal as any).id);
+      } else {
+        await supabase.from("goals_history").insert(goalsSnap);
+      }
+
       toast({ title: "Profil sauvegardé !" });
       onBack();
     } catch (error: any) {
