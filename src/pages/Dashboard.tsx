@@ -51,6 +51,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
   const [weekTotalCalories, setWeekTotalCalories] = useState(0);
   const [weekDaysElapsed, setWeekDaysElapsed] = useState(1);
+  const [weeklyCalorieTarget, setWeeklyCalorieTarget] = useState(0);
+  const [weeklyElapsedTarget, setWeeklyElapsedTarget] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
   const [waterGoal, setWaterGoal] = useState(2000);
   const [weight, setWeight] = useState(70);
