@@ -66,6 +66,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   const [foods, setFoods] = useState<CustomFood[]>([]);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<CustomFood | null>(null);
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<Omit<CustomFood, "id">>(emptyFood);
   const [createMode, setCreateMode] = useState<CreateMode>("manual");
@@ -168,7 +169,19 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     fetchFoods();
   };
 
-  const startEdit = (food: CustomFood) => {
+  const startEdit = async (food: CustomFood) => {
+    // Check if this food was created from a recipe
+    const { data: ings } = await supabase
+      .from("recipe_ingredients" as any)
+      .select("id")
+      .eq("custom_food_id", food.id)
+      .limit(1);
+    if (ings && (ings as any[]).length > 0) {
+      setEditingRecipeId(food.id);
+      setCreating(true);
+      setCreateMode("recipe");
+      return;
+    }
     setEditing(food);
     setCreating(true);
     setCreateMode("manual");
@@ -299,10 +312,10 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   if (creating) {
     return (
       <div className="space-y-4 animate-fade-up">
-        <h2 className="font-display font-semibold text-lg">{editing ? "Modifier" : "Nouvel"} aliment</h2>
+        <h2 className="font-display font-semibold text-lg">{editing || editingRecipeId ? "Modifier" : "Nouvel"} aliment</h2>
 
         {/* Input mode tabs */}
-        {!editing && (
+        {!editing && !editingRecipeId && (
           <div className="flex rounded-xl bg-muted p-1 gap-1 flex-wrap">
             {modeTabs.map((tab) => (
               <button
@@ -363,7 +376,11 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
 
         {/* Recipe mode */}
         {createMode === "recipe" && (
-          <RecipeBuilder userId={userId} onDone={() => { setCreating(false); setForm(emptyFood); fetchFoods(); }} />
+          <RecipeBuilder
+            userId={userId}
+            editFoodId={editingRecipeId || undefined}
+            onDone={() => { setCreating(false); setEditing(null); setEditingRecipeId(null); setForm(emptyFood); fetchFoods(); }}
+          />
         )}
 
         {/* Supplement mode */}
@@ -542,7 +559,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
 
         {createMode !== "recipe" && createMode !== "supplement" && (
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setEditing(null); setForm(emptyFood); setTextInput(""); }}>
+            <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setEditing(null); setEditingRecipeId(null); setForm(emptyFood); setTextInput(""); }}>
               <X className="w-4 h-4 mr-1" /> Annuler
             </Button>
             {(createMode === "manual" || editing) && (
