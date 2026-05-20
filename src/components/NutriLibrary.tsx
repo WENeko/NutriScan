@@ -66,6 +66,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   const [foods, setFoods] = useState<CustomFood[]>([]);
   const [search, setSearch] = useState("");
   const [editing, setEditing] = useState<CustomFood | null>(null);
+  const [editingRecipeId, setEditingRecipeId] = useState<string | null>(null);
   const [creating, setCreating] = useState(false);
   const [form, setForm] = useState<Omit<CustomFood, "id">>(emptyFood);
   const [createMode, setCreateMode] = useState<CreateMode>("manual");
