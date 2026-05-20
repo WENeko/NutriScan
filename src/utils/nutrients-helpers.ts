@@ -7,6 +7,8 @@ import { NUTRIENTS_STD_LIST, type NutrientDef } from "@/utils/nutrition-logic";
 export interface CustomNutrientDef extends NutrientDef {
   /** Objectif quotidien optionnel (unité = NutrientDef.unit) */
   goal?: number;
+  /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
+  is_limit?: boolean;
 }
 
 /** Construit nutrients_std (JSONB) à partir d'un item d'IA / formulaire. */
@@ -61,5 +63,5 @@ export function validateCustomNutrient(
   if (goal != null && (!Number.isFinite(goal) || goal < 0)) {
     return { ok: false, error: "Objectif invalide" };
   }
-  return { ok: true, value: { key, label, unit, category, goal } };
+  return { ok: true, value: { key, label, unit, category, goal, is_limit: !!def.is_limit } };
 }

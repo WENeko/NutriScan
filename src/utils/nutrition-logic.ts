@@ -8,14 +8,16 @@ export interface NutrientDef {
   label: string;
   unit: string;
   category: 'macro' | 'mineral' | 'vitamin' | 'lipid';
+  /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
+  isLimitDefault?: boolean;
 }
 
 export const NUTRIENTS_STD_LIST: NutrientDef[] = [
   { key: "fiber", label: "Fibres", unit: "g", category: "macro" },
-  { key: "sugar", label: "Sucres", unit: "g", category: "macro" },
-  { key: "saturated_fat", label: "AG Sat.", unit: "g", category: "macro" },
+  { key: "sugar", label: "Sucres", unit: "g", category: "macro", isLimitDefault: true },
+  { key: "saturated_fat", label: "AG Sat.", unit: "g", category: "macro", isLimitDefault: true },
   { key: "omega3_mg", label: "Oméga-3", unit: "mg", category: "lipid" },
-  { key: "sodium_mg", label: "Sodium", unit: "mg", category: "mineral" },
+  { key: "sodium_mg", label: "Sodium", unit: "mg", category: "mineral", isLimitDefault: true },
   { key: "potassium_mg", label: "Potassium", unit: "mg", category: "mineral" },
   { key: "magnesium_mg", label: "Magnésium", unit: "mg", category: "mineral" },
   { key: "calcium_mg", label: "Calcium", unit: "mg", category: "mineral" },
@@ -27,6 +29,33 @@ export const NUTRIENTS_STD_LIST: NutrientDef[] = [
   { key: "vitamin_b12_mcg", label: "Vit. B12", unit: "µg", category: "vitamin" },
   { key: "vitamin_e_mg", label: "Vit. E", unit: "mg", category: "vitamin" },
 ];
+
+// --- MODE EXPERT : overrides utilisateur des objectifs micros standards ---
+
+export interface MicroOverride {
+  /** Si défini, remplace la valeur calculée par calculateMicroGoals */
+  goal?: number;
+  /** Si défini, remplace le flag isLimitDefault de NUTRIENTS_STD_LIST */
+  is_limit?: boolean;
+}
+
+export type MicroOverrides = Record<string, MicroOverride>;
+
+/** Représentation unifiée d'un objectif micro pour la coloration & l'affichage */
+export interface ResolvedMicroGoal {
+  key: string;
+  label: string;
+  unit: string;
+  category: NutrientDef['category'];
+  /** Objectif final (override > scientifique > custom.goal > 0) */
+  goal: number;
+  /** Objectif scientifique de référence (avant override) */
+  scientificGoal?: number;
+  /** true = limite max, false = minimum à atteindre */
+  isLimit: boolean;
+  isCustom: boolean;
+  isOverridden: boolean;
+}
 
 // --- TYPES DYNAMIQUES BASÉS SUR NUTRIENTS_STD_LIST ---
 
@@ -241,3 +270,49 @@ export function normalizeUserProfile(legacy: UserProfile): NutritionUserProfile 
 export function getPersonalizedMicroGoals(profile: UserProfile = {}): MicroGoals {
   return calculateMicroGoals(normalizeUserProfile(profile));
 }
+
+// --- RESOLVER UNIFIÉ : objectifs micros (std + custom) + overrides expert ---
+
+/**
+ * Source unique de vérité pour TOUS les consommateurs (Dashboard, Evolution,
+ * HealthDetails, MealMicros). Combine :
+ *  - liste std + liste custom (via getMasterList)
+ *  - valeurs scientifiques (calculateMicroGoals)
+ *  - overrides utilisateur (mode expert)
+ *  - flag is_limit (override > std isLimitDefault > custom.is_limit > false)
+ */
+export function resolveMicroGoals(
+  profile: UserProfile = {},
+  customDefs: Array<NutrientDef & { goal?: number; is_limit?: boolean }> = [],
+  overrides: MicroOverrides = {},
+): ResolvedMicroGoal[] {
+  const scientific = getPersonalizedMicroGoals(profile);
+  const stdKeys = new Set(NUTRIENTS_STD_LIST.map((n) => n.key));
+  const list = getMasterList(customDefs);
+
+  return list.map<ResolvedMicroGoal>((n) => {
+    const isCustom = !stdKeys.has(n.key);
+    const ov = overrides[n.key];
+    const scientificGoal = isCustom ? undefined : Number((scientific as any)[n.key] ?? 0);
+    const customGoal = isCustom
+      ? Number((customDefs.find((c) => c.key === n.key) as any)?.goal ?? 0)
+      : 0;
+    const goal = ov?.goal != null ? Number(ov.goal) : (scientificGoal ?? customGoal);
+    const defaultLimit = isCustom
+      ? !!(customDefs.find((c) => c.key === n.key) as any)?.is_limit
+      : !!n.isLimitDefault;
+    const isLimit = ov?.is_limit != null ? !!ov.is_limit : defaultLimit;
+    return {
+      key: n.key,
+      label: n.label,
+      unit: n.unit,
+      category: n.category,
+      goal: Number.isFinite(goal) ? goal : 0,
+      scientificGoal,
+      isLimit,
+      isCustom,
+      isOverridden: ov?.goal != null || ov?.is_limit != null,
+    };
+  });
+}
+

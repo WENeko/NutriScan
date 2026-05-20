@@ -355,6 +355,7 @@ export type Database = {
           custom_nutrients: Json
           date_of_birth: string | null
           email: string | null
+          expert_mode: boolean
           gender: string | null
           goals: Json
           goals_mode: string
@@ -366,6 +367,7 @@ export type Database = {
           is_smoker: boolean
           last_weighin_date: string | null
           mass_gain_phase: string | null
+          micro_overrides: Json
           morphotype: string | null
           muscle_mass_kg: number | null
           sport_calories_daily: number | null
@@ -392,6 +394,7 @@ export type Database = {
           custom_nutrients?: Json
           date_of_birth?: string | null
           email?: string | null
+          expert_mode?: boolean
           gender?: string | null
           goals?: Json
           goals_mode?: string
@@ -403,6 +406,7 @@ export type Database = {
           is_smoker?: boolean
           last_weighin_date?: string | null
           mass_gain_phase?: string | null
+          micro_overrides?: Json
           morphotype?: string | null
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null
@@ -429,6 +433,7 @@ export type Database = {
           custom_nutrients?: Json
           date_of_birth?: string | null
           email?: string | null
+          expert_mode?: boolean
           gender?: string | null
           goals?: Json
           goals_mode?: string
@@ -440,6 +445,7 @@ export type Database = {
           is_smoker?: boolean
           last_weighin_date?: string | null
           mass_gain_phase?: string | null
+          micro_overrides?: Json
           morphotype?: string | null
           muscle_mass_kg?: number | null
           sport_calories_daily?: number | null

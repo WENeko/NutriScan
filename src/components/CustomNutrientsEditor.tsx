@@ -7,8 +7,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Plus, Trash2, FlaskConical, Save, X, Pencil } from "lucide-react";
+import { Plus, Trash2, FlaskConical, Save, X, Pencil, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
+import { Switch } from "@/components/ui/switch";
 import {
   type CustomNutrientDef,
   validateCustomNutrient,
@@ -27,6 +28,7 @@ const EMPTY: Partial<CustomNutrientDef> = {
   unit: "mg",
   category: "vitamin",
   goal: undefined,
+  is_limit: false,
 };
 
 const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
@@ -154,8 +156,17 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
               className="flex items-center gap-2 bg-accent rounded-xl p-3"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">
+                <div className="text-sm font-medium truncate flex items-center gap-1.5">
                   {n.label} <span className="text-xs text-muted-foreground">({n.unit})</span>
+                  {n.is_limit ? (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1 py-0.5">
+                      <ArrowDown className="w-2.5 h-2.5" /> Max
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 rounded px-1 py-0.5">
+                      <ArrowUp className="w-2.5 h-2.5" /> Min
+                    </span>
+                  )}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">
                   {n.key} · {n.category}{n.goal != null ? ` · obj. ${n.goal}${n.unit}` : ""}
@@ -239,6 +250,28 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
                     onChange={(e) => setDraft({ ...draft, goal: e.target.value === "" ? undefined : Number(e.target.value) })}
                     placeholder="400"
                     className="h-9"
+                  />
+                </div>
+
+                <div className="col-span-2 flex items-center justify-between bg-card rounded-lg p-2">
+                  <div className="flex items-center gap-2">
+                    {draft.is_limit ? (
+                      <ArrowDown className="w-4 h-4 text-destructive" />
+                    ) : (
+                      <ArrowUp className="w-4 h-4 text-primary" />
+                    )}
+                    <div>
+                      <div className="text-xs font-semibold">
+                        {draft.is_limit ? "Limite à ne pas dépasser" : "Minimum à atteindre"}
+                      </div>
+                      <div className="text-[10px] text-muted-foreground">
+                        Affecte la coloration des graphiques
+                      </div>
+                    </div>
+                  </div>
+                  <Switch
+                    checked={!!draft.is_limit}
+                    onCheckedChange={(v) => setDraft({ ...draft, is_limit: v })}
                   />
                 </div>
               </div>

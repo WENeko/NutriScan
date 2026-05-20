@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { getPersonalizedMicroGoals, getMicroInfo, type UserProfile } from "@/lib/micro-goals";
-import { NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
+import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
@@ -61,13 +61,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [proteinTargetPerKg, setProteinTargetPerKg] = useState(2.0);
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [customNutrients, setCustomNutrients] = useState<CustomNutrientDef[]>([]);
+  const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients")
+      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, is_athlete, is_smoker, is_pregnant, is_menopausal")
       .eq("user_id", userId)
       .single();
 
@@ -104,6 +105,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       });
       const cn = (profile as any).custom_nutrients;
       setCustomNutrients(Array.isArray(cn) ? cn : []);
+      const mo = (profile as any).micro_overrides;
+      setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
 
       const { data: weekBody } = await supabase
         .from("body_composition")
@@ -216,11 +219,17 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     await supabase.auth.signOut();
   };
 
-  const microGoals = useMemo(
-    () => getPersonalizedMicroGoals(userProfile),
+  // Objectifs micros (incluant les overrides du mode expert) sous forme d'objet
+  // pour MealHistory / MealMicros (tooltips affichant `goal`).
+  const microGoals = useMemo(() => {
+    const base = getPersonalizedMicroGoals(userProfile) as any;
+    const out: any = { ...base };
+    for (const [k, ov] of Object.entries(microOverrides || {})) {
+      if (ov && typeof (ov as any).goal === "number") out[k] = (ov as any).goal;
+    }
+    return out;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level, userProfile.isAthlete, userProfile.isSmoker, userProfile.isPregnant, userProfile.isMenopausal]
-  );
+  }, [userProfile.gender, userProfile.age, userProfile.weight_kg, userProfile.activity_level, userProfile.isAthlete, userProfile.isSmoker, userProfile.isPregnant, userProfile.isMenopausal, microOverrides]);
 
   if (showDataSources) {
     return (
@@ -261,23 +270,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     (todayMicros.sodium_mg || 0) < 1500 || (todayMicros.potassium_mg || 0) < 2000 || (todayMicros.magnesium_mg || 0) < 200
   );
 
-  // Limit-type keys (les nutriments à limiter plutôt qu'à atteindre)
-  const LIMIT_KEYS = new Set(["sugar", "saturated_fat", "sodium_mg"]);
-
-  // Liste micros dérivée dynamiquement de la master list + custom user
-  const allNutrients = getMasterList(customNutrients);
-  const microsList = allNutrients.map((n) => {
-    const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
-    const goal = isStd ? (microGoals as any)[n.key] ?? 0 : (n as any).goal ?? 0;
-    return {
-      name: n.label,
-      value: todayMicros[n.key] || 0,
-      unit: n.unit,
-      info: isStd ? getMicroInfo(n.key, goal) : `${n.label} (custom)`,
-      goal,
-      isLimit: LIMIT_KEYS.has(n.key),
-    };
-  });
+  // Source unique de vérité : objectifs micros + flag is_limit (std + custom + overrides expert)
+  const resolvedMicros = resolveMicroGoals(userProfile, customNutrients, microOverrides);
+  const microsList = resolvedMicros.map((r) => ({
+    name: r.label,
+    value: todayMicros[r.key] || 0,
+    unit: r.unit,
+    info: r.isCustom ? `${r.label} (custom)` : getMicroInfo(r.key, r.goal),
+    goal: r.goal,
+    isLimit: r.isLimit,
+  }));
 
   // Radar uses SAME todayMicros as the bars to ensure alignment
   const radarMicrosList = microsList;
@@ -527,7 +529,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         )}
 
         {activeTab === "evolution" && (
-          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} />
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} microOverrides={microOverrides} />
         )}
 
         {activeTab === "library" && (

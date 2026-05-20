@@ -11,7 +11,9 @@ import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
+import MicroGoalsEditor from "@/components/MicroGoalsEditor";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
+import type { MicroOverrides } from "@/utils/nutrition-logic";
 import {
   isHealthConnectAvailable,
   checkHealthPermissions,
@@ -140,6 +142,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [isPregnant, setIsPregnant] = useState(false);
   const [isMenopausal, setIsMenopausal] = useState(false);
 
+  // Mode expert micronutriments
+  const [expertMode, setExpertMode] = useState(false);
+  const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
+
   // Sub-page navigation
   const [subPage, setSubPage] = useState<SubPage>(null);
 
@@ -224,6 +230,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       setIsSmoker(!!d.is_smoker);
       setIsPregnant(!!d.is_pregnant);
       setIsMenopausal(!!d.is_menopausal);
+      setExpertMode(!!d.expert_mode);
+      if (d.micro_overrides && typeof d.micro_overrides === "object") {
+        setMicroOverrides(d.micro_overrides as MicroOverrides);
+      }
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
       // For non-scientific modes, restore saved targets so they are not overwritten
@@ -379,6 +389,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           is_smoker: isSmoker,
           is_pregnant: isPregnant,
           is_menopausal: isMenopausal,
+          expert_mode: expertMode,
+          micro_overrides: microOverrides as any,
           ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
           goals: { ...targets, goalType } as any,
         } as any)
@@ -1033,6 +1045,36 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 </div>
               </div>
             </section>
+
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "70ms" }}>
+              <div className="flex items-center justify-between gap-3">
+                <div className="flex-1 min-w-0">
+                  <h2 className="font-display font-semibold text-base">Mode expert micronutriments</h2>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Personnalise les objectifs de chaque micronutriment et marque-les comme minimum à atteindre ou limite à ne pas dépasser.
+                  </p>
+                </div>
+                <Switch checked={expertMode} onCheckedChange={setExpertMode} />
+              </div>
+            </section>
+
+            {expertMode && (
+              <MicroGoalsEditor
+                userProfile={{
+                  gender,
+                  age,
+                  weight_kg: weight,
+                  activity_level: activityLevel,
+                  totalCaloriesGoal: targets.calories,
+                  isAthlete,
+                  isSmoker,
+                  isPregnant,
+                  isMenopausal,
+                }}
+                overrides={microOverrides}
+                onChange={setMicroOverrides}
+              />
+            )}
 
             <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
           </>
