@@ -232,12 +232,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 itemStyle={{ color: "#FFFFFF" }}
                 cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
               />
-              <ReferenceLine y={calorieGoal} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
               <Bar dataKey="calories" radius={[4, 4, 0, 0]}>
                 {nutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
+              <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
             </BarChart>
           </ResponsiveContainer>
         </div>
