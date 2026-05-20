@@ -28,6 +28,7 @@ const EMPTY: Partial<CustomNutrientDef> = {
   unit: "mg",
   category: "vitamin",
   goal: undefined,
+  is_limit: false,
 };
 
 const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
