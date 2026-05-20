@@ -806,6 +806,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
             </section>
 
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "15ms" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Droplets className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Objectif d'hydratation</h2>
+              </div>
+              <Label className="text-xs text-muted-foreground">Eau (ml / jour)</Label>
+              <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
+              <p className="text-[10px] text-muted-foreground mt-2">+500 ml automatiques les jours avec sport.</p>
+
             {goalsMode === "scientific" && (
               <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
                 <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
