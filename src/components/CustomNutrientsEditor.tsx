@@ -156,8 +156,17 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
               className="flex items-center gap-2 bg-accent rounded-xl p-3"
             >
               <div className="flex-1 min-w-0">
-                <div className="text-sm font-medium truncate">
+                <div className="text-sm font-medium truncate flex items-center gap-1.5">
                   {n.label} <span className="text-xs text-muted-foreground">({n.unit})</span>
+                  {n.is_limit ? (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-destructive bg-destructive/10 rounded px-1 py-0.5">
+                      <ArrowDown className="w-2.5 h-2.5" /> Max
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-0.5 text-[9px] font-semibold text-primary bg-primary/10 rounded px-1 py-0.5">
+                      <ArrowUp className="w-2.5 h-2.5" /> Min
+                    </span>
+                  )}
                 </div>
                 <div className="text-[10px] text-muted-foreground truncate">
                   {n.key} · {n.category}{n.goal != null ? ` · obj. ${n.goal}${n.unit}` : ""}
