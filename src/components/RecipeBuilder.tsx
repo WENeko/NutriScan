@@ -91,7 +91,7 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
       .order("created_at");
 
     if (ings && (ings as any[]).length > 0) {
-      setIngredients((ings as any[]).map((ing: any) => ({
+      const loaded = (ings as any[]).map((ing: any) => ({
         id: ing.id,
         name: ing.name,
         weightG: Number(ing.weight_g),
@@ -104,7 +104,13 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
           vitamin_b: Number(ing.vitamin_b_per_100g), vitamin_c: Number(ing.vitamin_c_per_100g),
           vitamin_d: Number(ing.vitamin_d_per_100g), vitamin_e: Number(ing.vitamin_e_per_100g),
         },
-      })));
+      }));
+      setIngredients(loaded);
+      const totalW = loaded.reduce((s, i) => s + i.weightG, 0);
+      const servingG = Number((food as any)?.serving_size_g) || totalW;
+      if (servingG > 0 && totalW > 0) {
+        setPortions(Math.max(1, Math.round(totalW / servingG)));
+      }
     }
   };
 
