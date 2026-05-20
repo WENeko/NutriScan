@@ -230,6 +230,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       setIsSmoker(!!d.is_smoker);
       setIsPregnant(!!d.is_pregnant);
       setIsMenopausal(!!d.is_menopausal);
+      setExpertMode(!!d.expert_mode);
+      if (d.micro_overrides && typeof d.micro_overrides === "object") {
+        setMicroOverrides(d.micro_overrides as MicroOverrides);
+      }
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
       // For non-scientific modes, restore saved targets so they are not overwritten
