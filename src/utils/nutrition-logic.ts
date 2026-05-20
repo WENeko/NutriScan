@@ -230,9 +230,10 @@ export function normalizeUserProfile(legacy: UserProfile): NutritionUserProfile 
     gender: (legacy.gender === "male" || legacy.gender === "female") ? legacy.gender : "male",
     weight: legacy.weight_kg ?? 75,
     totalCaloriesGoal: legacy.totalCaloriesGoal ?? 2000,
-    isAthlete: isActive,
+    isAthlete: legacy.isAthlete ?? isActive,
     isSmoker: legacy.isSmoker ?? false,
     isPregnant: legacy.isPregnant ?? false,
+    isMenopausal: legacy.isMenopausal ?? false,
   };
 }
 
