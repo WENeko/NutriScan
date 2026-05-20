@@ -30,13 +30,13 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
   sync_calories: false,
 };
 
-// Utilisation des identifiants système les plus robustes pour Android 14 / Xiaomi
-const HEALTH_READ_TYPES = [
+// Types valides du plugin @capgo/capacitor-health (cf. HealthDataType)
+const HEALTH_READ_TYPES: any[] = [
   "weight",
   "bodyFat",
-  "boneMass",
   "steps",
-  "active_energy_burned"
+  "totalCalories",
+  "basalCalories",
 ];
 
 const round1 = (v: number) => Math.round(v * 10) / 10;
