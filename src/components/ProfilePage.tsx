@@ -399,548 +399,674 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     }
   };
 
+  const PAGE_TITLES: Record<Exclude<SubPage, null>, string> = {
+    identity: "Identité & Mensurations",
+    activity: "Activité & Objectif",
+    health: "Santé & Mode de vie",
+    goals: "Objectifs nutritionnels",
+    settings: "Préférences & Rappels",
+  };
+
+  const hubItems: Array<{ id: Exclude<SubPage, null>; icon: any; label: string; desc: string }> = [
+    {
+      id: "identity",
+      icon: User,
+      label: "Identité & Mensurations",
+      desc: `${weight} kg · ${height} cm · ${gender === "male" ? "Homme" : "Femme"}`,
+    },
+    {
+      id: "activity",
+      icon: Activity,
+      label: "Activité & Objectif corporel",
+      desc: `${ACTIVITY_LEVELS.find((a) => a.value === activityLevel)?.label ?? "—"} · ${GOAL_TYPES.find((g) => g.value === goalType)?.label ?? "—"}`,
+    },
+    {
+      id: "health",
+      icon: Heart,
+      label: "Santé & Mode de vie",
+      desc: [isAthlete && "Sportif", isSmoker && "Fumeur", isPregnant && "Grossesse", isMenopausal && "Ménopause"].filter(Boolean).join(" · ") || "Aucun indicateur",
+    },
+    {
+      id: "goals",
+      icon: Target,
+      label: "Objectifs nutritionnels",
+      desc: `${targets.calories || 0} kcal · ${goalsMode === "scientific" ? "Scientifique" : goalsMode === "manual" ? "Manuel" : "Coach IA"}`,
+    },
+    {
+      id: "settings",
+      icon: Settings,
+      label: "Préférences & Rappels",
+      desc: `Pesée ${WEIGHIN_FREQUENCIES.find((f) => f.value === weighinFrequency)?.label.toLowerCase() ?? weighinFrequency}`,
+    },
+  ];
+
+  const goBack = () => (subPage ? setSubPage(null) : onBack());
+
   return (
     <div className="min-h-screen bg-background pb-8">
       <header className="sticky top-0 z-10 glass-card px-4 py-3">
         <div className="flex items-center gap-3 max-w-lg mx-auto">
-          <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
+          <button onClick={goBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-display font-bold">Mon Profil</h1>
+          <h1 className="text-lg font-display font-bold">{subPage ? PAGE_TITLES[subPage] : "Mon Profil"}</h1>
         </div>
       </header>
 
       <main className="max-w-lg mx-auto px-4 space-y-6 mt-6">
-        {/* Body info */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-          <h2 className="font-display font-semibold text-base mb-4">Informations corporelles</h2>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
-              <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Taille (cm)</Label>
-              <NumericInput value={height} onChange={(v) => setHeight(v)} className="h-10 rounded-xl" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Date de naissance</Label>
-              <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className="h-10 rounded-xl" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Genre</Label>
-              <div className="flex gap-2">
-                {["male", "female"].map((g) => (
-                  <button
-                    key={g}
-                    onClick={() => setGender(g)}
-                    className={`flex-1 h-10 rounded-xl text-xs font-semibold transition-all ${
-                      gender === g ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    {g === "male" ? "Homme" : "Femme"}
-                  </button>
-                ))}
-              </div>
-            </div>
-          </div>
-        </section>
-
-        {/* Morphotype */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
-          <div className="flex items-center justify-between mb-3">
-            <h2 className="font-display font-semibold text-base">Morphotype</h2>
-            <button onClick={() => setShowMorphoHelp(!showMorphoHelp)} className="p-1 rounded-lg hover:bg-muted">
-              <HelpCircle className="w-4 h-4 text-muted-foreground" />
-            </button>
-          </div>
-
-          {showMorphoHelp && (
-            <div className="bg-accent rounded-xl p-3 mb-3 text-xs text-muted-foreground space-y-2 animate-fade-up">
-              <p className="font-semibold text-foreground">🔍 Comment identifier ton morphotype ?</p>
-              <p>• <strong>Poignets fins</strong> (tour &lt; 16cm) → tendance Ecto</p>
-              <p>• <strong>Métabolisme rapide</strong>, difficulté à grossir → Ecto</p>
-              <p>• <strong>Prends du muscle facilement</strong>, épaules larges → Méso</p>
-              <p>• <strong>Ossature large</strong>, stocke facilement → Endo</p>
-              <p>• Tu te situes entre deux ? Choisis un <strong>hybride</strong> (Ecto-Méso ou Endo-Méso).</p>
-            </div>
-          )}
-
-          <div className="grid grid-cols-2 gap-2">
-            {MORPHOTYPES.map((m) => (
-              <button
-                key={m.value}
-                onClick={() => setMorphotype(m.value)}
-                className={`p-3 rounded-xl text-left transition-all ${
-                  morphotype === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                }`}
-              >
-                <div className="text-sm font-semibold">{m.emoji} {m.label}</div>
-                <div className={`text-[10px] mt-0.5 ${morphotype === m.value ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.desc}</div>
-              </button>
-            ))}
-          </div>
-          {morphotype && (
-            <p className="text-[10px] text-muted-foreground mt-2">
-              Facteur MB appliqué : ×{MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0}
-            </p>
-          )}
-        </section>
-
-        {/* Body composition */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "50ms" }}>
-          <div className="flex items-center gap-2 mb-4">
-            <Dumbbell className="w-4 h-4 text-primary" />
-            <h2 className="font-display font-semibold text-base">Composition corporelle</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
-              <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
-              <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
-              <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
-              <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
-            </div>
-          </div>
-          {leanMass && (
-            <div className="mt-3 bg-accent rounded-xl p-2.5 text-xs">
-              <span className="text-muted-foreground">Masse maigre estimée : </span>
-              <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
-            </div>
-          )}
-        </section>
-
-        {/* Targets */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "75ms" }}>
-          <h2 className="font-display font-semibold text-base mb-3">🎯 Objectifs corporels</h2>
-          <div className="grid grid-cols-3 gap-3">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
-              <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="75" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Gras cible (%)</Label>
-              <NumericInput value={targetBodyFat === "" ? 0 : targetBodyFat} onChange={(v) => setTargetBodyFat(v || "")} className="h-10 rounded-xl" placeholder="15" />
-            </div>
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Muscle cible (kg)</Label>
-              <NumericInput value={targetMuscleMass === "" ? 0 : targetMuscleMass} onChange={(v) => setTargetMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="40" />
-            </div>
-          </div>
-        </section>
-
-        {/* Goals mode switcher */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
-          <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
-          <div className="grid grid-cols-3 gap-2">
-            {[
-              { value: "scientific" as GoalsMode, label: "Scientifique", icon: Calculator, desc: "Formules classiques" },
-              { value: "manual" as GoalsMode, label: "Manuel", icon: Sliders, desc: "Valeurs ou %" },
-              { value: "ai_coach" as GoalsMode, label: "Coach IA", icon: Sparkles, desc: "Prompt libre" },
-            ].map((m) => {
-              const Icon = m.icon;
-              return (
-                <button
-                  key={m.value}
-                  onClick={() => setGoalsMode(m.value)}
-                  className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${
-                    goalsMode === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                  }`}
-                >
-                  <Icon className="w-4 h-4" />
-                  <span className="text-xs font-semibold">{m.label}</span>
-                  <span className={`text-[9px] ${goalsMode === m.value ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>{m.desc}</span>
-                </button>
-              );
-            })}
-          </div>
-        </section>
-
-        {goalsMode === "scientific" && (
+        {/* ============ HUB ============ */}
+        {subPage === null && (
           <>
-        {/* BMR Method */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
-          <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
-          <div className="flex gap-2 mb-3">
-            {[
-              { value: "mifflin", label: "Mifflin-St Jeor" },
-              { value: "katch", label: "Katch-McArdle" },
-            ].map((m) => (
-              <button
-                key={m.value}
-                onClick={() => setBmrMethod(m.value)}
-                className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                  bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                {m.label}
-              </button>
-            ))}
-          </div>
-          {bmrMethod === "katch" && !leanMass && (
-            <p className="text-xs text-destructive mb-2">⚠️ Renseignez la masse grasse (%) pour utiliser Katch-McArdle.</p>
-          )}
-          {bmrMethod === "katch" && leanMass && (
-            <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
-          )}
-          <div className="bg-accent/50 rounded-lg p-2.5 mb-3">
-            <div className="flex items-start gap-1.5">
-              <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
-              <p className="text-[10px] text-muted-foreground">{BMR_METHOD_INFO[bmrMethod]}</p>
+            <div className="space-y-3">
+              {hubItems.map((item, idx) => {
+                const Icon = item.icon;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => setSubPage(item.id)}
+                    className="w-full bg-card rounded-2xl p-4 shadow-card flex items-center gap-3 text-left hover:bg-muted/40 transition-colors animate-fade-up"
+                    style={{ animationDelay: `${idx * 30}ms` }}
+                  >
+                    <div className="w-10 h-10 rounded-xl nutri-gradient flex items-center justify-center flex-shrink-0">
+                      <Icon className="w-5 h-5 text-primary-foreground" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-display font-semibold">{item.label}</div>
+                      <div className="text-[11px] text-muted-foreground truncate">{item.desc}</div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
+                  </button>
+                );
+              })}
             </div>
-          </div>
-          <div className="bg-accent rounded-xl p-3 text-center">
-            <span className="text-xs text-muted-foreground">MB calculé : </span>
-            <span className="text-lg font-bold text-primary">{bmr} kcal</span>
-            {morphotype && <span className="text-[10px] text-muted-foreground ml-1">(morpho ×{MORPHOTYPE_BMR_FACTOR[morphotype]})</span>}
-          </div>
-        </section>
 
-        {/* Activity */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "150ms" }}>
-          <h2 className="font-display font-semibold text-base mb-3">Niveau d'activité</h2>
-          <div className="flex gap-2">
-            {ACTIVITY_LEVELS.map((a) => (
-              <button
-                key={a.value}
-                onClick={() => setActivityLevel(a.value)}
-                className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
-                  activityLevel === a.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                <div>{a.label}</div>
-                <div className="text-[10px] opacity-80 mt-0.5">×{a.factor}</div>
-              </button>
-            ))}
-          </div>
-          <div className="bg-accent/50 rounded-lg p-2.5 mt-3">
-            <div className="flex items-start gap-1.5">
-              <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
-              <p className="text-[10px] text-muted-foreground">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
-            </div>
-          </div>
-        </section>
-
-        {/* Goal */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "200ms" }}>
-          <h2 className="font-display font-semibold text-base mb-3">Objectif</h2>
-          <div className="flex gap-2">
-            {GOAL_TYPES.map((g) => (
-              <button
-                key={g.value}
-                onClick={() => setGoalType(g.value)}
-                className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
-                  goalType === g.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                }`}
-              >
-                <div>{g.label}</div>
-                <div className="text-[10px] opacity-80 mt-0.5">
-                  {g.calorieModifier > 0 ? `+${g.calorieModifier * 100}%` : g.calorieModifier < 0 ? `${g.calorieModifier * 100}%` : "="}
-                </div>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        {/* Mass gain phases - only if bulk */}
-        {goalType === "bulk" && (
-          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "210ms" }}>
-            <h2 className="font-display font-semibold text-base mb-3">📈 Phase de prise de masse</h2>
-            <div className="space-y-2">
-              {MASS_GAIN_PHASES.map((p) => (
-                <button
-                  key={p.value}
-                  onClick={() => setMassGainPhase(p.value)}
-                  className={`w-full p-3 rounded-xl text-left transition-all ${
-                    massGainPhase === p.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                  }`}
-                >
-                  <div className="flex items-center justify-between">
-                    <span className="text-sm font-semibold">{p.label}</span>
-                    <span className="text-xs font-bold">+{p.surplus} kcal</span>
-                  </div>
-                  <p className={`text-[10px] mt-0.5 ${massGainPhase === p.value ? "text-primary-foreground/80" : ""}`}>{p.desc}</p>
-                </button>
-              ))}
-            </div>
-            {massGainPhase && (
-              <div className="bg-accent rounded-xl p-3 mt-3 text-center">
-                <p className="text-xs text-muted-foreground">
-                  Gain estimé : <span className="font-bold text-primary">~0.5 kg/semaine</span>
-                </p>
-              </div>
-            )}
-          </section>
-        )}
+            <Button
+              onClick={handleSave}
+              disabled={saving}
+              className="w-full h-12 rounded-xl nutri-gradient text-primary-foreground font-semibold shadow-float hover:opacity-90"
+            >
+              <Save className="w-4 h-4 mr-2" />
+              {saving ? "Enregistrement..." : "Sauvegarder mon profil"}
+            </Button>
           </>
         )}
 
-        {/* MANUAL MODE */}
-        {goalsMode === "manual" && (
-          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
-            <div className="flex items-center justify-between mb-3">
-              <div className="flex items-center gap-2">
-                <Sliders className="w-4 h-4 text-primary" />
-                <h2 className="font-display font-semibold text-base">Réglages manuels</h2>
+        {/* ============ IDENTITY ============ */}
+        {subPage === "identity" && (
+          <>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <h2 className="font-display font-semibold text-base mb-4">Informations corporelles</h2>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
+                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Taille (cm)</Label>
+                  <NumericInput value={height} onChange={(v) => setHeight(v)} className="h-10 rounded-xl" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Date de naissance</Label>
+                  <Input type="date" value={dateOfBirth} onChange={(e) => setDateOfBirth(e.target.value)} className="h-10 rounded-xl" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Genre</Label>
+                  <div className="flex gap-2">
+                    {["male", "female"].map((g) => (
+                      <button
+                        key={g}
+                        onClick={() => setGender(g)}
+                        className={`flex-1 h-10 rounded-xl text-xs font-semibold transition-all ${
+                          gender === g ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {g === "male" ? "Homme" : "Femme"}
+                      </button>
+                    ))}
+                  </div>
+                </div>
               </div>
-              <div className="flex gap-1 bg-muted rounded-lg p-0.5">
-                {(["g", "percent"] as const).map((u) => (
+            </section>
+
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+              <div className="flex items-center gap-2 mb-4">
+                <Dumbbell className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Composition corporelle</h2>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
+                  <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
+                  <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
+                  <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Objectif eau (ml)</Label>
+                  <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
+                </div>
+              </div>
+              {leanMass && (
+                <div className="mt-3 bg-accent rounded-xl p-2.5 text-xs">
+                  <span className="text-muted-foreground">Masse maigre estimée : </span>
+                  <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
+                </div>
+              )}
+            </section>
+          </>
+        )}
+
+        {/* ============ ACTIVITY ============ */}
+        {subPage === "activity" && (
+          <>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <h2 className="font-display font-semibold text-base mb-3">Niveau d'activité</h2>
+              <div className="flex gap-2">
+                {ACTIVITY_LEVELS.map((a) => (
                   <button
-                    key={u}
-                    onClick={() => setManualUnit(u)}
-                    className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
-                      manualUnit === u ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                    key={a.value}
+                    onClick={() => setActivityLevel(a.value)}
+                    className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
+                      activityLevel === a.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {u === "g" ? "Grammes" : "% des cal."}
+                    <div>{a.label}</div>
+                    <div className="text-[10px] opacity-80 mt-0.5">×{a.factor}</div>
                   </button>
                 ))}
               </div>
-            </div>
-
-            <div className="space-y-3">
-              <div>
-                <Label className="text-xs text-muted-foreground">Calories (kcal/jour)</Label>
-                <NumericInput
-                  value={targets.calories}
-                  onChange={(v) => setTargets({ ...targets, calories: Math.round(v) })}
-                  className="h-10 rounded-xl"
-                />
-              </div>
-
-              {(["proteins", "carbs", "fats"] as const).map((k) => {
-                const labels: Record<string, string> = { proteins: "Protéines", carbs: "Glucides", fats: "Lipides" };
-                const kcalPerG = k === "fats" ? 9 : 4;
-                const cal = targets.calories || 0;
-                const grams = targets[k];
-                const percent = cal > 0 ? Math.round((grams * kcalPerG / cal) * 100) : 0;
-                return (
-                  <div key={k}>
-                    <Label className="text-xs text-muted-foreground flex items-center justify-between">
-                      <span>{labels[k]}</span>
-                      <span className="text-[10px] text-muted-foreground/70">
-                        {manualUnit === "g" ? `≈ ${percent}% des cal.` : `≈ ${grams}g (${grams * kcalPerG} kcal)`}
-                      </span>
-                    </Label>
-                    {manualUnit === "g" ? (
-                      <NumericInput
-                        value={grams}
-                        onChange={(v) => setTargets({ ...targets, [k]: Math.round(v) })}
-                        className="h-10 rounded-xl"
-                      />
-                    ) : (
-                      <NumericInput
-                        value={percent}
-                        onChange={(v) => {
-                          const newGrams = cal > 0 ? Math.round((cal * v / 100) / kcalPerG) : 0;
-                          setTargets({ ...targets, [k]: newGrams });
-                        }}
-                        className="h-10 rounded-xl"
-                      />
-                    )}
-                  </div>
-                );
-              })}
-
-              {(() => {
-                const c = targets.calories || 0;
-                const reconstituted = targets.proteins * 4 + targets.carbs * 4 + targets.fats * 9;
-                const diff = c - reconstituted;
-                const ok = Math.abs(diff) <= Math.max(50, c * 0.05);
-                return (
-                  <div className={`rounded-xl p-3 text-xs ${ok ? "bg-accent" : "bg-destructive/10 text-destructive"}`}>
-                    Somme macros : <strong>{reconstituted} kcal</strong> · objectif <strong>{c} kcal</strong>
-                    {!ok && <span> · écart {diff > 0 ? `+${diff}` : diff} kcal</span>}
-                  </div>
-                );
-              })()}
-            </div>
-          </section>
-        )}
-
-        {/* AI COACH MODE */}
-        {goalsMode === "ai_coach" && (
-          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "100ms" }}>
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-4 h-4 text-primary" />
-              <h2 className="font-display font-semibold text-base">Coach nutrition IA</h2>
-            </div>
-            <p className="text-xs text-muted-foreground mb-3">
-              Décris ton objectif en langage naturel. L'IA utilise ton profil pour calculer calories, macros et te suggérer des micronutriments à suivre.
-            </p>
-            <Textarea
-              value={aiPrompt}
-              onChange={(e) => setAiPrompt(e.target.value)}
-              placeholder="Ex : Je veux prendre 3kg de muscle sec en 12 semaines, je m'entraîne 5x/semaine en force, je suis intolérant au lactose et je prends 5g de créatine par jour."
-              className="min-h-[110px] rounded-xl text-sm"
-            />
-            <Button
-              onClick={runAiCoach}
-              disabled={aiLoading}
-              className="w-full h-10 rounded-xl nutri-gradient text-primary-foreground mt-3"
-            >
-              {aiLoading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Calcul en cours…</> : <><Sparkles className="w-4 h-4 mr-1" /> Calculer mes objectifs</>}
-            </Button>
-
-            {aiRationale && (
-              <div className="bg-accent rounded-xl p-3 mt-3 text-xs">
+              <div className="bg-accent/50 rounded-lg p-2.5 mt-3">
                 <div className="flex items-start gap-1.5">
                   <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
-                  <p className="text-muted-foreground">{aiRationale}</p>
+                  <p className="text-[10px] text-muted-foreground">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
                 </div>
               </div>
-            )}
+            </section>
 
-            {suggestedCustoms.length > 0 && (
-              <div className="mt-4 space-y-2">
-                <div className="flex items-center gap-2">
-                  <FlaskConical className="w-4 h-4 text-primary" />
-                  <h3 className="text-sm font-semibold">Micronutriments suggérés</h3>
-                </div>
-                {suggestedCustoms.map((s) => (
-                  <div key={s.key} className="flex items-center gap-2 bg-accent rounded-xl p-3">
-                    <div className="flex-1 min-w-0">
-                      <div className="text-sm font-medium truncate">
-                        {s.label} <span className="text-xs text-muted-foreground">({s.unit})</span>
-                      </div>
-                      <div className="text-[10px] text-muted-foreground truncate">
-                        {s.category}{s.goal != null ? ` · obj. ${s.goal}${s.unit}` : ""}
-                      </div>
-                    </div>
-                    <Button size="sm" variant="outline" className="h-8" onClick={() => addSuggestedCustom(s)}>
-                      <Plus className="w-3 h-3 mr-1" /> Ajouter
-                    </Button>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
-        )}
-
-        {/* Weighin reminders */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "225ms" }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Bell className="w-4 h-4 text-primary" />
-            <h2 className="font-display font-semibold text-base">Rappel de pesée</h2>
-          </div>
-          <div className="space-y-3">
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Fréquence</Label>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+              <h2 className="font-display font-semibold text-base mb-3">Objectif corporel</h2>
               <div className="flex gap-2">
-                {WEIGHIN_FREQUENCIES.map((f) => (
+                {GOAL_TYPES.map((g) => (
                   <button
-                    key={f.value}
-                    onClick={() => setWeighinFrequency(f.value)}
-                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${
-                      weighinFrequency === f.value ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                    key={g.value}
+                    onClick={() => setGoalType(g.value)}
+                    className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
+                      goalType === g.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
                     }`}
                   >
-                    {f.label}
+                    <div>{g.label}</div>
+                    <div className="text-[10px] opacity-80 mt-0.5">
+                      {g.calorieModifier > 0 ? `+${g.calorieModifier * 100}%` : g.calorieModifier < 0 ? `${g.calorieModifier * 100}%` : "="}
+                    </div>
                   </button>
                 ))}
               </div>
-            </div>
-            {weighinFrequency !== "daily" && (
-              <div>
-                <Label className="text-xs text-muted-foreground mb-1.5 block">Jour</Label>
-                <div className="flex gap-1">
-                  {WEEKDAYS.map((d) => (
+            </section>
+
+            {goalType === "bulk" && (
+              <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
+                <h2 className="font-display font-semibold text-base mb-3">📈 Phase de prise de masse</h2>
+                <div className="space-y-2">
+                  {MASS_GAIN_PHASES.map((p) => (
                     <button
-                      key={d.day}
-                      onClick={() => setWeighinDay(d.day)}
-                      className={`flex-1 py-2 rounded-lg text-[10px] font-semibold transition-all ${
-                        weighinDay === d.day ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                      key={p.value}
+                      onClick={() => setMassGainPhase(p.value)}
+                      className={`w-full p-3 rounded-xl text-left transition-all ${
+                        massGainPhase === p.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
                       }`}
                     >
-                      {d.label}
+                      <div className="flex items-center justify-between">
+                        <span className="text-sm font-semibold">{p.label}</span>
+                        <span className="text-xs font-bold">+{p.surplus} kcal</span>
+                      </div>
+                      <p className={`text-[10px] mt-0.5 ${massGainPhase === p.value ? "text-primary-foreground/80" : ""}`}>{p.desc}</p>
                     </button>
                   ))}
                 </div>
-              </div>
+              </section>
             )}
-            <div>
-              <Label className="text-xs text-muted-foreground mb-1.5 block">Heure</Label>
-              <div className="flex items-center gap-2">
-              <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
-                <span className="text-sm text-muted-foreground">h</span>
-                <NumericInput value={weighinMinute} onChange={(v) => setWeighinMinute(Math.min(59, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
-              </div>
-            </div>
-          </div>
-        </section>
 
-        {/* Calculated targets */}
-        <section className="bg-accent rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "250ms" }}>
-          <div className="flex items-center gap-2 mb-3">
-            <Calculator className="w-4 h-4 text-primary" />
-            <h2 className="font-display font-semibold text-base">Objectifs calculés</h2>
-          </div>
-          <div className="grid grid-cols-2 gap-3 text-sm">
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display font-semibold text-base">Morphotype</h2>
+                <button onClick={() => setShowMorphoHelp(!showMorphoHelp)} className="p-1 rounded-lg hover:bg-muted">
+                  <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+              {showMorphoHelp && (
+                <div className="bg-accent rounded-xl p-3 mb-3 text-xs text-muted-foreground space-y-2 animate-fade-up">
+                  <p className="font-semibold text-foreground">🔍 Comment identifier ton morphotype ?</p>
+                  <p>• <strong>Poignets fins</strong> (tour &lt; 16cm) → tendance Ecto</p>
+                  <p>• <strong>Métabolisme rapide</strong>, difficulté à grossir → Ecto</p>
+                  <p>• <strong>Prends du muscle facilement</strong>, épaules larges → Méso</p>
+                  <p>• <strong>Ossature large</strong>, stocke facilement → Endo</p>
+                  <p>• Tu te situes entre deux ? Choisis un <strong>hybride</strong> (Ecto-Méso ou Endo-Méso).</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                {MORPHOTYPES.map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMorphotype(m.value)}
+                    className={`p-3 rounded-xl text-left transition-all ${
+                      morphotype === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{m.emoji} {m.label}</div>
+                    <div className={`text-[10px] mt-0.5 ${morphotype === m.value ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+              {morphotype && (
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Facteur MB appliqué : ×{MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0}
+                </p>
+              )}
+            </section>
+
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "120ms" }}>
+              <h2 className="font-display font-semibold text-base mb-3">🎯 Objectifs corporels</h2>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
+                  <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="75" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Gras cible (%)</Label>
+                  <NumericInput value={targetBodyFat === "" ? 0 : targetBodyFat} onChange={(v) => setTargetBodyFat(v || "")} className="h-10 rounded-xl" placeholder="15" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Muscle cible (kg)</Label>
+                  <NumericInput value={targetMuscleMass === "" ? 0 : targetMuscleMass} onChange={(v) => setTargetMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="40" />
+                </div>
+              </div>
+            </section>
+          </>
+        )}
+
+        {/* ============ HEALTH ============ */}
+        {subPage === "health" && (
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+            <div className="flex items-center gap-2 mb-3">
+              <Heart className="w-4 h-4 text-primary" />
+              <h2 className="font-display font-semibold text-base">Santé & Mode de vie</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Ces indicateurs personnalisent les objectifs <strong>micronutriments</strong> en mode scientifique (vitamines, minéraux…).
+            </p>
+
+            <div className="space-y-3">
+              {[
+                {
+                  key: "athlete",
+                  label: "Sportif·ve régulier·ère",
+                  desc: "Augmente Magnésium, Zinc, Sodium, Vit. C/E, B12, Oméga-3.",
+                  value: isAthlete,
+                  set: setIsAthlete,
+                },
+                {
+                  key: "smoker",
+                  label: "Fumeur·euse",
+                  desc: "Augmente Vit. C (+35 mg) et Vit. E (+2 mg).",
+                  value: isSmoker,
+                  set: setIsSmoker,
+                },
+                {
+                  key: "pregnant",
+                  label: "Grossesse",
+                  desc: "Fer 27 mg, B9 (folates) 600 µg.",
+                  value: isPregnant,
+                  set: setIsPregnant,
+                },
+                {
+                  key: "menopausal",
+                  label: "Ménopause",
+                  desc: "Calcium 1200 mg, Fer abaissé à 8 mg.",
+                  value: isMenopausal,
+                  set: setIsMenopausal,
+                },
+              ].map((item) => (
+                <div key={item.key} className="flex items-start gap-3 bg-accent/40 rounded-xl p-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{item.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                  </div>
+                  <Switch checked={item.value} onCheckedChange={item.set} />
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
+        {/* ============ GOALS ============ */}
+        {subPage === "goals" && (
+          <>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: "scientific" as GoalsMode, label: "Scientifique", icon: Calculator, desc: "Formules" },
+                  { value: "manual" as GoalsMode, label: "Manuel", icon: Sliders, desc: "Valeurs ou %" },
+                  { value: "ai_coach" as GoalsMode, label: "Coach IA", icon: Sparkles, desc: "Prompt libre" },
+                ].map((m) => {
+                  const Icon = m.icon;
+                  return (
+                    <button
+                      key={m.value}
+                      onClick={() => setGoalsMode(m.value)}
+                      className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${
+                        goalsMode === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="text-xs font-semibold">{m.label}</span>
+                      <span className={`text-[9px] ${goalsMode === m.value ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>{m.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
             {goalsMode === "scientific" && (
-              <>
-                <div className="bg-card rounded-xl p-3">
-                  <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
-                  <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+              <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+                <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
+                <div className="flex gap-2 mb-3">
+                  {[
+                    { value: "mifflin", label: "Mifflin-St Jeor" },
+                    { value: "katch", label: "Katch-McArdle" },
+                  ].map((m) => (
+                    <button
+                      key={m.value}
+                      onClick={() => setBmrMethod(m.value)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                        bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
                 </div>
-                <div className="bg-card rounded-xl p-3">
-                  <div className="text-xs text-muted-foreground">TDEE → Cible</div>
-                  <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
-                  {sportCalories > 0 && (
-                    <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
-                  )}
+                {bmrMethod === "katch" && !leanMass && (
+                  <p className="text-xs text-destructive mb-2">⚠️ Renseignez la masse grasse (%) pour utiliser Katch-McArdle.</p>
+                )}
+                {bmrMethod === "katch" && leanMass && (
+                  <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
+                )}
+                <div className="bg-accent/50 rounded-lg p-2.5 mb-3">
+                  <div className="flex items-start gap-1.5">
+                    <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+                    <p className="text-[10px] text-muted-foreground">{BMR_METHOD_INFO[bmrMethod]}</p>
+                  </div>
                 </div>
-              </>
+                <div className="bg-accent rounded-xl p-3 text-center">
+                  <span className="text-xs text-muted-foreground">MB calculé : </span>
+                  <span className="text-lg font-bold text-primary">{bmr} kcal</span>
+                  {morphotype && <span className="text-[10px] text-muted-foreground ml-1">(morpho ×{MORPHOTYPE_BMR_FACTOR[morphotype]})</span>}
+                </div>
+              </section>
             )}
-            {goalsMode !== "scientific" && (
-              <div className="bg-card rounded-xl p-3 col-span-2">
-                <div className="text-xs text-muted-foreground">Calories cibles</div>
-                <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+
+            {goalsMode === "manual" && (
+              <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <Sliders className="w-4 h-4 text-primary" />
+                    <h2 className="font-display font-semibold text-base">Réglages manuels</h2>
+                  </div>
+                  <div className="flex gap-1 bg-muted rounded-lg p-0.5">
+                    {(["g", "percent"] as const).map((u) => (
+                      <button
+                        key={u}
+                        onClick={() => setManualUnit(u)}
+                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                          manualUnit === u ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
+                        }`}
+                      >
+                        {u === "g" ? "Grammes" : "% des cal."}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                <div className="space-y-3">
+                  <div>
+                    <Label className="text-xs text-muted-foreground">Calories (kcal/jour)</Label>
+                    <NumericInput
+                      value={targets.calories}
+                      onChange={(v) => setTargets({ ...targets, calories: Math.round(v) })}
+                      className="h-10 rounded-xl"
+                    />
+                  </div>
+                  {(["proteins", "carbs", "fats"] as const).map((k) => {
+                    const labels: Record<string, string> = { proteins: "Protéines", carbs: "Glucides", fats: "Lipides" };
+                    const kcalPerG = k === "fats" ? 9 : 4;
+                    const cal = targets.calories || 0;
+                    const grams = targets[k];
+                    const percent = cal > 0 ? Math.round((grams * kcalPerG / cal) * 100) : 0;
+                    return (
+                      <div key={k}>
+                        <Label className="text-xs text-muted-foreground flex items-center justify-between">
+                          <span>{labels[k]}</span>
+                          <span className="text-[10px] text-muted-foreground/70">
+                            {manualUnit === "g" ? `≈ ${percent}% des cal.` : `≈ ${grams}g (${grams * kcalPerG} kcal)`}
+                          </span>
+                        </Label>
+                        {manualUnit === "g" ? (
+                          <NumericInput
+                            value={grams}
+                            onChange={(v) => setTargets({ ...targets, [k]: Math.round(v) })}
+                            className="h-10 rounded-xl"
+                          />
+                        ) : (
+                          <NumericInput
+                            value={percent}
+                            onChange={(v) => {
+                              const newGrams = cal > 0 ? Math.round((cal * v / 100) / kcalPerG) : 0;
+                              setTargets({ ...targets, [k]: newGrams });
+                            }}
+                            className="h-10 rounded-xl"
+                          />
+                        )}
+                      </div>
+                    );
+                  })}
+                  {(() => {
+                    const c = targets.calories || 0;
+                    const reconstituted = targets.proteins * 4 + targets.carbs * 4 + targets.fats * 9;
+                    const diff = c - reconstituted;
+                    const ok = Math.abs(diff) <= Math.max(50, c * 0.05);
+                    return (
+                      <div className={`rounded-xl p-3 text-xs ${ok ? "bg-accent" : "bg-destructive/10 text-destructive"}`}>
+                        Somme macros : <strong>{reconstituted} kcal</strong> · objectif <strong>{c} kcal</strong>
+                        {!ok && <span> · écart {diff > 0 ? `+${diff}` : diff} kcal</span>}
+                      </div>
+                    );
+                  })()}
+                </div>
+              </section>
+            )}
+
+            {goalsMode === "ai_coach" && (
+              <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+                <div className="flex items-center gap-2 mb-3">
+                  <Sparkles className="w-4 h-4 text-primary" />
+                  <h2 className="font-display font-semibold text-base">Coach nutrition IA</h2>
+                </div>
+                <p className="text-xs text-muted-foreground mb-3">
+                  Décris ton objectif en langage naturel. L'IA utilise ton profil pour calculer calories, macros et te suggérer des micronutriments à suivre.
+                </p>
+                <Textarea
+                  value={aiPrompt}
+                  onChange={(e) => setAiPrompt(e.target.value)}
+                  placeholder="Ex : Je veux prendre 3kg de muscle sec en 12 semaines, je m'entraîne 5x/semaine en force, je suis intolérant au lactose et je prends 5g de créatine par jour."
+                  className="min-h-[110px] rounded-xl text-sm"
+                />
+                <Button
+                  onClick={runAiCoach}
+                  disabled={aiLoading}
+                  className="w-full h-10 rounded-xl nutri-gradient text-primary-foreground mt-3"
+                >
+                  {aiLoading ? <><Loader2 className="w-4 h-4 mr-1 animate-spin" /> Calcul en cours…</> : <><Sparkles className="w-4 h-4 mr-1" /> Calculer mes objectifs</>}
+                </Button>
+                {aiRationale && (
+                  <div className="bg-accent rounded-xl p-3 mt-3 text-xs">
+                    <div className="flex items-start gap-1.5">
+                      <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+                      <p className="text-muted-foreground">{aiRationale}</p>
+                    </div>
+                  </div>
+                )}
+                {suggestedCustoms.length > 0 && (
+                  <div className="mt-4 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <FlaskConical className="w-4 h-4 text-primary" />
+                      <h3 className="text-sm font-semibold">Micronutriments suggérés</h3>
+                    </div>
+                    {suggestedCustoms.map((s) => (
+                      <div key={s.key} className="flex items-center gap-2 bg-accent rounded-xl p-3">
+                        <div className="flex-1 min-w-0">
+                          <div className="text-sm font-medium truncate">
+                            {s.label} <span className="text-xs text-muted-foreground">({s.unit})</span>
+                          </div>
+                          <div className="text-[10px] text-muted-foreground truncate">
+                            {s.category}{s.goal != null ? ` · obj. ${s.goal}${s.unit}` : ""}
+                          </div>
+                        </div>
+                        <Button size="sm" variant="outline" className="h-8" onClick={() => addSuggestedCustom(s)}>
+                          <Plus className="w-3 h-3 mr-1" /> Ajouter
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </section>
+            )}
+
+            <section className="bg-accent rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Calculator className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Objectifs calculés</h2>
               </div>
-            )}
-            <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">Protéines</div>
-              <div className="font-bold">{targets.proteins}g <span className="text-[10px] font-normal text-muted-foreground">({(targets.proteins / Math.max(weight, 1)).toFixed(1)}g/kg)</span></div>
-            </div>
-            <div className="bg-card rounded-xl p-3">
-              <div className="text-xs text-muted-foreground">Glucides</div>
-              <div className="font-bold">{targets.carbs}g</div>
-            </div>
-            <div className="bg-card rounded-xl p-3 col-span-2">
-              <div className="text-xs text-muted-foreground">Lipides</div>
-              <div className="font-bold">{targets.fats}g <span className="text-[10px] font-normal text-muted-foreground">(25% des calories)</span></div>
-            </div>
-          </div>
-        </section>
+              <div className="grid grid-cols-2 gap-3 text-sm">
+                {goalsMode === "scientific" && (
+                  <>
+                    <div className="bg-card rounded-xl p-3">
+                      <div className="text-xs text-muted-foreground">MB ({bmrMethod === "katch" ? "Katch" : "Mifflin"})</div>
+                      <div className="font-bold text-lg">{bmr} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                    </div>
+                    <div className="bg-card rounded-xl p-3">
+                      <div className="text-xs text-muted-foreground">TDEE → Cible</div>
+                      <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                      {sportCalories > 0 && (
+                        <div className="text-[10px] text-muted-foreground">Lissage sport inclus dans le dashboard</div>
+                      )}
+                    </div>
+                  </>
+                )}
+                {goalsMode !== "scientific" && (
+                  <div className="bg-card rounded-xl p-3 col-span-2">
+                    <div className="text-xs text-muted-foreground">Calories cibles</div>
+                    <div className="font-bold text-lg text-primary">{targets.calories} <span className="text-xs font-normal text-muted-foreground">kcal</span></div>
+                  </div>
+                )}
+                <div className="bg-card rounded-xl p-3">
+                  <div className="text-xs text-muted-foreground">Protéines</div>
+                  <div className="font-bold">{targets.proteins}g <span className="text-[10px] font-normal text-muted-foreground">({(targets.proteins / Math.max(weight, 1)).toFixed(1)}g/kg)</span></div>
+                </div>
+                <div className="bg-card rounded-xl p-3">
+                  <div className="text-xs text-muted-foreground">Glucides</div>
+                  <div className="font-bold">{targets.carbs}g</div>
+                </div>
+                <div className="bg-card rounded-xl p-3 col-span-2">
+                  <div className="text-xs text-muted-foreground">Lipides</div>
+                  <div className="font-bold">{targets.fats}g <span className="text-[10px] font-normal text-muted-foreground">(25% des calories)</span></div>
+                </div>
+              </div>
+            </section>
 
-        {/* Nutriments personnalisés */}
-        <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
+            <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
+          </>
+        )}
 
-        {/* Theme */}
-        <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-          <div className="flex items-center gap-2 mb-4">
-            <Palette className="w-4 h-4 text-primary" />
-            <h2 className="font-display font-semibold text-base">Thème d'affichage</h2>
-          </div>
-          <ThemeSwitcher />
-        </section>
+        {/* ============ SETTINGS ============ */}
+        {subPage === "settings" && (
+          <>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <div className="flex items-center gap-2 mb-3">
+                <Bell className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Rappel de pesée</h2>
+              </div>
+              <div className="space-y-3">
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Fréquence</Label>
+                  <div className="flex gap-2">
+                    {WEIGHIN_FREQUENCIES.map((f) => (
+                      <button
+                        key={f.value}
+                        onClick={() => setWeighinFrequency(f.value)}
+                        className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${
+                          weighinFrequency === f.value ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                        }`}
+                      >
+                        {f.label}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+                {weighinFrequency !== "daily" && (
+                  <div>
+                    <Label className="text-xs text-muted-foreground mb-1.5 block">Jour</Label>
+                    <div className="flex gap-1">
+                      {WEEKDAYS.map((d) => (
+                        <button
+                          key={d.day}
+                          onClick={() => setWeighinDay(d.day)}
+                          className={`flex-1 py-2 rounded-lg text-[10px] font-semibold transition-all ${
+                            weighinDay === d.day ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"
+                          }`}
+                        >
+                          {d.label}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                )}
+                <div>
+                  <Label className="text-xs text-muted-foreground mb-1.5 block">Heure</Label>
+                  <div className="flex items-center gap-2">
+                    <NumericInput value={weighinHour} onChange={(v) => setWeighinHour(Math.min(23, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
+                    <span className="text-sm text-muted-foreground">h</span>
+                    <NumericInput value={weighinMinute} onChange={(v) => setWeighinMinute(Math.min(59, Math.max(0, v)))} className="h-10 rounded-xl w-16" />
+                  </div>
+                </div>
+              </div>
+            </section>
 
-        <Button
-          onClick={handleSave}
-          disabled={saving}
-          className="w-full h-12 rounded-xl nutri-gradient text-primary-foreground font-semibold shadow-float hover:opacity-90"
-        >
-          <Save className="w-4 h-4 mr-2" />
-          {saving ? "Enregistrement..." : "Sauvegarder mon profil"}
-        </Button>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+              <div className="flex items-center gap-2 mb-4">
+                <Palette className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Thème d'affichage</h2>
+              </div>
+              <ThemeSwitcher />
+            </section>
+          </>
+        )}
+
+        {/* Save button at bottom of every sub-page */}
+        {subPage !== null && (
+          <Button
+            onClick={handleSave}
+            disabled={saving}
+            className="w-full h-12 rounded-xl nutri-gradient text-primary-foreground font-semibold shadow-float hover:opacity-90"
+          >
+            <Save className="w-4 h-4 mr-2" />
+            {saving ? "Enregistrement..." : "Sauvegarder mon profil"}
+          </Button>
+        )}
       </main>
     </div>
   );
