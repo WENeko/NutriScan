@@ -211,9 +211,9 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         <div className={`w-2.5 h-2.5 rounded-full ${isConnected ? "bg-primary animate-pulse" : "bg-muted-foreground/30"}`} />
       </div>
 
-      {/* Connect / Sync buttons */}
+      {/* Connect buttons (sync button has been moved to Profile > Composition corporelle) */}
       <div className="flex gap-2">
-        {!isConnected ? (
+        {!isConnected && (
           <>
             <Button onClick={handleConnect} className="flex-1" variant="outline" disabled={isChecking}>
               <Smartphone className="w-4 h-4 mr-2" /> Connecter
@@ -222,13 +222,13 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
               Forcer la connexion
             </Button>
           </>
-        ) : (
-          <Button onClick={handleSync} className="flex-1" disabled={isSyncing}>
-            <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
-            {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
-          </Button>
         )}
       </div>
+      {isConnected && (
+        <p className="text-[11px] text-muted-foreground -mt-3">
+          Bouton « Synchroniser maintenant » disponible dans Profil → Composition corporelle.
+        </p>
+      )}
 
       {/* Data source switches */}
       <div className="space-y-3">
