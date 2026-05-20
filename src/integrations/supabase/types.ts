@@ -360,6 +360,10 @@ export type Database = {
           goals_mode: string
           height_cm: number | null
           id: string
+          is_athlete: boolean
+          is_menopausal: boolean
+          is_pregnant: boolean
+          is_smoker: boolean
           last_weighin_date: string | null
           mass_gain_phase: string | null
           morphotype: string | null
@@ -393,6 +397,10 @@ export type Database = {
           goals_mode?: string
           height_cm?: number | null
           id?: string
+          is_athlete?: boolean
+          is_menopausal?: boolean
+          is_pregnant?: boolean
+          is_smoker?: boolean
           last_weighin_date?: string | null
           mass_gain_phase?: string | null
           morphotype?: string | null
@@ -426,6 +434,10 @@ export type Database = {
           goals_mode?: string
           height_cm?: number | null
           id?: string
+          is_athlete?: boolean
+          is_menopausal?: boolean
+          is_pregnant?: boolean
+          is_smoker?: boolean
           last_weighin_date?: string | null
           mass_gain_phase?: string | null
           morphotype?: string | null
