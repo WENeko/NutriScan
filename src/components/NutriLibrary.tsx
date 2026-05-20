@@ -559,7 +559,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
 
         {createMode !== "recipe" && createMode !== "supplement" && (
           <div className="flex gap-2">
-            <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setEditing(null); setForm(emptyFood); setTextInput(""); }}>
+            <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setEditing(null); setEditingRecipeId(null); setForm(emptyFood); setTextInput(""); }}>
               <X className="w-4 h-4 mr-1" /> Annuler
             </Button>
             {(createMode === "manual" || editing) && (
