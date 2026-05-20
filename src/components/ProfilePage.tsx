@@ -143,6 +143,42 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   // Sub-page navigation
   const [subPage, setSubPage] = useState<SubPage>(null);
 
+  // Health Connect sync state
+  const [isSyncing, setIsSyncing] = useState(false);
+
+  const handleHealthSync = async () => {
+    setIsSyncing(true);
+    try {
+      const available = await isHealthConnectAvailable();
+      if (!available) {
+        toast({ title: "Health Connect indisponible", description: "Lance l'app native pour synchroniser.", variant: "destructive" });
+        return;
+      }
+      let granted = await checkHealthPermissions();
+      if (!granted) granted = await requestHealthPermissions();
+      if (!granted) {
+        toast({ title: "Permissions refusées", variant: "destructive" });
+        return;
+      }
+      const data = await readNativeHealthData(30);
+      const prefs = getHealthConnectPreferences();
+      const result = await syncHealthData(userId, data, prefs);
+      if (result.synced.length) {
+        toast({ title: "Synchronisation réussie", description: result.synced.join(", ") });
+        await loadProfile();
+      } else {
+        toast({ title: "Aucune donnée importée", description: "Active les sources dans Sources de données." });
+      }
+      if (result.errors.length) {
+        toast({ title: "Erreurs", description: result.errors.join("; "), variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Erreur de synchronisation", description: e.message, variant: "destructive" });
+    } finally {
+      setIsSyncing(false);
+    }
+  };
+
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
   const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
