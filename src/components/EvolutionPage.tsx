@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { 
-  BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, 
+  BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, 
   Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Cell
 } from "recharts";
@@ -108,8 +108,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         });
       }
     });
-    setNutritionData(Object.values(dayMap));
-
     const { data: bodyComp } = await supabase.from("body_composition").select("*").eq("user_id", userId).gte("recorded_at", format(startDate, "yyyy-MM-dd")).order("recorded_at");
     setBodyData((bodyComp || []).map(b => ({
       day: format(new Date(b.recorded_at), "dd/MM"),
@@ -119,20 +117,48 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       muscleMass: b.muscle_mass_kg
     })));
 
+    // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
     const { data: goalsHist } = await supabase
       .from("goals_history")
       .select("*")
       .eq("user_id", userId)
-      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .lte("recorded_at", format(today, "yyyy-MM-dd"))
       .order("recorded_at");
-    setGoalsHistory((goalsHist || []).map((g: any) => ({
-      day: format(new Date(g.recorded_at), "dd/MM"),
-      date: format(new Date(g.recorded_at), "dd/MM/yyyy"),
+
+    const goalsList = (goalsHist || []).map((g: any) => ({
+      recorded_at: g.recorded_at,
       calories: Number(g.calories),
       proteins: Number(g.proteins),
       carbs: Number(g.carbs),
       fats: Number(g.fats),
-    })));
+    }));
+
+    // Forward-fill objectifs sur chaque jour du dayMap
+    const sortedKeys = Object.keys(dayMap).sort();
+    let gIdx = 0;
+    let current: any = null;
+    // Initialiser current avec le dernier snapshot antérieur au range
+    for (let i = 0; i < goalsList.length; i++) {
+      if (goalsList[i].recorded_at <= sortedKeys[0]) current = goalsList[i];
+      else break;
+    }
+    // Avancer gIdx au premier snapshot dans le range
+    while (gIdx < goalsList.length && goalsList[gIdx].recorded_at < sortedKeys[0]) gIdx++;
+
+    sortedKeys.forEach((key) => {
+      while (gIdx < goalsList.length && goalsList[gIdx].recorded_at <= key) {
+        current = goalsList[gIdx];
+        gIdx++;
+      }
+      const c = current;
+      dayMap[key].calorieGoal = c?.calories ?? calorieGoal;
+      dayMap[key].proteinGoal = c?.proteins ?? proteinGoal;
+      dayMap[key].carbsGoal = c?.carbs ?? carbsGoal;
+      dayMap[key].fatsGoal = c?.fats ?? fatsGoal;
+    });
+
+    setNutritionData(Object.values(dayMap));
+    setGoalsHistory(goalsList);
   };
 
   const radarData = useMemo(() => {
@@ -193,7 +219,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
         <div className="h-48">
           <ResponsiveContainer width="100%" height="100%">
-            <BarChart 
+            <ComposedChart 
               data={nutritionData} 
               onMouseMove={(state) => { if (state.activeTooltipIndex !== undefined) setActiveIndex(state.activeTooltipIndex); }}
               onMouseLeave={() => setActiveIndex(null)}
@@ -206,13 +232,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 itemStyle={{ color: "#FFFFFF" }}
                 cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
               />
-              <ReferenceLine y={calorieGoal} stroke="hsl(var(--primary))" strokeDasharray="4 4" />
               <Bar dataKey="calories" radius={[4, 4, 0, 0]}>
                 {nutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
-            </BarChart>
+              <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
+            </ComposedChart>
           </ResponsiveContainer>
         </div>
       </section>
@@ -227,9 +253,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <XAxis dataKey="day" tick={{ fontSize: 10 }} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={tooltipStyle} />
-              <ReferenceLine y={proteinGoal} stroke="#3B82F6" strokeDasharray="3 3" opacity={0.3} />
-              <ReferenceLine y={carbsGoal} stroke="#F59E0B" strokeDasharray="3 3" opacity={0.3} />
-              <ReferenceLine y={fatsGoal} stroke="#F43F5E" strokeDasharray="3 3" opacity={0.3} />
+              <Line type="monotone" dataKey="proteinGoal" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Prot." isAnimationActive={false} />
+              <Line type="monotone" dataKey="carbsGoal" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Gluc." isAnimationActive={false} />
+              <Line type="monotone" dataKey="fatsGoal" stroke="#F43F5E" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Lip." isAnimationActive={false} />
               <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={false} name="Prot." />
               <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={false} name="Gluc." />
               <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={false} name="Lip." />
@@ -270,50 +296,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </section>
 
-      {/* 3.5 ÉVOLUTION DES OBJECTIFS */}
-      {goalsHistory.length > 1 && (
-        <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-          <h3 className="font-display font-semibold text-sm mb-1">Évolution des objectifs</h3>
-          <p className="text-[10px] text-muted-foreground mb-3">Calories cibles au fil du temps</p>
-          <div className="h-44">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={goalsHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
-                <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} width={40} axisLine={false} tickLine={false} domain={['dataMin - 100', 'dataMax + 100']} />
-                <Tooltip
-                  content={({ active, payload }) => {
-                    if (active && payload && payload.length) {
-                      const d = payload[0].payload;
-                      return (
-                        <div className="bg-[#1A1F2C] border border-white/10 p-2.5 rounded-xl shadow-xl">
-                          <p className="text-white/60 text-[11px] mb-0.5">{d.date}</p>
-                          <p className="text-white font-bold text-sm">{d.calories} kcal</p>
-                        </div>
-                      );
-                    }
-                    return null;
-                  }}
-                />
-                <Line type="monotone" dataKey="calories" stroke="hsl(var(--primary))" strokeWidth={3} dot={{ r: 3 }} />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-          <div className="h-44 mt-4">
-            <ResponsiveContainer width="100%" height="100%">
-              <LineChart data={goalsHistory}>
-                <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
-                <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} width={35} axisLine={false} tickLine={false} />
-                <Tooltip contentStyle={tooltipStyle} />
-                <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={2} dot={false} name="Prot." />
-                <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={2} dot={false} name="Gluc." />
-                <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={2} dot={false} name="Lip." />
-              </LineChart>
-            </ResponsiveContainer>
-          </div>
-        </section>
-      )}
 
       {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
