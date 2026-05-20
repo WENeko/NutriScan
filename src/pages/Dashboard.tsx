@@ -264,23 +264,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     (todayMicros.sodium_mg || 0) < 1500 || (todayMicros.potassium_mg || 0) < 2000 || (todayMicros.magnesium_mg || 0) < 200
   );
 
-  // Limit-type keys (les nutriments à limiter plutôt qu'à atteindre)
-  const LIMIT_KEYS = new Set(["sugar", "saturated_fat", "sodium_mg"]);
-
-  // Liste micros dérivée dynamiquement de la master list + custom user
-  const allNutrients = getMasterList(customNutrients);
-  const microsList = allNutrients.map((n) => {
-    const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
-    const goal = isStd ? (microGoals as any)[n.key] ?? 0 : (n as any).goal ?? 0;
-    return {
-      name: n.label,
-      value: todayMicros[n.key] || 0,
-      unit: n.unit,
-      info: isStd ? getMicroInfo(n.key, goal) : `${n.label} (custom)`,
-      goal,
-      isLimit: LIMIT_KEYS.has(n.key),
-    };
-  });
+  // Source unique de vérité : objectifs micros + flag is_limit (std + custom + overrides expert)
+  const resolvedMicros = resolveMicroGoals(userProfile, customNutrients, microOverrides);
+  const microsList = resolvedMicros.map((r) => ({
+    name: r.label,
+    value: todayMicros[r.key] || 0,
+    unit: r.unit,
+    info: r.isCustom ? `${r.label} (custom)` : getMicroInfo(r.key, r.goal),
+    goal: r.goal,
+    isLimit: r.isLimit,
+  }));
 
   // Radar uses SAME todayMicros as the bars to ensure alignment
   const radarMicrosList = microsList;
