@@ -385,29 +385,11 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         .eq("user_id", userId);
       if (error) throw error;
 
+      // ⚠️ Pas d'insertion dans body_composition ici : ce tableau n'est
+      // alimenté que par l'import Health Connect (avec les vrais timestamps).
+
       const today = format(new Date(), "yyyy-MM-dd");
-      const { data: existing } = await supabase
-        .from("body_composition")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("recorded_at", today)
-        .single();
 
-      const bodyEntry = {
-        user_id: userId,
-        recorded_at: today,
-        weight_kg: weight,
-        body_fat_percent: bodyFat || null,
-        muscle_mass_kg: muscleMass || null,
-        sport_calories: sportCalories,
-        source: "manual",
-      };
-
-      if (existing) {
-        await supabase.from("body_composition").update(bodyEntry as any).eq("id", (existing as any).id);
-      } else {
-        await supabase.from("body_composition").insert(bodyEntry as any);
-      }
 
       // Snapshot des objectifs du jour (évolution)
       const goalsSnap: any = {
