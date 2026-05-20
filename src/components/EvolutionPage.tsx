@@ -163,27 +163,42 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     setGoalsHistory(goalsList);
   };
 
+  const resolvedMicros = useMemo(
+    () => resolveMicroGoals(
+      {
+        gender: userProfile?.gender,
+        age: userProfile?.birth_date ? differenceInYears(new Date(), new Date(userProfile.birth_date)) : (userProfile?.age ?? 30),
+        weight_kg: userProfile?.current_weight ?? userProfile?.weight_kg,
+        totalCaloriesGoal: calorieGoal,
+        isAthlete: userProfile?.is_athlete ?? userProfile?.isAthlete,
+        isSmoker: userProfile?.is_smoker ?? userProfile?.isSmoker,
+        isPregnant: userProfile?.is_pregnant ?? userProfile?.isPregnant,
+        isMenopausal: userProfile?.is_menopausal ?? userProfile?.isMenopausal,
+      },
+      customNutrients,
+      microOverrides,
+    ),
+    [userProfile, calorieGoal, customNutrients, microOverrides],
+  );
+
   const radarData = useMemo(() => {
     const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
-    const stdKeys = new Set(NUTRIENTS_STD_LIST.map(n => n.key));
-    return allMicros.map((m) => {
+    return resolvedMicros.map((m) => {
       const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
-      const isStd = stdKeys.has(m.key);
-      const goal = isStd
-        ? (dynamicGoals[m.key] || 1)
-        : (Number((m as any).goal) > 0 ? Number((m as any).goal) : 1);
+      const goal = m.goal > 0 ? m.goal : 1;
       const pct = (avg / goal) * 100;
-      return { 
-        nutrient: m.label, 
+      return {
+        nutrient: m.label,
         value: Math.min(pct, 150),
         fullPct: Math.round(pct),
-        avg: Math.round(avg * 10) / 10, 
-        goalVal: goal, 
+        avg: Math.round(avg * 10) / 10,
+        goalVal: goal,
         unit: m.unit,
-        goalMarker: 100
+        goalMarker: 100,
+        isLimit: m.isLimit,
       };
     });
-  }, [nutritionData, dynamicGoals, allMicros]);
+  }, [nutritionData, resolvedMicros]);
 
   const tooltipStyle = {
     backgroundColor: "#1A1F2C",
