@@ -97,6 +97,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         age: profile.age,
         weight_kg: Number(profile.weight_kg) || null,
         activity_level: profile.activity_level,
+        isAthlete: !!(profile as any).is_athlete,
+        isSmoker: !!(profile as any).is_smoker,
+        isPregnant: !!(profile as any).is_pregnant,
+        isMenopausal: !!(profile as any).is_menopausal,
       });
       const cn = (profile as any).custom_nutrients;
       setCustomNutrients(Array.isArray(cn) ? cn : []);
