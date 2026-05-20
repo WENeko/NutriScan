@@ -866,7 +866,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         </section>
 
         {/* Nutriments personnalisés */}
-        <CustomNutrientsEditor userId={userId} />
+        <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
 
         {/* Theme */}
         <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
