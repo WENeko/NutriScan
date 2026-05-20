@@ -4,8 +4,9 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2 } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight } from "lucide-react";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
@@ -13,6 +14,8 @@ import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
+type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings";
+
 
 interface SuggestedCustom extends CustomNutrientDef {}
 
