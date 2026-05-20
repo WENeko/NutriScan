@@ -142,6 +142,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [isPregnant, setIsPregnant] = useState(false);
   const [isMenopausal, setIsMenopausal] = useState(false);
 
+  // Mode expert micronutriments
+  const [expertMode, setExpertMode] = useState(false);
+  const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
+
   // Sub-page navigation
   const [subPage, setSubPage] = useState<SubPage>(null);
 
