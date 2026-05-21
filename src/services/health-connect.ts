@@ -97,26 +97,29 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  // BoneMass : plugin natif custom (Health Connect ne l'expose pas via @capgo/capacitor-health)
-  const fetchBoneMass = async (): Promise<any[]> => {
+  // BoneMass + LeanBodyMass : plugin natif custom
+  // (@capgo/capacitor-health n'expose ni l'un ni l'autre)
+  const fetchBoneAndLean = async (): Promise<{ bone: any[]; lean: any[] }> => {
     try {
       const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
-      if (!BoneMass) return [];
-      const { samples } = await BoneMass.readSamples({ startDate, endDate });
-      return samples || [];
+      if (!BoneMass) return { bone: [], lean: [] };
+      const res = await BoneMass.readSamples({ startDate, endDate });
+      return { bone: res?.bone || [], lean: res?.lean || [] };
     } catch (e) {
-      console.warn("[health] BoneMass read failed", e);
-      return [];
+      console.warn("[health] BoneMass/Lean read failed", e);
+      return { bone: [], lean: [] };
     }
   };
 
-  const [weights, fats, bones, activeEnergy, steps] = await Promise.all([
+  const [weights, fats, boneLean, activeEnergy, steps] = await Promise.all([
     fetchSamples("weight"),
     fetchSamples("bodyFat"),
-    fetchBoneMass(),
+    fetchBoneAndLean(),
     fetchSamples("totalCalories"),
     fetchSamples("steps")
   ]);
+  const bones = boneLean.bone;
+  const leans = boneLean.lean;
 
   // 1. Composition Corporelle
   data.weight = weights.map((s: any) => ({ 
@@ -134,13 +137,25 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     timestamp: s.startDate || s.date 
   }));
 
-  // Calcul du Muscle
-  const muscleMap = new Map();
+  // Muscle : priorité à LeanBodyMass importé depuis Health Connect (valeur balance directe).
+  // Fallback : calcul Poids − Masse grasse − Os − 1% organes.
+  const leanByDay = new Map<string, number>();
+  leans.forEach((s: any) => {
+    const ts = s.startDate || s.date || "";
+    const d = ts.slice(0, 10);
+    if (d) leanByDay.set(d, round1(Number(s.value)));
+  });
+
+  const muscleMap = new Map<string, number>();
   data.weight.forEach((w) => {
     const d = w.timestamp.slice(0, 10);
+    const importedLean = leanByDay.get(d);
+    if (importedLean !== undefined) {
+      muscleMap.set(d, importedLean);
+      return;
+    }
     const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
     const boneEntry = data.boneMass?.find(b => b.timestamp.startsWith(d));
-
     if (fatEntry) {
       const fatKg = w.value_kg * (fatEntry.percentage / 100);
       const leanMass = w.value_kg - fatKg;
