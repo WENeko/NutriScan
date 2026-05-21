@@ -97,10 +97,23 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
+  // BoneMass : plugin natif custom (Health Connect ne l'expose pas via @capgo/capacitor-health)
+  const fetchBoneMass = async (): Promise<any[]> => {
+    try {
+      const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
+      if (!BoneMass) return [];
+      const { samples } = await BoneMass.readSamples({ startDate, endDate });
+      return samples || [];
+    } catch (e) {
+      console.warn("[health] BoneMass read failed", e);
+      return [];
+    }
+  };
+
   const [weights, fats, bones, activeEnergy, steps] = await Promise.all([
     fetchSamples("weight"),
     fetchSamples("bodyFat"),
-    fetchSamples("boneMass"),
+    fetchBoneMass(),
     fetchSamples("totalCalories"),
     fetchSamples("steps")
   ]);
