@@ -34,8 +34,8 @@ const DATA_SOURCES = [
     key: "sync_weight" as keyof HealthConnectPreferences,
     icon: Weight,
     label: "Poids & Composition",
-    description: "Synchronise le poids, la masse grasse et la masse musculaire squelettique depuis Health Connect.",
-    permissions: ["read_weight", "read_skeletal_muscle_mass"],
+    description: "Synchronise le poids, la masse grasse, la masse maigre et la masse osseuse depuis Health Connect.",
+    permissions: ["read_weight", "read_lean_body_mass", "read_bone_mass"],
   },
   {
     key: "sync_body_fat" as keyof HealthConnectPreferences,
@@ -110,12 +110,24 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
       // Appel direct avec capture d'erreur détaillée
       try {
         const result = await Health.requestAuthorization({
-          read: ['weight', 'skeletal_muscle_mass', 'steps', 'calories', 'sleep'],
+          read: ['weight', 'bodyFat', 'skeletal_muscle_mass', 'steps', 'calories', 'sleep'],
           write: [],
         });
-        
+
+        // Demande aussi les permissions custom BoneMass + LeanBodyMass
+        // (non exposées par @capgo/capacitor-health → second popup Health Connect)
+        try {
+          const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
+          if (BoneMass) {
+            const bRes = await BoneMass.requestPermission();
+            alert("BoneMass/Lean : " + JSON.stringify(bRes));
+          }
+        } catch (boneErr: any) {
+          alert("Erreur BoneMass : " + (boneErr.message || JSON.stringify(boneErr)));
+        }
+
         alert("RÉPONSE DU SYSTÈME : " + JSON.stringify(result));
-        
+
         const granted = !!result;
         setIsConnected(granted);
 

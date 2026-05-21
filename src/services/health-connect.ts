@@ -72,6 +72,14 @@ export async function requestHealthPermissions(): Promise<boolean> {
   if (!Health) return false;
   try {
     const res = await Health.requestAuthorization({ read: HEALTH_READ_TYPES, write: [] });
+    // Demande aussi les permissions BoneMass + LeanBodyMass via le plugin natif custom
+    // (non exposées par @capgo/capacitor-health). Affiche un second popup Health Connect.
+    try {
+      const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
+      if (BoneMass) await BoneMass.requestPermission();
+    } catch (e) {
+      console.warn("[health] BoneMass.requestPermission failed", e);
+    }
     return Array.isArray(res?.readAuthorized) && res.readAuthorized.length > 0;
   } catch (e: any) {
     console.warn("[health] requestAuthorization failed", e);
