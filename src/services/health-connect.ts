@@ -31,10 +31,12 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
 };
 
 // Types valides du plugin @capgo/capacitor-health (cf. HealthDataType)
+// NOTE: "boneMass" n'est PAS supporté par le plugin côté autorisation (erreur
+// "unsupported data type bonemass"). On le lit quand même via fetchSamples
+// (try/catch) au cas où une future version l'expose ; sinon fallback 3.8 kg.
 const HEALTH_READ_TYPES: any[] = [
   "weight",
   "bodyFat",
-  "boneMass",
   "steps",
   "totalCalories",
   "basalCalories",
