@@ -100,14 +100,38 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         });
       }
     });
-    const { data: bodyComp } = await supabase.from("body_composition").select("*").eq("user_id", userId).gte("recorded_at", format(startDate, "yyyy-MM-dd")).order("recorded_at");
-    setBodyData((bodyComp || []).map(b => ({
-      day: format(new Date(b.recorded_at), "dd/MM"),
-      date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
-      weight: b.weight_kg,
-      bodyFat: b.body_fat_percent,
-      muscleMass: b.muscle_mass_kg
-    })));
+    const { data: bodyComp } = await supabase
+      .from("body_composition")
+      .select("*")
+      .eq("user_id", userId)
+      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .order("recorded_at")
+      .order("created_at");
+    // Déduplication par jour : priorité à health_connect, sinon la dernière entrée créée
+    const bodyByDay = new Map<string, any>();
+    (bodyComp || []).forEach((b: any) => {
+      const key = b.recorded_at;
+      const existing = bodyByDay.get(key);
+      if (!existing) { bodyByDay.set(key, b); return; }
+      const existingHC = existing.source === "health_connect";
+      const currentHC = b.source === "health_connect";
+      if (currentHC && !existingHC) { bodyByDay.set(key, b); return; }
+      if (currentHC === existingHC) {
+        // même priorité → garder la plus récente
+        if (new Date(b.created_at).getTime() >= new Date(existing.created_at).getTime()) {
+          bodyByDay.set(key, b);
+        }
+      }
+    });
+    setBodyData(Array.from(bodyByDay.values())
+      .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
+      .map(b => ({
+        day: format(new Date(b.recorded_at), "dd/MM"),
+        date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
+        weight: b.weight_kg,
+        bodyFat: b.body_fat_percent,
+        muscleMass: b.muscle_mass_kg
+      })));
 
     // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
     const { data: goalsHist } = await supabase
