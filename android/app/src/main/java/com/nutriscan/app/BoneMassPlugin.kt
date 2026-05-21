@@ -1,6 +1,8 @@
 package com.nutriscan.app
 
+import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.BoneMassRecord
 import androidx.health.connect.client.records.LeanBodyMassRecord
@@ -11,6 +13,7 @@ import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -58,11 +61,29 @@ class BoneMassPlugin : Plugin() {
 
     @PluginMethod
     fun requestPermission(call: PluginCall) {
-        // Les permissions custom doivent être demandées via le contrat Health Connect
-        // côté plugin @capgo/capacitor-health. Ici on retourne juste l'état courant ;
-        // l'écran Health Connect (Paramètres > Apps connectées > NutriScan) permet
-        // d'activer manuellement BoneMass + LeanBodyMass.
-        hasPermission(call)
+        try {
+            val contract = PermissionController.createRequestPermissionResultContract()
+            val intent = contract.createIntent(context, setOf(bonePerm, leanPerm))
+            startActivityForResult(call, intent, "permResult")
+        } catch (e: Exception) {
+            call.reject(e.message ?: "request failed", e)
+        }
+    }
+
+    @ActivityCallback
+    private fun permResult(call: PluginCall?, result: ActivityResult) {
+        if (call == null) return
+        try {
+            val contract = PermissionController.createRequestPermissionResultContract()
+            val granted = contract.parseResult(result.resultCode, result.data)
+            call.resolve(
+                JSObject()
+                    .put("bone", granted.contains(bonePerm))
+                    .put("lean", granted.contains(leanPerm))
+            )
+        } catch (e: Exception) {
+            call.resolve(JSObject().put("bone", false).put("lean", false))
+        }
     }
 
     @PluginMethod
