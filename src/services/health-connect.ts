@@ -34,6 +34,7 @@ const DEFAULT_PREFERENCES: HealthConnectPreferences = {
 const HEALTH_READ_TYPES: any[] = [
   "weight",
   "bodyFat",
+  "boneMass",
   "steps",
   "totalCalories",
   "basalCalories",
@@ -94,13 +95,13 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  const [weights, fats, activeEnergy, steps] = await Promise.all([
+  const [weights, fats, bones, activeEnergy, steps] = await Promise.all([
     fetchSamples("weight"),
     fetchSamples("bodyFat"),
+    fetchSamples("boneMass"),
     fetchSamples("totalCalories"),
     fetchSamples("steps")
   ]);
-  const bones: any[] = [];
 
   // 1. Composition Corporelle
   data.weight = weights.map((s: any) => ({ 
