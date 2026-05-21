@@ -34,8 +34,8 @@ const DATA_SOURCES = [
     key: "sync_weight" as keyof HealthConnectPreferences,
     icon: Weight,
     label: "Poids & Composition",
-    description: "Synchronise le poids, la masse grasse et la masse musculaire squelettique depuis Health Connect.",
-    permissions: ["read_weight", "read_skeletal_muscle_mass"],
+    description: "Synchronise le poids, la masse grasse, la masse maigre et la masse osseuse depuis Health Connect.",
+    permissions: ["read_weight", "read_lean_body_mass", "read_bone_mass"],
   },
   {
     key: "sync_body_fat" as keyof HealthConnectPreferences,
