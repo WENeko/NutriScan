@@ -110,12 +110,24 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
       // Appel direct avec capture d'erreur détaillée
       try {
         const result = await Health.requestAuthorization({
-          read: ['weight', 'skeletal_muscle_mass', 'steps', 'calories', 'sleep'],
+          read: ['weight', 'bodyFat', 'skeletal_muscle_mass', 'steps', 'calories', 'sleep'],
           write: [],
         });
-        
+
+        // Demande aussi les permissions custom BoneMass + LeanBodyMass
+        // (non exposées par @capgo/capacitor-health → second popup Health Connect)
+        try {
+          const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
+          if (BoneMass) {
+            const bRes = await BoneMass.requestPermission();
+            alert("BoneMass/Lean : " + JSON.stringify(bRes));
+          }
+        } catch (boneErr: any) {
+          alert("Erreur BoneMass : " + (boneErr.message || JSON.stringify(boneErr)));
+        }
+
         alert("RÉPONSE DU SYSTÈME : " + JSON.stringify(result));
-        
+
         const granted = !!result;
         setIsConnected(granted);
 
