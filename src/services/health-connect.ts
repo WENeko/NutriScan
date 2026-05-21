@@ -241,14 +241,14 @@ export async function syncHealthData(
         byDate.set(d, cur);
       });
 
-      // Upsert body_composition par jour
+      // Upsert body_composition par jour (dédoublonne aussi les éventuels doublons existants)
       for (const [date, vals] of byDate.entries()) {
-        const { data: existing } = await supabase
+        const { data: existingRows } = await supabase
           .from("body_composition")
           .select("id")
           .eq("user_id", userId)
           .eq("recorded_at", date)
-          .maybeSingle();
+          .order("created_at", { ascending: false });
 
         const entry: any = {
           user_id: userId,
@@ -259,8 +259,14 @@ export async function syncHealthData(
           source: "health_connect",
         };
 
-        if (existing) {
-          await supabase.from("body_composition").update(entry).eq("id", (existing as any).id);
+        const rows = (existingRows as any[]) || [];
+        if (rows.length > 0) {
+          // Met à jour la plus récente, supprime les éventuels doublons
+          await supabase.from("body_composition").update(entry).eq("id", rows[0].id);
+          if (rows.length > 1) {
+            const dupIds = rows.slice(1).map(r => r.id);
+            await supabase.from("body_composition").delete().in("id", dupIds);
+          }
         } else {
           await supabase.from("body_composition").insert(entry);
         }
