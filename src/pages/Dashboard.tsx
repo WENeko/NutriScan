@@ -409,9 +409,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               {/* Macro remaining bars + protein/kg donut */}
               <div className="flex justify-around mb-4">
                 {[
-                  { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: "hsl(var(--nutri-blue))" },
-                  { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: "hsl(var(--nutri-orange))" },
-                  { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: "hsl(var(--nutri-pink))" },
+                  { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: MACRO_COLORS.protein },
+                  { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: MACRO_COLORS.carb },
+                  { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: MACRO_COLORS.fat },
                 ].map((m) => (
                   <div key={m.label} className="flex flex-col items-center gap-1">
                     <CircularProgress value={m.value} max={m.max} size={64} strokeWidth={5} color={m.color} label="" unit="" />
