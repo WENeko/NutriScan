@@ -74,12 +74,32 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(false);
+  // Expand (read-only) ingredient list state
+  const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Record<string, MealItem[]>>({});
   // Add ingredient state
   const [addMode, setAddMode] = useState<AddMode | null>(null);
   const [addTextInput, setAddTextInput] = useState("");
   const [addManualName, setAddManualName] = useState("");
   const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
+
+  const toggleExpand = async (mealId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (expandedMealId === mealId) {
+      setExpandedMealId(null);
+      return;
+    }
+    setExpandedMealId(mealId);
+    if (!expandedItems[mealId]) {
+      const { data } = await supabase
+        .from("meal_items")
+        .select("id, name, quantity, calories, proteins, carbs, fats")
+        .eq("meal_id", mealId);
+      setExpandedItems((prev) => ({ ...prev, [mealId]: (data as any[]) || [] }));
+    }
+  };
+
 
   const deleteMeal = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
