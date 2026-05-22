@@ -599,10 +599,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               <p className={`text-xs text-muted-foreground truncate ${meal.meal_name ? '' : 'text-sm font-semibold text-foreground'}`}>
                 {format(new Date(meal.timestamp), "EEEE d MMM, HH:mm", { locale: fr })}
               </p>
-              <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
-                <span>P: {Math.round(meal.total_proteins)}g</span>
-                <span>G: {Math.round(meal.total_carbs)}g</span>
-                <span>L: {Math.round(meal.total_fats)}g</span>
+              <div className="flex gap-2 text-xs mt-0.5 font-medium">
+                <span style={{ color: MACRO_COLORS.protein }}>P: {Math.round(meal.total_proteins)}g</span>
+                <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
+                <span style={{ color: MACRO_COLORS.fat }}>L: {Math.round(meal.total_fats)}g</span>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
