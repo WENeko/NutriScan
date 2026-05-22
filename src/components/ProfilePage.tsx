@@ -416,17 +416,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         weight_kg: weight,
         body_fat_percent: bodyFat || null,
       };
-      const { data: existingGoal } = await supabase
+      await supabase
         .from("goals_history")
-        .select("id")
-        .eq("user_id", userId)
-        .eq("recorded_at", today)
-        .maybeSingle();
-      if (existingGoal) {
-        await supabase.from("goals_history").update(goalsSnap).eq("id", (existingGoal as any).id);
-      } else {
-        await supabase.from("goals_history").insert(goalsSnap);
-      }
+        .upsert(goalsSnap, { onConflict: "user_id,recorded_at" });
 
       toast({ title: "Profil sauvegardé !" });
       onBack();
