@@ -18,6 +18,7 @@ import WeighinReminder from "@/components/WeighinReminder";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
+import { MACRO_COLORS } from "@/lib/macro-colors";
 
 
 interface Goals {
