@@ -16,9 +16,12 @@ export type Database = {
     Tables: {
       body_composition: {
         Row: {
+          active_calories_kcal: number | null
           body_fat_percent: number | null
+          bone_mass_kg: number | null
           created_at: string
           id: string
+          lean_mass_kg: number | null
           muscle_mass_kg: number | null
           recorded_at: string
           source: string
@@ -27,9 +30,12 @@ export type Database = {
           weight_kg: number | null
         }
         Insert: {
+          active_calories_kcal?: number | null
           body_fat_percent?: number | null
+          bone_mass_kg?: number | null
           created_at?: string
           id?: string
+          lean_mass_kg?: number | null
           muscle_mass_kg?: number | null
           recorded_at?: string
           source?: string
@@ -38,9 +44,12 @@ export type Database = {
           weight_kg?: number | null
         }
         Update: {
+          active_calories_kcal?: number | null
           body_fat_percent?: number | null
+          bone_mass_kg?: number | null
           created_at?: string
           id?: string
+          lean_mass_kg?: number | null
           muscle_mass_kg?: number | null
           recorded_at?: string
           source?: string

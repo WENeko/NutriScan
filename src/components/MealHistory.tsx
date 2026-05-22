@@ -1,7 +1,7 @@
 import React, { useState } from "react";
 import { format } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -12,6 +12,8 @@ import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 import { buildStdNutrients } from "@/utils/nutrients-helpers";
+import { MACRO_COLORS } from "@/lib/macro-colors";
+
 
 
 interface MealItem {
@@ -72,12 +74,32 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
   const [loadingEdit, setLoadingEdit] = useState(false);
+  // Expand (read-only) ingredient list state
+  const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
+  const [expandedItems, setExpandedItems] = useState<Record<string, MealItem[]>>({});
   // Add ingredient state
   const [addMode, setAddMode] = useState<AddMode | null>(null);
   const [addTextInput, setAddTextInput] = useState("");
   const [addManualName, setAddManualName] = useState("");
   const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
+
+  const toggleExpand = async (mealId: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (expandedMealId === mealId) {
+      setExpandedMealId(null);
+      return;
+    }
+    setExpandedMealId(mealId);
+    if (!expandedItems[mealId]) {
+      const { data } = await supabase
+        .from("meal_items")
+        .select("id, name, quantity, calories, proteins, carbs, fats")
+        .eq("meal_id", mealId);
+      setExpandedItems((prev) => ({ ...prev, [mealId]: (data as any[]) || [] }));
+    }
+  };
+
 
   const deleteMeal = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -577,10 +599,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               <p className={`text-xs text-muted-foreground truncate ${meal.meal_name ? '' : 'text-sm font-semibold text-foreground'}`}>
                 {format(new Date(meal.timestamp), "EEEE d MMM, HH:mm", { locale: fr })}
               </p>
-              <div className="flex gap-2 text-xs text-muted-foreground mt-0.5">
-                <span>P: {Math.round(meal.total_proteins)}g</span>
-                <span>G: {Math.round(meal.total_carbs)}g</span>
-                <span>L: {Math.round(meal.total_fats)}g</span>
+              <div className="flex gap-2 text-xs mt-0.5 font-medium">
+                <span style={{ color: MACRO_COLORS.protein }}>P: {Math.round(meal.total_proteins)}g</span>
+                <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
+                <span style={{ color: MACRO_COLORS.fat }}>L: {Math.round(meal.total_fats)}g</span>
               </div>
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
@@ -589,6 +611,9 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                 <span className="text-[10px] text-muted-foreground block">kcal</span>
               </div>
               <div className="flex items-center gap-0.5">
+                <button onClick={(e) => toggleExpand(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Voir les ingrédients">
+                  <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
+                </button>
                 <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
                   <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
                 </button>
@@ -604,10 +629,36 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               </div>
             </div>
           </button>
+
+          {/* Read-only expanded ingredient list */}
+          {expandedMealId === meal.id && editingMealId !== meal.id && (
+            <div className="bg-accent/50 rounded-xl px-3 py-2 mt-1 space-y-1 animate-fade-up">
+              {(expandedItems[meal.id] || []).length === 0 ? (
+                <p className="text-[10px] text-muted-foreground">Aucun ingrédient.</p>
+              ) : (
+                (expandedItems[meal.id] || []).map((it) => (
+                  <div key={it.id} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate flex-1">
+                      <span className="font-medium">{it.name}</span>
+                      {it.quantity && <span className="text-muted-foreground"> · {it.quantity}</span>}
+                    </span>
+                    <div className="flex items-center gap-2 flex-shrink-0 font-medium">
+                      <span style={{ color: MACRO_COLORS.calorie }}>{Math.round(it.calories || 0)}kcal</span>
+                      <span style={{ color: MACRO_COLORS.protein }}>P{Math.round(it.proteins || 0)}</span>
+                      <span style={{ color: MACRO_COLORS.carb }}>G{Math.round(it.carbs || 0)}</span>
+                      <span style={{ color: MACRO_COLORS.fat }}>L{Math.round(it.fats || 0)}</span>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          )}
+
           {/* Meal micros */}
           <div className="px-3 pb-2">
             <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} refreshKey={`${meal.total_calories}-${meal.total_proteins}-${meal.total_carbs}-${meal.total_fats}`} />
           </div>
+
 
           {/* Inline edit panel */}
           {editingMealId === meal.id && (

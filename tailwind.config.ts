@@ -77,6 +77,15 @@ export default {
           DEFAULT: "hsl(var(--nutri-pink))",
           light: "hsl(var(--nutri-pink-light))",
         },
+        macro: {
+          protein: "hsl(var(--macro-protein))",
+          "protein-light": "hsl(var(--macro-protein-light))",
+          carb: "hsl(var(--macro-carb))",
+          "carb-light": "hsl(var(--macro-carb-light))",
+          fat: "hsl(var(--macro-fat))",
+          "fat-light": "hsl(var(--macro-fat-light))",
+          calorie: "hsl(var(--macro-calorie))",
+        },
       },
       borderRadius: {
         lg: "var(--radius)",

@@ -18,6 +18,7 @@ import WeighinReminder from "@/components/WeighinReminder";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
+import { MACRO_COLORS } from "@/lib/macro-colors";
 
 
 interface Goals {
@@ -144,25 +145,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         goals_mode: (profile as any).goals_mode ?? "scientific",
         source: "auto",
       };
-      const { data: existingSnap } = await supabase
+      // Upsert atomique grâce à la contrainte UNIQUE (user_id, recorded_at)
+      await supabase
         .from("goals_history")
-        .select("id, calories, proteins, carbs, fats")
-        .eq("user_id", userId)
-        .eq("recorded_at", todayStr)
-        .maybeSingle();
-      if (!existingSnap) {
-        await supabase.from("goals_history").insert(todaySnap);
-      } else if (
-        Number((existingSnap as any).calories) !== todaySnap.calories ||
-        Number((existingSnap as any).proteins) !== todaySnap.proteins ||
-        Number((existingSnap as any).carbs) !== todaySnap.carbs ||
-        Number((existingSnap as any).fats) !== todaySnap.fats
-      ) {
-        await supabase
-          .from("goals_history")
-          .update(todaySnap)
-          .eq("id", (existingSnap as any).id);
-      }
+        .upsert(todaySnap, { onConflict: "user_id,recorded_at" });
 
       // === Budget hebdo : somme des objectifs caloriques journaliers (forward-fill) ===
       const { data: goalsHist } = await supabase
@@ -409,9 +395,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               {/* Macro remaining bars + protein/kg donut */}
               <div className="flex justify-around mb-4">
                 {[
-                  { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: "hsl(var(--nutri-blue))" },
-                  { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: "hsl(var(--nutri-orange))" },
-                  { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: "hsl(var(--nutri-pink))" },
+                  { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: MACRO_COLORS.protein },
+                  { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: MACRO_COLORS.carb },
+                  { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: MACRO_COLORS.fat },
                 ].map((m) => (
                   <div key={m.label} className="flex flex-col items-center gap-1">
                     <CircularProgress value={m.value} max={m.max} size={64} strokeWidth={5} color={m.color} label="" unit="" />

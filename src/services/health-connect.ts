@@ -216,10 +216,10 @@ export async function syncHealthData(
   try {
     const today = new Date().toISOString().slice(0, 10);
 
-    // ── Sync Poids et Composition (historisation par timestamp) ──
+    // ── Sync Poids et Composition (un seul enregistrement par jour grâce à la contrainte UNIQUE) ──
     if (prefs.sync_weight && data.weight?.length) {
       // Group par date pour upsert un enregistrement par jour
-      const byDate = new Map<string, { weight?: number; fat?: number; muscle?: number; ts: string }>();
+      const byDate = new Map<string, { weight?: number; fat?: number; muscle?: number; bone?: number; lean?: number; activeCal?: number; ts: string }>();
 
       data.weight.forEach((w) => {
         const d = w.timestamp.slice(0, 10);
@@ -240,36 +240,45 @@ export async function syncHealthData(
         cur.muscle = m.value_kg;
         byDate.set(d, cur);
       });
+      // Stocker aussi les valeurs intermédiaires (utilisées dans les calculs)
+      data.boneMass?.forEach((b) => {
+        const d = b.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: b.timestamp };
+        cur.bone = b.value_kg;
+        byDate.set(d, cur);
+      });
+      // LeanBodyMass importé directement depuis Health Connect (si dispo)
+      // est égal à la valeur "muscle" quand elle a été fournie par la balance
+      data.muscle?.forEach((m) => {
+        const d = m.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: m.timestamp };
+        if (cur.lean === undefined) cur.lean = m.value_kg;
+        byDate.set(d, cur);
+      });
+      data.activeCalories?.forEach((c) => {
+        const d = c.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: c.timestamp };
+        cur.activeCal = c.value_kcal;
+        byDate.set(d, cur);
+      });
 
-      // Upsert body_composition par jour (dédoublonne aussi les éventuels doublons existants)
-      for (const [date, vals] of byDate.entries()) {
-        const { data: existingRows } = await supabase
+      // Upsert atomique grâce à la contrainte UNIQUE (user_id, recorded_at)
+      const rows = Array.from(byDate.entries()).map(([date, vals]) => ({
+        user_id: userId,
+        recorded_at: date,
+        weight_kg: vals.weight ?? null,
+        body_fat_percent: vals.fat ?? null,
+        muscle_mass_kg: vals.muscle ?? null,
+        bone_mass_kg: vals.bone ?? null,
+        lean_mass_kg: vals.lean ?? null,
+        active_calories_kcal: vals.activeCal ?? null,
+        source: "health_connect",
+      }));
+
+      if (rows.length > 0) {
+        await supabase
           .from("body_composition")
-          .select("id")
-          .eq("user_id", userId)
-          .eq("recorded_at", date)
-          .order("created_at", { ascending: false });
-
-        const entry: any = {
-          user_id: userId,
-          recorded_at: date,
-          weight_kg: vals.weight ?? null,
-          body_fat_percent: vals.fat ?? null,
-          muscle_mass_kg: vals.muscle ?? null,
-          source: "health_connect",
-        };
-
-        const rows = (existingRows as any[]) || [];
-        if (rows.length > 0) {
-          // Met à jour la plus récente, supprime les éventuels doublons
-          await supabase.from("body_composition").update(entry).eq("id", rows[0].id);
-          if (rows.length > 1) {
-            const dupIds = rows.slice(1).map(r => r.id);
-            await supabase.from("body_composition").delete().in("id", dupIds);
-          }
-        } else {
-          await supabase.from("body_composition").insert(entry);
-        }
+          .upsert(rows, { onConflict: "user_id,recorded_at" });
       }
 
       // Mise à jour du profil avec la mesure la plus récente
@@ -338,13 +347,6 @@ export async function syncHealthData(
             mass_gain_phase: p.mass_gain_phase,
           });
 
-          const { data: existingGoals } = await supabase
-            .from("goals_history")
-            .select("id")
-            .eq("user_id", userId)
-            .eq("recorded_at", date)
-            .order("created_at", { ascending: false });
-
           const goalEntry: any = {
             user_id: userId,
             recorded_at: date,
@@ -358,15 +360,9 @@ export async function syncHealthData(
             body_fat_percent: vals.fat ?? null,
           };
 
-          const gRows = (existingGoals as any[]) || [];
-          if (gRows.length > 0) {
-            await supabase.from("goals_history").update(goalEntry).eq("id", gRows[0].id);
-            if (gRows.length > 1) {
-              await supabase.from("goals_history").delete().in("id", gRows.slice(1).map(r => r.id));
-            }
-          } else {
-            await supabase.from("goals_history").insert(goalEntry);
-          }
+          await supabase
+            .from("goals_history")
+            .upsert(goalEntry, { onConflict: "user_id,recorded_at" });
         }
       }
 
