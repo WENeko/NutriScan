@@ -145,25 +145,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         goals_mode: (profile as any).goals_mode ?? "scientific",
         source: "auto",
       };
-      const { data: existingSnap } = await supabase
+      // Upsert atomique grâce à la contrainte UNIQUE (user_id, recorded_at)
+      await supabase
         .from("goals_history")
-        .select("id, calories, proteins, carbs, fats")
-        .eq("user_id", userId)
-        .eq("recorded_at", todayStr)
-        .maybeSingle();
-      if (!existingSnap) {
-        await supabase.from("goals_history").insert(todaySnap);
-      } else if (
-        Number((existingSnap as any).calories) !== todaySnap.calories ||
-        Number((existingSnap as any).proteins) !== todaySnap.proteins ||
-        Number((existingSnap as any).carbs) !== todaySnap.carbs ||
-        Number((existingSnap as any).fats) !== todaySnap.fats
-      ) {
-        await supabase
-          .from("goals_history")
-          .update(todaySnap)
-          .eq("id", (existingSnap as any).id);
-      }
+        .upsert(todaySnap, { onConflict: "user_id,recorded_at" });
 
       // === Budget hebdo : somme des objectifs caloriques journaliers (forward-fill) ===
       const { data: goalsHist } = await supabase
