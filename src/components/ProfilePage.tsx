@@ -201,18 +201,32 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       .eq("user_id", userId)
       .single();
 
+    // Source unique de vérité pour weight / fat / muscle / sport_calories :
+    // dernière entrée de body_composition.
+    const { data: lastBody } = await supabase
+      .from("body_composition")
+      .select("weight_kg, body_fat_percent, muscle_mass_kg, active_calories_kcal")
+      .eq("user_id", userId)
+      .order("recorded_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (lastBody) {
+      if (lastBody.weight_kg) setWeight(Number(lastBody.weight_kg));
+      if (lastBody.body_fat_percent) setBodyFat(Number(lastBody.body_fat_percent));
+      if (lastBody.muscle_mass_kg) setMuscleMass(Number(lastBody.muscle_mass_kg));
+      if (lastBody.active_calories_kcal) setSportCalories(Number(lastBody.active_calories_kcal));
+    }
+
     if (data) {
       const d = data as any;
-      if (d.weight_kg) setWeight(Number(d.weight_kg));
       if (d.height_cm) setHeight(Number(d.height_cm));
       if (d.date_of_birth) setDateOfBirth(d.date_of_birth);
       if (d.gender) setGender(d.gender);
       if (d.activity_level) setActivityLevel(d.activity_level);
       if (d.bmr) setBmr(Number(d.bmr));
       if (d.bmr_method) setBmrMethod(d.bmr_method);
-      if (d.body_fat_percent) setBodyFat(Number(d.body_fat_percent));
-      if (d.muscle_mass_kg) setMuscleMass(Number(d.muscle_mass_kg));
-      if (d.sport_calories_daily) setSportCalories(Number(d.sport_calories_daily));
       if (d.water_goal_ml) setWaterGoal(Number(d.water_goal_ml));
       if (d.target_weight_kg) setTargetWeight(Number(d.target_weight_kg));
       if (d.target_body_fat_percent) setTargetBodyFat(Number(d.target_body_fat_percent));
