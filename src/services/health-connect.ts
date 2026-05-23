@@ -302,14 +302,14 @@ export async function syncHealthData(
           : p.age || 30;
         const currentGoals = p.goals || {};
         const recomputed = calculateScientificGoals({
-          weight_kg: Number(p.weight_kg) || lastW.value_kg,
+          weight_kg: lastW.value_kg,
           height_cm: Number(p.height_cm) || 175,
           age,
           gender: p.gender || "male",
           activity_level: p.activity_level || "moderate",
           goal_type: currentGoals.goalType || "maintain",
           bmr_method: p.bmr_method || "mifflin",
-          body_fat_percent: lastFat ?? Number(p.body_fat_percent) ?? null,
+          body_fat_percent: lastFat,
           morphotype: p.morphotype,
           mass_gain_phase: p.mass_gain_phase,
         });
