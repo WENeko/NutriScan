@@ -25,7 +25,6 @@ export type Database = {
           muscle_mass_kg: number | null
           recorded_at: string
           source: string
-          sport_calories: number | null
           user_id: string
           weight_kg: number | null
         }
@@ -39,7 +38,6 @@ export type Database = {
           muscle_mass_kg?: number | null
           recorded_at?: string
           source?: string
-          sport_calories?: number | null
           user_id: string
           weight_kg?: number | null
         }
@@ -53,7 +51,6 @@ export type Database = {
           muscle_mass_kg?: number | null
           recorded_at?: string
           source?: string
-          sport_calories?: number | null
           user_id?: string
           weight_kg?: number | null
         }
@@ -154,7 +151,6 @@ export type Database = {
       }
       goals_history: {
         Row: {
-          body_fat_percent: number | null
           calories: number
           carbs: number
           created_at: string
@@ -165,10 +161,8 @@ export type Database = {
           recorded_at: string
           source: string
           user_id: string
-          weight_kg: number | null
         }
         Insert: {
-          body_fat_percent?: number | null
           calories?: number
           carbs?: number
           created_at?: string
@@ -179,10 +173,8 @@ export type Database = {
           recorded_at?: string
           source?: string
           user_id: string
-          weight_kg?: number | null
         }
         Update: {
-          body_fat_percent?: number | null
           calories?: number
           carbs?: number
           created_at?: string
@@ -193,7 +185,6 @@ export type Database = {
           recorded_at?: string
           source?: string
           user_id?: string
-          weight_kg?: number | null
         }
         Relationships: []
       }
@@ -359,7 +350,6 @@ export type Database = {
           ai_coach_prompt: string | null
           bmr: number | null
           bmr_method: string | null
-          body_fat_percent: number | null
           created_at: string
           custom_nutrients: Json
           date_of_birth: string | null
@@ -378,8 +368,6 @@ export type Database = {
           mass_gain_phase: string | null
           micro_overrides: Json
           morphotype: string | null
-          muscle_mass_kg: number | null
-          sport_calories_daily: number | null
           target_body_fat_percent: number | null
           target_muscle_mass_kg: number | null
           target_weight_kg: number | null
@@ -390,7 +378,6 @@ export type Database = {
           weighin_frequency: string | null
           weighin_hour: number | null
           weighin_minute: number | null
-          weight_kg: number | null
         }
         Insert: {
           activity_level?: string | null
@@ -398,7 +385,6 @@ export type Database = {
           ai_coach_prompt?: string | null
           bmr?: number | null
           bmr_method?: string | null
-          body_fat_percent?: number | null
           created_at?: string
           custom_nutrients?: Json
           date_of_birth?: string | null
@@ -417,8 +403,6 @@ export type Database = {
           mass_gain_phase?: string | null
           micro_overrides?: Json
           morphotype?: string | null
-          muscle_mass_kg?: number | null
-          sport_calories_daily?: number | null
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
@@ -429,7 +413,6 @@ export type Database = {
           weighin_frequency?: string | null
           weighin_hour?: number | null
           weighin_minute?: number | null
-          weight_kg?: number | null
         }
         Update: {
           activity_level?: string | null
@@ -437,7 +420,6 @@ export type Database = {
           ai_coach_prompt?: string | null
           bmr?: number | null
           bmr_method?: string | null
-          body_fat_percent?: number | null
           created_at?: string
           custom_nutrients?: Json
           date_of_birth?: string | null
@@ -456,8 +438,6 @@ export type Database = {
           mass_gain_phase?: string | null
           micro_overrides?: Json
           morphotype?: string | null
-          muscle_mass_kg?: number | null
-          sport_calories_daily?: number | null
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
@@ -468,7 +448,6 @@ export type Database = {
           weighin_frequency?: string | null
           weighin_hour?: number | null
           weighin_minute?: number | null
-          weight_kg?: number | null
         }
         Relationships: []
       }
