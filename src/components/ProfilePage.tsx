@@ -376,16 +376,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       const { error } = await supabase
         .from("profiles")
         .update({
-          weight_kg: weight,
           height_cm: height,
           age,
           gender,
           activity_level: activityLevel,
           bmr,
           date_of_birth: dateOfBirth || null,
-          body_fat_percent: bodyFat || null,
-          muscle_mass_kg: muscleMass || null,
-          sport_calories_daily: sportCalories,
           water_goal_ml: waterGoal,
           target_weight_kg: targetWeight || null,
           target_body_fat_percent: targetBodyFat || null,
@@ -411,13 +407,23 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         .eq("user_id", userId);
       if (error) throw error;
 
-      // ⚠️ Pas d'insertion dans body_composition ici : ce tableau n'est
-      // alimenté que par l'import Health Connect (avec les vrais timestamps).
-
       const today = format(new Date(), "yyyy-MM-dd");
 
+      // Source unique de vérité : on enregistre weight / fat / muscle /
+      // sport_calories dans body_composition (upsert sur le jour).
+      if (weight || bodyFat !== "" || muscleMass !== "" || sportCalories) {
+        await supabase.from("body_composition").upsert({
+          user_id: userId,
+          recorded_at: today,
+          weight_kg: weight || null,
+          body_fat_percent: bodyFat === "" ? null : (bodyFat as number),
+          muscle_mass_kg: muscleMass === "" ? null : (muscleMass as number),
+          active_calories_kcal: sportCalories || null,
+          source: "manual",
+        }, { onConflict: "user_id,recorded_at" });
+      }
 
-      // Snapshot des objectifs du jour (évolution)
+      // Snapshot des objectifs du jour (sans dupliquer weight/fat)
       const goalsSnap: any = {
         user_id: userId,
         recorded_at: today,
@@ -427,8 +433,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         fats: targets.fats,
         goals_mode: goalsMode,
         source: "manual",
-        weight_kg: weight,
-        body_fat_percent: bodyFat || null,
       };
       await supabase
         .from("goals_history")
