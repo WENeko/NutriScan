@@ -170,8 +170,8 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
       const boneVal = boneEntry ? boneEntry.value_kg : 3.8;
       const organResidual = w.value_kg * 0.01;
       // Facteur de compensation organes (0.988) pour aligner sur la valeur balance bioimpédance
-      muscleMap.set(d, round1((leanMass - boneVal - organResidual) * 0.988));
-    }
+      muscleMap.set(d, round1((leanMass - boneVal) * 0.988));
+    
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
