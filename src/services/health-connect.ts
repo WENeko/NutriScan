@@ -281,18 +281,12 @@ export async function syncHealthData(
           .upsert(rows, { onConflict: "user_id,recorded_at" });
       }
 
-      // Mise à jour du profil avec la mesure la plus récente
+      // Plus de mise à jour de profiles ici : body_composition est la
+      // source unique de vérité pour weight / body_fat / muscle.
       const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
       const lastW = sortedW[0];
       const d = lastW.timestamp.slice(0, 10);
       const lastFat = data.bodyFat?.find((f) => f.timestamp.startsWith(d))?.percentage ?? null;
-      const lastMus = data.muscle?.find((m) => m.timestamp.startsWith(d))?.value_kg ?? null;
-
-      await supabase.from("profiles").update({
-        weight_kg: lastW.value_kg,
-        body_fat_percent: lastFat,
-        muscle_mass_kg: lastMus,
-      }).eq("user_id", userId);
 
       // ── Recalcul des objectifs (mode scientifique) + snapshot ──
       const { data: profile } = await supabase
