@@ -71,9 +71,19 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, weight_kg, water_goal_ml, sport_calories_daily, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, is_athlete, is_smoker, is_pregnant, is_menopausal")
+      .select("goals, water_goal_ml, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, is_athlete, is_smoker, is_pregnant, is_menopausal, goals_mode")
       .eq("user_id", userId)
       .single();
+
+    // Dernière mesure de composition corporelle (source unique de vérité)
+    const { data: lastBody } = await supabase
+      .from("body_composition")
+      .select("weight_kg, active_calories_kcal")
+      .eq("user_id", userId)
+      .order("recorded_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
 
     let baseCalories = 2000;
     let weekSportTotal = 0;
@@ -89,9 +99,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     if (profile) {
       const g = profile.goals as any;
       baseCalories = g?.calories ?? 2000;
-      const dailySport = Number((profile as any).sport_calories_daily) || 0;
+      const currentWeight = lastBody?.weight_kg ? Number(lastBody.weight_kg) : 70;
+      const dailySport = lastBody?.active_calories_kcal ? Number(lastBody.active_calories_kcal) : 0;
       setSportCalories(dailySport);
-      setWeight(Number(profile.weight_kg) || 70);
+      setWeight(currentWeight);
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
       setTargetWeight((profile as any).target_weight_kg ? Number((profile as any).target_weight_kg) : null);
       setTargetBodyFat((profile as any).target_body_fat_percent ? Number((profile as any).target_body_fat_percent) : null);
@@ -99,7 +110,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setUserProfile({
         gender: profile.gender,
         age: profile.age,
-        weight_kg: Number(profile.weight_kg) || null,
+        weight_kg: currentWeight,
         activity_level: profile.activity_level,
         isAthlete: !!(profile as any).is_athlete,
         isSmoker: !!(profile as any).is_smoker,
@@ -113,16 +124,17 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
       const { data: weekBody } = await supabase
         .from("body_composition")
-        .select("sport_calories, recorded_at")
+        .select("active_calories_kcal, recorded_at")
         .eq("user_id", userId)
         .gte("recorded_at", format(weekStart, "yyyy-MM-dd"))
         .lte("recorded_at", format(weekEnd, "yyyy-MM-dd"));
 
       if (weekBody && weekBody.length > 0) {
-        weekSportTotal = (weekBody as any[]).reduce((sum, b) => sum + (Number(b.sport_calories) || 0), 0);
+        weekSportTotal = (weekBody as any[]).reduce((sum, b) => sum + (Number(b.active_calories_kcal) || 0), 0);
       } else {
         weekSportTotal = dailySport * 7;
       }
+
 
       const smoothedGoal = Math.round((baseCalories * 7 + weekSportTotal) / 7);
 
