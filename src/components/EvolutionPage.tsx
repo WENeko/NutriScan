@@ -302,13 +302,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         <div className="h-[320px]">
           <ResponsiveContainer width="100%" height="100%">
             <RadarChart data={radarData} outerRadius="70%">
-              <PolarGrid stroke="rgba(255,255,255,0.1)" />
+              <PolarGrid stroke="hsl(var(--border))" />
               <PolarAngleAxis
                 dataKey="nutrient"
                 tick={(props: any) => {
                   const { x, y, textAnchor, payload } = props;
                   const entry = radarData.find((d) => d.nutrient === payload.value);
-                  const fill = entry?.isLimit ? "#F43F5E" : "rgba(255,255,255,0.55)";
+                  const fill = entry?.isLimit ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))";
                   return (
                     <text x={x} y={y} textAnchor={textAnchor} fill={fill} fontSize={9} fontWeight={entry?.isLimit ? 600 : 400}>
                       {payload.value}
@@ -317,17 +317,31 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 }}
               />
               <PolarRadiusAxis angle={90} domain={[0, 150]} tick={false} axisLine={false} />
-              <Radar dataKey="goalMarker" stroke="rgba(255,255,255,0.3)" strokeDasharray="4 4" fill="none" />
-              <Radar name="Apport" dataKey="value" stroke="#10b981" fill="#10b981" fillOpacity={0.3} strokeWidth={2} />
+              <Radar
+                name="Objectif"
+                dataKey="goalMarker"
+                stroke="hsl(var(--muted-foreground))"
+                strokeDasharray="4 4"
+                fill="none"
+                strokeOpacity={0.5}
+              />
+              <Radar
+                name="Apport"
+                dataKey="value"
+                stroke="hsl(var(--primary))"
+                fill="hsl(var(--primary))"
+                fillOpacity={0.25}
+                strokeWidth={2}
+              />
               <Tooltip
                 content={({ active, payload }) => {
                   if (active && payload && payload.length) {
                     const data = payload[0].payload;
                     return (
-                      <div className="bg-[#1A1F2C] border border-white/10 p-3 rounded-xl shadow-xl">
-                        <p className="text-white font-bold text-xs mb-1">{data.nutrient}</p>
-                        <p className="text-[#10b981] text-[11px] font-medium">{data.avg} {data.unit} / {data.goalVal} {data.unit}</p>
-                        <p className="text-white/50 text-[10px]">Couverture : {data.fullPct}%</p>
+                      <div className="bg-popover border border-border p-3 rounded-xl shadow-xl">
+                        <p className="text-popover-foreground font-bold text-xs mb-1">{data.nutrient}</p>
+                        <p className="text-primary text-[11px] font-medium">{data.avg} {data.unit} / {data.goalVal} {data.unit}</p>
+                        <p className="text-muted-foreground text-[10px]">Couverture : {data.fullPct}%</p>
                       </div>
                     );
                   }
