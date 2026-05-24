@@ -85,6 +85,51 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [addManualName, setAddManualName] = useState("");
   const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
+  // Search + collapsed groups
+  const [searchQuery, setSearchQuery] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  // Filtered meals (by search) + grouping by temporal period
+  const filteredMeals = useMemo(() => {
+    if (!searchQuery.trim()) return meals;
+    const q = searchQuery.toLowerCase();
+    return meals.filter((m) => {
+      const name = (m.meal_name || "").toLowerCase();
+      const date = format(new Date(m.timestamp), "EEEE d MMMM yyyy", { locale: fr }).toLowerCase();
+      return name.includes(q) || date.includes(q);
+    });
+  }, [meals, searchQuery]);
+
+  const groups = useMemo(() => {
+    if (!groupByPeriod) return null;
+    const buckets = new Map<string, { label: string; order: number; meals: Meal[] }>();
+    const ensure = (key: string, label: string, order: number) => {
+      if (!buckets.has(key)) buckets.set(key, { label, order, meals: [] });
+      return buckets.get(key)!;
+    };
+    filteredMeals.forEach((m) => {
+      const d = new Date(m.timestamp);
+      let key: string, label: string, order: number;
+      if (isToday(d)) { key = "today"; label = "Aujourd'hui"; order = 0; }
+      else if (isYesterday(d)) { key = "yesterday"; label = "Hier"; order = 1; }
+      else if (isThisWeek(d, { weekStartsOn: 1 })) { key = "week"; label = "Cette semaine"; order = 2; }
+      else if (isThisMonth(d)) { key = "month"; label = "Ce mois-ci"; order = 3; }
+      else if (isThisYear(d)) {
+        key = `m-${d.getFullYear()}-${d.getMonth()}`;
+        label = format(d, "MMMM yyyy", { locale: fr });
+        order = 100 + (12 - d.getMonth());
+      } else {
+        key = `y-${d.getFullYear()}`;
+        label = String(d.getFullYear());
+        order = 1000 + (3000 - d.getFullYear());
+      }
+      ensure(key, label, order).meals.push(m);
+    });
+    return Array.from(buckets.entries())
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([key, val]) => ({ key, ...val }));
+  }, [filteredMeals, groupByPeriod]);
+
 
   const toggleExpand = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
