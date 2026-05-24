@@ -824,8 +824,60 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               </div>
             </div>
           )}
+    </div>
+  );
+
+  const toggleGroup = (key: string) =>
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  return (
+    <div className="space-y-3">
+      {searchable && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher un repas..."
+            className="pl-9 h-9 text-sm rounded-xl"
+          />
         </div>
-      ))}
+      )}
+
+      {filteredMeals.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <Utensils className="w-8 h-8 mb-2 opacity-40" />
+          <p className="text-xs">{searchQuery ? "Aucun résultat" : "Aucun repas"}</p>
+        </div>
+      ) : groups ? (
+        groups.map((g) => {
+          const collapsed = collapsedGroups[g.key] ?? (g.order > 1);
+          const totalKcal = g.meals.reduce((s, m) => s + (m.total_calories || 0), 0);
+          return (
+            <div key={g.key} className="space-y-2">
+              <button
+                onClick={() => toggleGroup(g.key)}
+                className="w-full flex items-center justify-between px-1 py-1 text-left"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground capitalize">
+                  {g.label} <span className="text-muted-foreground/60 normal-case">· {g.meals.length}</span>
+                </span>
+                <span className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  {Math.round(totalKcal)} kcal
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${collapsed ? "" : "rotate-180"}`} />
+                </span>
+              </button>
+              {!collapsed && (
+                <div className="space-y-3">
+                  {g.meals.map((meal, idx) => renderMealCard(meal, idx))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        filteredMeals.map((meal, idx) => renderMealCard(meal, idx))
+      )}
     </div>
   );
 };
