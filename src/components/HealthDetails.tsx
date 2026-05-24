@@ -90,6 +90,7 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
         value: Math.round(value * 10) / 10,
         goal: Math.round(goal * 10) / 10,
         unit: micro.unit || "",
+        isLimit: !!micro.isLimit,
       };
     });
   }, [radarSource]);
