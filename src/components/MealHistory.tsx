@@ -1,7 +1,7 @@
-import React, { useState } from "react";
-import { format } from "date-fns";
+import React, { useState, useMemo } from "react";
+import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -61,11 +61,13 @@ interface MealHistoryProps {
   onRefresh: () => void;
   microGoals?: MicroGoals;
   customDefs?: import("@/utils/nutrients-helpers").CustomNutrientDef[];
+  groupByPeriod?: boolean;
+  searchable?: boolean;
 }
 
 type AddMode = "manual" | "text" | "barcode";
 
-const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs }) => {
+const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs, groupByPeriod = false, searchable = false }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
   const [editItems, setEditItems] = useState<MealItem[]>([]);
   const [editDensities, setEditDensities] = useState<{ protD: number; carbsD: number; fatsD: number; fiberD: number; sugarD: number; satFatD: number; omega3D: number; sodiumD: number; potassiumD: number; magnesiumD: number; calciumD: number; vitBD: number; vitCD: number; vitDD: number; vitED: number }[]>([]);
@@ -83,6 +85,51 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [addManualName, setAddManualName] = useState("");
   const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
+  // Search + collapsed groups
+  const [searchQuery, setSearchQuery] = useState("");
+  const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+
+  // Filtered meals (by search) + grouping by temporal period
+  const filteredMeals = useMemo(() => {
+    if (!searchQuery.trim()) return meals;
+    const q = searchQuery.toLowerCase();
+    return meals.filter((m) => {
+      const name = (m.meal_name || "").toLowerCase();
+      const date = format(new Date(m.timestamp), "EEEE d MMMM yyyy", { locale: fr }).toLowerCase();
+      return name.includes(q) || date.includes(q);
+    });
+  }, [meals, searchQuery]);
+
+  const groups = useMemo(() => {
+    if (!groupByPeriod) return null;
+    const buckets = new Map<string, { label: string; order: number; meals: Meal[] }>();
+    const ensure = (key: string, label: string, order: number) => {
+      if (!buckets.has(key)) buckets.set(key, { label, order, meals: [] });
+      return buckets.get(key)!;
+    };
+    filteredMeals.forEach((m) => {
+      const d = new Date(m.timestamp);
+      let key: string, label: string, order: number;
+      if (isToday(d)) { key = "today"; label = "Aujourd'hui"; order = 0; }
+      else if (isYesterday(d)) { key = "yesterday"; label = "Hier"; order = 1; }
+      else if (isThisWeek(d, { weekStartsOn: 1 })) { key = "week"; label = "Cette semaine"; order = 2; }
+      else if (isThisMonth(d)) { key = "month"; label = "Ce mois-ci"; order = 3; }
+      else if (isThisYear(d)) {
+        key = `m-${d.getFullYear()}-${d.getMonth()}`;
+        label = format(d, "MMMM yyyy", { locale: fr });
+        order = 100 + (12 - d.getMonth());
+      } else {
+        key = `y-${d.getFullYear()}`;
+        label = String(d.getFullYear());
+        order = 1000 + (3000 - d.getFullYear());
+      }
+      ensure(key, label, order).meals.push(m);
+    });
+    return Array.from(buckets.entries())
+      .sort((a, b) => a[1].order - b[1].order)
+      .map(([key, val]) => ({ key, ...val }));
+  }, [filteredMeals, groupByPeriod]);
+
 
   const toggleExpand = async (mealId: string, e: React.MouseEvent) => {
     e.stopPropagation();
@@ -579,14 +626,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {meals.map((meal, idx) => (
-        <div key={meal.id} style={{ animationDelay: `${idx * 80}ms` }}>
-          <button
-            onClick={() => onSelect(meal.id)}
-            className="w-full flex items-center gap-3 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
-          >
+  const renderMealCard = (meal: Meal, idx: number) => (
+    <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
+      <button
+        onClick={() => onSelect(meal.id)}
+        className="w-full flex items-center gap-3 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
+      >
             {meal.image_url ? (
               <img src={meal.image_url} alt="Repas" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
             ) : (
@@ -779,8 +824,60 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
               </div>
             </div>
           )}
+    </div>
+  );
+
+  const toggleGroup = (key: string) =>
+    setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
+
+  return (
+    <div className="space-y-3">
+      {searchable && (
+        <div className="relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground" />
+          <Input
+            value={searchQuery}
+            onChange={(e) => setSearchQuery(e.target.value)}
+            placeholder="Rechercher un repas..."
+            className="pl-9 h-9 text-sm rounded-xl"
+          />
         </div>
-      ))}
+      )}
+
+      {filteredMeals.length === 0 ? (
+        <div className="flex flex-col items-center justify-center py-8 text-muted-foreground">
+          <Utensils className="w-8 h-8 mb-2 opacity-40" />
+          <p className="text-xs">{searchQuery ? "Aucun résultat" : "Aucun repas"}</p>
+        </div>
+      ) : groups ? (
+        groups.map((g) => {
+          const collapsed = collapsedGroups[g.key] ?? (g.order > 1);
+          const totalKcal = g.meals.reduce((s, m) => s + (m.total_calories || 0), 0);
+          return (
+            <div key={g.key} className="space-y-2">
+              <button
+                onClick={() => toggleGroup(g.key)}
+                className="w-full flex items-center justify-between px-1 py-1 text-left"
+              >
+                <span className="text-xs font-semibold uppercase tracking-wide text-muted-foreground capitalize">
+                  {g.label} <span className="text-muted-foreground/60 normal-case">· {g.meals.length}</span>
+                </span>
+                <span className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                  {Math.round(totalKcal)} kcal
+                  <ChevronDown className={`w-3.5 h-3.5 transition-transform ${collapsed ? "" : "rotate-180"}`} />
+                </span>
+              </button>
+              {!collapsed && (
+                <div className="space-y-3">
+                  {g.meals.map((meal, idx) => renderMealCard(meal, idx))}
+                </div>
+              )}
+            </div>
+          );
+        })
+      ) : (
+        filteredMeals.map((meal, idx) => renderMealCard(meal, idx))
+      )}
     </div>
   );
 };

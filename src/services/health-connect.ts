@@ -42,7 +42,9 @@ const HEALTH_READ_TYPES: any[] = [
   "basalCalories",
 ];
 
-const round1 = (v: number) => Math.round(v * 10) / 10;
+// Conserve les valeurs brutes Santé Connect (utilisées pour les calculs +
+// stockées telles quelles). L'arrondi se fait uniquement à l'affichage.
+const raw = (v: number) => Number(v);
 
 // ── PLUGIN & PERMISSIONS ────────────────────────────────────────
 async function getHealthPlugin() {
@@ -131,17 +133,17 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
 
   // 1. Composition Corporelle
   data.weight = weights.map((s: any) => ({ 
-    value_kg: round1(Number(s.value)), 
+    value_kg: raw(Number(s.value)), 
     timestamp: s.startDate || s.date 
   }));
   
   data.bodyFat = fats.map((s: any) => ({ 
-    percentage: round1(Number(s.value)), 
+    percentage: raw(Number(s.value)), 
     timestamp: s.startDate || s.date 
   }));
 
   data.boneMass = bones.map((s: any) => ({ 
-    value_kg: round1(Number(s.value)), 
+    value_kg: raw(Number(s.value)), 
     timestamp: s.startDate || s.date 
   }));
 
@@ -151,7 +153,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   leans.forEach((s: any) => {
     const ts = s.startDate || s.date || "";
     const d = ts.slice(0, 10);
-    if (d) leanByDay.set(d, round1(Number(s.value)));
+    if (d) leanByDay.set(d, raw(Number(s.value)));
   });
 
   const muscleMap = new Map<string, number>();
@@ -170,7 +172,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
       const boneVal = boneEntry ? boneEntry.value_kg : 3.8;
       const organResidual = w.value_kg * 0.01;
       // Facteur de compensation organes (0.988) pour aligner sur la valeur balance bioimpédance
-      muscleMap.set(d, round1((leanMass - boneVal) * 0.988));
+      muscleMap.set(d, raw((leanMass - boneVal) * 0.988));
     }
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
@@ -188,7 +190,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   steps.forEach((s: any) => {
     const d = (s.startDate || s.date || "").slice(0, 10);
     if (d) {
-      const stepKcal = Math.round(Number(s.value) * 0.04);
+      const stepKcal = Number(s.value) * 0.04;
       const current = calMap.get(d) || 0;
       // On prend la valeur la plus haute entre sport déclaré et pas détectés
       if (stepKcal > current) calMap.set(d, stepKcal);
@@ -196,7 +198,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   });
 
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
-    value_kcal: Math.round(val), 
+    value_kcal: val, 
     timestamp: date 
   }));
 

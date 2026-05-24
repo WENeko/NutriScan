@@ -589,7 +589,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {/* All history */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
+              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
             </section>
           </>
         )}
