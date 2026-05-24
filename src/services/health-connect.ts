@@ -42,7 +42,9 @@ const HEALTH_READ_TYPES: any[] = [
   "basalCalories",
 ];
 
-const round1 = (v: number) => Math.round(v * 10) / 10;
+// Conserve les valeurs brutes Santé Connect (utilisées pour les calculs +
+// stockées telles quelles). L'arrondi se fait uniquement à l'affichage.
+const raw = (v: number) => Number(v);
 
 // ── PLUGIN & PERMISSIONS ────────────────────────────────────────
 async function getHealthPlugin() {
