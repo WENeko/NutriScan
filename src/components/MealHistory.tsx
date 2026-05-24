@@ -626,14 +626,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     );
   }
 
-  return (
-    <div className="space-y-3">
-      {meals.map((meal, idx) => (
-        <div key={meal.id} style={{ animationDelay: `${idx * 80}ms` }}>
-          <button
-            onClick={() => onSelect(meal.id)}
-            className="w-full flex items-center gap-3 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
-          >
+  const renderMealCard = (meal: Meal, idx: number) => (
+    <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
+      <button
+        onClick={() => onSelect(meal.id)}
+        className="w-full flex items-center gap-3 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
+      >
             {meal.image_url ? (
               <img src={meal.image_url} alt="Repas" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
             ) : (
