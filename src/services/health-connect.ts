@@ -190,7 +190,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   steps.forEach((s: any) => {
     const d = (s.startDate || s.date || "").slice(0, 10);
     if (d) {
-      const stepKcal = Math.round(Number(s.value) * 0.04);
+      const stepKcal = Number(s.value) * 0.04;
       const current = calMap.get(d) || 0;
       // On prend la valeur la plus haute entre sport déclaré et pas détectés
       if (stepKcal > current) calMap.set(d, stepKcal);
@@ -198,7 +198,7 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   });
 
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
-    value_kcal: Math.round(val), 
+    value_kcal: val, 
     timestamp: date 
   }));
 
