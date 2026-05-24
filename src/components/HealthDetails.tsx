@@ -128,7 +128,19 @@ const HealthDetails: React.FC<HealthDetailsProps> = ({ micros, radarMicros }) =>
               <ResponsiveContainer width="100%" height={260}>
                 <RadarChart data={radarData} cx="50%" cy="50%" outerRadius="68%">
                   <PolarGrid stroke="hsl(var(--border))" />
-                  <PolarAngleAxis dataKey="name" tick={{ fontSize: 8, fill: "hsl(var(--muted-foreground))" }} />
+                  <PolarAngleAxis
+                    dataKey="name"
+                    tick={(props: any) => {
+                      const { x, y, textAnchor, payload } = props;
+                      const entry = radarData.find((d: any) => d.name === payload.value);
+                      const fill = entry?.isLimit ? "hsl(var(--destructive))" : "hsl(var(--muted-foreground))";
+                      return (
+                        <text x={x} y={y} textAnchor={textAnchor} fill={fill} fontSize={8} fontWeight={entry?.isLimit ? 600 : 400}>
+                          {payload.value}
+                        </text>
+                      );
+                    }}
+                  />
                   <PolarRadiusAxis angle={90} domain={[0, 150]} tick={{ fontSize: 8 }} tickCount={4} />
                   
                   <Radar
