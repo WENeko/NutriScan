@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
 import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search } from "lucide-react";
