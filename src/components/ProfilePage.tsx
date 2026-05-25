@@ -585,19 +585,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
-                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
+                  <NumericInput value={weight} onChange={(v) => setWeight(v)} displayDecimals={1} className="h-10 rounded-xl" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
-                  <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
+                  <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} displayDecimals={1} className="h-10 rounded-xl" placeholder="Ex: 18" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
-                  <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
+                  <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} displayDecimals={1} className="h-10 rounded-xl" placeholder="Ex: 35" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
-                  <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
+                  <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} displayDecimals={0} className="h-10 rounded-xl" placeholder="Ex: 300" />
                 </div>
               </div>
               {leanMass && (
