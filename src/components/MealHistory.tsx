@@ -88,6 +88,29 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   // Search + collapsed groups
   const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
+  // Map mealId -> concatenated lowercase ingredient names (for search)
+  const [itemNamesByMeal, setItemNamesByMeal] = useState<Record<string, string>>({});
+
+  // Prefetch ingredient names for all visible meals (search source)
+  useEffect(() => {
+    if (!searchable || meals.length === 0) return;
+    const missing = meals.map((m) => m.id).filter((id) => !(id in itemNamesByMeal));
+    if (missing.length === 0) return;
+    (async () => {
+      const { data } = await supabase
+        .from("meal_items")
+        .select("meal_id, name")
+        .in("meal_id", missing);
+      const map: Record<string, string> = {};
+      (data || []).forEach((row: any) => {
+        const k = row.meal_id;
+        map[k] = (map[k] ? map[k] + " " : "") + (row.name || "").toLowerCase();
+      });
+      // ensure missing ids present even if empty
+      missing.forEach((id) => { if (!(id in map)) map[id] = ""; });
+      setItemNamesByMeal((prev) => ({ ...prev, ...map }));
+    })();
+  }, [meals, searchable]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Filtered meals (by search) + grouping by temporal period
   const filteredMeals = useMemo(() => {
@@ -96,9 +119,10 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     return meals.filter((m) => {
       const name = (m.meal_name || "").toLowerCase();
       const date = format(new Date(m.timestamp), "EEEE d MMMM yyyy", { locale: fr }).toLowerCase();
-      return name.includes(q) || date.includes(q);
+      const items = itemNamesByMeal[m.id] || "";
+      return name.includes(q) || date.includes(q) || items.includes(q);
     });
-  }, [meals, searchQuery]);
+  }, [meals, searchQuery, itemNamesByMeal]);
 
   const groups = useMemo(() => {
     if (!groupByPeriod) return null;
