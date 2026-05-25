@@ -128,7 +128,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
   // Goals mode (scientific / manual / ai_coach)
   const [goalsMode, setGoalsMode] = useState<GoalsMode>("scientific");
-  const [manualUnit, setManualUnit] = useState<"g" | "percent">("g");
+  const [manualUnit, setManualUnit] = useState<"g" | "g_per_kg" | "percent">("g");
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRationale, setAiRationale] = useState<string>("");
@@ -202,21 +202,26 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       .single();
 
     // Source unique de vérité pour weight / fat / muscle / sport_calories :
-    // dernière entrée de body_composition.
-    const { data: lastBody } = await supabase
+    // dernière entrée NON NULLE par champ dans body_composition.
+    const { data: lastBodyRows } = await supabase
       .from("body_composition")
-      .select("weight_kg, body_fat_percent, muscle_mass_kg, active_calories_kcal")
+      .select("weight_kg, body_fat_percent, muscle_mass_kg, active_calories_kcal, recorded_at, created_at")
       .eq("user_id", userId)
       .order("recorded_at", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(30);
 
-    if (lastBody) {
-      if (lastBody.weight_kg) setWeight(Number(lastBody.weight_kg));
-      if (lastBody.body_fat_percent) setBodyFat(Number(lastBody.body_fat_percent));
-      if (lastBody.muscle_mass_kg) setMuscleMass(Number(lastBody.muscle_mass_kg));
-      if (lastBody.active_calories_kcal) setSportCalories(Number(lastBody.active_calories_kcal));
+    if (lastBodyRows && lastBodyRows.length) {
+      const firstNonNull = (key: string) =>
+        (lastBodyRows.find((r: any) => r[key] !== null && r[key] !== undefined) as any)?.[key];
+      const w = firstNonNull("weight_kg");
+      const bf = firstNonNull("body_fat_percent");
+      const mm = firstNonNull("muscle_mass_kg");
+      const ac = firstNonNull("active_calories_kcal");
+      if (w !== undefined) setWeight(Number(w));
+      if (bf !== undefined) setBodyFat(Number(bf));
+      if (mm !== undefined) setMuscleMass(Number(mm));
+      if (ac !== undefined) setSportCalories(Number(ac));
     }
 
     if (data) {
@@ -580,19 +585,19 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Poids (kg)</Label>
-                  <NumericInput value={weight} onChange={(v) => setWeight(v)} className="h-10 rounded-xl" />
+                  <NumericInput value={weight} onChange={(v) => setWeight(v)} displayDecimals={1} className="h-10 rounded-xl" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Masse grasse (%)</Label>
-                  <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} className="h-10 rounded-xl" placeholder="Ex: 18" />
+                  <NumericInput value={bodyFat === "" ? 0 : bodyFat} onChange={(v) => setBodyFat(v || "")} displayDecimals={1} className="h-10 rounded-xl" placeholder="Ex: 18" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
-                  <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="Ex: 35" />
+                  <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} displayDecimals={1} className="h-10 rounded-xl" placeholder="Ex: 35" />
                 </div>
                 <div className="space-y-1">
                   <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
-                  <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} className="h-10 rounded-xl" placeholder="Ex: 300" />
+                  <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} displayDecimals={0} className="h-10 rounded-xl" placeholder="Ex: 300" />
                 </div>
               </div>
               {leanMass && (
@@ -887,15 +892,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     <h2 className="font-display font-semibold text-base">Réglages manuels</h2>
                   </div>
                   <div className="flex gap-1 bg-muted rounded-lg p-0.5">
-                    {(["g", "percent"] as const).map((u) => (
+                    {(["g", "g_per_kg", "percent"] as const).map((u) => (
                       <button
                         key={u}
                         onClick={() => setManualUnit(u)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                        className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-all ${
                           manualUnit === u ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
                         }`}
                       >
-                        {u === "g" ? "Grammes" : "% des cal."}
+                        {u === "g" ? "g" : u === "g_per_kg" ? "g/kg" : "% cal."}
                       </button>
                     ))}
                   </div>
@@ -915,18 +920,33 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     const cal = targets.calories || 0;
                     const grams = targets[k];
                     const percent = cal > 0 ? Math.round((grams * kcalPerG / cal) * 100) : 0;
+                    const w = Number(weight) || 0;
+                    const perKg = w > 0 ? Math.round((grams / w) * 10) / 10 : 0;
                     return (
                       <div key={k}>
                         <Label className="text-xs text-muted-foreground flex items-center justify-between">
                           <span>{labels[k]}</span>
                           <span className="text-[10px] text-muted-foreground/70">
-                            {manualUnit === "g" ? `≈ ${percent}% des cal.` : `≈ ${grams}g (${grams * kcalPerG} kcal)`}
+                            {manualUnit === "g"
+                              ? `≈ ${perKg}g/kg · ${percent}%`
+                              : manualUnit === "g_per_kg"
+                              ? `≈ ${grams}g (${grams * kcalPerG} kcal)`
+                              : `≈ ${grams}g · ${perKg}g/kg`}
                           </span>
                         </Label>
                         {manualUnit === "g" ? (
                           <NumericInput
                             value={grams}
                             onChange={(v) => setTargets({ ...targets, [k]: Math.round(v) })}
+                            className="h-10 rounded-xl"
+                          />
+                        ) : manualUnit === "g_per_kg" ? (
+                          <NumericInput
+                            value={perKg}
+                            onChange={(v) => {
+                              const newGrams = w > 0 ? Math.round(v * w) : 0;
+                              setTargets({ ...targets, [k]: newGrams });
+                            }}
                             className="h-10 rounded-xl"
                           />
                         ) : (

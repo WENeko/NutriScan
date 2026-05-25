@@ -76,14 +76,20 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       .single();
 
     // Dernière mesure de composition corporelle (source unique de vérité)
-    const { data: lastBody } = await supabase
+    // -> récupère plusieurs lignes pour trouver les dernières valeurs NON NULLES
+    // par champ (poids vs calories actives sont souvent enregistrés séparément).
+    const { data: lastBodyRows } = await supabase
       .from("body_composition")
-      .select("weight_kg, active_calories_kcal")
+      .select("weight_kg, active_calories_kcal, recorded_at, created_at")
       .eq("user_id", userId)
       .order("recorded_at", { ascending: false })
       .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+      .limit(30);
+
+    const firstNonNull = (key: string) =>
+      ((lastBodyRows || []).find((r: any) => r[key] !== null && r[key] !== undefined) as any)?.[key];
+    const lastWeight = firstNonNull("weight_kg");
+    const lastActiveCal = firstNonNull("active_calories_kcal");
 
     let baseCalories = 2000;
     let weekSportTotal = 0;
@@ -99,8 +105,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     if (profile) {
       const g = profile.goals as any;
       baseCalories = g?.calories ?? 2000;
-      const currentWeight = lastBody?.weight_kg ? Number(lastBody.weight_kg) : 70;
-      const dailySport = lastBody?.active_calories_kcal ? Number(lastBody.active_calories_kcal) : 0;
+      const currentWeight = lastWeight !== undefined ? Number(lastWeight) : 70;
+      const dailySport = lastActiveCal !== undefined ? Number(lastActiveCal) : 0;
       setSportCalories(dailySport);
       setWeight(currentWeight);
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
