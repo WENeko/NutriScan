@@ -26,11 +26,18 @@ const NumericInput: React.FC<NumericInputProps> = ({
   placeholder,
   min,
   step,
+  displayDecimals,
 }) => {
   const [rawValue, setRawValue] = useState<string>(String(value));
   const [focused, setFocused] = useState(false);
 
-  const displayValue = focused ? rawValue : String(value);
+  const formatted = (() => {
+    if (displayDecimals === undefined) return String(value);
+    const n = typeof value === "number" ? value : parseFloat(String(value));
+    if (isNaN(n)) return String(value);
+    return n.toFixed(displayDecimals);
+  })();
+  const displayValue = focused ? rawValue : formatted;
 
   const handleChange = useCallback(
     (e: React.ChangeEvent<HTMLInputElement>) => {
