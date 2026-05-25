@@ -892,15 +892,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     <h2 className="font-display font-semibold text-base">Réglages manuels</h2>
                   </div>
                   <div className="flex gap-1 bg-muted rounded-lg p-0.5">
-                    {(["g", "percent"] as const).map((u) => (
+                    {(["g", "g_per_kg", "percent"] as const).map((u) => (
                       <button
                         key={u}
                         onClick={() => setManualUnit(u)}
-                        className={`px-2.5 py-1 rounded-md text-[10px] font-semibold transition-all ${
+                        className={`px-2 py-1 rounded-md text-[10px] font-semibold transition-all ${
                           manualUnit === u ? "bg-card text-foreground shadow-sm" : "text-muted-foreground"
                         }`}
                       >
-                        {u === "g" ? "Grammes" : "% des cal."}
+                        {u === "g" ? "g" : u === "g_per_kg" ? "g/kg" : "% cal."}
                       </button>
                     ))}
                   </div>
@@ -920,18 +920,33 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     const cal = targets.calories || 0;
                     const grams = targets[k];
                     const percent = cal > 0 ? Math.round((grams * kcalPerG / cal) * 100) : 0;
+                    const w = Number(weight) || 0;
+                    const perKg = w > 0 ? Math.round((grams / w) * 10) / 10 : 0;
                     return (
                       <div key={k}>
                         <Label className="text-xs text-muted-foreground flex items-center justify-between">
                           <span>{labels[k]}</span>
                           <span className="text-[10px] text-muted-foreground/70">
-                            {manualUnit === "g" ? `≈ ${percent}% des cal.` : `≈ ${grams}g (${grams * kcalPerG} kcal)`}
+                            {manualUnit === "g"
+                              ? `≈ ${perKg}g/kg · ${percent}%`
+                              : manualUnit === "g_per_kg"
+                              ? `≈ ${grams}g (${grams * kcalPerG} kcal)`
+                              : `≈ ${grams}g · ${perKg}g/kg`}
                           </span>
                         </Label>
                         {manualUnit === "g" ? (
                           <NumericInput
                             value={grams}
                             onChange={(v) => setTargets({ ...targets, [k]: Math.round(v) })}
+                            className="h-10 rounded-xl"
+                          />
+                        ) : manualUnit === "g_per_kg" ? (
+                          <NumericInput
+                            value={perKg}
+                            onChange={(v) => {
+                              const newGrams = w > 0 ? Math.round(v * w) : 0;
+                              setTargets({ ...targets, [k]: newGrams });
+                            }}
                             className="h-10 rounded-xl"
                           />
                         ) : (
