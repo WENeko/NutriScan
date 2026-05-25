@@ -128,7 +128,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
   // Goals mode (scientific / manual / ai_coach)
   const [goalsMode, setGoalsMode] = useState<GoalsMode>("scientific");
-  const [manualUnit, setManualUnit] = useState<"g" | "percent">("g");
+  const [manualUnit, setManualUnit] = useState<"g" | "g_per_kg" | "percent">("g");
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [aiLoading, setAiLoading] = useState(false);
   const [aiRationale, setAiRationale] = useState<string>("");
