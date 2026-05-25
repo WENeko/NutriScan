@@ -9,6 +9,8 @@ interface NumericInputProps {
   placeholder?: string;
   min?: number;
   step?: string;
+  /** Round value to N decimals for display only (raw value is preserved in state). */
+  displayDecimals?: number;
 }
 
 /**
