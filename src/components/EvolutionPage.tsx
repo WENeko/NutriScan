@@ -123,14 +123,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         }
       }
     });
+    const round1 = (v: any) => (v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10);
     setBodyData(Array.from(bodyByDay.values())
       .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
       .map(b => ({
         day: format(new Date(b.recorded_at), "dd/MM"),
         date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
-        weight: b.weight_kg,
-        bodyFat: b.body_fat_percent,
-        muscleMass: b.muscle_mass_kg
+        weight: round1(b.weight_kg),
+        bodyFat: round1(b.body_fat_percent),
+        muscleMass: round1(b.muscle_mass_kg)
       })));
 
     // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
