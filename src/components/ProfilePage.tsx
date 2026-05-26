@@ -22,6 +22,7 @@ import {
   syncHealthData,
   getHealthConnectPreferences,
 } from "@/services/health-connect";
+import { computeSmoothedDailySport } from "@/services/sport-calories";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
 type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings";
