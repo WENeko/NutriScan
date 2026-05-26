@@ -113,6 +113,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [massGainPhase, setMassGainPhase] = useState<string>("");
   const [showMorphoHelp, setShowMorphoHelp] = useState(false);
 
+  // Sources sportives Santé Connect + ajustement de phase (Mode Scientifique)
+  const [sportAllowedSources, setSportAllowedSources] = useState<string[]>([]);
+  const [phaseAdjustMode, setPhaseAdjustMode] = useState<"percent" | "absolute">("percent");
+  const [phaseAdjustValue, setPhaseAdjustValue] = useState<number>(0);
+  const [sportDailyAvg, setSportDailyAvg] = useState<number>(0);
+
   // Body composition
   const [bodyFat, setBodyFat] = useState<number | "">("");
   const [muscleMass, setMuscleMass] = useState<number | "">("");
