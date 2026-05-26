@@ -19,6 +19,8 @@ export interface HealthConnectData {
   muscle?: { value_kg: number; timestamp: string }[];
   boneMass?: { value_kg: number; timestamp: string }[];
   activeCalories?: { value_kcal: number; timestamp: string }[];
+  /** Échantillons bruts par source — base pour filtrage et dédup. */
+  sportSamples?: SportSample[];
 }
 
 export interface HealthConnectPreferences {
