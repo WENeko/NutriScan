@@ -368,6 +368,9 @@ export type Database = {
           mass_gain_phase: string | null
           micro_overrides: Json
           morphotype: string | null
+          phase_adjust_mode: string
+          phase_adjust_value: number
+          sport_allowed_sources: string[]
           target_body_fat_percent: number | null
           target_muscle_mass_kg: number | null
           target_weight_kg: number | null
@@ -403,6 +406,9 @@ export type Database = {
           mass_gain_phase?: string | null
           micro_overrides?: Json
           morphotype?: string | null
+          phase_adjust_mode?: string
+          phase_adjust_value?: number
+          sport_allowed_sources?: string[]
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
@@ -438,6 +444,9 @@ export type Database = {
           mass_gain_phase?: string | null
           micro_overrides?: Json
           morphotype?: string | null
+          phase_adjust_mode?: string
+          phase_adjust_value?: number
+          sport_allowed_sources?: string[]
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
@@ -573,6 +582,42 @@ export type Database = {
           stages?: Json | null
           start_time?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      sport_activity_samples: {
+        Row: {
+          created_at: string
+          end_time: string
+          id: string
+          recorded_date: string
+          source_name: string | null
+          source_package: string
+          start_time: string
+          user_id: string
+          value_kcal: number
+        }
+        Insert: {
+          created_at?: string
+          end_time: string
+          id?: string
+          recorded_date: string
+          source_name?: string | null
+          source_package: string
+          start_time: string
+          user_id: string
+          value_kcal?: number
+        }
+        Update: {
+          created_at?: string
+          end_time?: string
+          id?: string
+          recorded_date?: string
+          source_name?: string | null
+          source_package?: string
+          start_time?: string
+          user_id?: string
+          value_kcal?: number
         }
         Relationships: []
       }
