@@ -70,6 +70,7 @@ const BMR_METHOD_INFO: Record<string, string> = {
 
 const ACTIVITY_LEVEL_INFO: Record<string, string> = {
   sedentary: "Travail de bureau, peu ou pas d'exercice. Multiplicateur ×1.2 appliqué au MB.",
+  lightly_active: "Travail debout (vendeur, serveur…) sans sport régulier. Multiplicateur ×1.35. Recommandé quand l'import sportif est actif.",
   moderate: "3 à 5 séances de sport modéré par semaine ou travail debout. Multiplicateur ×1.55.",
   athletic: "Entraînement intense quotidien ou travail physique très exigeant. Multiplicateur ×1.8.",
 };
