@@ -423,6 +423,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           is_menopausal: isMenopausal,
           expert_mode: expertMode,
           micro_overrides: microOverrides as any,
+          sport_allowed_sources: sportAllowedSources as any,
+          phase_adjust_mode: phaseAdjustMode,
+          phase_adjust_value: phaseAdjustValue,
           ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
           goals: { ...targets, goalType } as any,
         } as any)
