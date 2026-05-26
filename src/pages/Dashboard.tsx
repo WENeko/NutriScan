@@ -128,28 +128,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       const mo = (profile as any).micro_overrides;
       setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
 
-      const { data: weekBody } = await supabase
-        .from("body_composition")
-        .select("active_calories_kcal, recorded_at")
-        .eq("user_id", userId)
-        .gte("recorded_at", format(weekStart, "yyyy-MM-dd"))
-        .lte("recorded_at", format(weekEnd, "yyyy-MM-dd"));
-
-      if (weekBody && weekBody.length > 0) {
-        weekSportTotal = (weekBody as any[]).reduce((sum, b) => sum + (Number(b.active_calories_kcal) || 0), 0);
-      } else {
-        weekSportTotal = dailySport * 7;
-      }
-
-
-      const smoothedGoal = Math.round((baseCalories * 7 + weekSportTotal) / 7);
-
+      // `baseCalories` (= profile.goals.calories) inclut déjà la moyenne
+      // sportive 7 j lissée pour le Mode Scientifique (calculée à la synchro/sauvegarde).
+      // Plus de re-lissage côté Dashboard pour éviter le double comptage.
       setGoals({
-        calories: smoothedGoal,
+        calories: baseCalories,
         proteins: g?.proteins ?? 150,
         carbs: g?.carbs ?? 250,
         fats: g?.fats ?? 70,
       });
+
 
       // === Persistance auto des objectifs du jour ===
       const todayStr = format(now, "yyyy-MM-dd");
