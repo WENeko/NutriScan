@@ -36,6 +36,7 @@ interface ProfilePageProps {
 
 const ACTIVITY_LEVELS = [
   { value: "sedentary", label: "Sédentaire", factor: 1.2 },
+  { value: "lightly_active", label: "Légèrement actif", factor: 1.35 },
   { value: "moderate", label: "Actif", factor: 1.55 },
   { value: "athletic", label: "Sportif", factor: 1.8 },
 ];
