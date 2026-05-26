@@ -250,12 +250,9 @@ export async function syncHealthData(
         if (cur.lean === undefined) cur.lean = m.value_kg;
         byDate.set(d, cur);
       });
-      data.activeCalories?.forEach((c) => {
-        const d = c.timestamp.slice(0, 10);
-        const cur = byDate.get(d) || { ts: c.timestamp };
-        cur.activeCal = c.value_kcal;
-        byDate.set(d, cur);
-      });
+      // active_calories_kcal n'est plus écrit ici : la valeur lissée 7 j est
+      // recalculée à partir de sport_activity_samples + sport_allowed_sources
+      // après l'upsert des samples (voir bloc Sport ci-dessous).
 
       // Upsert atomique grâce à la contrainte UNIQUE (user_id, recorded_at)
       const rows = Array.from(byDate.entries()).map(([date, vals]) => ({
@@ -266,7 +263,6 @@ export async function syncHealthData(
         muscle_mass_kg: vals.muscle ?? null,
         bone_mass_kg: vals.bone ?? null,
         lean_mass_kg: vals.lean ?? null,
-        active_calories_kcal: vals.activeCal ?? null,
         source: "health_connect",
       }));
 
@@ -276,37 +272,75 @@ export async function syncHealthData(
           .upsert(rows, { onConflict: "user_id,recorded_at" });
       }
 
-      // Plus de mise à jour de profiles ici : body_composition est la
-      // source unique de vérité pour weight / body_fat / muscle.
-      const sortedW = [...data.weight].sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime());
-      const lastW = sortedW[0];
-      const d = lastW.timestamp.slice(0, 10);
-      const lastFat = data.bodyFat?.find((f) => f.timestamp.startsWith(d))?.percentage ?? null;
+      synced.push("Composition");
+    }
 
-      // ── Recalcul des objectifs (mode scientifique) + snapshot ──
+    // ── Sync Calories sportives : stocke les samples bruts + recalcule la
+    //    valeur lissée 7 j filtrée par sport_allowed_sources. ──
+    if (prefs.sync_calories && data.sportSamples?.length) {
+      const sampleRows = data.sportSamples.map((s) => ({
+        user_id: userId,
+        source_package: s.source_package,
+        source_name: s.source_name,
+        start_time: s.start_time,
+        end_time: s.end_time,
+        value_kcal: s.value_kcal,
+        recorded_date: s.recorded_date,
+      }));
+      await supabase
+        .from("sport_activity_samples")
+        .upsert(sampleRows, { onConflict: "user_id,source_package,start_time,end_time" });
+
+      // Récupère sources autorisées + recompute moyenne lissée
       const { data: profile } = await supabase
         .from("profiles")
         .select("*")
         .eq("user_id", userId)
         .single();
 
+      const allowed = (profile as any)?.sport_allowed_sources || [];
+      const smoothed = allowed.length
+        ? await computeSmoothedDailySport(userId, allowed)
+        : 0;
+
+      await supabase.from("body_composition").upsert({
+        user_id: userId,
+        recorded_at: today,
+        active_calories_kcal: smoothed,
+        source: "health_connect",
+      }, { onConflict: "user_id,recorded_at" });
+
+      // Recalcul des objectifs Mode Scientifique avec la moyenne lissée
       if (profile && (profile as any).goals_mode === "scientific") {
         const p = profile as any;
         const age = p.date_of_birth
           ? differenceInYears(new Date(), new Date(p.date_of_birth))
           : p.age || 30;
         const currentGoals = p.goals || {};
+        const { data: lastBody } = await supabase
+          .from("body_composition")
+          .select("weight_kg, body_fat_percent")
+          .eq("user_id", userId)
+          .order("recorded_at", { ascending: false })
+          .limit(30);
+        const lastW = (lastBody || []).find((r: any) => r.weight_kg != null)?.weight_kg
+          ?? p.goals?.weight_kg ?? 70;
+        const lastBf = (lastBody || []).find((r: any) => r.body_fat_percent != null)?.body_fat_percent ?? null;
+
         const recomputed = calculateScientificGoals({
-          weight_kg: lastW.value_kg,
+          weight_kg: Number(lastW),
           height_cm: Number(p.height_cm) || 175,
           age,
           gender: p.gender || "male",
           activity_level: p.activity_level || "moderate",
           goal_type: currentGoals.goalType || "maintain",
           bmr_method: p.bmr_method || "mifflin",
-          body_fat_percent: lastFat,
+          body_fat_percent: lastBf,
           morphotype: p.morphotype,
           mass_gain_phase: p.mass_gain_phase,
+          sport_daily_avg: smoothed,
+          phase_adjust_mode: (p.phase_adjust_mode as any) || "percent",
+          phase_adjust_value: p.phase_adjust_value ?? null,
         });
 
         await supabase.from("profiles").update({
@@ -319,46 +353,8 @@ export async function syncHealthData(
             goalType: currentGoals.goalType || "maintain",
           },
         } as any).eq("user_id", userId);
-
-        // Snapshot dans goals_history pour chaque jour de mesure
-        for (const [date, vals] of byDate.entries()) {
-          if (!vals.weight) continue;
-          const dayGoals = calculateScientificGoals({
-            weight_kg: vals.weight,
-            height_cm: Number(p.height_cm) || 175,
-            age,
-            gender: p.gender || "male",
-            activity_level: p.activity_level || "moderate",
-            goal_type: currentGoals.goalType || "maintain",
-            bmr_method: p.bmr_method || "mifflin",
-            body_fat_percent: vals.fat ?? null,
-            morphotype: p.morphotype,
-            mass_gain_phase: p.mass_gain_phase,
-          });
-
-          const goalEntry: any = {
-            user_id: userId,
-            recorded_at: date,
-            calories: dayGoals.calories,
-            proteins: dayGoals.proteins,
-            carbs: dayGoals.carbs,
-            fats: dayGoals.fats,
-            goals_mode: "scientific",
-            source: "health_connect",
-          };
-
-          await supabase
-            .from("goals_history")
-            .upsert(goalEntry, { onConflict: "user_id,recorded_at" });
-        }
       }
 
-      synced.push("Composition");
-    }
-
-    // Sync Calories : déjà stocké dans body_composition.active_calories_kcal
-    // ci-dessus. Plus de duplication dans profiles.
-    if (prefs.sync_calories && data.activeCalories?.length) {
       synced.push("Calories Sport");
     }
   } catch (e: any) {
