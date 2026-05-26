@@ -92,7 +92,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     const lastActiveCal = firstNonNull("active_calories_kcal");
 
     let baseCalories = 2000;
-    let weekSportTotal = 0;
+    // (anciennement weekSportTotal — désormais lissé en amont dans profiles.goals)
 
     // Calendar week: Monday 00:00 to Sunday 23:59
     const now = new Date();
