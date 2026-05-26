@@ -97,15 +97,18 @@ export async function requestHealthPermissions(): Promise<boolean> {
 }
 
 // ── LECTURE DES DONNÉES ──────────────────────────────────────────
-export async function readNativeHealthData(days = 7): Promise<HealthConnectData> {
+export async function readNativeHealthData(days = 30): Promise<HealthConnectData> {
   const Health = await getHealthPlugin();
   if (!Health) return {};
 
   const endDate = new Date().toISOString();
   // On remonte 1 jour de plus pour assurer la jonction des données
   const startDate = new Date(Date.now() - (days + 1) * 24 * 60 * 60 * 1000).toISOString();
-  
-  const data: HealthConnectData = { weight: [], bodyFat: [], muscle: [], boneMass: [], activeCalories: [] };
+
+  const data: HealthConnectData = {
+    weight: [], bodyFat: [], muscle: [], boneMass: [],
+    activeCalories: [], sportSamples: [],
+  };
 
   const fetchSamples = async (type: string) => {
     try {
@@ -114,8 +117,6 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     } catch { return []; }
   };
 
-  // BoneMass + LeanBodyMass : plugin natif custom
-  // (@capgo/capacitor-health n'expose ni l'un ni l'autre)
   const fetchBoneAndLean = async (): Promise<{ bone: any[]; lean: any[] }> => {
     try {
       const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
@@ -128,34 +129,20 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
     }
   };
 
-  const [weights, fats, boneLean, activeEnergy, steps] = await Promise.all([
+  const [weights, fats, boneLean, activeEnergy] = await Promise.all([
     fetchSamples("weight"),
     fetchSamples("bodyFat"),
     fetchBoneAndLean(),
     fetchSamples("totalCalories"),
-    fetchSamples("steps")
   ]);
   const bones = boneLean.bone;
   const leans = boneLean.lean;
 
   // 1. Composition Corporelle
-  data.weight = weights.map((s: any) => ({ 
-    value_kg: raw(Number(s.value)), 
-    timestamp: s.startDate || s.date 
-  }));
-  
-  data.bodyFat = fats.map((s: any) => ({ 
-    percentage: raw(Number(s.value)), 
-    timestamp: s.startDate || s.date 
-  }));
+  data.weight = weights.map((s: any) => ({ value_kg: raw(Number(s.value)), timestamp: s.startDate || s.date }));
+  data.bodyFat = fats.map((s: any) => ({ percentage: raw(Number(s.value)), timestamp: s.startDate || s.date }));
+  data.boneMass = bones.map((s: any) => ({ value_kg: raw(Number(s.value)), timestamp: s.startDate || s.date }));
 
-  data.boneMass = bones.map((s: any) => ({ 
-    value_kg: raw(Number(s.value)), 
-    timestamp: s.startDate || s.date 
-  }));
-
-  // Muscle : priorité à LeanBodyMass importé depuis Health Connect (valeur balance directe).
-  // Fallback : calcul Poids − Masse grasse − Os − 1% organes.
   const leanByDay = new Map<string, number>();
   leans.forEach((s: any) => {
     const ts = s.startDate || s.date || "";
@@ -167,46 +154,45 @@ export async function readNativeHealthData(days = 7): Promise<HealthConnectData>
   data.weight.forEach((w) => {
     const d = w.timestamp.slice(0, 10);
     const importedLean = leanByDay.get(d);
-    if (importedLean !== undefined) {
-      muscleMap.set(d, importedLean);
-      return;
-    }
+    if (importedLean !== undefined) { muscleMap.set(d, importedLean); return; }
     const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
     const boneEntry = data.boneMass?.find(b => b.timestamp.startsWith(d));
     if (fatEntry) {
       const fatKg = w.value_kg * (fatEntry.percentage / 100);
       const leanMass = w.value_kg - fatKg;
       const boneVal = boneEntry ? boneEntry.value_kg : 3.8;
-      const organResidual = w.value_kg * 0.01;
-      // Facteur de compensation organes (0.988) pour aligner sur la valeur balance bioimpédance
       muscleMap.set(d, raw((leanMass - boneVal) * 0.988));
     }
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 2. Calories : Logique de cumul Sport + Pas
-  const calMap = new Map();
+  // 2. Calories sportives : conserve chaque échantillon avec sa source d'origine
+  //    (plus de cumul "totalCalories + steps→kcal" qui masquait les doublons).
+  data.sportSamples = activeEnergy
+    .map((s: any) => {
+      const start = s.startDate || s.date;
+      const end = s.endDate || s.startDate || s.date;
+      const pkg = s.sourceBundleId || s.sourcePackage || s.source || "unknown";
+      if (!start || !end) return null;
+      return {
+        source_package: String(pkg),
+        source_name: s.sourceName || s.source || null,
+        start_time: new Date(start).toISOString(),
+        end_time: new Date(end).toISOString(),
+        value_kcal: Number(s.value) || 0,
+        recorded_date: new Date(start).toISOString().slice(0, 10),
+      } as SportSample;
+    })
+    .filter((s): s is SportSample => !!s && s.value_kcal > 0);
 
-  // On ajoute les calories d'activité (Fit/Lyfta)
-  activeEnergy.forEach((s: any) => {
-    const d = (s.startDate || s.date || "").slice(0, 10);
-    if (d) calMap.set(d, (calMap.get(d) || 0) + Number(s.value));
+  // Vue agrégée brute (non filtrée par sources) — non persistée telle quelle :
+  // l'agrégation finale par jour se fait lors de la synchro avec allowed_sources.
+  const calMap = new Map<string, number>();
+  data.sportSamples.forEach((s) => {
+    calMap.set(s.recorded_date, (calMap.get(s.recorded_date) || 0) + s.value_kcal);
   });
-
-  // On ajoute les pas (Samsung Health) convertis en Kcal (0.04)
-  steps.forEach((s: any) => {
-    const d = (s.startDate || s.date || "").slice(0, 10);
-    if (d) {
-      const stepKcal = Number(s.value) * 0.04;
-      const current = calMap.get(d) || 0;
-      // On prend la valeur la plus haute entre sport déclaré et pas détectés
-      if (stepKcal > current) calMap.set(d, stepKcal);
-    }
-  });
-
-  data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({ 
-    value_kcal: val, 
-    timestamp: date 
+  data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({
+    value_kcal: val, timestamp: date,
   }));
 
   return data;
