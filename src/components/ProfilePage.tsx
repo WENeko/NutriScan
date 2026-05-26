@@ -22,6 +22,7 @@ import {
   syncHealthData,
   getHealthConnectPreferences,
 } from "@/services/health-connect";
+import { computeSmoothedDailySport } from "@/services/sport-calories";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
 type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings";
@@ -36,6 +37,7 @@ interface ProfilePageProps {
 
 const ACTIVITY_LEVELS = [
   { value: "sedentary", label: "Sédentaire", factor: 1.2 },
+  { value: "lightly_active", label: "Légèrement actif", factor: 1.35 },
   { value: "moderate", label: "Actif", factor: 1.55 },
   { value: "athletic", label: "Sportif", factor: 1.8 },
 ];
@@ -69,6 +71,7 @@ const BMR_METHOD_INFO: Record<string, string> = {
 
 const ACTIVITY_LEVEL_INFO: Record<string, string> = {
   sedentary: "Travail de bureau, peu ou pas d'exercice. Multiplicateur ×1.2 appliqué au MB.",
+  lightly_active: "Travail debout (vendeur, serveur…) sans sport régulier. Multiplicateur ×1.35. Recommandé quand l'import sportif est actif.",
   moderate: "3 à 5 séances de sport modéré par semaine ou travail debout. Multiplicateur ×1.55.",
   athletic: "Entraînement intense quotidien ou travail physique très exigeant. Multiplicateur ×1.8.",
 };
@@ -110,6 +113,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [morphotype, setMorphotype] = useState<string>("");
   const [massGainPhase, setMassGainPhase] = useState<string>("");
   const [showMorphoHelp, setShowMorphoHelp] = useState(false);
+
+  // Sources sportives Santé Connect + ajustement de phase (Mode Scientifique)
+  const [sportAllowedSources, setSportAllowedSources] = useState<string[]>([]);
+  const [phaseAdjustMode, setPhaseAdjustMode] = useState<"percent" | "absolute">("percent");
+  const [phaseAdjustValue, setPhaseAdjustValue] = useState<number>(0);
+  const [sportDailyAvg, setSportDailyAvg] = useState<number>(0);
 
   // Body composition
   const [bodyFat, setBodyFat] = useState<number | "">("");
@@ -192,7 +201,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   useEffect(() => { loadProfile(); }, []);
   useEffect(() => {
     if (goalsMode === "scientific") calculateTargets();
-  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase, goalsMode]);
+  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase, goalsMode, sportDailyAvg, phaseAdjustMode, phaseAdjustValue]);
 
   const loadProfile = async () => {
     const { data } = await supabase
@@ -242,6 +251,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_minute !== null && d.weighin_minute !== undefined) setWeighinMinute(Number(d.weighin_minute));
       if (d.morphotype) setMorphotype(d.morphotype);
       if (d.mass_gain_phase) setMassGainPhase(d.mass_gain_phase);
+      if (Array.isArray(d.sport_allowed_sources)) setSportAllowedSources(d.sport_allowed_sources as string[]);
+      if (d.phase_adjust_mode === "absolute" || d.phase_adjust_mode === "percent") setPhaseAdjustMode(d.phase_adjust_mode);
+      if (d.phase_adjust_value !== null && d.phase_adjust_value !== undefined) setPhaseAdjustValue(Number(d.phase_adjust_value));
       if (d.goals_mode) setGoalsMode(d.goals_mode as GoalsMode);
       if (d.ai_coach_prompt) setAiPrompt(d.ai_coach_prompt);
       if (Array.isArray(d.custom_nutrients)) setExistingCustoms(d.custom_nutrients as CustomNutrientDef[]);
@@ -265,6 +277,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         });
       }
     }
+
+    // Moyenne sportive 7 j lissée (filtrée par sources autorisées)
+    try {
+      const allowed = (data as any)?.sport_allowed_sources || [];
+      if (allowed.length) {
+        const avg = await computeSmoothedDailySport(userId, allowed);
+        setSportDailyAvg(avg);
+      } else {
+        setSportDailyAvg(0);
+      }
+    } catch {}
   };
 
   const runAiCoach = async () => {
@@ -335,34 +358,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
     if (bmrMethod === "katch" && leanMass && leanMass > 0) {
       usedBmr = Math.round(21.6 * leanMass + 370);
+    } else if (gender === "female") {
+      usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
     } else {
-      if (gender === "female") {
-        usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
-      } else {
-        usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
-      }
+      usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
     }
 
-    // Apply morphotype factor
     const morphoFactor = MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0;
     usedBmr = Math.round(usedBmr * morphoFactor);
     setBmr(usedBmr);
 
-    const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[1];
-    const calculatedTdee = usedBmr * activity.factor;
-    setTdee(Math.round(calculatedTdee));
+    const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[0];
+    const tdeeBase = usedBmr * activity.factor;
+    const sport = Math.max(0, sportDailyAvg || 0);
+    setTdee(Math.round(tdeeBase + sport));
+
+    // Ajustement de phase : % ou kcal absolu
+    const v = Number(phaseAdjustValue) || 0;
+    const adjust = phaseAdjustMode === "absolute" ? v : (tdeeBase + sport) * (v / 100);
+    const targetCalories = Math.round(tdeeBase + sport + adjust);
 
     const goal = GOAL_TYPES.find((g) => g.value === goalType) || GOAL_TYPES[1];
-    let targetCalories = Math.round(calculatedTdee * (1 + goal.calorieModifier));
-
-    // Apply mass gain phase surplus if goal is bulk
-    if (goalType === "bulk" && massGainPhase) {
-      const phase = MASS_GAIN_PHASES.find((p) => p.value === massGainPhase);
-      if (phase) {
-        targetCalories = Math.round(calculatedTdee + phase.surplus);
-      }
-    }
-
     const targetProteins = Math.round(weight * goal.proteinPerKg);
     const targetFats = Math.round((targetCalories * 0.25) / 9);
     const targetCarbs = Math.round((targetCalories - targetProteins * 4 - targetFats * 9) / 4);
@@ -374,6 +390,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       fats: targetFats,
     });
   };
+
 
   const handleSave = async () => {
     setSaving(true);
@@ -406,6 +423,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           is_menopausal: isMenopausal,
           expert_mode: expertMode,
           micro_overrides: microOverrides as any,
+          sport_allowed_sources: sportAllowedSources as any,
+          phase_adjust_mode: phaseAdjustMode,
+          phase_adjust_value: phaseAdjustValue,
           ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
           goals: { ...targets, goalType } as any,
         } as any)
@@ -627,19 +647,29 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           <>
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <h2 className="font-display font-semibold text-base mb-3">Niveau d'activité</h2>
-              <div className="flex gap-2">
-                {ACTIVITY_LEVELS.map((a) => (
-                  <button
-                    key={a.value}
-                    onClick={() => setActivityLevel(a.value)}
-                    className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
-                      activityLevel === a.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <div>{a.label}</div>
-                    <div className="text-[10px] opacity-80 mt-0.5">×{a.factor}</div>
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-2">
+                {ACTIVITY_LEVELS.map((a) => {
+                  const sportImportActive = sportAllowedSources.length > 0;
+                  const restricted = sportImportActive && a.value !== "sedentary" && a.value !== "lightly_active";
+                  return (
+                    <button
+                      key={a.value}
+                      onClick={() => !restricted && setActivityLevel(a.value)}
+                      disabled={restricted}
+                      title={restricted ? "Désactive l'import sportif pour utiliser ce niveau" : ""}
+                      className={`py-3 rounded-xl text-xs font-semibold transition-all ${
+                        activityLevel === a.value
+                          ? "nutri-gradient text-primary-foreground shadow-float"
+                          : restricted
+                          ? "bg-muted/40 text-muted-foreground/40 cursor-not-allowed"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <div>{a.label}</div>
+                      <div className="text-[10px] opacity-80 mt-0.5">×{a.factor}</div>
+                    </button>
+                  );
+                })}
               </div>
               <div className="bg-accent/50 rounded-lg p-2.5 mt-3">
                 <div className="flex items-start gap-1.5">
@@ -647,6 +677,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <p className="text-[10px] text-muted-foreground">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
                 </div>
               </div>
+              {sportAllowedSources.length > 0 && (
+                <div className="mt-3 p-2.5 rounded-lg bg-primary/5 border border-primary/10">
+                  <p className="text-[11px] text-muted-foreground">
+                    🏃 Sport moyen 7 j : <span className="font-semibold text-foreground">{Math.round(sportDailyAvg)} kcal/j</span>
+                    {" · "}{sportAllowedSources.length} source(s) active(s)
+                  </p>
+                </div>
+              )}
             </section>
 
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
@@ -661,36 +699,41 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     }`}
                   >
                     <div>{g.label}</div>
-                    <div className="text-[10px] opacity-80 mt-0.5">
-                      {g.calorieModifier > 0 ? `+${g.calorieModifier * 100}%` : g.calorieModifier < 0 ? `${g.calorieModifier * 100}%` : "="}
-                    </div>
                   </button>
                 ))}
               </div>
             </section>
 
-            {goalType === "bulk" && (
+            {goalType !== "maintain" && (
               <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
-                <h2 className="font-display font-semibold text-base mb-3">📈 Phase de prise de masse</h2>
-                <div className="space-y-2">
-                  {MASS_GAIN_PHASES.map((p) => (
-                    <button
-                      key={p.value}
-                      onClick={() => setMassGainPhase(p.value)}
-                      className={`w-full p-3 rounded-xl text-left transition-all ${
-                        massGainPhase === p.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">{p.label}</span>
-                        <span className="text-xs font-bold">+{p.surplus} kcal</span>
-                      </div>
-                      <p className={`text-[10px] mt-0.5 ${massGainPhase === p.value ? "text-primary-foreground/80" : ""}`}>{p.desc}</p>
-                    </button>
-                  ))}
+                <h2 className="font-display font-semibold text-base mb-3">Ajustement de phase</h2>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Définit le déficit (sèche) ou surplus (prise de masse) appliqué au-dessus de la dépense totale (MB + activité + sport moyen).
+                </p>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => setPhaseAdjustMode("percent")}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${phaseAdjustMode === "percent" ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                  >Pourcentage (%)</button>
+                  <button
+                    onClick={() => setPhaseAdjustMode("absolute")}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${phaseAdjustMode === "absolute" ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                  >Kcal absolu</button>
                 </div>
+                <NumericInput
+                  value={phaseAdjustValue}
+                  onChange={(num) => setPhaseAdjustValue(Number.isFinite(num) ? num : 0)}
+                  placeholder={phaseAdjustMode === "percent" ? "ex : -15 ou 10" : "ex : -400 ou 500"}
+                />
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  {phaseAdjustMode === "percent"
+                    ? "Valeurs typiques : sèche −15 à −20 %, prise +10 à +15 %."
+                    : "Valeurs typiques : sèche −300 à −500 kcal, prise +300 à +700 kcal."}
+                </p>
               </section>
             )}
+
+
 
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
               <div className="flex items-center justify-between mb-3">

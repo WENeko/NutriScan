@@ -14,6 +14,7 @@ import {
   onAppResumeRecheck,
   type HealthConnectPreferences,
 } from "@/services/health-connect";
+import { listDetectedSources } from "@/services/sport-calories";
 import { supabase } from "@/integrations/supabase/client";
 import { pingPersoBridge, isPersonalDbEnabled } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
@@ -282,8 +283,12 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         })}
       </div>
 
+      {/* Sources sportives détectées (dédoublonnage) */}
+      {prefs.sync_calories && <SportSourcesCard />}
+
       {/* BDD perso — double sauvegarde */}
       <PersoBridgeCard />
+
 
       {/* Privacy notice */}
       <div className="bg-accent/50 rounded-2xl p-4 flex gap-3">
@@ -357,6 +362,73 @@ const PersoBridgeCard: React.FC = () => {
             </p>
           )}
         </>
+      )}
+    </div>
+  );
+};
+
+const SportSourcesCard: React.FC = () => {
+  const [sources, setSources] = useState<{ package: string; name: string | null; samples: number }[]>([]);
+  const [allowed, setAllowed] = useState<string[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [userId, setUserId] = useState<string | null>(null);
+
+  useEffect(() => {
+    (async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) { setLoading(false); return; }
+        setUserId(user.id);
+        const [detected, profile] = await Promise.all([
+          listDetectedSources(user.id),
+          supabase.from("profiles").select("sport_allowed_sources").eq("user_id", user.id).single(),
+        ]);
+        setSources(detected);
+        const a = (profile.data as any)?.sport_allowed_sources || [];
+        setAllowed(Array.isArray(a) ? a : []);
+      } finally { setLoading(false); }
+    })();
+  }, []);
+
+  const toggle = async (pkg: string) => {
+    if (!userId) return;
+    const next = allowed.includes(pkg) ? allowed.filter((p) => p !== pkg) : [...allowed, pkg];
+    setAllowed(next);
+    await supabase.from("profiles").update({ sport_allowed_sources: next } as any).eq("user_id", userId);
+    toast({ title: "Sources mises à jour", description: `${next.length} source(s) approuvée(s)` });
+  };
+
+  return (
+    <div className="bg-card rounded-2xl p-4 shadow-card space-y-3">
+      <div className="flex items-start gap-3">
+        <div className="w-9 h-9 rounded-xl flex items-center justify-center shrink-0 bg-primary/10 text-primary">
+          <Activity className="w-4.5 h-4.5" />
+        </div>
+        <div className="flex-1 min-w-0">
+          <p className="font-semibold text-sm">Calories Sportives — Sources approuvées</p>
+          <p className="text-xs text-muted-foreground mt-1 leading-relaxed">
+            Coche uniquement les applications de confiance. Les calories des sources non cochées sont ignorées. Les chevauchements temporels entre apps sont automatiquement dédoublonnés.
+          </p>
+        </div>
+      </div>
+      {loading ? (
+        <p className="text-xs text-muted-foreground">Chargement…</p>
+      ) : sources.length === 0 ? (
+        <p className="text-xs text-muted-foreground">
+          Aucune source détectée sur les 30 derniers jours. Lance une synchronisation pour les détecter.
+        </p>
+      ) : (
+        <div className="space-y-2">
+          {sources.map((s) => (
+            <div key={s.package} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40">
+              <div className="min-w-0 flex-1">
+                <p className="text-xs font-semibold truncate">{s.name || s.package}</p>
+                <p className="text-[10px] text-muted-foreground font-mono truncate">{s.package} · {s.samples} séance(s)</p>
+              </div>
+              <Switch checked={allowed.includes(s.package)} onCheckedChange={() => toggle(s.package)} />
+            </div>
+          ))}
+        </div>
       )}
     </div>
   );
