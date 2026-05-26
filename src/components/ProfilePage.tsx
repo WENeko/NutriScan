@@ -250,6 +250,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.weighin_minute !== null && d.weighin_minute !== undefined) setWeighinMinute(Number(d.weighin_minute));
       if (d.morphotype) setMorphotype(d.morphotype);
       if (d.mass_gain_phase) setMassGainPhase(d.mass_gain_phase);
+      if (Array.isArray(d.sport_allowed_sources)) setSportAllowedSources(d.sport_allowed_sources as string[]);
+      if (d.phase_adjust_mode === "absolute" || d.phase_adjust_mode === "percent") setPhaseAdjustMode(d.phase_adjust_mode);
+      if (d.phase_adjust_value !== null && d.phase_adjust_value !== undefined) setPhaseAdjustValue(Number(d.phase_adjust_value));
       if (d.goals_mode) setGoalsMode(d.goals_mode as GoalsMode);
       if (d.ai_coach_prompt) setAiPrompt(d.ai_coach_prompt);
       if (Array.isArray(d.custom_nutrients)) setExistingCustoms(d.custom_nutrients as CustomNutrientDef[]);
