@@ -722,7 +722,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 </div>
                 <NumericInput
                   value={phaseAdjustValue}
-                  onChange={(v) => setPhaseAdjustValue(typeof v === "number" ? v : 0)}
+                  onChange={(num) => setPhaseAdjustValue(Number.isFinite(num) ? num : 0)}
                   placeholder={phaseAdjustMode === "percent" ? "ex : -15 ou 10" : "ex : -400 ou 500"}
                 />
                 <p className="text-[10px] text-muted-foreground mt-2">
