@@ -358,34 +358,27 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
     if (bmrMethod === "katch" && leanMass && leanMass > 0) {
       usedBmr = Math.round(21.6 * leanMass + 370);
+    } else if (gender === "female") {
+      usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
     } else {
-      if (gender === "female") {
-        usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age - 161);
-      } else {
-        usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
-      }
+      usedBmr = Math.round(10 * weight + 6.25 * height - 5 * age + 5);
     }
 
-    // Apply morphotype factor
     const morphoFactor = MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0;
     usedBmr = Math.round(usedBmr * morphoFactor);
     setBmr(usedBmr);
 
-    const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[1];
-    const calculatedTdee = usedBmr * activity.factor;
-    setTdee(Math.round(calculatedTdee));
+    const activity = ACTIVITY_LEVELS.find((a) => a.value === activityLevel) || ACTIVITY_LEVELS[0];
+    const tdeeBase = usedBmr * activity.factor;
+    const sport = Math.max(0, sportDailyAvg || 0);
+    setTdee(Math.round(tdeeBase + sport));
+
+    // Ajustement de phase : % ou kcal absolu
+    const v = Number(phaseAdjustValue) || 0;
+    const adjust = phaseAdjustMode === "absolute" ? v : (tdeeBase + sport) * (v / 100);
+    const targetCalories = Math.round(tdeeBase + sport + adjust);
 
     const goal = GOAL_TYPES.find((g) => g.value === goalType) || GOAL_TYPES[1];
-    let targetCalories = Math.round(calculatedTdee * (1 + goal.calorieModifier));
-
-    // Apply mass gain phase surplus if goal is bulk
-    if (goalType === "bulk" && massGainPhase) {
-      const phase = MASS_GAIN_PHASES.find((p) => p.value === massGainPhase);
-      if (phase) {
-        targetCalories = Math.round(calculatedTdee + phase.surplus);
-      }
-    }
-
     const targetProteins = Math.round(weight * goal.proteinPerKg);
     const targetFats = Math.round((targetCalories * 0.25) / 9);
     const targetCarbs = Math.round((targetCalories - targetProteins * 4 - targetFats * 9) / 4);
@@ -397,6 +390,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       fats: targetFats,
     });
   };
+
 
   const handleSave = async () => {
     setSaving(true);
