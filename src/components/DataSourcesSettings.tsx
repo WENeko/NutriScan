@@ -283,8 +283,12 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
         })}
       </div>
 
+      {/* Sources sportives détectées (dédoublonnage) */}
+      {prefs.sync_calories && <SportSourcesCard />}
+
       {/* BDD perso — double sauvegarde */}
       <PersoBridgeCard />
+
 
       {/* Privacy notice */}
       <div className="bg-accent/50 rounded-2xl p-4 flex gap-3">
