@@ -6,6 +6,11 @@
 import { supabase } from "@/integrations/supabase/client";
 import { calculateScientificGoals } from "@/utils/goals-calc";
 import { differenceInYears } from "date-fns";
+import {
+  computeSmoothedDailySport,
+  aggregateSportCalories,
+  type SportSample,
+} from "@/services/sport-calories";
 
 // ── TYPES ───────────────────────────────────────────────────────
 export interface HealthConnectData {
