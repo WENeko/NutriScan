@@ -200,7 +200,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   useEffect(() => { loadProfile(); }, []);
   useEffect(() => {
     if (goalsMode === "scientific") calculateTargets();
-  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase, goalsMode]);
+  }, [weight, height, dateOfBirth, gender, activityLevel, goalType, bmrMethod, bodyFat, morphotype, massGainPhase, goalsMode, sportDailyAvg, phaseAdjustMode, phaseAdjustValue]);
 
   const loadProfile = async () => {
     const { data } = await supabase
