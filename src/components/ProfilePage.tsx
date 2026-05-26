@@ -647,19 +647,29 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           <>
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <h2 className="font-display font-semibold text-base mb-3">Niveau d'activité</h2>
-              <div className="flex gap-2">
-                {ACTIVITY_LEVELS.map((a) => (
-                  <button
-                    key={a.value}
-                    onClick={() => setActivityLevel(a.value)}
-                    className={`flex-1 py-3 rounded-xl text-xs font-semibold transition-all ${
-                      activityLevel === a.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                    }`}
-                  >
-                    <div>{a.label}</div>
-                    <div className="text-[10px] opacity-80 mt-0.5">×{a.factor}</div>
-                  </button>
-                ))}
+              <div className="grid grid-cols-2 gap-2">
+                {ACTIVITY_LEVELS.map((a) => {
+                  const sportImportActive = sportAllowedSources.length > 0;
+                  const restricted = sportImportActive && a.value !== "sedentary" && a.value !== "lightly_active";
+                  return (
+                    <button
+                      key={a.value}
+                      onClick={() => !restricted && setActivityLevel(a.value)}
+                      disabled={restricted}
+                      title={restricted ? "Désactive l'import sportif pour utiliser ce niveau" : ""}
+                      className={`py-3 rounded-xl text-xs font-semibold transition-all ${
+                        activityLevel === a.value
+                          ? "nutri-gradient text-primary-foreground shadow-float"
+                          : restricted
+                          ? "bg-muted/40 text-muted-foreground/40 cursor-not-allowed"
+                          : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <div>{a.label}</div>
+                      <div className="text-[10px] opacity-80 mt-0.5">×{a.factor}</div>
+                    </button>
+                  );
+                })}
               </div>
               <div className="bg-accent/50 rounded-lg p-2.5 mt-3">
                 <div className="flex items-start gap-1.5">
@@ -667,6 +677,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <p className="text-[10px] text-muted-foreground">{ACTIVITY_LEVEL_INFO[activityLevel]}</p>
                 </div>
               </div>
+              {sportAllowedSources.length > 0 && (
+                <div className="mt-3 p-2.5 rounded-lg bg-primary/5 border border-primary/10">
+                  <p className="text-[11px] text-muted-foreground">
+                    🏃 Sport moyen 7 j : <span className="font-semibold text-foreground">{Math.round(sportDailyAvg)} kcal/j</span>
+                    {" · "}{sportAllowedSources.length} source(s) active(s)
+                  </p>
+                </div>
+              )}
             </section>
 
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
@@ -681,36 +699,41 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     }`}
                   >
                     <div>{g.label}</div>
-                    <div className="text-[10px] opacity-80 mt-0.5">
-                      {g.calorieModifier > 0 ? `+${g.calorieModifier * 100}%` : g.calorieModifier < 0 ? `${g.calorieModifier * 100}%` : "="}
-                    </div>
                   </button>
                 ))}
               </div>
             </section>
 
-            {goalType === "bulk" && (
+            {goalType !== "maintain" && (
               <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
-                <h2 className="font-display font-semibold text-base mb-3">📈 Phase de prise de masse</h2>
-                <div className="space-y-2">
-                  {MASS_GAIN_PHASES.map((p) => (
-                    <button
-                      key={p.value}
-                      onClick={() => setMassGainPhase(p.value)}
-                      className={`w-full p-3 rounded-xl text-left transition-all ${
-                        massGainPhase === p.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                      }`}
-                    >
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm font-semibold">{p.label}</span>
-                        <span className="text-xs font-bold">+{p.surplus} kcal</span>
-                      </div>
-                      <p className={`text-[10px] mt-0.5 ${massGainPhase === p.value ? "text-primary-foreground/80" : ""}`}>{p.desc}</p>
-                    </button>
-                  ))}
+                <h2 className="font-display font-semibold text-base mb-3">Ajustement de phase</h2>
+                <p className="text-[11px] text-muted-foreground mb-3">
+                  Définit le déficit (sèche) ou surplus (prise de masse) appliqué au-dessus de la dépense totale (MB + activité + sport moyen).
+                </p>
+                <div className="flex gap-2 mb-3">
+                  <button
+                    onClick={() => setPhaseAdjustMode("percent")}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${phaseAdjustMode === "percent" ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                  >Pourcentage (%)</button>
+                  <button
+                    onClick={() => setPhaseAdjustMode("absolute")}
+                    className={`flex-1 py-2 rounded-xl text-xs font-semibold transition-all ${phaseAdjustMode === "absolute" ? "nutri-gradient text-primary-foreground" : "bg-muted text-muted-foreground"}`}
+                  >Kcal absolu</button>
                 </div>
+                <NumericInput
+                  value={phaseAdjustValue}
+                  onChange={(v) => setPhaseAdjustValue(typeof v === "number" ? v : 0)}
+                  placeholder={phaseAdjustMode === "percent" ? "ex : -15 ou 10" : "ex : -400 ou 500"}
+                />
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  {phaseAdjustMode === "percent"
+                    ? "Valeurs typiques : sèche −15 à −20 %, prise +10 à +15 %."
+                    : "Valeurs typiques : sèche −300 à −500 kcal, prise +300 à +700 kcal."}
+                </p>
               </section>
             )}
+
+
 
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
               <div className="flex items-center justify-between mb-3">
