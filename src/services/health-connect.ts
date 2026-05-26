@@ -8,7 +8,6 @@ import { calculateScientificGoals } from "@/utils/goals-calc";
 import { differenceInYears } from "date-fns";
 import {
   computeSmoothedDailySport,
-  aggregateSportCalories,
   type SportSample,
 } from "@/services/sport-calories";
 
