@@ -1,6 +1,8 @@
 /**
  * Calcul scientifique des objectifs caloriques et macros.
- * Extrait de ProfilePage pour être réutilisable (sync Health Connect, etc.).
+ * Formule (v2) : Calories = BMR * activity_factor + sport_daily_avg + ajustement_phase
+ *  - ajustement = mode 'percent'  → (BMR*factor + sport) * value/100
+ *                 mode 'absolute' → value (kcal)
  */
 
 export interface GoalsInput {
@@ -14,6 +16,12 @@ export interface GoalsInput {
   body_fat_percent?: number | null;
   morphotype?: string | null;
   mass_gain_phase?: string | null;
+  /** Moyenne quotidienne des kcal sportives sur 7 j (Mode Scientifique uniquement). */
+  sport_daily_avg?: number;
+  /** Mode d'ajustement de phase : 'percent' (par défaut, legacy) ou 'absolute'. */
+  phase_adjust_mode?: "percent" | "absolute";
+  /** Valeur d'ajustement : -15 (=−15 %) ou -400 (=−400 kcal). Si non fourni → legacy GOAL_MODIFIERS. */
+  phase_adjust_value?: number | null;
 }
 
 export interface GoalsOutput {
@@ -27,6 +35,7 @@ export interface GoalsOutput {
 
 const ACTIVITY_FACTORS: Record<string, number> = {
   sedentary: 1.2,
+  lightly_active: 1.35,
   moderate: 1.55,
   athletic: 1.8,
 };
@@ -70,15 +79,28 @@ export function calculateScientificGoals(input: GoalsInput): GoalsOutput {
   bmr = Math.round(bmr * morphoFactor);
 
   const factor = ACTIVITY_FACTORS[activity_level] ?? 1.55;
-  const tdee = Math.round(bmr * factor);
+  const tdeeBase = bmr * factor;
+  const sport = Math.max(0, Number(input.sport_daily_avg) || 0);
+  const tdee = Math.round(tdeeBase + sport);
 
-  const g = GOAL_MODIFIERS[goal_type] || GOAL_MODIFIERS.maintain;
-  let calories = Math.round(tdee * (1 + g.cal));
-  if (goal_type === "bulk" && input.mass_gain_phase && MASS_GAIN_SURPLUS[input.mass_gain_phase]) {
-    calories = Math.round(tdee + MASS_GAIN_SURPLUS[input.mass_gain_phase]);
+  // ── Ajustement de phase ──
+  let calories: number;
+  const hasNewPhaseMode = input.phase_adjust_mode !== undefined && input.phase_adjust_value !== undefined && input.phase_adjust_value !== null;
+  if (hasNewPhaseMode) {
+    const v = Number(input.phase_adjust_value) || 0;
+    const adjust = input.phase_adjust_mode === "absolute" ? v : (tdeeBase + sport) * (v / 100);
+    calories = Math.round(tdeeBase + sport + adjust);
+  } else {
+    // Legacy
+    const g = GOAL_MODIFIERS[goal_type] || GOAL_MODIFIERS.maintain;
+    calories = Math.round(tdee * (1 + g.cal));
+    if (goal_type === "bulk" && input.mass_gain_phase && MASS_GAIN_SURPLUS[input.mass_gain_phase]) {
+      calories = Math.round(tdee + MASS_GAIN_SURPLUS[input.mass_gain_phase]);
+    }
   }
 
-  const proteins = Math.round(weight * g.protein);
+  const proteinPerKg = (GOAL_MODIFIERS[goal_type] || GOAL_MODIFIERS.maintain).protein;
+  const proteins = Math.round(weight * proteinPerKg);
   const fats = Math.round((calories * 0.25) / 9);
   const carbs = Math.max(Math.round((calories - proteins * 4 - fats * 9) / 4), 50);
 
