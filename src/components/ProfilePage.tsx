@@ -277,6 +277,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         });
       }
     }
+
+    // Moyenne sportive 7 j lissée (filtrée par sources autorisées)
+    try {
+      const allowed = (data as any)?.sport_allowed_sources || [];
+      if (allowed.length) {
+        const avg = await computeSmoothedDailySport(userId, allowed);
+        setSportDailyAvg(avg);
+      } else {
+        setSportDailyAvg(0);
+      }
+    } catch {}
   };
 
   const runAiCoach = async () => {
