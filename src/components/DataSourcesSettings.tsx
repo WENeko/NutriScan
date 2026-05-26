@@ -14,6 +14,7 @@ import {
   onAppResumeRecheck,
   type HealthConnectPreferences,
 } from "@/services/health-connect";
+import { listDetectedSources } from "@/services/sport-calories";
 import { supabase } from "@/integrations/supabase/client";
 import { pingPersoBridge, isPersonalDbEnabled } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
