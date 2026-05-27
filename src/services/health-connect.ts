@@ -134,11 +134,34 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
     }
   };
 
-  const [weights, fats, boneLean, activeEnergy] = await Promise.all([
+  const fetchSportSamplesNative = async (): Promise<SportSample[]> => {
+    try {
+      const SportSamples = (window as any).Capacitor?.Plugins?.SportSamples;
+      if (!SportSamples) return [];
+      const res = await SportSamples.readSamples({ startDate, endDate });
+      const arr: any[] = res?.samples || [];
+      return arr
+        .filter((s) => s && s.start_time && s.end_time)
+        .map((s) => ({
+          source_package: String(s.source_package || "unknown"),
+          source_name: s.source_name || null,
+          start_time: new Date(s.start_time).toISOString(),
+          end_time: new Date(s.end_time).toISOString(),
+          value_kcal: Number(s.value_kcal) || 0,
+          recorded_date: new Date(s.start_time).toISOString().slice(0, 10),
+        }))
+        .filter((s) => s.value_kcal > 0);
+    } catch (e) {
+      console.warn("[health] SportSamples.readSamples failed", e);
+      return [];
+    }
+  };
+
+  const [weights, fats, boneLean, sportSamples] = await Promise.all([
     fetchSamples("weight"),
     fetchSamples("bodyFat"),
     fetchBoneAndLean(),
-    fetchSamples("totalCalories"),
+    fetchSportSamplesNative(),
   ]);
   const bones = boneLean.bone;
   const leans = boneLean.lean;
@@ -171,29 +194,12 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
   });
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
-  // 2. Calories sportives : conserve chaque échantillon avec sa source d'origine
-  //    (plus de cumul "totalCalories + steps→kcal" qui masquait les doublons).
-  data.sportSamples = activeEnergy
-    .map((s: any) => {
-      const start = s.startDate || s.date;
-      const end = s.endDate || s.startDate || s.date;
-      const pkg = s.sourceBundleId || s.sourcePackage || s.source || "unknown";
-      if (!start || !end) return null;
-      return {
-        source_package: String(pkg),
-        source_name: s.sourceName || s.source || null,
-        start_time: new Date(start).toISOString(),
-        end_time: new Date(end).toISOString(),
-        value_kcal: Number(s.value) || 0,
-        recorded_date: new Date(start).toISOString().slice(0, 10),
-      } as SportSample;
-    })
-    .filter((s): s is SportSample => !!s && s.value_kcal > 0);
-
-  // Vue agrégée brute (non filtrée par sources) — non persistée telle quelle :
-  // l'agrégation finale par jour se fait lors de la synchro avec allowed_sources.
+  // 2. Calories sportives — un sample par enregistrement Health Connect
+  //    avec sa source d'origine (packageName). Le filtrage / dédoublonnage par
+  //    source autorisée est fait côté agrégation (sport-calories.ts).
+  data.sportSamples = sportSamples;
   const calMap = new Map<string, number>();
-  data.sportSamples.forEach((s) => {
+  sportSamples.forEach((s) => {
     calMap.set(s.recorded_date, (calMap.get(s.recorded_date) || 0) + s.value_kcal);
   });
   data.activeCalories = Array.from(calMap.entries()).map(([date, val]) => ({
