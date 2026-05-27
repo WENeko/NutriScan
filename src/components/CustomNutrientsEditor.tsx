@@ -223,8 +223,8 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
                     onChange={(e) => setDraft({ ...draft, category: e.target.value as CustomNutrientDef["category"] })}
                     className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                   >
-                    {CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
+                    {categories.map((c) => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
                     ))}
                   </select>
                 </div>
