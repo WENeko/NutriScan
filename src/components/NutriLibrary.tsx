@@ -8,6 +8,9 @@ import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquare
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
 import RecipeBuilder from "./RecipeBuilder";
+import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import { useMicroCategories } from "@/hooks/useMicroCategories";
+import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface CustomFood {
   id: string;
