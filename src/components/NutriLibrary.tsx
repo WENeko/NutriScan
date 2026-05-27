@@ -67,6 +67,8 @@ const emptyFood: Omit<CustomFood, "id"> = {
   vitamin_c_per_100g: 0,
   vitamin_d_per_100g: 0,
   vitamin_e_per_100g: 0,
+  nutrients_std: {},
+  nutrients_custom: {},
 };
 
 const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
