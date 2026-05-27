@@ -17,20 +17,16 @@ import {
   type UserProfile,
 } from "@/utils/nutrition-logic";
 
+import { useMicroCategories } from "@/hooks/useMicroCategories";
+
 interface Props {
   userProfile: UserProfile;
   overrides: MicroOverrides;
   onChange: (next: MicroOverrides) => void;
 }
 
-const CAT_LABEL: Record<string, string> = {
-  macro: "Macros associés",
-  mineral: "Minéraux",
-  vitamin: "Vitamines",
-  lipid: "Lipides",
-};
-
 const MicroGoalsEditor: React.FC<Props> = ({ userProfile, overrides, onChange }) => {
+  const { labelOf } = useMicroCategories();
   // Résolution complète (mais on n'édite QUE les std ici, les custom ont leur propre éditeur)
   const resolved = useMemo(
     () => resolveMicroGoals(userProfile, [], overrides).filter((r) => !r.isCustom),
