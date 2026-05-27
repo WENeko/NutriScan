@@ -14,6 +14,7 @@ import {
   type CustomNutrientDef,
   validateCustomNutrient,
 } from "@/utils/nutrients-helpers";
+import { useMicroCategories } from "@/hooks/useMicroCategories";
 
 interface Props {
   userId: string;
