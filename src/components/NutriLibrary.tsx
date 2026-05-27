@@ -237,6 +237,24 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       vitamin_c_per_100g: food.vitamin_c_per_100g,
       vitamin_d_per_100g: food.vitamin_d_per_100g,
       vitamin_e_per_100g: food.vitamin_e_per_100g,
+      nutrients_std: (food as any).nutrients_std || {},
+      nutrients_custom: (food as any).nutrients_custom || {},
+    });
+  };
+
+  // Helpers pour les micros dynamiques (stockés en JSONB)
+  const setStdMicro = (key: string, value: number) => {
+    setForm((prev) => {
+      const next = { ...(prev.nutrients_std || {}) };
+      if (value > 0) next[key] = value; else delete next[key];
+      return { ...prev, nutrients_std: next };
+    });
+  };
+  const setCustomMicro = (key: string, value: number) => {
+    setForm((prev) => {
+      const next = { ...(prev.nutrients_custom || {}) };
+      if (value > 0) next[key] = value; else delete next[key];
+      return { ...prev, nutrients_custom: next };
     });
   };
 
