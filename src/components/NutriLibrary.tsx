@@ -34,6 +34,10 @@ interface CustomFood {
   vitamin_c_per_100g: number;
   vitamin_d_per_100g: number;
   vitamin_e_per_100g: number;
+  /** Tous les micros standards (incluant ceux sans colonne dédiée : iron, zinc, b9, b12…) en /100g */
+  nutrients_std?: Record<string, number>;
+  /** Micros custom de l'utilisateur en /100g */
+  nutrients_custom?: Record<string, number>;
 }
 
 interface NutriLibraryProps {
