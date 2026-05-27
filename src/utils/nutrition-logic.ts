@@ -7,7 +7,7 @@ export interface NutrientDef {
   key: string;
   label: string;
   unit: string;
-  category: 'macro' | 'mineral' | 'vitamin' | 'lipid';
+  category: string;
   /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
   isLimitDefault?: boolean;
 }
