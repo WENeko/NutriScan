@@ -14,6 +14,7 @@ import {
   type CustomNutrientDef,
   validateCustomNutrient,
 } from "@/utils/nutrients-helpers";
+import { useMicroCategories } from "@/hooks/useMicroCategories";
 
 interface Props {
   userId: string;
@@ -31,12 +32,7 @@ const EMPTY: Partial<CustomNutrientDef> = {
   is_limit: false,
 };
 
-const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
-  { value: "vitamin", label: "Vitamine" },
-  { value: "mineral", label: "Minéral" },
-  { value: "lipid", label: "Lipide" },
-  { value: "macro", label: "Macro" },
-];
+// Catégories chargées depuis micronutrient_categories (cf. useMicroCategories)
 
 /** Génère une clé technique à partir du label + unité. */
 function generateKey(label: string, unit: string): string {
@@ -52,6 +48,7 @@ function generateKey(label: string, unit: string): string {
 }
 
 const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
+  const { categories } = useMicroCategories();
   const [items, setItems] = useState<CustomNutrientDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Partial<CustomNutrientDef> | null>(null);
@@ -226,8 +223,8 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
                     onChange={(e) => setDraft({ ...draft, category: e.target.value as CustomNutrientDef["category"] })}
                     className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                   >
-                    {CATEGORIES.map((c) => (
-                      <option key={c.value} value={c.value}>{c.label}</option>
+                    {categories.map((c) => (
+                      <option key={c.key} value={c.key}>{c.label}</option>
                     ))}
                   </select>
                 </div>

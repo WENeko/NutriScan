@@ -50,7 +50,9 @@ export function validateCustomNutrient(
   if (label.length > 60) return { ok: false, error: "Nom trop long (max 60)" };
   if (!unit) return { ok: false, error: "Unité requise (g, mg, µg…)" };
   if (unit.length > 8) return { ok: false, error: "Unité trop longue" };
-  if (!["macro", "mineral", "vitamin", "lipid"].includes(category)) {
+  // Catégorie : validée dynamiquement côté UI via micronutrient_categories,
+  // on accepte ici n'importe quelle clé non vide pour rester extensible.
+  if (!category || !/^[a-z0-9_]+$/.test(category)) {
     return { ok: false, error: "Catégorie invalide" };
   }
   if (NUTRIENTS_STD_LIST.some((n) => n.key === key)) {

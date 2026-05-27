@@ -8,6 +8,9 @@ import { Plus, Pencil, Trash2, Search, X, Check, BookOpen, Camera, MessageSquare
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
 import RecipeBuilder from "./RecipeBuilder";
+import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import { useMicroCategories } from "@/hooks/useMicroCategories";
+import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface CustomFood {
   id: string;
@@ -31,6 +34,10 @@ interface CustomFood {
   vitamin_c_per_100g: number;
   vitamin_d_per_100g: number;
   vitamin_e_per_100g: number;
+  /** Tous les micros standards (incluant ceux sans colonne dédiée : iron, zinc, b9, b12…) en /100g */
+  nutrients_std?: Record<string, number>;
+  /** Micros custom de l'utilisateur en /100g */
+  nutrients_custom?: Record<string, number>;
 }
 
 interface NutriLibraryProps {
@@ -60,6 +67,8 @@ const emptyFood: Omit<CustomFood, "id"> = {
   vitamin_c_per_100g: 0,
   vitamin_d_per_100g: 0,
   vitamin_e_per_100g: 0,
+  nutrients_std: {},
+  nutrients_custom: {},
 };
 
 const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
@@ -82,9 +91,31 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   });
   // Track if user provided raw calories for supplement
   const [suppCalories, setSuppCalories] = useState(0);
+  const [customDefs, setCustomDefs] = useState<CustomNutrientDef[]>([]);
+  const { labelOf } = useMicroCategories();
+
+  // Champs standards déjà couverts par des colonnes dédiées dans custom_foods
+  const STD_COLUMN_KEYS = new Set([
+    "fiber", "sugar", "saturated_fat", "omega3_mg", "sodium_mg",
+    "potassium_mg", "magnesium_mg", "calcium_mg",
+    "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+  ]);
+  // Standards SANS colonne dédiée → stockés dans nutrients_std (iron, zinc, b9, b12…)
+  const STD_EXTRA = NUTRIENTS_STD_LIST.filter((n) => !STD_COLUMN_KEYS.has(n.key));
 
   useEffect(() => {
     fetchFoods();
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("custom_nutrients")
+        .eq("user_id", userId)
+        .single();
+      const arr = Array.isArray((data as any)?.custom_nutrients)
+        ? (data as any).custom_nutrients
+        : [];
+      setCustomDefs(arr as CustomNutrientDef[]);
+    })();
   }, [userId]);
 
   const fetchFoods = async () => {
@@ -206,6 +237,24 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       vitamin_c_per_100g: food.vitamin_c_per_100g,
       vitamin_d_per_100g: food.vitamin_d_per_100g,
       vitamin_e_per_100g: food.vitamin_e_per_100g,
+      nutrients_std: (food as any).nutrients_std || {},
+      nutrients_custom: (food as any).nutrients_custom || {},
+    });
+  };
+
+  // Helpers pour les micros dynamiques (stockés en JSONB)
+  const setStdMicro = (key: string, value: number) => {
+    setForm((prev) => {
+      const next = { ...(prev.nutrients_std || {}) };
+      if (value > 0) next[key] = value; else delete next[key];
+      return { ...prev, nutrients_std: next };
+    });
+  };
+  const setCustomMicro = (key: string, value: number) => {
+    setForm((prev) => {
+      const next = { ...(prev.nutrients_custom || {}) };
+      if (value > 0) next[key] = value; else delete next[key];
+      return { ...prev, nutrients_custom: next };
     });
   };
 
@@ -554,6 +603,58 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
                 <NumericInput value={form.vitamin_e_per_100g} onChange={(v) => updateField("vitamin_e_per_100g", v)} className="h-9 rounded-lg text-sm" />
               </div>
             </div>
+
+            {/* Micros standards supplémentaires (sans colonne dédiée) */}
+            {STD_EXTRA.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground pt-2">
+                  Autres micros standards
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {STD_EXTRA.map((n) => (
+                    <div key={n.key} className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {n.label} ({n.unit})
+                      </Label>
+                      <NumericInput
+                        value={form.nutrients_std?.[n.key] ?? 0}
+                        onChange={(v) => setStdMicro(n.key, v)}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Micros personnalisés de l'utilisateur */}
+            {customDefs.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground pt-2">
+                  Mes nutriments personnalisés
+                  <span className="text-[10px] text-muted-foreground/70 ml-1">
+                    (par catégorie)
+                  </span>
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {customDefs.map((n) => (
+                    <div key={n.key} className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {n.label} ({n.unit})
+                        <span className="block text-[9px] text-muted-foreground/70">
+                          {labelOf(n.category)}
+                        </span>
+                      </Label>
+                      <NumericInput
+                        value={form.nutrients_custom?.[n.key] ?? 0}
+                        onChange={(v) => setCustomMicro(n.key, v)}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 

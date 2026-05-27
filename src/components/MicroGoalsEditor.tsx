@@ -17,20 +17,16 @@ import {
   type UserProfile,
 } from "@/utils/nutrition-logic";
 
+import { useMicroCategories } from "@/hooks/useMicroCategories";
+
 interface Props {
   userProfile: UserProfile;
   overrides: MicroOverrides;
   onChange: (next: MicroOverrides) => void;
 }
 
-const CAT_LABEL: Record<string, string> = {
-  macro: "Macros associés",
-  mineral: "Minéraux",
-  vitamin: "Vitamines",
-  lipid: "Lipides",
-};
-
 const MicroGoalsEditor: React.FC<Props> = ({ userProfile, overrides, onChange }) => {
+  const { labelOf } = useMicroCategories();
   // Résolution complète (mais on n'édite QUE les std ici, les custom ont leur propre éditeur)
   const resolved = useMemo(
     () => resolveMicroGoals(userProfile, [], overrides).filter((r) => !r.isCustom),
@@ -84,7 +80,7 @@ const MicroGoalsEditor: React.FC<Props> = ({ userProfile, overrides, onChange })
       <div className="space-y-4">
         {groups.map(([cat, items]) => (
           <div key={cat}>
-            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">{CAT_LABEL[cat] ?? cat}</p>
+            <p className="text-[10px] uppercase tracking-wide text-muted-foreground mb-2">{labelOf(cat)}</p>
             <div className="space-y-2">
               {items.map((r) => {
                 const ov = overrides[r.key] ?? {};

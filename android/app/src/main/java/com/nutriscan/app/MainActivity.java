@@ -10,6 +10,7 @@ public class MainActivity extends BridgeActivity {
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(HealthPlugin.class);
     registerPlugin(BoneMassPlugin.class);
+    registerPlugin(SportSamplesPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }
