@@ -603,6 +603,58 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
                 <NumericInput value={form.vitamin_e_per_100g} onChange={(v) => updateField("vitamin_e_per_100g", v)} className="h-9 rounded-lg text-sm" />
               </div>
             </div>
+
+            {/* Micros standards supplémentaires (sans colonne dédiée) */}
+            {STD_EXTRA.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground pt-2">
+                  Autres micros standards
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {STD_EXTRA.map((n) => (
+                    <div key={n.key} className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {n.label} ({n.unit})
+                      </Label>
+                      <NumericInput
+                        value={form.nutrients_std?.[n.key] ?? 0}
+                        onChange={(v) => setStdMicro(n.key, v)}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Micros personnalisés de l'utilisateur */}
+            {customDefs.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground pt-2">
+                  Mes nutriments personnalisés
+                  <span className="text-[10px] text-muted-foreground/70 ml-1">
+                    (par catégorie)
+                  </span>
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {customDefs.map((n) => (
+                    <div key={n.key} className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {n.label} ({n.unit})
+                        <span className="block text-[9px] text-muted-foreground/70">
+                          {labelOf(n.category)}
+                        </span>
+                      </Label>
+                      <NumericInput
+                        value={form.nutrients_custom?.[n.key] ?? 0}
+                        onChange={(v) => setCustomMicro(n.key, v)}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
           </div>
         )}
 
