@@ -70,6 +70,8 @@ export type Database = {
           iron_mg_per_100g: number | null
           magnesium_mg_per_100g: number | null
           name: string
+          nutrients_custom: Json
+          nutrients_std: Json
           omega3_mg_per_100g: number | null
           potassium_mg_per_100g: number | null
           proteins_per_100g: number
@@ -100,6 +102,8 @@ export type Database = {
           iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number | null
           name: string
+          nutrients_custom?: Json
+          nutrients_std?: Json
           omega3_mg_per_100g?: number | null
           potassium_mg_per_100g?: number | null
           proteins_per_100g?: number
@@ -130,6 +134,8 @@ export type Database = {
           iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number | null
           name?: string
+          nutrients_custom?: Json
+          nutrients_std?: Json
           omega3_mg_per_100g?: number | null
           potassium_mg_per_100g?: number | null
           proteins_per_100g?: number
@@ -340,6 +346,27 @@ export type Database = {
           total_fats?: number | null
           total_proteins?: number | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      micronutrient_categories: {
+        Row: {
+          created_at: string
+          display_order: number
+          key: string
+          label: string
+        }
+        Insert: {
+          created_at?: string
+          display_order?: number
+          key: string
+          label: string
+        }
+        Update: {
+          created_at?: string
+          display_order?: number
+          key?: string
+          label?: string
         }
         Relationships: []
       }
