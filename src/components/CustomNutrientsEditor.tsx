@@ -48,6 +48,7 @@ function generateKey(label: string, unit: string): string {
 }
 
 const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
+  const { categories } = useMicroCategories();
   const [items, setItems] = useState<CustomNutrientDef[]>([]);
   const [loading, setLoading] = useState(true);
   const [draft, setDraft] = useState<Partial<CustomNutrientDef> | null>(null);
