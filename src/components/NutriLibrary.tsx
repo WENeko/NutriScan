@@ -91,9 +91,31 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   });
   // Track if user provided raw calories for supplement
   const [suppCalories, setSuppCalories] = useState(0);
+  const [customDefs, setCustomDefs] = useState<CustomNutrientDef[]>([]);
+  const { labelOf } = useMicroCategories();
+
+  // Champs standards déjà couverts par des colonnes dédiées dans custom_foods
+  const STD_COLUMN_KEYS = new Set([
+    "fiber", "sugar", "saturated_fat", "omega3_mg", "sodium_mg",
+    "potassium_mg", "magnesium_mg", "calcium_mg",
+    "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
+  ]);
+  // Standards SANS colonne dédiée → stockés dans nutrients_std (iron, zinc, b9, b12…)
+  const STD_EXTRA = NUTRIENTS_STD_LIST.filter((n) => !STD_COLUMN_KEYS.has(n.key));
 
   useEffect(() => {
     fetchFoods();
+    (async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("custom_nutrients")
+        .eq("user_id", userId)
+        .single();
+      const arr = Array.isArray((data as any)?.custom_nutrients)
+        ? (data as any).custom_nutrients
+        : [];
+      setCustomDefs(arr as CustomNutrientDef[]);
+    })();
   }, [userId]);
 
   const fetchFoods = async () => {
