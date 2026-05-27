@@ -31,12 +31,7 @@ const EMPTY: Partial<CustomNutrientDef> = {
   is_limit: false,
 };
 
-const CATEGORIES: { value: CustomNutrientDef["category"]; label: string }[] = [
-  { value: "vitamin", label: "Vitamine" },
-  { value: "mineral", label: "Minéral" },
-  { value: "lipid", label: "Lipide" },
-  { value: "macro", label: "Macro" },
-];
+// Catégories chargées depuis micronutrient_categories (cf. useMicroCategories)
 
 /** Génère une clé technique à partir du label + unité. */
 function generateKey(label: string, unit: string): string {
