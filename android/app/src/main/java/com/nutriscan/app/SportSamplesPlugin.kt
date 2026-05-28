@@ -4,11 +4,9 @@ import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
-import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
-import androidx.health.connect.client.records.TotalCaloriesBurnedRecord.ENERGY_TOTAL
 import androidx.health.connect.client.records.metadata.DataOrigin
 import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
@@ -165,11 +163,11 @@ class SportSamplesPlugin : Plugin() {
                         if (granted.contains(activePerm)) {
                             try {
                                 val agg = c.aggregate(AggregateRequest(
-                                    metrics = setOf(ACTIVE_CALORIES_TOTAL),
+                                    metrics = setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
                                     timeRangeFilter = range,
                                     dataOriginFilter = setOf(origin)
                                 ))
-                                val kcal = agg[ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
+                                val kcal = agg[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
                                 if (kcal > 0.0) {
                                     out.put(JSObject()
                                         .put("source_package", origin.packageName)
@@ -185,11 +183,11 @@ class SportSamplesPlugin : Plugin() {
                         if (granted.contains(totalPerm)) {
                             try {
                                 val agg = c.aggregate(AggregateRequest(
-                                    metrics = setOf(ENERGY_TOTAL),
+                                    metrics = setOf(TotalCaloriesBurnedRecord.ENERGY_TOTAL),
                                     timeRangeFilter = range,
                                     dataOriginFilter = setOf(origin)
                                 ))
-                                val kcal = agg[ENERGY_TOTAL]?.inKilocalories ?: 0.0
+                                val kcal = agg[TotalCaloriesBurnedRecord.ENERGY_TOTAL]?.inKilocalories ?: 0.0
                                 if (kcal > 0.0) {
                                     out.put(JSObject()
                                         .put("source_package", origin.packageName)
