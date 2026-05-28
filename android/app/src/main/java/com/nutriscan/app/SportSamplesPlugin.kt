@@ -144,6 +144,21 @@ class SportSamplesPlugin : Plugin() {
                     }
                 }
 
+                if (granted.contains(totalPerm)) {
+                    val resp = c.readRecords(
+                        ReadRecordsRequest(recordType = TotalCaloriesBurnedRecord::class, timeRangeFilter = range)
+                    )
+                    resp.records.forEach { r ->
+                        out.put(JSObject()
+                            .put("source_package", r.metadata.dataOrigin.packageName)
+                            .put("source_name",   r.metadata.dataOrigin.packageName)
+                            .put("start_time",    r.startTime.toString())
+                            .put("end_time",      r.endTime.toString())
+                            .put("value_kcal",    r.energy.inKilocalories)
+                            .put("type",          "total"))
+                    }
+                }
+
                 if (granted.contains(activePerm) || granted.contains(totalPerm)) {
                     val origins = detectOrigins(c, range)
                     origins.forEach { origin ->
