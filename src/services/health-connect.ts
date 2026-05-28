@@ -184,9 +184,9 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
     if (d) leanByDay.set(d, raw(Number(s.value)));
   });
 
-  const weightByDay = new Map(data.weight.map((w) => [w.timestamp.slice(0, 10), w]));
-  const fatByDay = new Map(data.bodyFat.map((f) => [f.timestamp.slice(0, 10), f]));
-  const boneByDay = new Map(data.boneMass.map((b) => [b.timestamp.slice(0, 10), b]));
+  const weightByDay = new Map((data.weight || []).map((w) => [w.timestamp.slice(0, 10), w]));
+  const fatByDay = new Map((data.bodyFat || []).map((f) => [f.timestamp.slice(0, 10), f]));
+  const boneByDay = new Map((data.boneMass || []).map((b) => [b.timestamp.slice(0, 10), b]));
   const leanMap = new Map<string, number>();
   const muscleMap = new Map<string, number>();
   const compositionDays = new Set<string>([
