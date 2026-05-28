@@ -104,6 +104,9 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
     vitamin_c_mg: roundNutrient((item.vitamin_c_mg || 0) * factor),
     vitamin_d_mcg: roundNutrient((item.vitamin_d_mcg || 0) * factor),
     vitamin_e_mg: roundNutrient((item.vitamin_e_mg || 0) * factor),
+    customExtras: item.customExtras
+      ? Object.fromEntries(Object.entries(item.customExtras).map(([k, v]) => [k, roundNutrient(v * factor)]))
+      : undefined,
   };
 };
 
@@ -433,6 +436,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       const vitamin_c_mg = roundNutrient((cf.vitamin_c_per_100g || 0) * nutrientWeight / 100);
       const vitamin_d_mcg = roundNutrient((cf.vitamin_d_per_100g || 0) * nutrientWeight / 100);
       const vitamin_e_mg = roundNutrient((cf.vitamin_e_per_100g || 0) * nutrientWeight / 100);
+      const customExtras = Object.fromEntries(
+        Object.entries((cf.nutrients_custom || {}) as Record<string, number>)
+          .map(([k, v]) => [k, roundNutrient((Number(v) || 0) * nutrientWeight / 100)])
+          .filter(([, v]) => Number(v) !== 0)
+      );
       setItems((prev) => [...prev, {
         name: cf.name + (manualIsCooked ? " (cuit)" : ""),
         quantity: `${weight}g`,
@@ -444,6 +452,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         isCustom: true, isCooked: manualIsCooked,
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
+        ...(Object.keys(customExtras).length ? { customExtras } : {}),
       }]);
       toast({ title: `${cf.name} ajouté`, description: `Portion : ${weight}g${manualIsCooked ? " (cuit)" : ""}` });
     } else {
@@ -453,6 +462,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
       try {
         const result = await analyzeMeal({
           text: `${queryWeight}g de ${manualItem.name}`,
+          custom_nutrients: customNutrients,
         });
         const item = result.items?.[0];
         if (item) {
@@ -484,6 +494,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             vitamin_c_mg: Number(item.vitamin_c_mg) || 0,
             vitamin_d_mcg: Number(item.vitamin_d_mcg) || 0,
             vitamin_e_mg: Number(item.vitamin_e_mg) || 0,
+            customExtras: Object.fromEntries(customNutrients
+              .map((c) => [c.key, Number(item[c.key]) || 0] as const)
+              .filter(([, v]) => v !== 0)),
           }]);
         }
       } catch (e: any) {
