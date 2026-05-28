@@ -115,8 +115,8 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
           write: [],
         });
 
-        // Demande aussi les permissions custom BoneMass + LeanBodyMass
-        // (non exposées par @capgo/capacitor-health → second popup Health Connect)
+        // Demande aussi les permissions custom BoneMass/LeanBodyMass + calories sportives
+        // (non exposées correctement par @capgo/capacitor-health → popups Health Connect dédiées)
         try {
           const BoneMass = (window as any).Capacitor?.Plugins?.BoneMass;
           if (BoneMass) {
@@ -125,6 +125,16 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
           }
         } catch (boneErr: any) {
           alert("Erreur BoneMass : " + (boneErr.message || JSON.stringify(boneErr)));
+        }
+
+        try {
+          const SportSamples = (window as any).Capacitor?.Plugins?.SportSamples;
+          if (SportSamples) {
+            const sRes = await SportSamples.requestPermission();
+            alert("Calories sportives : " + JSON.stringify(sRes));
+          }
+        } catch (sportErr: any) {
+          alert("Erreur Calories sportives : " + (sportErr.message || JSON.stringify(sportErr)));
         }
 
         alert("RÉPONSE DU SYSTÈME : " + JSON.stringify(result));
