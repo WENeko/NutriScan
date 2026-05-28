@@ -16,6 +16,7 @@ export interface HealthConnectData {
   weight?: { value_kg: number; timestamp: string }[];
   bodyFat?: { percentage: number; timestamp: string }[];
   muscle?: { value_kg: number; timestamp: string }[];
+  leanMass?: { value_kg: number; timestamp: string }[];
   boneMass?: { value_kg: number; timestamp: string }[];
   activeCalories?: { value_kcal: number; timestamp: string }[];
   /** Échantillons bruts par source — base pour filtrage et dédup. */
@@ -111,7 +112,7 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
   const startDate = new Date(Date.now() - (days + 1) * 24 * 60 * 60 * 1000).toISOString();
 
   const data: HealthConnectData = {
-    weight: [], bodyFat: [], muscle: [], boneMass: [],
+    weight: [], bodyFat: [], muscle: [], leanMass: [], boneMass: [],
     activeCalories: [], sportSamples: [],
   };
 
@@ -150,7 +151,12 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
           value_kcal: Number(s.value_kcal) || 0,
           recorded_date: new Date(s.start_time).toISOString().slice(0, 10),
         }))
-        .filter((s) => s.value_kcal > 0);
+        .filter((s) => {
+          const durationMs = new Date(s.end_time).getTime() - new Date(s.start_time).getTime();
+          // Les records "Total calories" sur une journée complète incluent le métabolisme basal :
+          // on ne les range pas dans les calories sportives pour éviter un double comptage massif.
+          return s.value_kcal > 0 && durationMs > 0 && durationMs < 20 * 60 * 60 * 1000;
+        });
     } catch (e) {
       console.warn("[health] SportSamples.readSamples failed", e);
       return [];
@@ -178,20 +184,31 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
     if (d) leanByDay.set(d, raw(Number(s.value)));
   });
 
+  const weightByDay = new Map((data.weight || []).map((w) => [w.timestamp.slice(0, 10), w]));
+  const fatByDay = new Map((data.bodyFat || []).map((f) => [f.timestamp.slice(0, 10), f]));
+  const boneByDay = new Map((data.boneMass || []).map((b) => [b.timestamp.slice(0, 10), b]));
+  const leanMap = new Map<string, number>();
   const muscleMap = new Map<string, number>();
-  data.weight.forEach((w) => {
-    const d = w.timestamp.slice(0, 10);
+  const compositionDays = new Set<string>([
+    ...Array.from(weightByDay.keys()),
+    ...Array.from(leanByDay.keys()),
+  ]);
+  compositionDays.forEach((d) => {
+    const w = weightByDay.get(d);
     const importedLean = leanByDay.get(d);
-    if (importedLean !== undefined) { muscleMap.set(d, importedLean); return; }
-    const fatEntry = data.bodyFat?.find(f => f.timestamp.startsWith(d));
-    const boneEntry = data.boneMass?.find(b => b.timestamp.startsWith(d));
-    if (fatEntry) {
-      const fatKg = w.value_kg * (fatEntry.percentage / 100);
-      const leanMass = w.value_kg - fatKg;
+    const fatEntry = fatByDay.get(d);
+    const boneEntry = boneByDay.get(d);
+    const computedLean = w && fatEntry
+      ? w.value_kg - w.value_kg * (fatEntry.percentage / 100)
+      : undefined;
+    const leanMass = importedLean ?? computedLean;
+    if (leanMass !== undefined && Number.isFinite(leanMass)) {
       const boneVal = boneEntry ? boneEntry.value_kg : 3.8;
-      muscleMap.set(d, raw((leanMass - boneVal) * 0.988));
+      leanMap.set(d, raw(leanMass));
+      muscleMap.set(d, raw(Math.max(0, (leanMass - boneVal) * 0.988)));
     }
   });
+  data.leanMass = Array.from(leanMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
   data.muscle = Array.from(muscleMap.entries()).map(([date, val]) => ({ value_kg: val, timestamp: date }));
 
   // 2. Calories sportives — un sample par enregistrement Health Connect
@@ -253,12 +270,12 @@ export async function syncHealthData(
         cur.bone = b.value_kg;
         byDate.set(d, cur);
       });
-      // LeanBodyMass importé directement depuis Health Connect (si dispo)
-      // est égal à la valeur "muscle" quand elle a été fournie par la balance
-      data.muscle?.forEach((m) => {
-        const d = m.timestamp.slice(0, 10);
-        const cur = byDate.get(d) || { ts: m.timestamp };
-        if (cur.lean === undefined) cur.lean = m.value_kg;
+      // LeanBodyMass reste stocké comme masse maigre uniquement ; la masse
+      // musculaire est toujours calculée séparément (jamais copiée depuis lean_mass).
+      data.leanMass?.forEach((l) => {
+        const d = l.timestamp.slice(0, 10);
+        const cur = byDate.get(d) || { ts: l.timestamp };
+        if (cur.lean === undefined) cur.lean = l.value_kg;
         byDate.set(d, cur);
       });
       // active_calories_kcal n'est plus écrit ici : la valeur lissée 7 j est

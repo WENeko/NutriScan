@@ -4,9 +4,13 @@ import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
+import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
 import androidx.health.connect.client.records.ExerciseSessionRecord
 import androidx.health.connect.client.records.TotalCaloriesBurnedRecord
+import androidx.health.connect.client.records.TotalCaloriesBurnedRecord.ENERGY_TOTAL
+import androidx.health.connect.client.records.metadata.DataOrigin
+import androidx.health.connect.client.request.AggregateRequest
 import androidx.health.connect.client.request.ReadRecordsRequest
 import androidx.health.connect.client.time.TimeRangeFilter
 import com.getcapacitor.JSArray
@@ -56,6 +60,29 @@ class SportSamplesPlugin : Plugin() {
                 call.resolve(JSObject().put("granted", false))
             }
         }
+    }
+
+    private suspend fun detectOrigins(c: HealthConnectClient, range: TimeRangeFilter): Set<DataOrigin> {
+        val origins = mutableSetOf<DataOrigin>()
+        try {
+            if (c.permissionController.getGrantedPermissions().contains(activePerm)) {
+                c.readRecords(ReadRecordsRequest(recordType = ActiveCaloriesBurnedRecord::class, timeRangeFilter = range))
+                    .records.forEach { origins.add(it.metadata.dataOrigin) }
+            }
+        } catch (_: Exception) {}
+        try {
+            if (c.permissionController.getGrantedPermissions().contains(totalPerm)) {
+                c.readRecords(ReadRecordsRequest(recordType = TotalCaloriesBurnedRecord::class, timeRangeFilter = range))
+                    .records.forEach { origins.add(it.metadata.dataOrigin) }
+            }
+        } catch (_: Exception) {}
+        try {
+            if (c.permissionController.getGrantedPermissions().contains(exoPerm)) {
+                c.readRecords(ReadRecordsRequest(recordType = ExerciseSessionRecord::class, timeRangeFilter = range))
+                    .records.forEach { origins.add(it.metadata.dataOrigin) }
+            }
+        } catch (_: Exception) {}
+        return origins
     }
 
     @PluginMethod
@@ -114,6 +141,66 @@ class SportSamplesPlugin : Plugin() {
                             .put("end_time",      r.endTime.toString())
                             .put("value_kcal",    r.energy.inKilocalories)
                             .put("type",          "active"))
+                    }
+                }
+
+                if (granted.contains(totalPerm)) {
+                    val resp = c.readRecords(
+                        ReadRecordsRequest(recordType = TotalCaloriesBurnedRecord::class, timeRangeFilter = range)
+                    )
+                    resp.records.forEach { r ->
+                        out.put(JSObject()
+                            .put("source_package", r.metadata.dataOrigin.packageName)
+                            .put("source_name",   r.metadata.dataOrigin.packageName)
+                            .put("start_time",    r.startTime.toString())
+                            .put("end_time",      r.endTime.toString())
+                            .put("value_kcal",    r.energy.inKilocalories)
+                            .put("type",          "total"))
+                    }
+                }
+
+                if (granted.contains(activePerm) || granted.contains(totalPerm)) {
+                    val origins = detectOrigins(c, range)
+                    origins.forEach { origin ->
+                        if (granted.contains(activePerm)) {
+                            try {
+                                val agg = c.aggregate(AggregateRequest(
+                                    metrics = setOf(ACTIVE_CALORIES_TOTAL),
+                                    timeRangeFilter = range,
+                                    dataOriginFilter = setOf(origin)
+                                ))
+                                val kcal = agg[ACTIVE_CALORIES_TOTAL]?.inKilocalories ?: 0.0
+                                if (kcal > 0.0) {
+                                    out.put(JSObject()
+                                        .put("source_package", origin.packageName)
+                                        .put("source_name", origin.packageName)
+                                        .put("start_time", start)
+                                        .put("end_time", end)
+                                        .put("value_kcal", kcal)
+                                        .put("type", "active_aggregate"))
+                                }
+                            } catch (_: Exception) {}
+                        }
+
+                        if (granted.contains(totalPerm)) {
+                            try {
+                                val agg = c.aggregate(AggregateRequest(
+                                    metrics = setOf(ENERGY_TOTAL),
+                                    timeRangeFilter = range,
+                                    dataOriginFilter = setOf(origin)
+                                ))
+                                val kcal = agg[ENERGY_TOTAL]?.inKilocalories ?: 0.0
+                                if (kcal > 0.0) {
+                                    out.put(JSObject()
+                                        .put("source_package", origin.packageName)
+                                        .put("source_name", origin.packageName)
+                                        .put("start_time", start)
+                                        .put("end_time", end)
+                                        .put("value_kcal", kcal)
+                                        .put("type", "total_aggregate"))
+                                }
+                            } catch (_: Exception) {}
+                        }
                     }
                 }
 
