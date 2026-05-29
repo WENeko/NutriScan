@@ -486,29 +486,42 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
               <Label className="text-xs text-muted-foreground">Calories par {suppUnitLabel}</Label>
               <NumericInput value={suppCalories} onChange={setSuppCalories} className="h-9 rounded-lg text-sm" />
             </div>
-            <h3 className="text-xs font-semibold text-muted-foreground pt-2">Micros par {suppUnitLabel}</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground pt-2">Micros standards par {suppUnitLabel}</h3>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { key: "vitamin_b_mg", label: "Vit. B (mg)" },
-                { key: "vitamin_c_mg", label: "Vit. C (mg)" },
-                { key: "vitamin_d_mcg", label: "Vit. D (µg)" },
-                { key: "vitamin_e_mg", label: "Vit. E (mg)" },
-                { key: "calcium_mg", label: "Calcium (mg)" },
-                { key: "magnesium_mg", label: "Magnésium (mg)" },
-                { key: "omega3_mg", label: "Oméga-3 (mg)" },
-                { key: "potassium_mg", label: "Potassium (mg)" },
-                { key: "sodium_mg", label: "Sodium (mg)" },
-              ].map((f) => (
-                <div key={f.key} className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">{f.label}</Label>
+              {NUTRIENTS_STD_LIST.map((n) => (
+                <div key={n.key} className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">{n.label} ({n.unit})</Label>
                   <NumericInput
-                    value={(suppPerUnit as any)[f.key]}
-                    onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [f.key]: v }))}
+                    value={suppPerUnit[n.key] ?? 0}
+                    onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [n.key]: v }))}
                     className="h-9 rounded-lg text-sm"
                   />
                 </div>
               ))}
             </div>
+
+            {customDefs.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground pt-2">
+                  Mes nutriments personnalisés par {suppUnitLabel}
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {customDefs.map((n) => (
+                    <div key={n.key} className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {n.label} ({n.unit})
+                        <span className="block text-[9px] text-muted-foreground/70">{labelOf(n.category)}</span>
+                      </Label>
+                      <NumericInput
+                        value={suppPerUnit[n.key] ?? 0}
+                        onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [n.key]: v }))}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setForm(emptyFood); }}>
