@@ -85,21 +85,28 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   // Supplement per-unit state
   const [suppUnitWeight, setSuppUnitWeight] = useState(1); // weight per unit in g
   const [suppUnitLabel, setSuppUnitLabel] = useState("capsule");
-  const [suppPerUnit, setSuppPerUnit] = useState({
-    vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
-    calcium_mg: 0, magnesium_mg: 0, omega3_mg: 0, potassium_mg: 0, sodium_mg: 0,
-  });
+  // Valeurs par unité, clés = clés de la master list (std + custom)
+  const [suppPerUnit, setSuppPerUnit] = useState<Record<string, number>>({});
   // Track if user provided raw calories for supplement
   const [suppCalories, setSuppCalories] = useState(0);
   const [customDefs, setCustomDefs] = useState<CustomNutrientDef[]>([]);
   const { labelOf } = useMicroCategories();
 
-  // Champs standards déjà couverts par des colonnes dédiées dans custom_foods
-  const STD_COLUMN_KEYS = new Set([
-    "fiber", "sugar", "saturated_fat", "omega3_mg", "sodium_mg",
-    "potassium_mg", "magnesium_mg", "calcium_mg",
-    "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
-  ]);
+  // Mapping clé std → colonne dédiée dans custom_foods (per_100g)
+  const STD_COLUMN_BY_KEY: Record<string, string> = {
+    fiber: "fiber_per_100g",
+    sugar: "sugar_per_100g",
+    saturated_fat: "saturated_fat_per_100g",
+    omega3_mg: "omega3_mg_per_100g",
+    sodium_mg: "sodium_mg_per_100g",
+    potassium_mg: "potassium_mg_per_100g",
+    magnesium_mg: "magnesium_mg_per_100g",
+    calcium_mg: "calcium_mg_per_100g",
+    vitamin_c_mg: "vitamin_c_per_100g",
+    vitamin_d_mcg: "vitamin_d_per_100g",
+    vitamin_e_mg: "vitamin_e_per_100g",
+  };
+  const STD_COLUMN_KEYS = new Set(Object.keys(STD_COLUMN_BY_KEY));
   // Standards SANS colonne dédiée → stockés dans nutrients_std (iron, zinc, b9, b12…)
   const STD_EXTRA = NUTRIENTS_STD_LIST.filter((n) => !STD_COLUMN_KEYS.has(n.key));
 
