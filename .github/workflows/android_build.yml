@@ -24,16 +24,11 @@ jobs:
           node-version: '22'
           cache: npm
 
-      - name: Create .env file
-        run: |
-          cat > .env << EOF
-          VITE_GEMINI_API_KEY=${{ secrets.VITE_GEMINI_API_KEY }}
-          VITE_PERSONAL_SUPABASE_ANON_KEY=${{ secrets.VITE_PERSONAL_SUPABASE_ANON_KEY }}
-          VITE_PERSONAL_SUPABASE_URL=${{ secrets.VITE_PERSONAL_SUPABASE_URL }}
-          VITE_SUPABASE_PROJECT_ID=${{ secrets.VITE_SUPABASE_PROJECT_ID }}
-          VITE_SUPABASE_PUBLISHABLE_KEY=${{ secrets.VITE_SUPABASE_PUBLISHABLE_KEY }}
-          VITE_SUPABASE_URL=${{ secrets.VITE_SUPABASE_URL }}
-          EOF
+      # Note: le fichier .env est versionné dans le repo avec les bonnes clés
+      # (clé "publishable" Supabase, sans danger à committer). On ne le réécrit
+      # plus depuis les secrets GitHub car des secrets vides/manquants
+      # produisaient un APK avec une clé invalide ("invalid API key" au login).
+
 
       - name: Install dependencies
         run: |
