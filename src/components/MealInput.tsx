@@ -271,22 +271,25 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         carbs = roundNutrient((Number(customMatch.carbs_per_100g) || 0) * weight / 100);
         fats = roundNutrient((Number(customMatch.fats_per_100g) || 0) * weight / 100);
         calories = Math.round((Number(customMatch.calories_per_100g) || 0) * weight / 100);
-        fiber = roundNutrient((Number(customMatch.fiber_per_100g) || 0) * weight / 100);
-        sugar = roundNutrient((Number(customMatch.sugar_per_100g) || 0) * weight / 100);
-        saturated_fat = roundNutrient((Number(customMatch.saturated_fat_per_100g) || 0) * weight / 100);
-        omega3_mg = roundNutrient((Number(customMatch.omega3_mg_per_100g) || 0) * weight / 100);
-        sodium_mg = roundNutrient((Number(customMatch.sodium_mg_per_100g) || 0) * weight / 100);
-        potassium_mg = roundNutrient((Number(customMatch.potassium_mg_per_100g) || 0) * weight / 100);
-        magnesium_mg = roundNutrient((Number(customMatch.magnesium_mg_per_100g) || 0) * weight / 100);
-        calcium_mg = roundNutrient((Number(customMatch.calcium_mg_per_100g) || 0) * weight / 100);
-        iron_mg = roundNutrient((Number(customMatch.iron_mg_per_100g) || 0) * weight / 100);
-        zinc_mg = roundNutrient((Number(customMatch.zinc_mg_per_100g) || 0) * weight / 100);
+        const cmStd = (customMatch.nutrients_std || {}) as Record<string, number>;
+        const cmCol = (col: string, key: string) =>
+          roundNutrient(((Number(customMatch[col]) || Number(cmStd[key])) || 0) * weight / 100);
+        fiber = cmCol("fiber_per_100g", "fiber");
+        sugar = cmCol("sugar_per_100g", "sugar");
+        saturated_fat = cmCol("saturated_fat_per_100g", "saturated_fat");
+        omega3_mg = cmCol("omega3_mg_per_100g", "omega3_mg");
+        sodium_mg = cmCol("sodium_mg_per_100g", "sodium_mg");
+        potassium_mg = cmCol("potassium_mg_per_100g", "potassium_mg");
+        magnesium_mg = cmCol("magnesium_mg_per_100g", "magnesium_mg");
+        calcium_mg = cmCol("calcium_mg_per_100g", "calcium_mg");
+        iron_mg = cmCol("iron_mg_per_100g", "iron_mg");
+        zinc_mg = cmCol("zinc_mg_per_100g", "zinc_mg");
         vitamin_b_mg = roundNutrient((Number(customMatch.vitamin_b_per_100g) || 0) * weight / 100);
-        vitamin_b9_mcg = roundNutrient((Number(customMatch.vitamin_b9_mcg_per_100g) || 0) * weight / 100);
-        vitamin_b12_mcg = roundNutrient((Number(customMatch.vitamin_b12_mcg_per_100g) || 0) * weight / 100);
-        vitamin_c_mg = roundNutrient((Number(customMatch.vitamin_c_per_100g) || 0) * weight / 100);
-        vitamin_d_mcg = roundNutrient((Number(customMatch.vitamin_d_per_100g) || 0) * weight / 100);
-        vitamin_e_mg = roundNutrient((Number(customMatch.vitamin_e_per_100g) || 0) * weight / 100);
+        vitamin_b9_mcg = cmCol("vitamin_b9_mcg_per_100g", "vitamin_b9_mcg");
+        vitamin_b12_mcg = cmCol("vitamin_b12_mcg_per_100g", "vitamin_b12_mcg");
+        vitamin_c_mg = cmCol("vitamin_c_per_100g", "vitamin_c_mg");
+        vitamin_d_mcg = cmCol("vitamin_d_per_100g", "vitamin_d_mcg");
+        vitamin_e_mg = cmCol("vitamin_e_per_100g", "vitamin_e_mg");
         isCustom = true;
       }
 
