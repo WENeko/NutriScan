@@ -85,21 +85,28 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   // Supplement per-unit state
   const [suppUnitWeight, setSuppUnitWeight] = useState(1); // weight per unit in g
   const [suppUnitLabel, setSuppUnitLabel] = useState("capsule");
-  const [suppPerUnit, setSuppPerUnit] = useState({
-    vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0,
-    calcium_mg: 0, magnesium_mg: 0, omega3_mg: 0, potassium_mg: 0, sodium_mg: 0,
-  });
+  // Valeurs par unité, clés = clés de la master list (std + custom)
+  const [suppPerUnit, setSuppPerUnit] = useState<Record<string, number>>({});
   // Track if user provided raw calories for supplement
   const [suppCalories, setSuppCalories] = useState(0);
   const [customDefs, setCustomDefs] = useState<CustomNutrientDef[]>([]);
   const { labelOf } = useMicroCategories();
 
-  // Champs standards déjà couverts par des colonnes dédiées dans custom_foods
-  const STD_COLUMN_KEYS = new Set([
-    "fiber", "sugar", "saturated_fat", "omega3_mg", "sodium_mg",
-    "potassium_mg", "magnesium_mg", "calcium_mg",
-    "vitamin_c_mg", "vitamin_d_mcg", "vitamin_e_mg",
-  ]);
+  // Mapping clé std → colonne dédiée dans custom_foods (per_100g)
+  const STD_COLUMN_BY_KEY: Record<string, string> = {
+    fiber: "fiber_per_100g",
+    sugar: "sugar_per_100g",
+    saturated_fat: "saturated_fat_per_100g",
+    omega3_mg: "omega3_mg_per_100g",
+    sodium_mg: "sodium_mg_per_100g",
+    potassium_mg: "potassium_mg_per_100g",
+    magnesium_mg: "magnesium_mg_per_100g",
+    calcium_mg: "calcium_mg_per_100g",
+    vitamin_c_mg: "vitamin_c_per_100g",
+    vitamin_d_mcg: "vitamin_d_per_100g",
+    vitamin_e_mg: "vitamin_e_per_100g",
+  };
+  const STD_COLUMN_KEYS = new Set(Object.keys(STD_COLUMN_BY_KEY));
   // Standards SANS colonne dédiée → stockés dans nutrients_std (iron, zinc, b9, b12…)
   const STD_EXTRA = NUTRIENTS_STD_LIST.filter((n) => !STD_COLUMN_KEYS.has(n.key));
 
@@ -160,32 +167,41 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     // Convert per-unit values to per-100g based on unit weight
     const unitW = suppUnitWeight || 1;
     const factor = 100 / unitW;
+    const round1 = (v: number) => Math.round((v || 0) * factor * 10) / 10;
+
     const suppForm: Omit<CustomFood, "id"> = {
-      ...form,
+      ...emptyFood,
+      name: form.name,
+      brand: form.brand,
       serving_size_g: unitW,
       calories_per_100g: Math.round(suppCalories * factor),
-      proteins_per_100g: 0,
-      carbs_per_100g: 0,
-      fats_per_100g: 0,
-      fiber_per_100g: 0,
-      sugar_per_100g: 0,
-      saturated_fat_per_100g: 0,
-      vitamin_b_per_100g: Math.round(suppPerUnit.vitamin_b_mg * factor * 10) / 10,
-      vitamin_c_per_100g: Math.round(suppPerUnit.vitamin_c_mg * factor * 10) / 10,
-      vitamin_d_per_100g: Math.round(suppPerUnit.vitamin_d_mcg * factor * 10) / 10,
-      vitamin_e_per_100g: Math.round(suppPerUnit.vitamin_e_mg * factor * 10) / 10,
-      calcium_mg_per_100g: Math.round(suppPerUnit.calcium_mg * factor * 10) / 10,
-      magnesium_mg_per_100g: Math.round(suppPerUnit.magnesium_mg * factor * 10) / 10,
-      omega3_mg_per_100g: Math.round(suppPerUnit.omega3_mg * factor * 10) / 10,
-      potassium_mg_per_100g: Math.round(suppPerUnit.potassium_mg * factor * 10) / 10,
-      sodium_mg_per_100g: Math.round(suppPerUnit.sodium_mg * factor * 10) / 10,
+      nutrients_std: {},
+      nutrients_custom: {},
     };
+
+    // Micros standards : colonne dédiée OU nutrients_std
+    for (const n of NUTRIENTS_STD_LIST) {
+      const perUnit = suppPerUnit[n.key] || 0;
+      if (perUnit <= 0) continue;
+      const col = STD_COLUMN_BY_KEY[n.key];
+      if (col) {
+        (suppForm as any)[col] = round1(perUnit);
+      } else {
+        suppForm.nutrients_std![n.key] = round1(perUnit);
+      }
+    }
+    // Micros personnalisés → nutrients_custom
+    for (const d of customDefs) {
+      const perUnit = suppPerUnit[d.key] || 0;
+      if (perUnit > 0) suppForm.nutrients_custom![d.key] = round1(perUnit);
+    }
+
     try {
       await supabase.from("custom_foods").insert({ ...suppForm, user_id: userId } as any);
       toast({ title: "Complément ajouté !" });
       setCreating(false);
       setForm(emptyFood);
-      setSuppPerUnit({ vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0, calcium_mg: 0, magnesium_mg: 0, omega3_mg: 0, potassium_mg: 0, sodium_mg: 0 });
+      setSuppPerUnit({});
       setSuppCalories(0);
       setSuppUnitWeight(1);
       fetchFoods();
@@ -470,29 +486,42 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
               <Label className="text-xs text-muted-foreground">Calories par {suppUnitLabel}</Label>
               <NumericInput value={suppCalories} onChange={setSuppCalories} className="h-9 rounded-lg text-sm" />
             </div>
-            <h3 className="text-xs font-semibold text-muted-foreground pt-2">Micros par {suppUnitLabel}</h3>
+            <h3 className="text-xs font-semibold text-muted-foreground pt-2">Micros standards par {suppUnitLabel}</h3>
             <div className="grid grid-cols-3 gap-3">
-              {[
-                { key: "vitamin_b_mg", label: "Vit. B (mg)" },
-                { key: "vitamin_c_mg", label: "Vit. C (mg)" },
-                { key: "vitamin_d_mcg", label: "Vit. D (µg)" },
-                { key: "vitamin_e_mg", label: "Vit. E (mg)" },
-                { key: "calcium_mg", label: "Calcium (mg)" },
-                { key: "magnesium_mg", label: "Magnésium (mg)" },
-                { key: "omega3_mg", label: "Oméga-3 (mg)" },
-                { key: "potassium_mg", label: "Potassium (mg)" },
-                { key: "sodium_mg", label: "Sodium (mg)" },
-              ].map((f) => (
-                <div key={f.key} className="space-y-1">
-                  <Label className="text-[10px] text-muted-foreground">{f.label}</Label>
+              {NUTRIENTS_STD_LIST.map((n) => (
+                <div key={n.key} className="space-y-1">
+                  <Label className="text-[10px] text-muted-foreground">{n.label} ({n.unit})</Label>
                   <NumericInput
-                    value={(suppPerUnit as any)[f.key]}
-                    onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [f.key]: v }))}
+                    value={suppPerUnit[n.key] ?? 0}
+                    onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [n.key]: v }))}
                     className="h-9 rounded-lg text-sm"
                   />
                 </div>
               ))}
             </div>
+
+            {customDefs.length > 0 && (
+              <>
+                <h3 className="text-xs font-semibold text-muted-foreground pt-2">
+                  Mes nutriments personnalisés par {suppUnitLabel}
+                </h3>
+                <div className="grid grid-cols-3 gap-3">
+                  {customDefs.map((n) => (
+                    <div key={n.key} className="space-y-1">
+                      <Label className="text-[10px] text-muted-foreground">
+                        {n.label} ({n.unit})
+                        <span className="block text-[9px] text-muted-foreground/70">{labelOf(n.category)}</span>
+                      </Label>
+                      <NumericInput
+                        value={suppPerUnit[n.key] ?? 0}
+                        onChange={(v) => setSuppPerUnit((prev) => ({ ...prev, [n.key]: v }))}
+                        className="h-9 rounded-lg text-sm"
+                      />
+                    </div>
+                  ))}
+                </div>
+              </>
+            )}
 
             <div className="flex gap-2 pt-2">
               <Button variant="outline" className="flex-1 rounded-xl h-11" onClick={() => { setCreating(false); setForm(emptyFood); }}>
