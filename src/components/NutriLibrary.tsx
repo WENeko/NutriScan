@@ -167,32 +167,41 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     // Convert per-unit values to per-100g based on unit weight
     const unitW = suppUnitWeight || 1;
     const factor = 100 / unitW;
+    const round1 = (v: number) => Math.round((v || 0) * factor * 10) / 10;
+
     const suppForm: Omit<CustomFood, "id"> = {
-      ...form,
+      ...emptyFood,
+      name: form.name,
+      brand: form.brand,
       serving_size_g: unitW,
       calories_per_100g: Math.round(suppCalories * factor),
-      proteins_per_100g: 0,
-      carbs_per_100g: 0,
-      fats_per_100g: 0,
-      fiber_per_100g: 0,
-      sugar_per_100g: 0,
-      saturated_fat_per_100g: 0,
-      vitamin_b_per_100g: Math.round(suppPerUnit.vitamin_b_mg * factor * 10) / 10,
-      vitamin_c_per_100g: Math.round(suppPerUnit.vitamin_c_mg * factor * 10) / 10,
-      vitamin_d_per_100g: Math.round(suppPerUnit.vitamin_d_mcg * factor * 10) / 10,
-      vitamin_e_per_100g: Math.round(suppPerUnit.vitamin_e_mg * factor * 10) / 10,
-      calcium_mg_per_100g: Math.round(suppPerUnit.calcium_mg * factor * 10) / 10,
-      magnesium_mg_per_100g: Math.round(suppPerUnit.magnesium_mg * factor * 10) / 10,
-      omega3_mg_per_100g: Math.round(suppPerUnit.omega3_mg * factor * 10) / 10,
-      potassium_mg_per_100g: Math.round(suppPerUnit.potassium_mg * factor * 10) / 10,
-      sodium_mg_per_100g: Math.round(suppPerUnit.sodium_mg * factor * 10) / 10,
+      nutrients_std: {},
+      nutrients_custom: {},
     };
+
+    // Micros standards : colonne dédiée OU nutrients_std
+    for (const n of NUTRIENTS_STD_LIST) {
+      const perUnit = suppPerUnit[n.key] || 0;
+      if (perUnit <= 0) continue;
+      const col = STD_COLUMN_BY_KEY[n.key];
+      if (col) {
+        (suppForm as any)[col] = round1(perUnit);
+      } else {
+        suppForm.nutrients_std![n.key] = round1(perUnit);
+      }
+    }
+    // Micros personnalisés → nutrients_custom
+    for (const d of customDefs) {
+      const perUnit = suppPerUnit[d.key] || 0;
+      if (perUnit > 0) suppForm.nutrients_custom![d.key] = round1(perUnit);
+    }
+
     try {
       await supabase.from("custom_foods").insert({ ...suppForm, user_id: userId } as any);
       toast({ title: "Complément ajouté !" });
       setCreating(false);
       setForm(emptyFood);
-      setSuppPerUnit({ vitamin_b_mg: 0, vitamin_c_mg: 0, vitamin_d_mcg: 0, vitamin_e_mg: 0, calcium_mg: 0, magnesium_mg: 0, omega3_mg: 0, potassium_mg: 0, sodium_mg: 0 });
+      setSuppPerUnit({});
       setSuppCalories(0);
       setSuppUnitWeight(1);
       fetchFoods();
