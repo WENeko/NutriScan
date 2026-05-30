@@ -18,15 +18,12 @@ function AuthGuard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    // Initialiser le listener pour les deep links OAuth
-    authService.initializeDeepLinkListener(async (url: string) => {
-      // Supabase gère automatiquement le callback si l'URL contient les params
-      // Cette fonction est juste un placeholder pour logs
-      console.log('Deep link reçu:', url);
-    });
+    // Initialiser le listener pour les deep links depuis le navigateur
+    authService.initializeDeepLinkListener();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
+        console.log('Auth state changed:', _event, session?.user?.email);
         setUserId(session?.user?.id ?? null);
         setLoading(false);
       }

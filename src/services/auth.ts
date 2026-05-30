@@ -6,8 +6,10 @@ import { toast } from '@/hooks/use-toast';
 
 /**
  * Service d'authentification Google pour Capacitor (Android)
- * Utilise deep linking pour garder l'utilisateur dans l'app
+ * Flux: App -> Browser natif -> Google -> Supabase callback -> App
  */
+
+let authCallback: ((success: boolean) => void) | null = null;
 
 export const authService = {
   /**
@@ -20,57 +22,82 @@ export const authService = {
   /**
    * Initialise le listener pour les deep links (callback OAuth)
    */
-  initializeDeepLinkListener(callback: (url: string) => void) {
-    App.addListener('appUrlOpen', (data: any) => {
-      const slug = data.url.split('.app').pop();
-      if (slug) {
-        callback(data.url);
+  initializeDeepLinkListener() {
+    App.addListener('appUrlOpen', async (data: any) => {
+      console.log('Deep link reçu:', data.url);
+      
+      // Cherche les params d'authentification dans l'URL
+      const url = new URL(data.url);
+      const accessToken = url.searchParams.get('access_token');
+      const refreshToken = url.searchParams.get('refresh_token');
+      const type = url.searchParams.get('type');
+
+      // Si c'est un callback OAuth, créer la session
+      if (type === 'recovery' || accessToken) {
+        try {
+          // Supabase gère automatiquement la session
+          const { data: session, error } = await supabase.auth.getSession();
+          
+          if (error) {
+            console.error('Erreur session:', error);
+            if (authCallback) authCallback(false);
+          } else if (session.session) {
+            console.log('Utilisateur connecté:', session.session.user.email);
+            if (authCallback) authCallback(true);
+          }
+        } catch (err) {
+          console.error('Erreur deep link:', err);
+          if (authCallback) authCallback(false);
+        }
       }
     });
   },
 
   /**
    * Authentification Google natif pour Android
-   * Ouvre le navigateur natif Android mais revient dans l'app via deep linking
    */
   async signInWithGoogleNative() {
-    try {
-      // Le redirect URI doit être le deep link
-      const redirectUrl = 'com.nutriscan.app://auth/callback';
+    return new Promise<{ success: boolean }>((resolve) => {
+      try {
+        // Définir le callback pour quand l'utilisateur revient
+        authCallback = (success: boolean) => {
+          resolve({ success });
+        };
 
-      // Créer la session OAuth
-      const { data, error } = await supabase.auth.signInWithOAuth({
-        provider: 'google',
-        options: {
-          redirectTo: redirectUrl,
-          queryParams: {
-            access_type: 'offline',
-            prompt: 'select_account',
+        // Le redirect doit pointer vers le site web (où Supabase gère le callback)
+        // Puis le site redirige vers le deep link
+        const redirectUrl = `${window.location.origin}/auth/callback`;
+
+        supabase.auth.signInWithOAuth({
+          provider: 'google',
+          options: {
+            redirectTo: redirectUrl,
+            queryParams: {
+              access_type: 'offline',
+              prompt: 'select_account',
+            },
           },
-        },
-      });
-
-      if (error) throw error;
-
-      // Ouvrir Google dans le navigateur natif (pas de webview)
-      if (data.url) {
-        await Browser.open({
-          url: data.url,
-          windowName: '_blank',
-          toolbarColor: '#ffffff',
+        }).then(async (result) => {
+          if (result.data?.url) {
+            // Ouvrir Google dans le navigateur natif
+            await Browser.open({
+              url: result.data.url,
+              windowName: '_blank',
+            });
+          }
+        }).catch((error) => {
+          console.error('Erreur OAuth:', error);
+          resolve({ success: false });
         });
+      } catch (error: any) {
+        console.error('Erreur Google Native:', error);
+        resolve({ success: false });
       }
-
-      return { success: true };
-    } catch (error: any) {
-      console.error('Erreur Google Native:', error);
-      throw error;
-    }
+    });
   },
 
   /**
-   * Authentification Google web (fallback pour navigateur)
-   * Utilisé sur web ou si on n'est pas sur mobile
+   * Authentification Google web
    */
   async signInWithGoogleWeb() {
     try {
@@ -95,7 +122,6 @@ export const authService = {
 
   /**
    * Point d'entrée unique pour Google Sign In
-   * Détecte automatiquement si c'est mobile ou web
    */
   async signInWithGoogle() {
     try {
