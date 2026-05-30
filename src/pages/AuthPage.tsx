@@ -11,6 +11,29 @@ const AuthPage: React.FC = () => {
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [loading, setLoading] = useState(false);
+  const [googleLoading, setGoogleLoading] = useState(false);
+
+  const handleGoogleSignIn = async () => {
+    setGoogleLoading(true);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: {
+          redirectTo: window.location.origin,
+          queryParams: { prompt: "select_account" },
+        },
+      });
+      if (error) throw error;
+      // Le navigateur redirige vers Google ; pas besoin de toast ici.
+    } catch (error: any) {
+      toast({
+        title: "Erreur Google",
+        description: error.message,
+        variant: "destructive",
+      });
+      setGoogleLoading(false);
+    }
+  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
