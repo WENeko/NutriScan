@@ -6,6 +6,7 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { authService } from "@/services/auth";
 import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -17,6 +18,13 @@ function AuthGuard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    // Initialiser le listener pour les deep links OAuth
+    authService.initializeDeepLinkListener(async (url: string) => {
+      // Supabase gère automatiquement le callback si l'URL contient les params
+      // Cette fonction est juste un placeholder pour logs
+      console.log('Deep link reçu:', url);
+    });
+
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         setUserId(session?.user?.id ?? null);

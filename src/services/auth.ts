@@ -1,11 +1,12 @@
 import { Capacitor } from '@capacitor/core';
 import { Browser } from '@capacitor/browser';
+import { App } from '@capacitor/app';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 /**
  * Service d'authentification Google pour Capacitor (Android)
- * Utilise Supabase OAuth avec deep linking pour garder l'utilisateur dans l'app
+ * Utilise deep linking pour garder l'utilisateur dans l'app
  */
 
 export const authService = {
@@ -17,17 +18,31 @@ export const authService = {
   },
 
   /**
+   * Initialise le listener pour les deep links (callback OAuth)
+   */
+  initializeDeepLinkListener(callback: (url: string) => void) {
+    App.addListener('appUrlOpen', (data: any) => {
+      const slug = data.url.split('.app').pop();
+      if (slug) {
+        callback(data.url);
+      }
+    });
+  },
+
+  /**
    * Authentification Google natif pour Android
    * Ouvre le navigateur natif Android mais revient dans l'app via deep linking
    */
   async signInWithGoogleNative() {
     try {
-      // Créer une session d'écoute pour les redirects
+      // Le redirect URI doit être le deep link
+      const redirectUrl = 'com.nutriscan.app://auth/callback';
+
+      // Créer la session OAuth
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Deep link vers l'app au lieu du site web
-          redirectTo: `com.nutriscan.app://auth/callback`,
+          redirectTo: redirectUrl,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
@@ -39,7 +54,11 @@ export const authService = {
 
       // Ouvrir Google dans le navigateur natif (pas de webview)
       if (data.url) {
-        await Browser.open({ url: data.url });
+        await Browser.open({
+          url: data.url,
+          windowName: '_blank',
+          toolbarColor: '#ffffff',
+        });
       }
 
       return { success: true };
