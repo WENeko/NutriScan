@@ -4,11 +4,15 @@ const config: CapacitorConfig = {
   appId: 'com.nutriscan.app',
   appName: 'NutriScan',
   webDir: 'dist',
-  // DESACTIVE pour test build statique pur (pas de live reload)
-  // server: {
-  //   androidScheme: 'https'
-  // },
-  plugins: {}
+  server: {
+    androidScheme: 'https'
+  },
+  plugins: {
+    FirebaseAuthentication: {
+      skipNativeAuth: false,
+      providers: ['google.com'],
+    },
+  }
 };
 
 export default config;

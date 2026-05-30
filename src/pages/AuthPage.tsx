@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { lovable } from "@/integrations/lovable/index";
+import { authService } from "@/services/auth";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -17,19 +17,10 @@ const AuthPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const result = await lovable.auth.signInWithOAuth("google", {
-        redirect_uri: window.location.origin,
-        extraParams: { prompt: "select_account" },
-      });
-      if (result.error) throw new Error(result.error.message ?? "Erreur Google");
-      if (result.redirected) return; // Le navigateur redirige vers Google
-      // Tokens reçus, session déjà définie → l'utilisateur est connecté
-    } catch (error: any) {
-      toast({
-        title: "Erreur Google",
-        description: error.message,
-        variant: "destructive",
-      });
+      await authService.signInWithGoogle();
+      // Pas besoin de notification, la redirection est gérée par AuthGuard
+    } catch (error) {
+      // Les erreurs sont déjà gérées dans authService
       setGoogleLoading(false);
     }
   };
@@ -133,7 +124,7 @@ const AuthPage: React.FC = () => {
           <div className="h-px flex-1 bg-border" />
         </div>
 
-        {/* Google */}
+        {/* Google Sign In */}
         <Button
           type="button"
           variant="outline"
