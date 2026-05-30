@@ -1,5 +1,6 @@
 import React, { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { lovable } from "@/integrations/lovable/index";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -16,15 +17,13 @@ const AuthPage: React.FC = () => {
   const handleGoogleSignIn = async () => {
     setGoogleLoading(true);
     try {
-      const { error } = await supabase.auth.signInWithOAuth({
-        provider: "google",
-        options: {
-          redirectTo: window.location.origin,
-          queryParams: { prompt: "select_account" },
-        },
+      const result = await lovable.auth.signInWithOAuth("google", {
+        redirect_uri: window.location.origin,
+        extraParams: { prompt: "select_account" },
       });
-      if (error) throw error;
-      // Le navigateur redirige vers Google ; pas besoin de toast ici.
+      if (result.error) throw new Error(result.error.message ?? "Erreur Google");
+      if (result.redirected) return; // Le navigateur redirige vers Google
+      // Tokens reçus, session déjà définie → l'utilisateur est connecté
     } catch (error: any) {
       toast({
         title: "Erreur Google",
