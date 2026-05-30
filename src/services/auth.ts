@@ -1,11 +1,11 @@
 import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-community/firebase-authentication';
+import { Browser } from '@capacitor/browser';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
 /**
  * Service d'authentification Google pour Capacitor (Android)
- * Gère l'OAuth Google natif et synchronise avec Supabase
+ * Utilise Supabase OAuth avec deep linking pour garder l'utilisateur dans l'app
  */
 
 export const authService = {
@@ -17,35 +17,32 @@ export const authService = {
   },
 
   /**
-   * Authentification Google native pour Android
-   * Ouvre le picker Google natif, pas de redirection web
+   * Authentification Google natif pour Android
+   * Ouvre le navigateur natif Android mais revient dans l'app via deep linking
    */
   async signInWithGoogleNative() {
     try {
-      // Initialiser Firebase si nécessaire
-      await FirebaseAuthentication.initializeGoogle();
-
-      // Signer avec Google (picker natif Android)
-      const result = await FirebaseAuthentication.signInWithGoogle();
-
-      if (!result.user) {
-        throw new Error('Pas de session Google créée');
-      }
-
-      // Récupérer le token ID
-      const idToken = result.user.idToken || result.user.authentication?.idToken || '';
-      if (!idToken) {
-        throw new Error('Token Google non disponible');
-      }
-
-      // Synchroniser avec Supabase via le token Google
-      const { data, error } = await supabase.auth.signInWithIdToken({
+      // Créer une session d'écoute pour les redirects
+      const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
-        token: idToken,
+        options: {
+          // Deep link vers l'app au lieu du site web
+          redirectTo: `com.nutriscan.app://auth/callback`,
+          queryParams: {
+            access_type: 'offline',
+            prompt: 'select_account',
+          },
+        },
       });
 
       if (error) throw error;
-      return { success: true, user: data.user };
+
+      // Ouvrir Google dans le navigateur natif (pas de webview)
+      if (data.url) {
+        await Browser.open({ url: data.url });
+      }
+
+      return { success: true };
     } catch (error: any) {
       console.error('Erreur Google Native:', error);
       throw error;
@@ -54,7 +51,7 @@ export const authService = {
 
   /**
    * Authentification Google web (fallback pour navigateur)
-   * Utilisé sur web ou si Firebase n'est pas disponible
+   * Utilisé sur web ou si on n'est pas sur mobile
    */
   async signInWithGoogleWeb() {
     try {
@@ -103,9 +100,6 @@ export const authService = {
    */
   async signOut() {
     try {
-      if (this.isMobile()) {
-        await FirebaseAuthentication.signOut();
-      }
       await supabase.auth.signOut();
       return { success: true };
     } catch (error: any) {
