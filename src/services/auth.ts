@@ -1,5 +1,5 @@
 import { Capacitor } from '@capacitor/core';
-import { FirebaseAuthentication } from '@capacitor-firebase/authentication';
+import { FirebaseAuthentication } from '@capacitor-community/firebase-authentication';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
 
@@ -33,7 +33,7 @@ export const authService = {
       }
 
       // Récupérer le token ID
-      const idToken = result.user.idToken || '';
+      const idToken = result.user.idToken || result.user.authentication?.idToken || '';
       if (!idToken) {
         throw new Error('Token Google non disponible');
       }
