@@ -102,10 +102,13 @@ export const authService = {
           resolve({ success });
         };
 
-        // Supabase gère automatiquement le redirect vers le deep link
+        // IMPORTANT : redirectTo doit pointer vers le deep link de l'app
+        // sinon Supabase renvoie vers la web app dans le navigateur.
         supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
+            redirectTo: 'com.nutriscan.app://auth/callback',
+            skipBrowserRedirect: true,
             queryParams: {
               access_type: 'offline',
               prompt: 'select_account',
@@ -117,7 +120,7 @@ export const authService = {
             // Ouvrir Google dans le navigateur natif
             await Browser.open({
               url: result.data.url,
-              windowName: '_blank',
+              windowName: '_self',
             });
           }
         }).catch((error) => {
