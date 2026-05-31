@@ -227,10 +227,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       const bf = firstNonNull("body_fat_percent");
       const mm = firstNonNull("muscle_mass_kg");
       const ac = firstNonNull("active_calories_kcal");
-      if (w !== undefined) setWeight(Number(w));
-      if (bf !== undefined) setBodyFat(Number(bf));
-      if (mm !== undefined) setMuscleMass(Number(mm));
-      if (ac !== undefined) setSportCalories(Number(ac));
+      if (w !== undefined) setWeight(Math.round(Number(w) * 10) / 10);
+      if (bf !== undefined) setBodyFat(Math.round(Number(bf) * 10) / 10);
+      if (mm !== undefined) setMuscleMass(Math.round(Number(mm) * 10) / 10);
+      if (ac !== undefined) setSportCalories(Math.round(Number(ac)));
     }
 
     if (data) {
