@@ -26,21 +26,59 @@ export const authService = {
   initializeDeepLinkListener() {
     App.addListener('appUrlOpen', async (data: any) => {
       console.log('🔗 Deep link reçu:', data.url);
-      
+
+      // On ne traite que les callbacks d'authentification
+      if (!data.url || !data.url.includes('auth/callback')) {
+        return;
+      }
+
       try {
-        // Vérifier la session Supabase (automatiquement mise à jour)
-        const { data: session, error } = await supabase.auth.getSession();
-        
-        if (error) {
-          console.error('❌ Erreur session:', error);
+        // Fermer le navigateur natif ouvert pour Google
+        try { await Browser.close(); } catch { /* ignore */ }
+
+        const url = new URL(data.url);
+        // Flux PKCE : ?code=...   |   Flux implicite : #access_token=...
+        const code = url.searchParams.get('code');
+        const errorParam = url.searchParams.get('error_description') || url.searchParams.get('error');
+
+        if (errorParam) {
+          console.error('❌ Erreur OAuth retournée:', errorParam);
           if (authCallback) authCallback(false);
-        } else if (session.session?.user) {
-          console.log('✅ Utilisateur connecté:', session.session.user.email);
-          if (authCallback) authCallback(true);
-        } else {
-          console.log('⚠️ Pas de session détectée');
-          if (authCallback) authCallback(false);
+          return;
         }
+
+        if (code) {
+          const { data: result, error } = await supabase.auth.exchangeCodeForSession(code);
+          if (error) {
+            console.error('❌ Erreur exchangeCodeForSession:', error);
+            if (authCallback) authCallback(false);
+            return;
+          }
+          console.log('✅ Utilisateur connecté:', result.session?.user?.email);
+          if (authCallback) authCallback(true);
+          return;
+        }
+
+        // Flux implicite (tokens dans le fragment #)
+        const hash = url.hash.startsWith('#') ? url.hash.substring(1) : url.hash;
+        const hashParams = new URLSearchParams(hash);
+        const access_token = hashParams.get('access_token');
+        const refresh_token = hashParams.get('refresh_token');
+
+        if (access_token && refresh_token) {
+          const { data: result, error } = await supabase.auth.setSession({ access_token, refresh_token });
+          if (error) {
+            console.error('❌ Erreur setSession:', error);
+            if (authCallback) authCallback(false);
+            return;
+          }
+          console.log('✅ Utilisateur connecté:', result.session?.user?.email);
+          if (authCallback) authCallback(true);
+          return;
+        }
+
+        console.log('⚠️ Pas de code ni de tokens dans le deep link');
+        if (authCallback) authCallback(false);
       } catch (err) {
         console.error('❌ Erreur deep link:', err);
         if (authCallback) authCallback(false);
