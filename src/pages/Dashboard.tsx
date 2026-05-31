@@ -107,8 +107,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       baseCalories = g?.calories ?? 2000;
       const currentWeight = lastWeight !== undefined ? Number(lastWeight) : 70;
       const dailySport = lastActiveCal !== undefined ? Number(lastActiveCal) : 0;
-      setSportCalories(dailySport);
-      setWeight(currentWeight);
+      setSportCalories(Math.round(dailySport));
+      setWeight(Math.round(currentWeight * 10) / 10);
       setWaterGoal(Number((profile as any).water_goal_ml) || 2000);
       setTargetWeight((profile as any).target_weight_kg ? Number((profile as any).target_weight_kg) : null);
       setTargetBodyFat((profile as any).target_body_fat_percent ? Number((profile as any).target_body_fat_percent) : null);
