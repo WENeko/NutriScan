@@ -18,7 +18,7 @@ const AuthPage: React.FC = () => {
     setGoogleLoading(true);
     try {
       await authService.signInWithGoogle();
-      // Pas besoin de notification, la redirection est gérée par AuthGuard
+      // La redirection est gérée par AuthGuard quand la session change
     } catch (error) {
       // Les erreurs sont déjà gérées dans authService
       setGoogleLoading(false);

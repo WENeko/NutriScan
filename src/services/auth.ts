@@ -6,7 +6,7 @@ import { toast } from '@/hooks/use-toast';
 
 /**
  * Service d'authentification Google pour Capacitor (Android)
- * Flux: App -> Browser natif -> Google -> Supabase callback -> App
+ * Flux: App -> Browser natif -> Google -> Supabase -> Deep link -> App
  */
 
 let authCallback: ((success: boolean) => void) | null = null;
@@ -21,57 +21,53 @@ export const authService = {
 
   /**
    * Initialise le listener pour les deep links (callback OAuth)
+   * Écoute com.nutriscan.app://auth/callback depuis Supabase
    */
   initializeDeepLinkListener() {
     App.addListener('appUrlOpen', async (data: any) => {
-      console.log('Deep link reçu:', data.url);
+      console.log('🔗 Deep link reçu:', data.url);
       
-      // Cherche les params d'authentification dans l'URL
-      const url = new URL(data.url);
-      const accessToken = url.searchParams.get('access_token');
-      const refreshToken = url.searchParams.get('refresh_token');
-      const type = url.searchParams.get('type');
-
-      // Si c'est un callback OAuth, créer la session
-      if (type === 'recovery' || accessToken) {
-        try {
-          // Supabase gère automatiquement la session
-          const { data: session, error } = await supabase.auth.getSession();
-          
-          if (error) {
-            console.error('Erreur session:', error);
-            if (authCallback) authCallback(false);
-          } else if (session.session) {
-            console.log('Utilisateur connecté:', session.session.user.email);
-            if (authCallback) authCallback(true);
-          }
-        } catch (err) {
-          console.error('Erreur deep link:', err);
+      try {
+        // Vérifier la session Supabase (automatiquement mise à jour)
+        const { data: session, error } = await supabase.auth.getSession();
+        
+        if (error) {
+          console.error('❌ Erreur session:', error);
+          if (authCallback) authCallback(false);
+        } else if (session.session?.user) {
+          console.log('✅ Utilisateur connecté:', session.session.user.email);
+          if (authCallback) authCallback(true);
+        } else {
+          console.log('⚠️ Pas de session détectée');
           if (authCallback) authCallback(false);
         }
+      } catch (err) {
+        console.error('❌ Erreur deep link:', err);
+        if (authCallback) authCallback(false);
       }
     });
   },
 
   /**
    * Authentification Google natif pour Android
+   * 1. Ouvre Google dans le navigateur natif
+   * 2. Google redirige vers Supabase
+   * 3. Supabase redirige vers com.nutriscan.app://auth/callback
+   * 4. Deep link listener détecte et connecte l'utilisateur
    */
   async signInWithGoogleNative() {
     return new Promise<{ success: boolean }>((resolve) => {
       try {
         // Définir le callback pour quand l'utilisateur revient
         authCallback = (success: boolean) => {
+          authCallback = null;
           resolve({ success });
         };
 
-        // Le redirect doit pointer vers le site web (où Supabase gère le callback)
-        // Puis le site redirige vers le deep link
-        const redirectUrl = `${window.location.origin}/auth/callback`;
-
+        // Supabase gère automatiquement le redirect vers le deep link
         supabase.auth.signInWithOAuth({
           provider: 'google',
           options: {
-            redirectTo: redirectUrl,
             queryParams: {
               access_type: 'offline',
               prompt: 'select_account',
@@ -79,6 +75,7 @@ export const authService = {
           },
         }).then(async (result) => {
           if (result.data?.url) {
+            console.log('🌐 Ouverture du navigateur...');
             // Ouvrir Google dans le navigateur natif
             await Browser.open({
               url: result.data.url,
@@ -86,25 +83,26 @@ export const authService = {
             });
           }
         }).catch((error) => {
-          console.error('Erreur OAuth:', error);
+          console.error('❌ Erreur OAuth:', error);
+          if (authCallback) authCallback(false);
           resolve({ success: false });
         });
       } catch (error: any) {
-        console.error('Erreur Google Native:', error);
+        console.error('❌ Erreur Google Native:', error);
+        if (authCallback) authCallback(false);
         resolve({ success: false });
       }
     });
   },
 
   /**
-   * Authentification Google web
+   * Authentification Google web (navigateur normal)
    */
   async signInWithGoogleWeb() {
     try {
       const { data, error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          redirectTo: `${window.location.origin}/auth/callback`,
           queryParams: {
             access_type: 'offline',
             prompt: 'select_account',
@@ -115,13 +113,14 @@ export const authService = {
       if (error) throw error;
       return { success: true };
     } catch (error: any) {
-      console.error('Erreur Google Web:', error);
+      console.error('❌ Erreur Google Web:', error);
       throw error;
     }
   },
 
   /**
    * Point d'entrée unique pour Google Sign In
+   * Détecte automatiquement mobile ou web
    */
   async signInWithGoogle() {
     try {
@@ -148,7 +147,7 @@ export const authService = {
       await supabase.auth.signOut();
       return { success: true };
     } catch (error: any) {
-      console.error('Erreur déconnexion:', error);
+      console.error('❌ Erreur déconnexion:', error);
       throw error;
     }
   },
