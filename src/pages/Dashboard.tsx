@@ -336,7 +336,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     name: r.label,
     value: todayMicros[r.key] || 0,
     unit: r.unit,
-    info: r.isCustom ? `${r.label} (custom)` : getMicroInfo(r.key, r.goal),
+    info: r.isCustom ? getCustomMicroInfo(r.label, r.unit, r.goal, r.isLimit, r.description) : getMicroInfo(r.key, r.goal),
     goal: r.goal,
     isLimit: r.isLimit,
   }));
