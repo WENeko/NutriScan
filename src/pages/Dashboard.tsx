@@ -68,6 +68,37 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
+  // Génère les descriptions IA manquantes pour les micros custom existants (créés
+  // avant la fonctionnalité) puis persiste et rafraîchit l'état.
+  const backfillCustomDescriptions = useCallback(async (defs: CustomNutrientDef[]) => {
+    const missing = defs.filter((d) => !d.description || !d.description.trim());
+    if (missing.length === 0) return;
+    let changed = false;
+    const updated = [...defs];
+    for (const def of missing) {
+      try {
+        const { data, error } = await supabase.functions.invoke("describe-nutrient", {
+          body: { label: def.label, unit: def.unit, goal: def.goal, is_limit: def.is_limit, category: def.category },
+        });
+        if (!error && data?.description) {
+          const idx = updated.findIndex((u) => u.key === def.key);
+          if (idx >= 0) {
+            updated[idx] = { ...updated[idx], description: String(data.description).slice(0, 240) };
+            changed = true;
+          }
+        }
+      } catch {
+        // ignore: le tooltip retombera sur le fallback
+      }
+    }
+    if (changed) {
+      await supabase.from("profiles").update({ custom_nutrients: updated as any }).eq("user_id", userId);
+      setCustomNutrients(updated);
+    }
+  }, [userId]);
+
+
+
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
@@ -124,7 +155,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         isMenopausal: !!(profile as any).is_menopausal,
       });
       const cn = (profile as any).custom_nutrients;
-      setCustomNutrients(Array.isArray(cn) ? cn : []);
+      const cnArr: CustomNutrientDef[] = Array.isArray(cn) ? cn : [];
+      setCustomNutrients(cnArr);
+      void backfillCustomDescriptions(cnArr);
       const mo = (profile as any).micro_overrides;
       setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
 
