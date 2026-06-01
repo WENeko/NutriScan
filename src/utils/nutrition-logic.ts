@@ -10,6 +10,8 @@ export interface NutrientDef {
   category: string;
   /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
   isLimitDefault?: boolean;
+  /** Description générée (bienfaits/impact) pour le tooltip — surtout pour les micros custom */
+  description?: string;
 }
 
 export const NUTRIENTS_STD_LIST: NutrientDef[] = [
