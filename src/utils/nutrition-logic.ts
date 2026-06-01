@@ -57,6 +57,8 @@ export interface ResolvedMicroGoal {
   isLimit: boolean;
   isCustom: boolean;
   isOverridden: boolean;
+  /** Description (bienfaits/impact) pour le tooltip — surtout pour les micros custom */
+  description?: string;
 }
 
 // --- TYPES DYNAMIQUES BASÉS SUR NUTRIENTS_STD_LIST ---
