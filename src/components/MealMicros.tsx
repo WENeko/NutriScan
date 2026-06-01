@@ -2,7 +2,7 @@ import React, { useState, useEffect, useId } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTooltipCtx } from "./TooltipContext";
-import { getMicroInfo, type MicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
+import { getMicroInfo, getCustomMicroInfo, type MicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface MealMicrosProps {
