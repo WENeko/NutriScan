@@ -112,6 +112,38 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
       return;
     }
     const value = v.value;
+
+    // Génère (ou régénère) la description IA pour le tooltip si absente ou si le
+    // label/objectif a changé en édition.
+    const prev = editKey ? items.find((i) => i.key === editKey) : undefined;
+    const needsDesc =
+      !value.description ||
+      !prev ||
+      prev.label !== value.label ||
+      prev.unit !== value.unit ||
+      prev.goal !== value.goal ||
+      prev.is_limit !== value.is_limit;
+    if (needsDesc) {
+      try {
+        const { data, error } = await supabase.functions.invoke("describe-nutrient", {
+          body: {
+            label: value.label,
+            unit: value.unit,
+            goal: value.goal,
+            is_limit: value.is_limit,
+            category: value.category,
+          },
+        });
+        if (!error && data?.description) {
+          value.description = String(data.description).slice(0, 240);
+        } else if (prev?.description) {
+          value.description = prev.description;
+        }
+      } catch {
+        if (prev?.description) value.description = prev.description;
+      }
+    }
+
     const next = editKey
       ? items.map((i) => (i.key === editKey ? value : i))
       : [...items, value];
@@ -120,6 +152,7 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
       toast({ title: editKey ? "Nutriment modifié" : "Nutriment ajouté" });
       cancelDraft();
     }
+
   }
 
   async function remove(key: string) {

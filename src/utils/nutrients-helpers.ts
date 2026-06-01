@@ -9,6 +9,8 @@ export interface CustomNutrientDef extends NutrientDef {
   goal?: number;
   /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
   is_limit?: boolean;
+  /** Description (bienfaits/impact) générée par l'IA pour le tooltip */
+  description?: string;
 }
 
 /** Construit nutrients_std (JSONB) à partir d'un item d'IA / formulaire. */
@@ -65,5 +67,6 @@ export function validateCustomNutrient(
   if (goal != null && (!Number.isFinite(goal) || goal < 0)) {
     return { ok: false, error: "Objectif invalide" };
   }
-  return { ok: true, value: { key, label, unit, category, goal, is_limit: !!def.is_limit } };
+  const description = typeof def.description === "string" ? def.description.trim().slice(0, 240) : undefined;
+  return { ok: true, value: { key, label, unit, category, goal, is_limit: !!def.is_limit, description } };
 }

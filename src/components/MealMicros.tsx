@@ -2,7 +2,7 @@ import React, { useState, useEffect, useId } from "react";
 import { ChevronDown, Info } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useTooltipCtx } from "./TooltipContext";
-import { getMicroInfo, type MicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
+import { getMicroInfo, getCustomMicroInfo, type MicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 
 interface MealMicrosProps {
@@ -73,7 +73,10 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
             allNutrients.filter((n) => (micros[n.key] || 0) > 0).map((n, i) => {
               const goal = microGoals ? (microGoals as any)[n.key] ?? 0 : 0;
               const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
-              const info = isStd && microGoals ? getMicroInfo(n.key, goal) : `${n.label} (custom)`;
+              const customDef = customDefs.find((c) => c.key === n.key);
+              const info = isStd && microGoals
+                ? getMicroInfo(n.key, goal)
+                : getCustomMicroInfo(n.label, n.unit, goal, !!customDef?.is_limit, customDef?.description);
               return (
                 <div key={n.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
                   <div className="flex items-center gap-1">

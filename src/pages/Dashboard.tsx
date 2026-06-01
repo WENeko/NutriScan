@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getPersonalizedMicroGoals, getMicroInfo, type UserProfile } from "@/lib/micro-goals";
+import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserProfile } from "@/lib/micro-goals";
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import CircularProgress from "@/components/CircularProgress";
@@ -336,7 +336,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     name: r.label,
     value: todayMicros[r.key] || 0,
     unit: r.unit,
-    info: r.isCustom ? `${r.label} (custom)` : getMicroInfo(r.key, r.goal),
+    info: r.isCustom ? getCustomMicroInfo(r.label, r.unit, r.goal, r.isLimit, r.description) : getMicroInfo(r.key, r.goal),
     goal: r.goal,
     isLimit: r.isLimit,
   }));

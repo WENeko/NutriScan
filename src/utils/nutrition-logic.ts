@@ -10,6 +10,8 @@ export interface NutrientDef {
   category: string;
   /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
   isLimitDefault?: boolean;
+  /** Description générée (bienfaits/impact) pour le tooltip — surtout pour les micros custom */
+  description?: string;
 }
 
 export const NUTRIENTS_STD_LIST: NutrientDef[] = [
@@ -55,6 +57,8 @@ export interface ResolvedMicroGoal {
   isLimit: boolean;
   isCustom: boolean;
   isOverridden: boolean;
+  /** Description (bienfaits/impact) pour le tooltip — surtout pour les micros custom */
+  description?: string;
 }
 
 // --- TYPES DYNAMIQUES BASÉS SUR NUTRIENTS_STD_LIST ---
@@ -312,7 +316,26 @@ export function resolveMicroGoals(
       isLimit,
       isCustom,
       isOverridden: ov?.goal != null || ov?.is_limit != null,
+      description: isCustom
+        ? (customDefs.find((c) => c.key === n.key) as any)?.description ?? n.description
+        : undefined,
     };
   });
+}
+
+/** Construit le texte du tooltip pour un micro custom (similaire à getMicroInfo). */
+export function getCustomMicroInfo(
+  label: string,
+  unit: string,
+  goal: number,
+  isLimit: boolean,
+  description?: string,
+): string {
+  const desc = (description || "").trim();
+  const target = goal && goal > 0
+    ? (isLimit ? ` Limitez à <${goal}${unit}/jour.` : ` Objectif : ${goal}${unit}/jour.`)
+    : "";
+  if (desc) return `${desc}${target}`;
+  return `${label}.${target || ` Nutriment personnalisé.`}`;
 }
 
