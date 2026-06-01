@@ -124,7 +124,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         isMenopausal: !!(profile as any).is_menopausal,
       });
       const cn = (profile as any).custom_nutrients;
-      setCustomNutrients(Array.isArray(cn) ? cn : []);
+      const cnArr: CustomNutrientDef[] = Array.isArray(cn) ? cn : [];
+      setCustomNutrients(cnArr);
+      void backfillCustomDescriptions(cnArr);
       const mo = (profile as any).micro_overrides;
       setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
 
