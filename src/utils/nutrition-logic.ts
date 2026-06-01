@@ -316,7 +316,26 @@ export function resolveMicroGoals(
       isLimit,
       isCustom,
       isOverridden: ov?.goal != null || ov?.is_limit != null,
+      description: isCustom
+        ? (customDefs.find((c) => c.key === n.key) as any)?.description ?? n.description
+        : undefined,
     };
   });
+}
+
+/** Construit le texte du tooltip pour un micro custom (similaire à getMicroInfo). */
+export function getCustomMicroInfo(
+  label: string,
+  unit: string,
+  goal: number,
+  isLimit: boolean,
+  description?: string,
+): string {
+  const desc = (description || "").trim();
+  const target = goal && goal > 0
+    ? (isLimit ? ` Limitez à <${goal}${unit}/jour.` : ` Objectif : ${goal}${unit}/jour.`)
+    : "";
+  if (desc) return `${desc}${target}`;
+  return `${label}.${target || ` Nutriment personnalisé.`}`;
 }
 
