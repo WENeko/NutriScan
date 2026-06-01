@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.coach-goals]
 verify_jwt = false
+
+[functions.describe-nutrient]
+verify_jwt = false
