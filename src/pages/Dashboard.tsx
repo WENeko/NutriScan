@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { getPersonalizedMicroGoals, getMicroInfo, type UserProfile } from "@/lib/micro-goals";
+import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserProfile } from "@/lib/micro-goals";
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import CircularProgress from "@/components/CircularProgress";
