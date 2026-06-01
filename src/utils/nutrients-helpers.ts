@@ -9,6 +9,8 @@ export interface CustomNutrientDef extends NutrientDef {
   goal?: number;
   /** true = limite à ne pas dépasser, false (défaut) = minimum à atteindre */
   is_limit?: boolean;
+  /** Description (bienfaits/impact) générée par l'IA pour le tooltip */
+  description?: string;
 }
 
 /** Construit nutrients_std (JSONB) à partir d'un item d'IA / formulaire. */
