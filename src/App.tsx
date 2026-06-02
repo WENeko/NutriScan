@@ -25,14 +25,19 @@ function AuthGuard() {
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
         console.log('Auth state changed:', _event, session?.user?.email);
-        setUserId(session?.user?.id ?? null);
+        const uid = session?.user?.id ?? null;
+        setUserId(uid);
         setLoading(false);
+        if (uid) void loadAiAccess(uid);
+        else clearAiAccessCache();
       }
     );
 
     supabase.auth.getSession().then(({ data: { session } }) => {
-      setUserId(session?.user?.id ?? null);
+      const uid = session?.user?.id ?? null;
+      setUserId(uid);
       setLoading(false);
+      if (uid) void loadAiAccess(uid);
     });
 
     return () => subscription.unsubscribe();
