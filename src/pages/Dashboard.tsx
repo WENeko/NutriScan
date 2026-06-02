@@ -71,6 +71,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   // Génère les descriptions IA manquantes pour les micros custom existants (créés
   // avant la fonctionnalité) puis persiste et rafraîchit l'état.
   const backfillCustomDescriptions = useCallback(async (defs: CustomNutrientDef[]) => {
+    if (!isLovableAiEnabled()) return; // describe-nutrient = edge function Lovable réservée
     const missing = defs.filter((d) => !d.description || !d.description.trim());
     if (missing.length === 0) return;
     let changed = false;
