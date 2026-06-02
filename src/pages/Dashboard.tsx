@@ -85,7 +85,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         if (!error && data?.description) {
           const idx = updated.findIndex((u) => u.key === def.key);
           if (idx >= 0) {
-            updated[idx] = { ...updated[idx], description: String(data.description).slice(0, 240) };
+            updated[idx] = { ...updated[idx], description: String(data.description).slice(0, 120) };
             changed = true;
           }
         }
