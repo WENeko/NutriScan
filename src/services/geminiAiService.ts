@@ -1,7 +1,9 @@
 // src/services/geminiAiService.ts
-// Couche d'intégration directe avec Google Gemini (sans Lovable)
+// Couche d'intégration IA : edge functions Lovable (si autorisé) ou clé Gemini perso
 import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
+import { supabase } from '@/integrations/supabase/client';
+import { isLovableAiEnabled, getPersonalGeminiKey } from '@/lib/aiAccess';
 
 // ============================================================
 // CONFIGURATION MULTI-MODÈLES
@@ -100,24 +102,41 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   check_nutrient?: string;
   requestedMicros?: string[];
 }): Promise<any> {
-  // Priorité : localStorage > .env
-  const apiKey = typeof window !== 'undefined'
-    ? (localStorage.getItem('user_gemini_api_key') || import.meta.env.VITE_GEMINI_API_KEY)
-    : import.meta.env.VITE_GEMINI_API_KEY;
-  
-  if (!apiKey) {
-    appLogger.error("Gemini", "Clé API Gemini non configurée");
-    throw new Error("Clé API Gemini non configurée (localStorage 'user_gemini_api_key' ou VITE_GEMINI_API_KEY)");
-  }
-
   // Vérifier le cache si on a une image
   if (image) {
     const cached = analysisCache.get(image, text);
     if (cached) {
-      appLogger.info("Gemini", "Analyse servie depuis le cache");
+      appLogger.info("IA", "Analyse servie depuis le cache");
       return cached;
     }
   }
+
+  // ── ROUTAGE IA ──────────────────────────────────────────────
+  // Si l'utilisateur est autorisé par l'admin → edge function Lovable.
+  if (isLovableAiEnabled()) {
+    appLogger.info("IA", "Analyse via edge function Lovable");
+    const { data, error } = await supabase.functions.invoke("analyze-meal", {
+      body: { image, text, custom_foods, custom_nutrients, local_time },
+    });
+    if (error) {
+      appLogger.error("IA", "Erreur edge function analyze-meal", error);
+      throw new Error(error.message || "Erreur d'analyse IA Lovable");
+    }
+    if (data?.error) throw new Error(data.error);
+    if (image && typeof data === "object") analysisCache.set(image, text, data);
+    return data;
+  }
+
+  // Sinon → clé Gemini personnelle de l'utilisateur (obligatoire).
+  const apiKey = typeof window !== 'undefined'
+    ? (getPersonalGeminiKey() || import.meta.env.VITE_GEMINI_API_KEY)
+    : import.meta.env.VITE_GEMINI_API_KEY;
+
+  if (!apiKey) {
+    appLogger.error("Gemini", "Clé API Gemini non configurée");
+    throw new Error("Aucune clé API Gemini configurée. Ajoutez votre clé dans Réglages, ou demandez l'accès à l'IA Lovable à un administrateur.");
+  }
+
 
   // Liste master + custom user
   const defaultMicroKeys = NUTRIENTS_STD_LIST.map(n => n.key);

@@ -15,6 +15,7 @@ import {
   validateCustomNutrient,
 } from "@/utils/nutrients-helpers";
 import { useMicroCategories } from "@/hooks/useMicroCategories";
+import { isLovableAiEnabled } from "@/lib/aiAccess";
 
 interface Props {
   userId: string;
@@ -123,7 +124,7 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
       prev.unit !== value.unit ||
       prev.goal !== value.goal ||
       prev.is_limit !== value.is_limit;
-    if (needsDesc) {
+    if (needsDesc && isLovableAiEnabled()) {
       try {
         const { data, error } = await supabase.functions.invoke("describe-nutrient", {
           body: {
@@ -135,13 +136,15 @@ const CustomNutrientsEditor: React.FC<Props> = ({ userId }) => {
           },
         });
         if (!error && data?.description) {
-          value.description = String(data.description).slice(0, 240);
+          value.description = String(data.description).slice(0, 120);
         } else if (prev?.description) {
           value.description = prev.description;
         }
       } catch {
         if (prev?.description) value.description = prev.description;
       }
+    } else if (needsDesc && prev?.description) {
+      value.description = prev.description;
     }
 
     const next = editKey

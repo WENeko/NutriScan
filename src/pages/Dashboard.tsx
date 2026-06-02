@@ -19,6 +19,7 @@ import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
 import { MACRO_COLORS } from "@/lib/macro-colors";
+import { isLovableAiEnabled } from "@/lib/aiAccess";
 
 
 interface Goals {
@@ -71,6 +72,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   // Génère les descriptions IA manquantes pour les micros custom existants (créés
   // avant la fonctionnalité) puis persiste et rafraîchit l'état.
   const backfillCustomDescriptions = useCallback(async (defs: CustomNutrientDef[]) => {
+    if (!isLovableAiEnabled()) return; // describe-nutrient = edge function Lovable réservée
     const missing = defs.filter((d) => !d.description || !d.description.trim());
     if (missing.length === 0) return;
     let changed = false;
@@ -83,7 +85,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         if (!error && data?.description) {
           const idx = updated.findIndex((u) => u.key === def.key);
           if (idx >= 0) {
-            updated[idx] = { ...updated[idx], description: String(data.description).slice(0, 240) };
+            updated[idx] = { ...updated[idx], description: String(data.description).slice(0, 120) };
             changed = true;
           }
         }
