@@ -7,10 +7,10 @@ const corsHeaders = {
 };
 
 const SYSTEM_PROMPT = `Tu es un expert en nutrition. On te donne un micronutriment (ou complément) personnalisé suivi par un utilisateur.
-Rédige une description COURTE pour un tooltip, dans le même style que celles des micros standard :
-- 1 phrase concise décrivant les bienfaits ou l'impact principal sur le corps/la santé.
-- Si une quantité ou limite journalière de référence existe, mentionne-la brièvement (ex: "Visez ~5 g/jour" ou "Limitez à <2 g/jour").
-- Pas de markdown, pas de guillemets, 200 caractères maximum.
+Rédige une description TRÈS SYNTHÉTIQUE pour un tooltip, comme celles des micros standard :
+- UNE seule phrase courte (max 100 caractères) sur le bienfait/impact principal.
+- N'inclus PAS la quantité ou la limite journalière (elle est ajoutée automatiquement ailleurs).
+- Pas de markdown, pas de guillemets.
 Réponds UNIQUEMENT en JSON strict : { "description": "..." }`;
 
 serve(async (req) => {
@@ -77,7 +77,7 @@ Objectif quotidien fourni par l'utilisateur : ${goal != null && goal !== "" ? `$
       description = content.replace(/^["']|["']$/g, "").trim();
     }
 
-    description = description.slice(0, 240);
+    description = description.slice(0, 120);
 
     return new Response(JSON.stringify({ description }), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
