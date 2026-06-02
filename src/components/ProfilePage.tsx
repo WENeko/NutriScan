@@ -11,6 +11,8 @@ import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
+import GeminiKeySettings from "@/components/GeminiKeySettings";
+import AdminUsersPanel from "@/components/AdminUsersPanel";
 import MicroGoalsEditor from "@/components/MicroGoalsEditor";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import type { MicroOverrides } from "@/utils/nutrition-logic";
