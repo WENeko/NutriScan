@@ -1216,6 +1216,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <ThemeSwitcher />
             </section>
+
+            <GeminiKeySettings userId={userId} />
+            <AdminUsersPanel userId={userId} />
           </>
         )}
 
