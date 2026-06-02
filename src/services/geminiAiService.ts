@@ -1,7 +1,9 @@
 // src/services/geminiAiService.ts
-// Couche d'intégration directe avec Google Gemini (sans Lovable)
+// Couche d'intégration IA : edge functions Lovable (si autorisé) ou clé Gemini perso
 import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
+import { supabase } from '@/integrations/supabase/client';
+import { isLovableAiEnabled, getPersonalGeminiKey } from '@/lib/aiAccess';
 
 // ============================================================
 // CONFIGURATION MULTI-MODÈLES
