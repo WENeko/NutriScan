@@ -15,6 +15,7 @@ import {
   validateCustomNutrient,
 } from "@/utils/nutrients-helpers";
 import { useMicroCategories } from "@/hooks/useMicroCategories";
+import { isLovableAiEnabled } from "@/lib/aiAccess";
 
 interface Props {
   userId: string;
