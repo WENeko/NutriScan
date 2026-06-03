@@ -205,7 +205,7 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
 
   // Modèle choisi par l'utilisateur (jamais figé dans le code), avec repli raisonnable.
   const chosenModel = provider?.model || (apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
-  const baseUrl = (provider?.base_url || provider?.baseUrl || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
+  const baseUrl = (provider?.baseUrl || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
 
   const MAX_RETRIES = 3;
   const BASE_DELAY_MS = 2000;
