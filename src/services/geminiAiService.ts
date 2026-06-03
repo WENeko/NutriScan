@@ -1,25 +1,10 @@
 // src/services/geminiAiService.ts
-// Couche d'intégration IA : edge functions Lovable (si autorisé) ou clé Gemini perso
+// Couche d'intégration IA : edge functions Lovable (si autorisé) ou fournisseur perso
+// (Gemini ou compatible OpenAI) sélectionné par l'utilisateur, avec modèle au choix.
 import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
 import { supabase } from '@/integrations/supabase/client';
-import { isLovableAiEnabled, getPersonalGeminiKey } from '@/lib/aiAccess';
-
-// ============================================================
-// CONFIGURATION MULTI-MODÈLES
-// ============================================================
-
-interface GeminiModel {
-  name: string;
-  endpoint: string;
-  priority: number; // 1 = principal, 2 = fallback
-}
-
-const GEMINI_MODELS: GeminiModel[] = [
-  { name: "gemini-2.5-flash", endpoint: "v1beta/models/gemini-2.5-flash:generateContent", priority: 1 },
-  { name: "gemini-2.5-flash-lite", endpoint: "v1beta/models/gemini-2.5-flash-lite:generateContent", priority: 2 },
-  { name: "gemini-1.5-flash", endpoint: "v1beta/models/gemini-1.5-flash:generateContent", priority: 3 },
-];
+import { isLovableAiEnabled, getActiveProviderConfig } from '@/lib/aiAccess';
 
 // ============================================================
 // SYSTÈME DE CACHE
