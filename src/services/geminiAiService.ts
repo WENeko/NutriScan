@@ -112,14 +112,14 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
     return data;
   }
 
-  // Sinon → clé Gemini personnelle de l'utilisateur (obligatoire).
-  const apiKey = typeof window !== 'undefined'
-    ? (getPersonalGeminiKey() || import.meta.env.VITE_GEMINI_API_KEY)
-    : import.meta.env.VITE_GEMINI_API_KEY;
+  // Sinon → fournisseur d'IA perso sélectionné par l'utilisateur.
+  const provider = typeof window !== "undefined" ? getActiveProviderConfig() : null;
+  const apiKey = provider?.apiKey || (typeof window !== "undefined" ? import.meta.env.VITE_GEMINI_API_KEY : undefined);
+  const apiType = provider?.apiType ?? "gemini";
 
   if (!apiKey) {
-    appLogger.error("Gemini", "Clé API Gemini non configurée");
-    throw new Error("Aucune clé API Gemini configurée. Ajoutez votre clé dans Réglages, ou demandez l'accès à l'IA Lovable à un administrateur.");
+    appLogger.error("IA", "Aucune clé API fournisseur configurée");
+    throw new Error("Aucune clé API configurée. Choisissez un fournisseur et entrez votre clé dans Réglages, ou demandez l'accès à l'IA Lovable à un administrateur.");
   }
 
 
