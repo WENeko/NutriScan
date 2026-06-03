@@ -14,6 +14,42 @@ export type Database = {
   }
   public: {
     Tables: {
+      ai_providers: {
+        Row: {
+          api_type: string
+          base_url: string
+          created_at: string
+          display_order: number
+          id: string
+          is_active: boolean
+          models_endpoint: string
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          api_type?: string
+          base_url: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          models_endpoint: string
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          api_type?: string
+          base_url?: string
+          created_at?: string
+          display_order?: number
+          id?: string
+          is_active?: boolean
+          models_endpoint?: string
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       body_composition: {
         Row: {
           active_calories_kcal: number | null
@@ -398,6 +434,8 @@ export type Database = {
           morphotype: string | null
           phase_adjust_mode: string
           phase_adjust_value: number
+          selected_ai_model: string | null
+          selected_ai_provider_id: string | null
           sport_allowed_sources: string[]
           target_body_fat_percent: number | null
           target_muscle_mass_kg: number | null
@@ -437,6 +475,8 @@ export type Database = {
           morphotype?: string | null
           phase_adjust_mode?: string
           phase_adjust_value?: number
+          selected_ai_model?: string | null
+          selected_ai_provider_id?: string | null
           sport_allowed_sources?: string[]
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
@@ -476,6 +516,8 @@ export type Database = {
           morphotype?: string | null
           phase_adjust_mode?: string
           phase_adjust_value?: number
+          selected_ai_model?: string | null
+          selected_ai_provider_id?: string | null
           sport_allowed_sources?: string[]
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
@@ -668,6 +710,41 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_provider_keys: {
+        Row: {
+          api_key: string
+          created_at: string
+          id: string
+          provider_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          api_key: string
+          created_at?: string
+          id?: string
+          provider_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          api_key?: string
+          created_at?: string
+          id?: string
+          provider_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_provider_keys_provider_id_fkey"
+            columns: ["provider_id"]
+            isOneToOne: false
+            referencedRelation: "ai_providers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       user_roles: {
         Row: {
