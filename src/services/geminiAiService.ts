@@ -200,138 +200,105 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
     }
   }
 
-  // Construction du payload Gemini (format API Google)
-  type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
-  const userParts: GeminiPart[] = [
-    { text: `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}` }
-  ];
+  // Texte complet du prompt (commun aux deux types d'API)
+  const promptText = `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}`;
 
-  if (cleanImageData) {
-    userParts.push({ inline_data: { mime_type: imageMime, data: cleanImageData }});
-  }
+  // Modèle choisi par l'utilisateur (jamais figé dans le code), avec repli raisonnable.
+  const chosenModel = provider?.model || (apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
+  const baseUrl = (provider?.base_url || provider?.baseUrl || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
 
-  const body = {
-    contents: [
-      { role: "user", parts: userParts }
-    ]
-  };
+  const MAX_RETRIES = 3;
+  const BASE_DELAY_MS = 2000;
 
-  // ============================================================
-  // MULTI-MODÈLES AVEC FALLBACK ET RETRY
-  // ============================================================
-  
-  // Paramètres retry augmentés
-  const MAX_RETRIES_PER_MODEL = 3;
-  const BASE_DELAY_MS = 2000; // 2s (augmenté)
-  
   let lastError: Error | null = null;
   let res: Response | null = null;
-  let usedModel = GEMINI_MODELS[0].name;
-  
-  // Essayer chaque modèle en cascade
-  for (const model of GEMINI_MODELS) {
-    const url = `https://generativelanguage.googleapis.com/${model.endpoint}?key=${apiKey}`;
-    appLogger.info("Gemini", `Tentative avec modèle ${model.name}`);
-    
-    // Retry sur ce modèle
-    for (let attempt = 0; attempt < MAX_RETRIES_PER_MODEL; attempt++) {
-      try {
+
+  for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
+    try {
+      if (apiType === "openai") {
+        // ── API compatible OpenAI ──────────────────────────────
+        const userContent: any[] = [{ type: "text", text: promptText }];
+        if (image) userContent.push({ type: "image_url", image_url: { url: image } });
+        res = await fetch(`${baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          body: JSON.stringify({
+            model: chosenModel,
+            messages: [{ role: "user", content: userContent }],
+          }),
+        });
+      } else {
+        // ── API Gemini (Google) ────────────────────────────────
+        type GeminiPart = { text: string } | { inline_data: { mime_type: string; data: string } };
+        const userParts: GeminiPart[] = [{ text: promptText }];
+        if (cleanImageData) userParts.push({ inline_data: { mime_type: imageMime, data: cleanImageData } });
+        const url = `${baseUrl}/v1beta/models/${chosenModel}:generateContent?key=${apiKey}`;
         res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(body),
+          body: JSON.stringify({ contents: [{ role: "user", parts: userParts }] }),
         });
-        
-        if (res.ok) {
-          usedModel = model.name;
-          appLogger.info("Gemini", `Succès avec ${model.name} après ${attempt + 1} tentative(s)`);
-          break; // Succès avec ce modèle
-        }
-        
-        const errorText = await res.text();
-        const is429 = res.status === 429 || errorText.includes("429") || errorText.includes("quota") || errorText.includes("Resource has been exhausted");
-        const is503 = res.status === 503 || errorText.includes("503") || errorText.includes("high demand");
-        
-        // Si 429 (quota) → passer au modèle suivant immédiatement
-        if (is429) {
-          appLogger.warn("Gemini", `Erreur 429 (quota) sur ${model.name}, passage au modèle fallback`);
-          break; // Sortir du retry pour passer au modèle suivant
-        }
-        
-        // Si 503 ou autre retryable → attendre et retry
-        if ((is503 || res.status >= 500) && attempt < MAX_RETRIES_PER_MODEL - 1) {
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt); // Backoff: 2s, 4s, 8s
-          appLogger.warn("Gemini", `Erreur ${res.status} sur ${model.name}, retry ${attempt + 1}/${MAX_RETRIES_PER_MODEL} dans ${delay}ms`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-          continue;
-        }
-        
-        // Erreur non-retryable
-        throw new Error(`Erreur Gemini ${res.status}: ${errorText}`);
-        
-      } catch (err: any) {
-        lastError = err;
-        
-        const isNetworkError = err.message?.includes("fetch") || err.message?.includes("network") || err.message?.includes("timeout");
-        const is429Error = err.message?.includes("429") || err.message?.includes("quota") || err.message?.includes("Resource has been exhausted");
-        const is503Error = err.message?.includes("503") || err.message?.includes("high demand");
-        
-        // Si 429 → passer au modèle suivant
-        if (is429Error) {
-          appLogger.warn("Gemini", `Erreur 429 détectée sur ${model.name}, passage au modèle fallback`);
-          break;
-        }
-        
-        // Retry sur erreur réseau/503
-        if ((isNetworkError || is503Error) && attempt < MAX_RETRIES_PER_MODEL - 1) {
-          const delay = BASE_DELAY_MS * Math.pow(2, attempt);
-          appLogger.warn("Gemini", `Erreur réseau/503 sur ${model.name}, retry ${attempt + 1}/${MAX_RETRIES_PER_MODEL} dans ${delay}ms`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        } else if (model === GEMINI_MODELS[GEMINI_MODELS.length - 1]) {
-          // Dernier modèle, dernière tentative
-          throw err;
-        } else {
-          // Passer au modèle suivant
-          break;
-        }
       }
-    }
-    
-    // Si on a une réponse OK, sortir de la boucle des modèles
-    if (res && res.ok) {
-      break;
+
+      if (res.ok) {
+        appLogger.info("IA", `Succès avec ${chosenModel} après ${attempt + 1} tentative(s)`);
+        break;
+      }
+
+      const errorText = await res.text();
+      const retryable = res.status === 429 || res.status === 503 || res.status >= 500;
+      if (retryable && attempt < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        appLogger.warn("IA", `Erreur ${res.status} sur ${chosenModel}, retry dans ${delay}ms`);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw new Error(`Erreur IA ${res.status}: ${errorText}`);
+    } catch (err: any) {
+      lastError = err;
+      const isNetwork = err.message?.includes("fetch") || err.message?.includes("network") || err.message?.includes("timeout");
+      if (isNetwork && attempt < MAX_RETRIES - 1) {
+        const delay = BASE_DELAY_MS * Math.pow(2, attempt);
+        await new Promise((r) => setTimeout(r, delay));
+        continue;
+      }
+      throw err;
     }
   }
-  
+
   if (!res || !res.ok) {
-    throw lastError || new Error("Échec de la requête Gemini après tous les modèles");
+    throw lastError || new Error("Échec de la requête IA");
   }
-  
+
   const data = await res.json();
 
-  // Gemini always replies as a .candidates[] array
-  const content = (data?.candidates?.[0]?.content?.parts?.[0]?.text || "{}").trim();
-  
-  // Log de debug
-  appLogger.debug("Gemini", "Réponse reçue", content.substring(0, 200));
+  // Extraction du texte selon le type d'API
+  const content = (
+    apiType === "openai"
+      ? data?.choices?.[0]?.message?.content
+      : data?.candidates?.[0]?.content?.parts?.[0]?.text
+  ) || "{}";
+  const trimmed = String(content).trim();
 
-  // Renvoyer le JSON structuré (parse sinon retourne string brute)
+  appLogger.debug("IA", "Réponse reçue", trimmed.substring(0, 200));
+
   let result: any;
-  try { 
-    result = JSON.parse(content); 
-  } catch (e) { 
-    appLogger.error("Gemini", "Erreur parsing JSON", { error: e, content });
-    result = content; 
+  try {
+    const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+    result = JSON.parse(jsonMatch ? jsonMatch[0] : trimmed);
+  } catch (e) {
+    appLogger.error("IA", "Erreur parsing JSON", { error: e, content: trimmed });
+    result = trimmed;
   }
-  
-  // Stocker dans le cache si on a une image
-  if (image && typeof result === 'object') {
+
+  if (image && typeof result === "object") {
     analysisCache.set(image, text, result);
-    appLogger.info("Gemini", `Résultat mis en cache (modèle: ${usedModel})`);
+    appLogger.info("IA", `Résultat mis en cache (modèle: ${chosenModel})`);
   }
-  
+
   return result;
 }
+
 
 // ============================================================
 // UTILITAIRES CACHE (exportés pour usage externe)
