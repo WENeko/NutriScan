@@ -4,8 +4,9 @@
  * Règle métier (validée avec l'utilisateur) :
  * - Si l'admin a activé `lovable_ai_enabled` pour l'utilisateur → l'IA passe par
  *   les edge functions Lovable (analyze-meal, describe-nutrient).
- * - Sinon → l'utilisateur doit utiliser SA propre clé Gemini (stockée en base,
- *   table `user_api_keys`), utilisée directement côté client.
+ * - Sinon → l'utilisateur utilise SA propre clé, auprès du fournisseur d'IA
+ *   qu'il a sélectionné (table `ai_providers` + `user_provider_keys`), avec le
+ *   modèle de son choix. Les fournisseurs sont gérés par l'admin (évolutif).
  *
  * Les valeurs sont mises en cache dans localStorage pour éviter une requête DB
  * à chaque analyse. `loadAiAccess` est appelé au login et après modification.
@@ -13,21 +14,66 @@
 import { supabase } from "@/integrations/supabase/client";
 
 const LS_LOVABLE = "lovable_ai_enabled";
-const LS_GEMINI = "user_gemini_api_key";
+const LS_PROVIDER = "ai_provider_config";
+
+export type ApiType = "gemini" | "openai";
+
+export interface ActiveProviderConfig {
+  providerId: string;
+  name: string;
+  apiType: ApiType;
+  baseUrl: string;
+  modelsEndpoint: string;
+  model: string | null;
+  apiKey: string | null;
+}
 
 /** Charge l'accès IA de l'utilisateur depuis la base et met à jour le cache local. */
 export async function loadAiAccess(userId: string): Promise<void> {
   try {
-    const [{ data: profile }, { data: keyRow }] = await Promise.all([
-      supabase.from("profiles").select("lovable_ai_enabled").eq("user_id", userId).maybeSingle(),
-      supabase.from("user_api_keys").select("gemini_api_key").eq("user_id", userId).maybeSingle(),
-    ]);
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("lovable_ai_enabled, selected_ai_provider_id, selected_ai_model")
+      .eq("user_id", userId)
+      .maybeSingle();
 
     localStorage.setItem(LS_LOVABLE, (profile as any)?.lovable_ai_enabled ? "true" : "false");
 
-    const key = (keyRow as any)?.gemini_api_key;
-    if (key) localStorage.setItem(LS_GEMINI, key);
-    else localStorage.removeItem(LS_GEMINI);
+    const providerId = (profile as any)?.selected_ai_provider_id as string | null;
+    if (!providerId) {
+      localStorage.removeItem(LS_PROVIDER);
+      return;
+    }
+
+    const [{ data: provider }, { data: keyRow }] = await Promise.all([
+      supabase
+        .from("ai_providers")
+        .select("id, name, api_type, base_url, models_endpoint")
+        .eq("id", providerId)
+        .maybeSingle(),
+      supabase
+        .from("user_provider_keys")
+        .select("api_key")
+        .eq("user_id", userId)
+        .eq("provider_id", providerId)
+        .maybeSingle(),
+    ]);
+
+    if (!provider) {
+      localStorage.removeItem(LS_PROVIDER);
+      return;
+    }
+
+    const config: ActiveProviderConfig = {
+      providerId: (provider as any).id,
+      name: (provider as any).name,
+      apiType: ((provider as any).api_type as ApiType) ?? "gemini",
+      baseUrl: (provider as any).base_url,
+      modelsEndpoint: (provider as any).models_endpoint,
+      model: ((profile as any)?.selected_ai_model as string) ?? null,
+      apiKey: ((keyRow as any)?.api_key as string) ?? null,
+    };
+    localStorage.setItem(LS_PROVIDER, JSON.stringify(config));
   } catch (e) {
     console.warn("loadAiAccess error", e);
   }
@@ -38,18 +84,18 @@ export function isLovableAiEnabled(): boolean {
   return localStorage.getItem(LS_LOVABLE) === "true";
 }
 
-/** Clé Gemini personnelle (cache local). */
-export function getPersonalGeminiKey(): string | null {
-  return localStorage.getItem(LS_GEMINI);
-}
-
-/** Met à jour le cache local de la clé Gemini après une sauvegarde. */
-export function setPersonalGeminiKeyCache(key: string | null): void {
-  if (key) localStorage.setItem(LS_GEMINI, key);
-  else localStorage.removeItem(LS_GEMINI);
+/** Configuration du fournisseur d'IA sélectionné (cache local). */
+export function getActiveProviderConfig(): ActiveProviderConfig | null {
+  const raw = localStorage.getItem(LS_PROVIDER);
+  if (!raw) return null;
+  try {
+    return JSON.parse(raw) as ActiveProviderConfig;
+  } catch {
+    return null;
+  }
 }
 
 export function clearAiAccessCache(): void {
   localStorage.removeItem(LS_LOVABLE);
-  localStorage.removeItem(LS_GEMINI);
+  localStorage.removeItem(LS_PROVIDER);
 }
