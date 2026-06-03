@@ -73,11 +73,18 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   // avant la fonctionnalité) puis persiste et rafraîchit l'état.
   const backfillCustomDescriptions = useCallback(async (defs: CustomNutrientDef[]) => {
     if (!isLovableAiEnabled()) return; // describe-nutrient = edge function Lovable réservée
-    const missing = defs.filter((d) => !d.description || !d.description.trim());
-    if (missing.length === 0) return;
+    if (defs.length === 0) return;
+    // Régénération forcée (nouvelle règle synthétique) : une seule fois par utilisateur.
+    const REGEN_FLAG = `custom_desc_regen_v2_${userId}`;
+    const forceRegen = localStorage.getItem(REGEN_FLAG) !== "1";
+    const targets = forceRegen ? defs : defs.filter((d) => !d.description || !d.description.trim());
+    if (targets.length === 0) {
+      localStorage.setItem(REGEN_FLAG, "1");
+      return;
+    }
     let changed = false;
     const updated = [...defs];
-    for (const def of missing) {
+    for (const def of targets) {
       try {
         const { data, error } = await supabase.functions.invoke("describe-nutrient", {
           body: { label: def.label, unit: def.unit, goal: def.goal, is_limit: def.is_limit, category: def.category },
@@ -97,6 +104,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       await supabase.from("profiles").update({ custom_nutrients: updated as any }).eq("user_id", userId);
       setCustomNutrients(updated);
     }
+    localStorage.setItem(REGEN_FLAG, "1");
   }, [userId]);
 
 
