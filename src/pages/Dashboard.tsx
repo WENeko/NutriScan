@@ -9,6 +9,7 @@ import MealHistory from "@/components/MealHistory";
 import EvolutionPage from "@/components/EvolutionPage";
 import NutriLibrary from "@/components/NutriLibrary";
 import ProfilePage from "@/components/ProfilePage";
+import CoachPage from "@/components/CoachPage";
 import DataSourcesSettings from "@/components/DataSourcesSettings";
 import BottomNav, { TabId } from "@/components/BottomNav";
 import WaterTracker from "@/components/WaterTracker";
