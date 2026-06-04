@@ -1,19 +1,15 @@
 /**
  * Service unifié d'analyse de repas.
- * 1. Tentative via la function Lovable `analyze-meal` (AI Gateway, qualité optimale).
- * 2. Fallback automatique vers le Gemini perso (clé utilisateur) si :
- *    - HTTP 402 (crédits Lovable AI épuisés)
- *    - HTTP 429 (rate limit)
- *    - erreur réseau / function indisponible
  *
- * Le Gemini perso (`geminiAiService.analyzeMealWithGemini`) produit désormais
- * la MÊME shape que la function Lovable (items[{name, estimated_weight_g, ...}]),
- * pour que le reste de l'app reste indifférent à la source utilisée.
+ * Utilise le moteur de routage en cascade (executeAIFeatureWithFallback) :
+ * la liste ordonnée des modèles configurés par l'utilisateur est tentée
+ * (Edge Function Lovable et/ou clés perso) jusqu'au premier succès.
+ *
+ * Le résultat renvoyé est l'objet d'analyse habituel (meal_name, items, ...),
+ * enrichi de `_model_used` et `_confidence_score` pour l'affichage et l'historique.
  */
-import { supabase } from "@/integrations/supabase/client";
-import { analyzeMealWithGemini } from "./geminiAiService";
 import { appLogger } from "./appLogger";
-import { toast } from "@/hooks/use-toast";
+import { executeAIFeatureWithFallback } from "@/lib/aiRouting";
 
 export interface AnalyzeMealParams {
   image?: string;
@@ -23,62 +19,26 @@ export interface AnalyzeMealParams {
   local_time?: string;
 }
 
-async function tryFallback(params: AnalyzeMealParams, reason: string) {
-  appLogger.warn("MealAnalysis", `Fallback Gemini perso : ${reason}`);
-  toast({
-    title: "Analyse via clé perso",
-    description: reason,
-  });
-  return await analyzeMealWithGemini(params);
-}
-
 export async function analyzeMeal(params: AnalyzeMealParams): Promise<any> {
-  appLogger.info("MealAnalysis", "Appel analyze-meal (Lovable)", {
+  const feature = params.image ? "photo" : "text";
+  appLogger.info("MealAnalysis", `Analyse via moteur de routage (${feature})`, {
     hasImage: !!params.image,
     hasText: !!params.text,
   });
 
-  try {
-    const { data, error } = await supabase.functions.invoke("analyze-meal", {
-      body: params,
-    });
+  const { result, modelUsed, confidence } = await executeAIFeatureWithFallback(feature, {
+    image: params.image,
+    text: params.text,
+    custom_foods: params.custom_foods,
+    custom_nutrients: params.custom_nutrients,
+    local_time: params.local_time,
+  });
 
-    if (error) {
-      // Tente d'extraire le status HTTP / payload d'erreur
-      let status: number | undefined;
-      let errBody: any = null;
-      const ctx: any = (error as any).context;
-      if (ctx && typeof ctx.status === "number") status = ctx.status;
-      if (ctx?.json) {
-        try { errBody = await ctx.clone().json(); } catch { /* noop */ }
-      }
-      const msg = (errBody?.error || error.message || "").toLowerCase();
-      const isCreditsExhausted =
-        status === 402 || /crédit|credit|insuffisant|payment/.test(msg);
-      const isRateLimited =
-        status === 429 || /rate|quota|too many/.test(msg);
+  appLogger.info("MealAnalysis", `OK via ${modelUsed}`, { confidence });
 
-      if (isCreditsExhausted) {
-        return await tryFallback(params, "Crédits IA Lovable épuisés");
-      }
-      if (isRateLimited) {
-        return await tryFallback(params, "Limite de requêtes Lovable atteinte");
-      }
-      // Autre erreur → tente quand même le fallback (cas function indisponible)
-      return await tryFallback(params, `Lovable AI indisponible (${status ?? "?"})`);
-    }
-
-    if (data?.error) {
-      return await tryFallback(params, `Lovable: ${data.error}`);
-    }
-
-    if (!data || !Array.isArray(data.items)) {
-      return await tryFallback(params, "Réponse Lovable vide/invalide");
-    }
-
-    appLogger.info("MealAnalysis", "OK via Lovable", { items: data.items.length });
-    return data;
-  } catch (e: any) {
-    return await tryFallback(params, `Exception: ${e?.message ?? "inconnue"}`);
+  if (result && typeof result === "object") {
+    result._model_used = modelUsed;
+    result._confidence_score = confidence ?? null;
   }
+  return result;
 }
