@@ -8,3 +8,7 @@ verify_jwt = false
 
 [functions.describe-nutrient]
 verify_jwt = false
+
+[functions.coach-chat]
+verify_jwt = false
+
