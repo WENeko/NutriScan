@@ -632,6 +632,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
           </>
         )}
 
+        {activeTab === "coach" && (
+          <CoachPage
+            userId={userId}
+            context={{
+              goals,
+              consumed: todayTotals,
+              sportCalories,
+              weight,
+              targetWeight,
+              phase: (userProfile as any)?.mass_gain_phase ?? null,
+              userProfile,
+            }}
+          />
+        )}
+
         {activeTab === "evolution" && (
           <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} microOverrides={microOverrides} />
         )}
