@@ -92,6 +92,30 @@ export type Database = {
         }
         Relationships: []
       }
+      coach_messages: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          role: string
+          user_id: string
+        }
+        Insert: {
+          content: string
+          created_at?: string
+          id?: string
+          role: string
+          user_id: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          role?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       custom_foods: {
         Row: {
           barcode: string | null
@@ -336,12 +360,14 @@ export type Database = {
       }
       meals: {
         Row: {
+          confidence_score: number | null
           created_at: string
           id: string
           image_url: string | null
           is_confirmed: boolean
           is_favorite: boolean
           meal_name: string | null
+          model_used: string | null
           raw_ai_analysis: string | null
           source: string
           timestamp: string
@@ -352,12 +378,14 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          confidence_score?: number | null
           created_at?: string
           id?: string
           image_url?: string | null
           is_confirmed?: boolean
           is_favorite?: boolean
           meal_name?: string | null
+          model_used?: string | null
           raw_ai_analysis?: string | null
           source?: string
           timestamp?: string
@@ -368,12 +396,14 @@ export type Database = {
           user_id: string
         }
         Update: {
+          confidence_score?: number | null
           created_at?: string
           id?: string
           image_url?: string | null
           is_confirmed?: boolean
           is_favorite?: boolean
           meal_name?: string | null
+          model_used?: string | null
           raw_ai_analysis?: string | null
           source?: string
           timestamp?: string
@@ -434,6 +464,7 @@ export type Database = {
           morphotype: string | null
           phase_adjust_mode: string
           phase_adjust_value: number
+          routing_config: Json
           selected_ai_model: string | null
           selected_ai_provider_id: string | null
           sport_allowed_sources: string[]
@@ -475,6 +506,7 @@ export type Database = {
           morphotype?: string | null
           phase_adjust_mode?: string
           phase_adjust_value?: number
+          routing_config?: Json
           selected_ai_model?: string | null
           selected_ai_provider_id?: string | null
           sport_allowed_sources?: string[]
@@ -516,6 +548,7 @@ export type Database = {
           morphotype?: string | null
           phase_adjust_mode?: string
           phase_adjust_value?: number
+          routing_config?: Json
           selected_ai_model?: string | null
           selected_ai_provider_id?: string | null
           sport_allowed_sources?: string[]
