@@ -1,7 +1,7 @@
 import React from "react";
-import { LayoutDashboard, TrendingUp, BookOpen } from "lucide-react";
+import { LayoutDashboard, TrendingUp, BookOpen, MessageCircle } from "lucide-react";
 
-export type TabId = "dashboard" | "evolution" | "library";
+export type TabId = "dashboard" | "coach" | "evolution" | "library";
 
 interface BottomNavProps {
   active: TabId;
@@ -10,6 +10,7 @@ interface BottomNavProps {
 
 const tabs: { id: TabId; label: string; icon: React.ReactNode }[] = [
   { id: "dashboard", label: "Accueil", icon: <LayoutDashboard className="w-5 h-5" /> },
+  { id: "coach", label: "Coach", icon: <MessageCircle className="w-5 h-5" /> },
   { id: "evolution", label: "Évolution", icon: <TrendingUp className="w-5 h-5" /> },
   { id: "library", label: "Mes Produits", icon: <BookOpen className="w-5 h-5" /> },
 ];

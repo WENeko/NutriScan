@@ -9,6 +9,7 @@ import MealHistory from "@/components/MealHistory";
 import EvolutionPage from "@/components/EvolutionPage";
 import NutriLibrary from "@/components/NutriLibrary";
 import ProfilePage from "@/components/ProfilePage";
+import CoachPage from "@/components/CoachPage";
 import DataSourcesSettings from "@/components/DataSourcesSettings";
 import BottomNav, { TabId } from "@/components/BottomNav";
 import WaterTracker from "@/components/WaterTracker";
@@ -629,6 +630,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
             </section>
           </>
+        )}
+
+        {activeTab === "coach" && (
+          <CoachPage
+            userId={userId}
+            context={{
+              goals,
+              consumed: todayTotals,
+              sportCalories,
+              weight,
+              targetWeight,
+              phase: (userProfile as any)?.mass_gain_phase ?? null,
+              userProfile,
+            }}
+          />
         )}
 
         {activeTab === "evolution" && (

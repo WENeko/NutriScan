@@ -78,7 +78,7 @@ const analysisCache = new AnalysisCache();
  * Chaque item contient: food_name, calories, proteins, carbs, fats, quantity, unit_count?, unit_label?, unit_weight_g?, 
  * PLUS tous les micronutriments de NUTRIENTS_STD_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
  */
-export async function analyzeMealWithGemini({ image, text, custom_foods, custom_nutrients, local_time, check_nutrient, requestedMicros = [] }: {
+export async function analyzeMealWithGemini({ image, text, custom_foods, custom_nutrients, local_time, check_nutrient, requestedMicros = [], providerOverride }: {
   image?: string;
   text?: string;
   custom_foods?: any[];
@@ -86,9 +86,11 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   local_time?: string;
   check_nutrient?: string;
   requestedMicros?: string[];
+  /** Force l'usage d'un fournisseur précis (utilisé par le moteur de fallback en cascade). */
+  providerOverride?: import("@/lib/aiAccess").ActiveProviderConfig | null;
 }): Promise<any> {
-  // Vérifier le cache si on a une image
-  if (image) {
+  // Vérifier le cache si on a une image (désactivé lorsqu'un fournisseur précis est imposé)
+  if (image && !providerOverride) {
     const cached = analysisCache.get(image, text);
     if (cached) {
       appLogger.info("IA", "Analyse servie depuis le cache");
@@ -97,8 +99,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   }
 
   // ── ROUTAGE IA ──────────────────────────────────────────────
-  // Si l'utilisateur est autorisé par l'admin → edge function Lovable.
-  if (isLovableAiEnabled()) {
+  // Si aucun fournisseur n'est imposé ET que l'utilisateur est autorisé → edge function Lovable.
+  if (!providerOverride && isLovableAiEnabled()) {
     appLogger.info("IA", "Analyse via edge function Lovable");
     const { data, error } = await supabase.functions.invoke("analyze-meal", {
       body: { image, text, custom_foods, custom_nutrients, local_time },
@@ -112,8 +114,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
     return data;
   }
 
-  // Sinon → fournisseur d'IA perso sélectionné par l'utilisateur.
-  const provider = typeof window !== "undefined" ? getActiveProviderConfig() : null;
+  // Sinon → fournisseur d'IA perso (imposé par le moteur, ou sélection par défaut).
+  const provider = providerOverride ?? (typeof window !== "undefined" ? getActiveProviderConfig() : null);
   const apiKey = provider?.apiKey || (typeof window !== "undefined" ? import.meta.env.VITE_GEMINI_API_KEY : undefined);
   const apiType = provider?.apiType ?? "gemini";
 
