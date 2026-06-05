@@ -272,6 +272,7 @@ export async function executeAIFeatureWithFallback(
       // ── Chat (coach / recette) ──
       const cp = payload as ChatPayload;
       let text: string;
+      let modelUsed = label;
       if (step.type === "edge_function") {
         const { data: d, error } = await supabase.functions.invoke("coach-chat", {
           body: { system: cp.system, message: cp.userText },
@@ -279,12 +280,15 @@ export async function executeAIFeatureWithFallback(
         if (error) throw new Error(error.message || "Edge function indisponible");
         if (d?.error) throw new Error(d.error);
         text = d?.reply ?? "";
+        if (d?.model) modelUsed = `${EDGE_LABEL} · ${d.model}`;
       } else {
         const p = ctx.providers.get(step.providerId!)!;
-        text = await callChatProvider(p, step.model ?? ctx.selectedModel ?? (p.apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash"), cp.system, cp.userText);
+        const chatModel = step.model ?? ctx.selectedModel ?? (p.apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
+        text = await callChatProvider(p, chatModel, cp.system, cp.userText);
+        modelUsed = `${p.name} · ${chatModel}`;
       }
       if (!text || !text.trim()) throw new Error("Réponse vide");
-      return { result: text.trim(), modelUsed: label };
+      return { result: text.trim(), modelUsed };
     } catch (e: any) {
       const msg = e?.message ?? "erreur inconnue";
       errors.push(`${label}: ${msg}`);
