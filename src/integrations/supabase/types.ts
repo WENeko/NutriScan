@@ -97,6 +97,7 @@ export type Database = {
           content: string
           created_at: string
           id: string
+          model_used: string | null
           role: string
           user_id: string
         }
@@ -104,6 +105,7 @@ export type Database = {
           content: string
           created_at?: string
           id?: string
+          model_used?: string | null
           role: string
           user_id: string
         }
@@ -111,6 +113,7 @@ export type Database = {
           content?: string
           created_at?: string
           id?: string
+          model_used?: string | null
           role?: string
           user_id?: string
         }
