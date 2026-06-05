@@ -1,0 +1,1 @@
+ALTER TABLE public.coach_messages ADD COLUMN IF NOT EXISTS model_used text;

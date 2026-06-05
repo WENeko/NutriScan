@@ -410,4 +410,26 @@ export function onAppResumeRecheck(callback: () => void): (() => void) | null {
   const handleVisibility = () => { if (document.visibilityState === "visible") callback(); };
   document.addEventListener("visibilitychange", handleVisibility);
   return () => document.removeEventListener("visibilitychange", handleVisibility);
+}
+
+// ── SYNCHRO AUTOMATIQUE À L'OUVERTURE ───────────────────────────
+// Lance une synchronisation silencieuse si Health Connect est disponible,
+// autorisé et qu'au moins une source est activée. Les enregistrements de
+// composition utilisent la date remontée par Health Connect (recorded_at),
+// ce qui évite les doublons grâce à l'upsert (user_id, recorded_at).
+export async function autoSyncHealthData(userId: string): Promise<void> {
+  try {
+    const prefs = getHealthConnectPreferences();
+    const anyEnabled = prefs.sync_weight || prefs.sync_body_fat || prefs.sync_calories || prefs.sync_sleep;
+    if (!anyEnabled) return;
+    const available = await isHealthConnectAvailable();
+    if (!available) return;
+    const authorized = await checkHealthPermissions();
+    if (!authorized) return;
+    const data = await readNativeHealthData(30);
+    await syncHealthData(userId, data, prefs);
+  } catch (e) {
+    console.warn("[health] autoSyncHealthData failed", e);
   }
+}
+
