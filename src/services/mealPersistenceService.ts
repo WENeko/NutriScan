@@ -59,6 +59,8 @@ interface SaveMealParams {
     raw_ai_analysis?: string | null;
     is_confirmed?: boolean;
     source?: string;
+    model_used?: string | null;
+    confidence_score?: number | null;
   };
   items: MealItemWithMicros[];
 }
