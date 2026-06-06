@@ -94,7 +94,10 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
   async function loadModels(p: ProviderInfo) {
     setFetching(p.id);
     try {
-      const models = await fetchProviderModels(p, p.apiKey);
+      const models = await fetchProviderModels(
+        { api_type: p.apiType, base_url: p.baseUrl, models_endpoint: p.modelsEndpoint },
+        p.apiKey
+      );
       setModelsCache((c) => ({ ...c, [p.id]: models }));
       if (models.length) setChosenModel((m) => ({ ...m, [p.id]: m[p.id] && models.includes(m[p.id]) ? m[p.id] : models[0] }));
     } catch (e: any) {
