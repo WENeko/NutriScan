@@ -617,6 +617,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setImageFile(null);
     setTextInput("");
     setRawAnalysis("");
+    setModelUsed(null);
+    setConfidenceScore(null);
     setMealName("");
     setMealTimestamp("");
     setEditingIdx(null);
