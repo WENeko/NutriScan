@@ -564,7 +564,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           timestamp,
           raw_ai_analysis: rawAnalysis || null,
           is_confirmed: true,
-          source: source
+          source: source,
+          model_used: modelUsed,
+          confidence_score: confidenceScore,
         },
         items: items.map(item => ({
           food_name: item.name,
