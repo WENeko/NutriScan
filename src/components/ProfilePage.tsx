@@ -14,6 +14,7 @@ import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import GeminiKeySettings from "@/components/GeminiKeySettings";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
 import AdminProvidersPanel from "@/components/AdminProvidersPanel";
+import RoutingCascadeEditor from "@/components/RoutingCascadeEditor";
 import MicroGoalsEditor from "@/components/MicroGoalsEditor";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import type { MicroOverrides } from "@/utils/nutrition-logic";
@@ -1219,6 +1220,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             </section>
 
             <GeminiKeySettings userId={userId} />
+            <RoutingCascadeEditor userId={userId} />
             <AdminUsersPanel userId={userId} />
             <AdminProvidersPanel userId={userId} />
           </>

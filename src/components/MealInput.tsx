@@ -128,6 +128,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [items, setItems] = useState<MealItem[]>([]);
   const [rawAnalysis, setRawAnalysis] = useState("");
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
+  const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
@@ -221,6 +223,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
   const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
+    if (data?._model_used) setModelUsed(data._model_used);
+    if (data?._confidence_score != null) setConfidenceScore(Number(data._confidence_score));
     // Gérer différents formats de nom de repas
     const extractedMealName = data.meal_name || data.name || "";
     setMealName(extractedMealName);
@@ -560,7 +564,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
           timestamp,
           raw_ai_analysis: rawAnalysis || null,
           is_confirmed: true,
-          source: source
+          source: source,
+          model_used: modelUsed,
+          confidence_score: confidenceScore,
         },
         items: items.map(item => ({
           food_name: item.name,
@@ -611,6 +617,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     setImageFile(null);
     setTextInput("");
     setRawAnalysis("");
+    setModelUsed(null);
+    setConfidenceScore(null);
     setMealName("");
     setMealTimestamp("");
     setEditingIdx(null);
@@ -758,6 +766,29 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
               </button>
             )}
           </div>
+
+          {(modelUsed || confidenceScore != null) && (
+            <div className="flex flex-wrap items-center gap-2">
+              {modelUsed && (
+                <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
+                  🤖 Analysé par {modelUsed}
+                </span>
+              )}
+              {confidenceScore != null && (
+                <span
+                  className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold ${
+                    confidenceScore >= 80
+                      ? "bg-emerald-500/15 text-emerald-600"
+                      : confidenceScore >= 50
+                      ? "bg-amber-500/15 text-amber-600"
+                      : "bg-destructive/15 text-destructive"
+                  }`}
+                >
+                  Confiance {confidenceScore}%
+                </span>
+              )}
+            </div>
+          )}
 
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-muted-foreground" />

@@ -59,6 +59,8 @@ interface SaveMealParams {
     raw_ai_analysis?: string | null;
     is_confirmed?: boolean;
     source?: string;
+    model_used?: string | null;
+    confidence_score?: number | null;
   };
   items: MealItemWithMicros[];
 }
@@ -79,6 +81,8 @@ function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
     raw_ai_analysis: m.raw_ai_analysis ?? null,
     is_confirmed: m.is_confirmed ?? true,
     source: m.source ?? "ai",
+    model_used: m.model_used ?? null,
+    confidence_score: m.confidence_score ?? null,
   };
 }
 
