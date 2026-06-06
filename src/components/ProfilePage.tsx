@@ -1219,6 +1219,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             </section>
 
             <GeminiKeySettings userId={userId} />
+            <RoutingCascadeEditor userId={userId} />
             <AdminUsersPanel userId={userId} />
             <AdminProvidersPanel userId={userId} />
           </>
