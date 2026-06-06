@@ -128,6 +128,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
   const [analyzing, setAnalyzing] = useState(false);
   const [items, setItems] = useState<MealItem[]>([]);
   const [rawAnalysis, setRawAnalysis] = useState("");
+  const [modelUsed, setModelUsed] = useState<string | null>(null);
+  const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
