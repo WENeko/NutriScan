@@ -16,6 +16,7 @@ import WaterTracker from "@/components/WaterTracker";
 import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
+import { autoSyncHealthData } from "@/services/health-connect";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
@@ -318,6 +319,13 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   useEffect(() => {
     fetchData();
   }, [fetchData]);
+
+  // Synchronisation Health Connect silencieuse à l'ouverture de l'app.
+  // recorded_at provient de la date Health Connect → upsert sans doublons.
+  useEffect(() => {
+    if (!userId) return;
+    autoSyncHealthData(userId).then(() => fetchData());
+  }, [userId]);
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
