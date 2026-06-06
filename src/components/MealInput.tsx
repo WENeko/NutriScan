@@ -223,6 +223,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
 
   const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
+    if (data?._model_used) setModelUsed(data._model_used);
+    if (data?._confidence_score != null) setConfidenceScore(Number(data._confidence_score));
     // Gérer différents formats de nom de repas
     const extractedMealName = data.meal_name || data.name || "";
     setMealName(extractedMealName);
