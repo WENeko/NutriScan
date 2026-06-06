@@ -320,6 +320,13 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     fetchData();
   }, [fetchData]);
 
+  // Synchronisation Health Connect silencieuse à l'ouverture de l'app.
+  // recorded_at provient de la date Health Connect → upsert sans doublons.
+  useEffect(() => {
+    if (!userId) return;
+    autoSyncHealthData(userId).then(() => fetchData());
+  }, [userId]);
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
