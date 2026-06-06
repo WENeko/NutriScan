@@ -16,6 +16,7 @@ import WaterTracker from "@/components/WaterTracker";
 import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
+import { autoSyncHealthData } from "@/services/health-connect";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
