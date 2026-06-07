@@ -441,6 +441,23 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       <main className="max-w-lg mx-auto px-4 space-y-6 mt-6">
         {activeTab === "dashboard" && (
           <>
+            {/* Rappel : aucune IA fonctionnelle */}
+            {!aiReady && (
+              <button
+                onClick={() => setShowProfile(true)}
+                className="w-full flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-left animate-fade-up"
+              >
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="flex-1">
+                  <div className="font-semibold text-sm">Aucune IA configurée</div>
+                  <div className="text-xs text-muted-foreground">
+                    Ajoutez une clé API pour activer l'analyse de repas par IA.
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-amber-500">Configurer</span>
+              </button>
+            )}
+
             {/* Remaining focus card */}
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <div className="flex items-center justify-center mb-4">
