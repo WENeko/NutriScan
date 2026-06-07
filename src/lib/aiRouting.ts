@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { appLogger } from "@/services/appLogger";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import type { ActiveProviderConfig, ApiType } from "@/lib/aiAccess";
+import { fallbackModelFor } from "@/lib/providerCatalog";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
@@ -283,7 +284,7 @@ export async function executeAIFeatureWithFallback(
         if (d?.model) modelUsed = `${EDGE_LABEL} · ${d.model}`;
       } else {
         const p = ctx.providers.get(step.providerId!)!;
-        const chatModel = step.model ?? ctx.selectedModel ?? (p.apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
+        const chatModel = step.model ?? ctx.selectedModel ?? fallbackModelFor(p.baseUrl, p.apiType);
         text = await callChatProvider(p, chatModel, cp.system, cp.userText);
         modelUsed = `${p.name} · ${chatModel}`;
       }

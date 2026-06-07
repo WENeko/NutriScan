@@ -50,7 +50,10 @@ export async function fetchProviderModels(
   if (!apiKey) throw new Error("Clé API requise pour lister les modèles.");
 
   if (provider.api_type === "gemini") {
-    const url = `${joinUrl(provider.base_url, provider.models_endpoint)}?key=${encodeURIComponent(apiKey)}`;
+    // Endpoint canonique des modèles Gemini (robuste si la config DB est erronée).
+    const endpoint = /\/models\b/.test(provider.models_endpoint) ? provider.models_endpoint : "/v1beta/models";
+    // Auth Gemini : clé en paramètre ?key=...
+    const url = `${joinUrl(provider.base_url, endpoint)}?key=${encodeURIComponent(apiKey)}`;
     const res = await fetch(url);
     if (!res.ok) throw new Error(`Erreur ${res.status} lors de la récupération des modèles.`);
     const json = await res.json();
@@ -62,9 +65,18 @@ export async function fetchProviderModels(
       .sort();
   }
 
-  // openai-compatible
-  const url = joinUrl(provider.base_url, provider.models_endpoint);
-  const res = await fetch(url, { headers: { Authorization: `Bearer ${apiKey}` } });
+  // openai-compatible : la liste des modèles est sur /models (jamais /chat/completions).
+  // ATTENTION : header Authorization: Bearer obligatoire (sinon 401/404).
+  const endpoint = provider.models_endpoint && /models\s*$/.test(provider.models_endpoint)
+    ? provider.models_endpoint
+    : "/models";
+  const url = joinUrl(provider.base_url, endpoint);
+  const res = await fetch(url, {
+    headers: {
+      Authorization: `Bearer ${apiKey}`,
+      "Content-Type": "application/json",
+    },
+  });
   if (!res.ok) throw new Error(`Erreur ${res.status} lors de la récupération des modèles.`);
   const json = await res.json();
   const list = (json?.data ?? json?.models ?? []) as Array<{ id?: string; name?: string }>;

@@ -21,7 +21,8 @@ import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
 import { MACRO_COLORS } from "@/lib/macro-colors";
-import { isLovableAiEnabled } from "@/lib/aiAccess";
+import { isLovableAiEnabled, isAiConfigured, loadAiAccess } from "@/lib/aiAccess";
+import OnboardingFlow, { isOnboardingDone } from "@/components/OnboardingFlow";
 
 
 interface Goals {
@@ -70,6 +71,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
+
+  // État IA : onboarding (nouvel utilisateur) + rappel si aucune IA fonctionnelle.
+  const [aiReady, setAiReady] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      await loadAiAccess(userId);
+      const ready = isAiConfigured();
+      setAiReady(ready);
+      if (!ready && !isOnboardingDone(userId)) setShowOnboarding(true);
+    })();
+  }, [userId]);
+
 
   // Génère les descriptions IA manquantes pour les micros custom existants (créés
   // avant la fonctionnalité) puis persiste et rafraîchit l'état.
@@ -398,6 +414,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   return (
     <TooltipProvider>
+    {showOnboarding && (
+      <OnboardingFlow
+        userId={userId}
+        onComplete={async () => {
+          setShowOnboarding(false);
+          await loadAiAccess(userId);
+          setAiReady(isAiConfigured());
+        }}
+      />
+    )}
     <div className="min-h-screen bg-background pb-20">
       {/* Header */}
       <header className="sticky top-0 z-10 glass-card px-4 py-3">
@@ -425,6 +451,23 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       <main className="max-w-lg mx-auto px-4 space-y-6 mt-6">
         {activeTab === "dashboard" && (
           <>
+            {/* Rappel : aucune IA fonctionnelle */}
+            {!aiReady && (
+              <button
+                onClick={() => setShowProfile(true)}
+                className="w-full flex items-center gap-3 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 text-left animate-fade-up"
+              >
+                <AlertTriangle className="w-5 h-5 text-amber-500 shrink-0" />
+                <div className="flex-1">
+                  <div className="font-semibold text-sm">Aucune IA configurée</div>
+                  <div className="text-xs text-muted-foreground">
+                    Ajoutez une clé API pour activer l'analyse de repas par IA.
+                  </div>
+                </div>
+                <span className="text-xs font-semibold text-amber-500">Configurer</span>
+              </button>
+            )}
+
             {/* Remaining focus card */}
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <div className="flex items-center justify-center mb-4">

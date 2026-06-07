@@ -99,3 +99,14 @@ export function clearAiAccessCache(): void {
   localStorage.removeItem(LS_LOVABLE);
   localStorage.removeItem(LS_PROVIDER);
 }
+
+/**
+ * true si une IA est réellement utilisable : soit l'IA de l'application est
+ * activée, soit un fournisseur perso avec une clé est sélectionné.
+ */
+export function isAiConfigured(): boolean {
+  if (isLovableAiEnabled()) return true;
+  const cfg = getActiveProviderConfig();
+  return !!(cfg && cfg.apiKey);
+}
+
