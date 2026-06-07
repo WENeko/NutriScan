@@ -205,9 +205,10 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
   // Texte complet du prompt (commun aux deux types d'API)
   const promptText = `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}`;
 
-  // Modèle choisi par l'utilisateur (jamais figé dans le code), avec repli raisonnable.
-  const chosenModel = provider?.model || (apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
+  // Modèle choisi par l'utilisateur (jamais figé dans le code). Repli intelligent
+  // selon le fournisseur uniquement si aucun modèle n'a été sélectionné.
   const baseUrl = (provider?.baseUrl || "https://generativelanguage.googleapis.com").replace(/\/+$/, "");
+  const chosenModel = provider?.model || fallbackModelFor(baseUrl, apiType);
 
   const MAX_RETRIES = 3;
   const BASE_DELAY_MS = 2000;
