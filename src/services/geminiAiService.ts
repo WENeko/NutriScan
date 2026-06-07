@@ -5,6 +5,7 @@ import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { isLovableAiEnabled, getActiveProviderConfig } from '@/lib/aiAccess';
+import { fallbackModelFor } from '@/lib/providerCatalog';
 
 // ============================================================
 // SYSTÈME DE CACHE
