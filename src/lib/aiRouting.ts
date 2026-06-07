@@ -18,6 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { appLogger } from "@/services/appLogger";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import type { ActiveProviderConfig, ApiType } from "@/lib/aiAccess";
+import { fallbackModelFor } from "@/lib/providerCatalog";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
