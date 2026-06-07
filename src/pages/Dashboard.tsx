@@ -72,6 +72,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
+  // État IA : onboarding (nouvel utilisateur) + rappel si aucune IA fonctionnelle.
+  const [aiReady, setAiReady] = useState(true);
+  const [showOnboarding, setShowOnboarding] = useState(false);
+
+  useEffect(() => {
+    if (!userId) return;
+    (async () => {
+      await loadAiAccess(userId);
+      const ready = isAiConfigured();
+      setAiReady(ready);
+      if (!ready && !isOnboardingDone(userId)) setShowOnboarding(true);
+    })();
+  }, [userId]);
+
+
   // Génère les descriptions IA manquantes pour les micros custom existants (créés
   // avant la fonctionnalité) puis persiste et rafraîchit l'état.
   const backfillCustomDescriptions = useCallback(async (defs: CustomNutrientDef[]) => {
