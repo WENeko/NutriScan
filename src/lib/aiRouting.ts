@@ -283,7 +283,7 @@ export async function executeAIFeatureWithFallback(
         if (d?.model) modelUsed = `${EDGE_LABEL} · ${d.model}`;
       } else {
         const p = ctx.providers.get(step.providerId!)!;
-        const chatModel = step.model ?? ctx.selectedModel ?? (p.apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash");
+        const chatModel = step.model ?? ctx.selectedModel ?? fallbackModelFor(p.baseUrl, p.apiType);
         text = await callChatProvider(p, chatModel, cp.system, cp.userText);
         modelUsed = `${p.name} · ${chatModel}`;
       }
