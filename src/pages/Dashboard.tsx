@@ -21,7 +21,8 @@ import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart
 import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
 import { MACRO_COLORS } from "@/lib/macro-colors";
-import { isLovableAiEnabled } from "@/lib/aiAccess";
+import { isLovableAiEnabled, isAiConfigured, loadAiAccess } from "@/lib/aiAccess";
+import OnboardingFlow, { isOnboardingDone } from "@/components/OnboardingFlow";
 
 
 interface Goals {
