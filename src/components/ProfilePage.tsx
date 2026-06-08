@@ -13,7 +13,7 @@ import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import GeminiKeySettings from "@/components/GeminiKeySettings";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
-import AdminProvidersPanel from "@/components/AdminProvidersPanel";
+
 import RoutingCascadeEditor from "@/components/RoutingCascadeEditor";
 import MicroGoalsEditor from "@/components/MicroGoalsEditor";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
