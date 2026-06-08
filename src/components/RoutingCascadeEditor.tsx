@@ -65,7 +65,11 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
   async function load() {
     setLoading(true);
     const [{ data: profile }, { data: provs }, { data: keys }] = await Promise.all([
-      supabase.from("profiles").select("lovable_ai_enabled, routing_config").eq("user_id", userId).maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("lovable_ai_enabled, routing_config, selected_ai_provider_id, selected_ai_model")
+        .eq("user_id", userId)
+        .maybeSingle(),
       supabase.from("ai_providers").select("id, name, api_type, base_url, models_endpoint").eq("is_active", true).order("display_order"),
       supabase.from("user_provider_keys").select("provider_id, api_key").eq("user_id", userId),
     ]);
@@ -84,10 +88,33 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
         apiKey: keyMap.get(p.id)!,
       }));
 
+    const routing = normalizeRoutingConfig((profile as any)?.routing_config);
+    const selProviderId = ((profile as any)?.selected_ai_provider_id as string) || null;
+    const selModel = ((profile as any)?.selected_ai_model as string) || "";
+
+    // Modèle réellement choisi par fournisseur : on récupère d'abord le modèle
+    // déjà présent dans la cascade enregistrée, sinon le modèle sélectionné dans
+    // les réglages du fournisseur. On n'utilise JAMAIS de placeholder figé.
+    const modelFromRouting = new Map<string, string>();
+    for (const feature of FEATURES) {
+      for (const s of routing[feature]) {
+        if (s.type === "byok" && s.providerId && s.model && !modelFromRouting.has(s.providerId)) {
+          modelFromRouting.set(s.providerId, s.model);
+        }
+      }
+    }
+
     setLovableEnabled(!!(profile as any)?.lovable_ai_enabled);
     setProviders(list);
-    setConfig(normalizeRoutingConfig((profile as any)?.routing_config));
-    setChosenModel(Object.fromEntries(list.map((p) => [p.id, p.apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash"])));
+    setConfig(routing);
+    setChosenModel(
+      Object.fromEntries(
+        list.map((p) => [
+          p.id,
+          modelFromRouting.get(p.id) || (p.id === selProviderId ? selModel : "") || "",
+        ]),
+      ),
+    );
     setLoading(false);
   }
 
@@ -111,12 +138,26 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
     setConfig((c) => ({ ...c, enabled: v }));
   }
 
+  /** Met à jour le modèle choisi d'un fournisseur et propage aux étapes déjà sélectionnées. */
+  function onChooseModel(providerId: string, model: string) {
+    setChosenModel((m) => ({ ...m, [providerId]: model }));
+    setConfig((c) => {
+      const next = { ...c };
+      for (const feature of FEATURES) {
+        next[feature] = c[feature].map((s) =>
+          s.type === "byok" && s.providerId === providerId ? { ...s, model: model || undefined } : s,
+        );
+      }
+      return next;
+    });
+  }
+
   /** Liste des étapes candidates pour l'ajout (edge + chaque fournisseur avec son modèle choisi). */
   function candidates(): RoutingStep[] {
     const out: RoutingStep[] = [];
     if (lovableEnabled) out.push({ type: "edge_function" });
     for (const p of providers) {
-      out.push({ type: "byok", providerId: p.id, model: chosenModel[p.id] });
+      out.push({ type: "byok", providerId: p.id, model: chosenModel[p.id] || undefined });
     }
     return out;
   }
@@ -124,7 +165,8 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
   function labelForStep(s: RoutingStep): string {
     if (s.type === "edge_function") return EDGE_LABEL;
     const p = providers.find((x) => x.id === s.providerId);
-    return p ? `${p.name} · ${s.model ?? "modèle"}` : "Fournisseur";
+    if (!p) return "Fournisseur";
+    return `${p.name} · ${s.model || "modèle par défaut"}`;
   }
 
   function isSelected(feature: FeatureKey, s: RoutingStep): boolean {
@@ -198,23 +240,29 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
       {/* Sélecteur de modèle par fournisseur (pour l'ajout) */}
       {config.enabled && providers.length > 0 && (
         <div className="space-y-2 mb-3">
-          {providers.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
-              <span className="text-xs font-medium flex-1 truncate">{p.name}</span>
-              <select
-                value={chosenModel[p.id] ?? ""}
-                onChange={(e) => setChosenModel((m) => ({ ...m, [p.id]: e.target.value }))}
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs max-w-[55%]"
-              >
-                {(modelsCache[p.id]?.length ? modelsCache[p.id] : [chosenModel[p.id]].filter(Boolean)).map((mdl) => (
-                  <option key={mdl} value={mdl}>{mdl}</option>
-                ))}
-              </select>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => loadModels(p)} aria-label="Rafraîchir les modèles">
-                {fetching === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              </Button>
-            </div>
-          ))}
+          {providers.map((p) => {
+            const opts = modelsCache[p.id]?.length
+              ? modelsCache[p.id]
+              : [chosenModel[p.id]].filter(Boolean);
+            return (
+              <div key={p.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                <span className="text-xs font-medium flex-1 truncate">{p.name}</span>
+                <select
+                  value={chosenModel[p.id] ?? ""}
+                  onChange={(e) => onChooseModel(p.id, e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs max-w-[55%]"
+                >
+                  <option value="">{opts.length ? "Choisir un modèle…" : "Rafraîchir →"}</option>
+                  {opts.map((mdl) => (
+                    <option key={mdl} value={mdl}>{mdl}</option>
+                  ))}
+                </select>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => loadModels(p)} aria-label="Rafraîchir les modèles">
+                  {fetching === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       )}
 
