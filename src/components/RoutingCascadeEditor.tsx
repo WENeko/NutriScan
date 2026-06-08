@@ -143,7 +143,7 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
     const out: RoutingStep[] = [];
     if (lovableEnabled) out.push({ type: "edge_function" });
     for (const p of providers) {
-      out.push({ type: "byok", providerId: p.id, model: chosenModel[p.id] });
+      out.push({ type: "byok", providerId: p.id, model: chosenModel[p.id] || undefined });
     }
     return out;
   }
@@ -151,7 +151,8 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
   function labelForStep(s: RoutingStep): string {
     if (s.type === "edge_function") return EDGE_LABEL;
     const p = providers.find((x) => x.id === s.providerId);
-    return p ? `${p.name} · ${s.model ?? "modèle"}` : "Fournisseur";
+    if (!p) return "Fournisseur";
+    return `${p.name} · ${s.model || "modèle par défaut"}`;
   }
 
   function isSelected(feature: FeatureKey, s: RoutingStep): boolean {
