@@ -65,7 +65,11 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
   async function load() {
     setLoading(true);
     const [{ data: profile }, { data: provs }, { data: keys }] = await Promise.all([
-      supabase.from("profiles").select("lovable_ai_enabled, routing_config").eq("user_id", userId).maybeSingle(),
+      supabase
+        .from("profiles")
+        .select("lovable_ai_enabled, routing_config, selected_ai_provider_id, selected_ai_model")
+        .eq("user_id", userId)
+        .maybeSingle(),
       supabase.from("ai_providers").select("id, name, api_type, base_url, models_endpoint").eq("is_active", true).order("display_order"),
       supabase.from("user_provider_keys").select("provider_id, api_key").eq("user_id", userId),
     ]);
@@ -84,10 +88,33 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
         apiKey: keyMap.get(p.id)!,
       }));
 
+    const routing = normalizeRoutingConfig((profile as any)?.routing_config);
+    const selProviderId = ((profile as any)?.selected_ai_provider_id as string) || null;
+    const selModel = ((profile as any)?.selected_ai_model as string) || "";
+
+    // Modèle réellement choisi par fournisseur : on récupère d'abord le modèle
+    // déjà présent dans la cascade enregistrée, sinon le modèle sélectionné dans
+    // les réglages du fournisseur. On n'utilise JAMAIS de placeholder figé.
+    const modelFromRouting = new Map<string, string>();
+    for (const feature of FEATURES) {
+      for (const s of routing[feature]) {
+        if (s.type === "byok" && s.providerId && s.model && !modelFromRouting.has(s.providerId)) {
+          modelFromRouting.set(s.providerId, s.model);
+        }
+      }
+    }
+
     setLovableEnabled(!!(profile as any)?.lovable_ai_enabled);
     setProviders(list);
-    setConfig(normalizeRoutingConfig((profile as any)?.routing_config));
-    setChosenModel(Object.fromEntries(list.map((p) => [p.id, p.apiType === "openai" ? "gpt-4o-mini" : "gemini-2.5-flash"])));
+    setConfig(routing);
+    setChosenModel(
+      Object.fromEntries(
+        list.map((p) => [
+          p.id,
+          modelFromRouting.get(p.id) || (p.id === selProviderId ? selModel : "") || "",
+        ]),
+      ),
+    );
     setLoading(false);
   }
 
