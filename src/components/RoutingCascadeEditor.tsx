@@ -138,6 +138,20 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
     setConfig((c) => ({ ...c, enabled: v }));
   }
 
+  /** Met à jour le modèle choisi d'un fournisseur et propage aux étapes déjà sélectionnées. */
+  function onChooseModel(providerId: string, model: string) {
+    setChosenModel((m) => ({ ...m, [providerId]: model }));
+    setConfig((c) => {
+      const next = { ...c };
+      for (const feature of FEATURES) {
+        next[feature] = c[feature].map((s) =>
+          s.type === "byok" && s.providerId === providerId ? { ...s, model: model || undefined } : s,
+        );
+      }
+      return next;
+    });
+  }
+
   /** Liste des étapes candidates pour l'ajout (edge + chaque fournisseur avec son modèle choisi). */
   function candidates(): RoutingStep[] {
     const out: RoutingStep[] = [];
