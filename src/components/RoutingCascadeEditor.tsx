@@ -226,23 +226,29 @@ const RoutingCascadeEditor: React.FC<Props> = ({ userId }) => {
       {/* Sélecteur de modèle par fournisseur (pour l'ajout) */}
       {config.enabled && providers.length > 0 && (
         <div className="space-y-2 mb-3">
-          {providers.map((p) => (
-            <div key={p.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
-              <span className="text-xs font-medium flex-1 truncate">{p.name}</span>
-              <select
-                value={chosenModel[p.id] ?? ""}
-                onChange={(e) => setChosenModel((m) => ({ ...m, [p.id]: e.target.value }))}
-                className="h-8 rounded-md border border-input bg-background px-2 text-xs max-w-[55%]"
-              >
-                {(modelsCache[p.id]?.length ? modelsCache[p.id] : [chosenModel[p.id]].filter(Boolean)).map((mdl) => (
-                  <option key={mdl} value={mdl}>{mdl}</option>
-                ))}
-              </select>
-              <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => loadModels(p)} aria-label="Rafraîchir les modèles">
-                {fetching === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
-              </Button>
-            </div>
-          ))}
+          {providers.map((p) => {
+            const opts = modelsCache[p.id]?.length
+              ? modelsCache[p.id]
+              : [chosenModel[p.id]].filter(Boolean);
+            return (
+              <div key={p.id} className="flex items-center gap-2 bg-muted/50 rounded-lg p-2">
+                <span className="text-xs font-medium flex-1 truncate">{p.name}</span>
+                <select
+                  value={chosenModel[p.id] ?? ""}
+                  onChange={(e) => onChooseModel(p.id, e.target.value)}
+                  className="h-8 rounded-md border border-input bg-background px-2 text-xs max-w-[55%]"
+                >
+                  <option value="">{opts.length ? "Choisir un modèle…" : "Rafraîchir →"}</option>
+                  {opts.map((mdl) => (
+                    <option key={mdl} value={mdl}>{mdl}</option>
+                  ))}
+                </select>
+                <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => loadModels(p)} aria-label="Rafraîchir les modèles">
+                  {fetching === p.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                </Button>
+              </div>
+            );
+          })}
         </div>
       )}
 
