@@ -34,6 +34,9 @@ export interface RoutingConfig {
   text: RoutingStep[];
   coach: RoutingStep[];
   recipe: RoutingStep[];
+  /** Modèles gérés par fournisseur (clé = providerId). Persistés ici pour éviter
+   *  de re-saisir la clé API à chaque modèle d'un même fournisseur. */
+  models: Record<string, string[]>;
 }
 
 export const EDGE_LABEL = "Edge Function Lovable";
@@ -51,6 +54,7 @@ export const emptyRoutingConfig = (): RoutingConfig => ({
   text: [],
   coach: [],
   recipe: [],
+  models: {},
 });
 
 export function normalizeRoutingConfig(raw: any): RoutingConfig {
@@ -58,14 +62,22 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
   if (!raw || typeof raw !== "object") return base;
   const pick = (k: FeatureKey): RoutingStep[] =>
     Array.isArray(raw[k]) ? (raw[k] as RoutingStep[]).filter((s) => s && (s.type === "byok" || s.type === "edge_function")) : [];
+  const models: Record<string, string[]> = {};
+  if (raw.models && typeof raw.models === "object") {
+    for (const [pid, list] of Object.entries(raw.models)) {
+      if (Array.isArray(list)) models[pid] = (list as any[]).map(String).filter(Boolean);
+    }
+  }
   return {
     enabled: !!raw.enabled,
     photo: pick("photo"),
     text: pick("text"),
     coach: pick("coach"),
     recipe: pick("recipe"),
+    models,
   };
 }
+
 
 interface ResolvedProvider {
   id: string;
