@@ -1,17 +1,18 @@
 /**
- * Fournisseurs d'IA — section unifiée (par cartes).
+ * Paramètres IA — gestion unifiée des fournisseurs ET des modèles (par cartes).
  *
- * Chaque fournisseur (Google AI Studio, Groq, OpenRouter, GitHub Models, …) est
- * présenté dans une carte distincte :
- *  - En-tête : icône catalogue + NOM PERSONNALISÉ donné par l'admin, badge de statut.
- *  - Champ de clé masqué, validation de format en temps réel, guide d'obtention.
- *  - Modèle remonté DYNAMIQUEMENT du fournisseur, persisté sur le profil.
+ * Une seule clé API par fournisseur, mais autant de modèles que souhaité gérés
+ * directement dans la carte du fournisseur (ajout / édition / suppression /
+ * vérification d'état). La liste de modèles par fournisseur est persistée dans
+ * profiles.routing_config.models — la même persistance que celle (fonctionnelle)
+ * de la cascade, désormais déplacée ici.
  *
- * Les administrateurs peuvent gérer les fournisseurs (ajouter / éditer / supprimer /
- * activer) directement depuis ces mêmes cartes : toute la gestion vit ici.
- *
- * Chaque utilisateur saisit sa propre clé. La sélection (fournisseur + modèle)
- * est persistée sur le profil Supabase.
+ * Structure de l'écran :
+ *  1. Interrupteur « Personnaliser les modèles » (routing_config.enabled).
+ *     -> S'il est désactivé : les réglages de modèles et la cascade sont
+ *        désactivés visuellement MAIS conservés (persistés), réactivables.
+ *  2. Cartes fournisseurs (clé + guide + modèles + vérification + admin).
+ *  3. Cascade de priorité par fonctionnalité (utilise les modèles gérés).
  */
 import React, { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
@@ -20,11 +21,13 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { Switch } from "@/components/ui/switch";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverTrigger, PopoverContent } from "@/components/ui/popover";
 import { toast } from "@/hooks/use-toast";
 import {
   Save, ExternalLink, Eye, EyeOff, ShieldCheck, Trash2, RefreshCw, Loader2,
-  Cpu, CheckCircle2, HelpCircle, CircleDashed, Sparkles, Gift, Pencil, Plus, X, Server,
+  Cpu, CheckCircle2, XCircle, HelpCircle, CircleDashed, Sparkles, Gift, Pencil,
+  Plus, X, Server, Workflow, ArrowUp, ArrowDown, Check,
 } from "lucide-react";
 import { isLovableAiEnabled, loadAiAccess } from "@/lib/aiAccess";
 import {
@@ -36,32 +39,49 @@ import {
   type AiProvider,
 } from "@/lib/aiProviders";
 import { getCatalogEntry, popularityOf, isKeyFormatValid } from "@/lib/providerCatalog";
+import {
+  type RoutingConfig,
+  type RoutingStep,
+  type FeatureKey,
+  FEATURE_LABELS,
+  EDGE_LABEL,
+  emptyRoutingConfig,
+  normalizeRoutingConfig,
+} from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 
 interface Props {
   userId: string;
 }
 
+type ModelStatus = "ok" | "obsolete" | "unknown";
+
 interface CardState {
   key: string;
   show: boolean;
   hasStored: boolean;
-  model: string;
-  models: string[];
+  available: string[];      // modèles remontés dynamiquement du fournisseur
   loadingModels: boolean;
   savingKey: boolean;
-  savingSel: boolean;
+  newModel: string;         // valeur du sélecteur/champ d'ajout
+  editingIdx: number | null;
+  editValue: string;
+  status: Record<string, ModelStatus>;
+  verifying: boolean;
 }
 
 const blankCard = (): CardState => ({
   key: "",
   show: false,
   hasStored: false,
-  model: "",
-  models: [],
+  available: [],
   loadingModels: false,
   savingKey: false,
-  savingSel: false,
+  newModel: "",
+  editingIdx: null,
+  editValue: "",
+  status: {},
+  verifying: false,
 });
 
 type AdminDraft = {
@@ -81,6 +101,8 @@ const EMPTY_DRAFT: AdminDraft = {
   is_active: true,
 };
 
+const FEATURES: FeatureKey[] = ["photo", "text", "coach", "recipe"];
+
 const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   const lovableEnabled = isLovableAiEnabled();
   const { isAdmin } = useIsAdmin(userId);
@@ -89,8 +111,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   const [selectedProviderId, setSelectedProviderId] = useState<string | null>(null);
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [cards, setCards] = useState<Record<string, CardState>>({});
+  const [config, setConfig] = useState<RoutingConfig>(emptyRoutingConfig());
 
-  // Gestion admin (édition / ajout d'un fournisseur).
   const [draft, setDraft] = useState<AdminDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
 
@@ -110,19 +132,19 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   async function load() {
     setLoading(true);
     try {
-      // Admin : voit tous les fournisseurs (même inactifs) pour les gérer.
       const provs = await listProviders(isAdmin);
       setProviders(provs);
 
       const { data: profile } = await supabase
         .from("profiles")
-        .select("selected_ai_provider_id, selected_ai_model")
+        .select("selected_ai_provider_id, selected_ai_model, routing_config")
         .eq("user_id", userId)
         .maybeSingle();
       const selId = ((profile as any)?.selected_ai_provider_id as string) || null;
       const selModel = ((profile as any)?.selected_ai_model as string) || "";
       setSelectedProviderId(selId);
       setSelectedModel(selModel);
+      setConfig(normalizeRoutingConfig((profile as any)?.routing_config));
 
       const { data: keys } = await supabase
         .from("user_provider_keys")
@@ -132,12 +154,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       const init: Record<string, CardState> = {};
       for (const p of provs) {
         const stored = (keys as any[] | null)?.find((k) => k.provider_id === p.id)?.api_key ?? "";
-        init[p.id] = {
-          ...blankCard(),
-          key: stored,
-          hasStored: !!stored,
-          model: p.id === selId ? selModel : "",
-        };
+        init[p.id] = { ...blankCard(), key: stored, hasStored: !!stored };
       }
       setCards(init);
     } catch (e: any) {
@@ -150,6 +167,24 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   const patch = (id: string, p: Partial<CardState>) =>
     setCards((cs) => ({ ...cs, [id]: { ...cs[id], ...p } }));
 
+  const getModels = (pid: string): string[] => config.models?.[pid] ?? [];
+
+  /** Persiste silencieusement la config (modèles + cascade + interrupteur). */
+  async function persistConfig(next: RoutingConfig) {
+    setConfig(next);
+    const { error } = await supabase
+      .from("profiles")
+      .update({ routing_config: next as any })
+      .eq("user_id", userId);
+    if (error) toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+  }
+
+  function setModels(pid: string, list: string[], nextConfig?: RoutingConfig) {
+    const base = nextConfig ?? config;
+    void persistConfig({ ...base, models: { ...base.models, [pid]: list } });
+  }
+
+  // ── Clés ────────────────────────────────────────────────────────────────────
   async function saveKey(p: AiProvider) {
     const trimmed = (cards[p.id]?.key ?? "").trim();
     if (!trimmed) {
@@ -177,12 +212,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       toast({ title: "Suppression KO", description: error.message, variant: "destructive" });
       return;
     }
-    patch(p.id, { key: "", hasStored: false, models: [] });
+    patch(p.id, { key: "", hasStored: false, available: [] });
     await loadAiAccess(userId);
     toast({ title: "Clé supprimée" });
   }
 
-  async function loadModels(p: AiProvider) {
+  // ── Modèles (liste dynamique + gestion par fournisseur) ──────────────────────
+  async function loadAvailable(p: AiProvider) {
     const k = (cards[p.id]?.key ?? "").trim();
     if (!k) {
       toast({ title: "Clé requise", description: "Entrez votre clé pour lister les modèles.", variant: "destructive" });
@@ -191,12 +227,9 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     patch(p.id, { loadingModels: true });
     try {
       const list = await fetchProviderModels(p, k);
-      patch(p.id, { models: list });
-      if (list.length === 0) {
-        toast({ title: "Aucun modèle", description: "Le fournisseur n'a renvoyé aucun modèle." });
-      } else {
-        toast({ title: `${list.length} modèles disponibles`, description: p.name });
-      }
+      patch(p.id, { available: list });
+      if (list.length === 0) toast({ title: "Aucun modèle", description: "Le fournisseur n'a renvoyé aucun modèle." });
+      else toast({ title: `${list.length} modèles disponibles`, description: p.name });
     } catch (e: any) {
       toast({ title: "Liste des modèles KO", description: e.message, variant: "destructive" });
     } finally {
@@ -204,22 +237,133 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     }
   }
 
-  /** Sélectionne ce fournisseur + persiste le modèle choisi (active la cascade par défaut). */
-  async function useProvider(p: AiProvider, model: string) {
-    patch(p.id, { savingSel: true, model });
-    const { error } = await saveUserSelection(userId, p.id, model || null);
-    patch(p.id, { savingSel: false });
-    if (error) {
-      toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+  /** Vérifie l'état des modèles ajoutés (✅ disponible / ❌ obsolète). */
+  async function verifyModels(p: AiProvider) {
+    const k = (cards[p.id]?.key ?? "").trim();
+    if (!k) {
+      toast({ title: "Clé requise", description: "Entrez votre clé pour vérifier les modèles.", variant: "destructive" });
       return;
     }
-    setSelectedProviderId(p.id);
-    setSelectedModel(model || "");
-    await loadAiAccess(userId);
-    toast({ title: "Fournisseur actif", description: `${p.name} · ${model || "modèle par défaut"}` });
+    patch(p.id, { verifying: true });
+    try {
+      const list = await fetchProviderModels(p, k);
+      const status: Record<string, ModelStatus> = {};
+      for (const m of getModels(p.id)) status[m] = list.includes(m) ? "ok" : "obsolete";
+      patch(p.id, { available: list, status });
+    } catch (e: any) {
+      toast({ title: "Vérification KO", description: e.message, variant: "destructive" });
+    } finally {
+      patch(p.id, { verifying: false });
+    }
   }
 
-  // ── Gestion admin des fournisseurs ──────────────────────────────────────────
+  function addModel(p: AiProvider) {
+    const m = (cards[p.id]?.newModel ?? "").trim();
+    if (!m) return;
+    const list = getModels(p.id);
+    if (list.includes(m)) {
+      toast({ title: "Modèle déjà ajouté", variant: "destructive" });
+      return;
+    }
+    const next = [...list, m];
+    patch(p.id, { newModel: "" });
+    // Premier modèle ajouté : devient le modèle par défaut du fournisseur.
+    if (!selectedProviderId || !selectedModel) {
+      void saveUserSelection(userId, p.id, m).then(() => {
+        setSelectedProviderId(p.id);
+        setSelectedModel(m);
+        loadAiAccess(userId);
+      });
+    }
+    setModels(p.id, next);
+    toast({ title: "Modèle ajouté", description: `${p.name} · ${m}` });
+  }
+
+  function deleteModel(p: AiProvider, model: string) {
+    const next = getModels(p.id).filter((m) => m !== model);
+    // Retire aussi ce modèle de la cascade.
+    const cleaned: RoutingConfig = { ...config, models: { ...config.models, [p.id]: next } };
+    for (const f of FEATURES) {
+      cleaned[f] = cleaned[f].filter((s) => !(s.type === "byok" && s.providerId === p.id && s.model === model));
+    }
+    void persistConfig(cleaned);
+    patch(p.id, { status: {} });
+  }
+
+  function startEditModel(p: AiProvider, idx: number) {
+    patch(p.id, { editingIdx: idx, editValue: getModels(p.id)[idx] ?? "" });
+  }
+
+  function commitEditModel(p: AiProvider) {
+    const st = cards[p.id];
+    if (!st || st.editingIdx == null) return;
+    const value = st.editValue.trim();
+    const list = [...getModels(p.id)];
+    const old = list[st.editingIdx];
+    if (!value || value === old) {
+      patch(p.id, { editingIdx: null, editValue: "" });
+      return;
+    }
+    list[st.editingIdx] = value;
+    // Répercute le renommage dans la cascade.
+    const cleaned: RoutingConfig = { ...config, models: { ...config.models, [p.id]: list } };
+    for (const f of FEATURES) {
+      cleaned[f] = cleaned[f].map((s) =>
+        s.type === "byok" && s.providerId === p.id && s.model === old ? { ...s, model: value } : s,
+      );
+    }
+    void persistConfig(cleaned);
+    patch(p.id, { editingIdx: null, editValue: "" });
+  }
+
+  // ── Cascade ──────────────────────────────────────────────────────────────────
+  function toggleEnabled(v: boolean) {
+    void persistConfig({ ...config, enabled: v });
+  }
+
+  function providerById(id?: string): AiProvider | undefined {
+    return providers.find((p) => p.id === id);
+  }
+
+  function candidates(): RoutingStep[] {
+    const out: RoutingStep[] = [];
+    if (lovableEnabled) out.push({ type: "edge_function" });
+    for (const p of sorted) {
+      if (!cards[p.id]?.hasStored) continue;
+      for (const m of getModels(p.id)) out.push({ type: "byok", providerId: p.id, model: m });
+    }
+    return out;
+  }
+
+  function labelForStep(s: RoutingStep): string {
+    if (s.type === "edge_function") return EDGE_LABEL;
+    const p = providerById(s.providerId);
+    return `${p?.name ?? "Fournisseur"} · ${s.model || "modèle par défaut"}`;
+  }
+
+  const sameStep = (a: RoutingStep, b: RoutingStep) =>
+    a.type === b.type &&
+    (a.type === "edge_function" || (a.providerId === b.providerId && a.model === b.model));
+
+  function isSelected(feature: FeatureKey, s: RoutingStep): boolean {
+    return config[feature].some((x) => sameStep(x, s));
+  }
+
+  function toggleStep(feature: FeatureKey, s: RoutingStep, checked: boolean) {
+    const current = config[feature];
+    const next = checked ? [...current, s] : current.filter((x) => !sameStep(x, s));
+    void persistConfig({ ...config, [feature]: next });
+  }
+
+  function move(feature: FeatureKey, idx: number, dir: -1 | 1) {
+    const arr = [...config[feature]];
+    const j = idx + dir;
+    if (j < 0 || j >= arr.length) return;
+    [arr[idx], arr[j]] = [arr[j], arr[idx]];
+    void persistConfig({ ...config, [feature]: arr });
+  }
+
+  // ── Admin fournisseurs ───────────────────────────────────────────────────────
   function startEdit(p: AiProvider) {
     setDraft({
       id: p.id,
@@ -293,12 +437,16 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     void load();
   }
 
+  const cfgDisabled = !config.enabled;
+  const disabledCls = cfgDisabled ? "opacity-50 pointer-events-none select-none" : "";
+  const allCandidates = candidates();
+
   return (
     <section className="space-y-3 animate-fade-up" style={{ animationDelay: "45ms" }}>
       <div className="flex items-center gap-2">
         <Sparkles className="w-4 h-4 text-primary" />
         <h2 className="font-display font-semibold text-base">
-          {isAdmin ? "Administration — Fournisseurs d'IA" : "Fournisseurs d'IA"}
+          {isAdmin ? "Administration — Fournisseurs d'IA" : "Fournisseurs & modèles d'IA"}
         </h2>
       </div>
 
@@ -313,9 +461,20 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       ) : (
         <p className="text-xs text-muted-foreground">
           L'analyse par IA utilise <strong>votre</strong> clé auprès du fournisseur choisi.
-          Configurez au moins un fournisseur, puis activez-le.
+          Configurez au moins un fournisseur, ajoutez un modèle, puis activez la personnalisation.
         </p>
       )}
+
+      {/* 1. Interrupteur « Personnaliser les modèles » (avant les cartes) */}
+      <div className="flex items-center justify-between bg-accent rounded-xl p-3">
+        <div>
+          <div className="text-sm font-semibold">Personnaliser les modèles</div>
+          <div className="text-[11px] text-muted-foreground">
+            Désactivé : réglages de modèles et cascade conservés mais inactifs.
+          </div>
+        </div>
+        <Switch checked={config.enabled} onCheckedChange={toggleEnabled} />
+      </div>
 
       {loading ? (
         <div className="flex items-center gap-2 text-sm text-muted-foreground py-4">
@@ -334,8 +493,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
           const active = selectedProviderId === p.id;
           const keyTrimmed = st.key.trim();
           const formatOk = keyTrimmed.length > 0 && isKeyFormatValid(p.base_url, keyTrimmed);
-          // Options du sélecteur de modèle : union des modèles chargés + modèle déjà choisi.
-          const modelOptions = Array.from(new Set([...(st.model ? [st.model] : []), ...st.models]));
+          const models = getModels(p.id);
+          const addOptions = st.available.filter((m) => !models.includes(m));
 
           return (
             <Card
@@ -344,7 +503,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 active ? "border-primary shadow-card" : "border-primary/20 hover:border-primary/40"
               } ${!p.is_active ? "opacity-60" : ""}`}
             >
-              {/* En-tête */}
+              {/* En-tête : NOM du fournisseur */}
               <div className="flex items-center gap-3 mb-3">
                 <div className="w-9 h-9 rounded-xl bg-primary/10 flex items-center justify-center text-lg shrink-0">
                   {entry?.icon ?? "🔌"}
@@ -385,7 +544,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
               )}
 
-              {/* Clé */}
+              {/* Clé + guide d'obtention */}
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-[10px] uppercase text-muted-foreground">Votre clé</Label>
@@ -462,45 +621,111 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
               </div>
 
-              {/* Modèle (dynamique, persisté) */}
-              <div className="mt-3">
-                <Label className="text-[10px] uppercase text-muted-foreground">Modèle</Label>
-                <div className="flex gap-2 mt-1">
-                  {modelOptions.length > 0 ? (
+              {/* Modèles : gestion complète (ajout / édition / suppression / vérification) */}
+              <div className={`mt-4 border-t border-border pt-3 ${disabledCls}`}>
+                <div className="flex items-center justify-between mb-2">
+                  <Label className="text-[10px] uppercase text-muted-foreground flex items-center gap-1">
+                    <Cpu className="w-3 h-3" /> Modèles
+                  </Label>
+                  <Button
+                    onClick={() => verifyModels(p)}
+                    disabled={st.verifying || models.length === 0}
+                    variant="ghost"
+                    className="h-7 text-[11px] px-2"
+                  >
+                    {st.verifying ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1" />}
+                    Vérifier l'état
+                  </Button>
+                </div>
+
+                {/* Liste des modèles ajoutés */}
+                {models.length === 0 ? (
+                  <p className="text-[11px] text-muted-foreground italic mb-2">
+                    Aucun modèle. Ajoutez-en un ci-dessous.
+                  </p>
+                ) : (
+                  <div className="space-y-1.5 mb-2">
+                    {models.map((m, idx) => {
+                      const status = st.status[m];
+                      return (
+                        <div key={m} className="flex items-center gap-2 bg-muted/40 rounded-lg px-2 py-1.5">
+                          {status === "ok" ? (
+                            <CheckCircle2 className="w-4 h-4 text-primary shrink-0" aria-label="Disponible" />
+                          ) : status === "obsolete" ? (
+                            <XCircle className="w-4 h-4 text-destructive shrink-0" aria-label="Obsolète" />
+                          ) : (
+                            <CircleDashed className="w-4 h-4 text-muted-foreground shrink-0" aria-label="Non vérifié" />
+                          )}
+                          {st.editingIdx === idx ? (
+                            <>
+                              <Input
+                                value={st.editValue}
+                                onChange={(e) => patch(p.id, { editValue: e.target.value })}
+                                className="h-7 flex-1 font-mono text-xs"
+                                autoFocus
+                              />
+                              <button onClick={() => commitEditModel(p)} className="text-primary" aria-label="Valider">
+                                <Check className="w-4 h-4" />
+                              </button>
+                              <button onClick={() => patch(p.id, { editingIdx: null })} className="text-muted-foreground" aria-label="Annuler">
+                                <X className="w-4 h-4" />
+                              </button>
+                            </>
+                          ) : (
+                            <>
+                              <span className="text-xs font-mono flex-1 truncate">{m}</span>
+                              {active && selectedModel === m && (
+                                <span className="text-[9px] font-semibold text-primary bg-primary/10 rounded-full px-1.5 py-0.5">
+                                  défaut
+                                </span>
+                              )}
+                              <button onClick={() => startEditModel(p, idx)} className="text-muted-foreground hover:text-foreground" aria-label="Éditer">
+                                <Pencil className="w-3.5 h-3.5" />
+                              </button>
+                              <button onClick={() => deleteModel(p, m)} className="text-muted-foreground hover:text-destructive" aria-label="Supprimer">
+                                <Trash2 className="w-3.5 h-3.5" />
+                              </button>
+                            </>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+
+                {/* Ajout d'un modèle */}
+                <div className="flex gap-2">
+                  {addOptions.length > 0 ? (
                     <select
-                      value={st.model}
-                      onChange={(e) => useProvider(p, e.target.value)}
-                      className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-sm"
+                      value={st.newModel}
+                      onChange={(e) => patch(p.id, { newModel: e.target.value })}
+                      className="h-9 flex-1 rounded-md border border-input bg-background px-2 text-xs"
                     >
-                      <option value="">Choisir un modèle…</option>
-                      {modelOptions.map((m) => (
+                      <option value="">Choisir un modèle à ajouter…</option>
+                      {addOptions.map((m) => (
                         <option key={m} value={m}>{m}</option>
                       ))}
                     </select>
                   ) : (
                     <Input
-                      value={st.model}
-                      onChange={(e) => patch(p.id, { model: e.target.value })}
-                      onBlur={(e) => e.target.value.trim() && useProvider(p, e.target.value.trim())}
+                      value={st.newModel}
+                      onChange={(e) => patch(p.id, { newModel: e.target.value })}
+                      onKeyDown={(e) => e.key === "Enter" && addModel(p)}
                       placeholder={entry?.modelPlaceholder ?? (p.api_type === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini")}
                       className="h-9 flex-1 font-mono text-xs"
                     />
                   )}
-                  <Button onClick={() => loadModels(p)} disabled={st.loadingModels} variant="outline" className="h-9">
+                  <Button onClick={() => addModel(p)} disabled={!st.newModel.trim()} className="h-9 px-3" aria-label="Ajouter le modèle">
+                    <Plus className="w-4 h-4" />
+                  </Button>
+                  <Button onClick={() => loadAvailable(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rafraîchir la liste">
                     {st.loadingModels ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Cliquez sur l'icône pour charger la liste à jour des modèles du fournisseur.
+                  Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu.
                 </p>
               </div>
-
-              {active && (
-                <div className="flex items-center gap-1.5 mt-3 text-[11px] font-semibold text-primary">
-                  <Cpu className="w-3.5 h-3.5" /> Fournisseur actif
-                  {selectedModel ? ` · ${selectedModel}` : ""}
-                </div>
-              )}
             </Card>
           );
         })
@@ -553,6 +778,63 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
         <Button onClick={() => setDraft({ ...EMPTY_DRAFT })} variant="outline" className="w-full h-10 rounded-xl">
           <Plus className="w-4 h-4 mr-1" /> Ajouter un fournisseur
         </Button>
+      )}
+
+      {/* 3. Cascade de priorité par fonctionnalité */}
+      {!loading && (
+        <Card className={`bg-card rounded-2xl p-4 shadow-card mt-2 ${disabledCls}`}>
+          <div className="flex items-center gap-2 mb-1">
+            <Workflow className="w-4 h-4 text-primary" />
+            <h3 className="font-display font-semibold text-sm">Cascade de modèles IA</h3>
+          </div>
+          <p className="text-xs text-muted-foreground mb-3">
+            Ordre de priorité par fonctionnalité. En cas d'échec, le modèle suivant est utilisé automatiquement.
+          </p>
+
+          {allCandidates.length === 0 ? (
+            <p className="text-xs text-muted-foreground bg-muted/50 rounded-lg p-3">
+              Aucun modèle disponible. Activez l'IA de l'application ou ajoutez des modèles dans les cartes ci-dessus.
+            </p>
+          ) : (
+            <div className="space-y-4">
+              {FEATURES.map((feature) => (
+                <div key={feature} className="border border-border rounded-xl p-3">
+                  <div className="text-sm font-semibold mb-2">{FEATURE_LABELS[feature]}</div>
+
+                  <div className="space-y-1.5 mb-2">
+                    {allCandidates.map((cand) => (
+                      <label key={labelForStep(cand) + feature} className="flex items-center gap-2 cursor-pointer text-xs">
+                        <Checkbox
+                          checked={isSelected(feature, cand)}
+                          onCheckedChange={(v) => toggleStep(feature, cand, !!v)}
+                        />
+                        <span className="truncate">{labelForStep(cand)}</span>
+                      </label>
+                    ))}
+                  </div>
+
+                  {config[feature].length > 0 && (
+                    <div className="bg-muted/40 rounded-lg p-2 space-y-1">
+                      <div className="text-[10px] uppercase text-muted-foreground mb-1">Ordre de priorité</div>
+                      {config[feature].map((s, idx) => (
+                        <div key={labelForStep(s) + idx} className="flex items-center gap-2 bg-card rounded-md px-2 py-1.5">
+                          <span className="text-[10px] font-bold text-primary w-4">{idx + 1}</span>
+                          <span className="text-xs flex-1 truncate">{labelForStep(s)}</span>
+                          <button onClick={() => move(feature, idx, -1)} disabled={idx === 0} className="p-1 rounded hover:bg-muted disabled:opacity-30" aria-label="Monter">
+                            <ArrowUp className="w-3.5 h-3.5" />
+                          </button>
+                          <button onClick={() => move(feature, idx, 1)} disabled={idx === config[feature].length - 1} className="p-1 rounded hover:bg-muted disabled:opacity-30" aria-label="Descendre">
+                            <ArrowDown className="w-3.5 h-3.5" />
+                          </button>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </Card>
       )}
     </section>
   );
