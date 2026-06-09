@@ -34,6 +34,9 @@ export interface RoutingConfig {
   text: RoutingStep[];
   coach: RoutingStep[];
   recipe: RoutingStep[];
+  /** Modèles gérés par fournisseur (clé = providerId). Persistés ici pour éviter
+   *  de re-saisir la clé API à chaque modèle d'un même fournisseur. */
+  models: Record<string, string[]>;
 }
 
 export const EDGE_LABEL = "Edge Function Lovable";
