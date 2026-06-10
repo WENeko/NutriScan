@@ -363,6 +363,14 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     return `${p?.name ?? "Fournisseur"} · ${s.model || "modèle par défaut"}`;
   }
 
+  /** Un step est valide si edge, ou si son fournisseur + modèle existent encore. */
+  function stepIsValid(s: RoutingStep): boolean {
+    if (s.type === "edge_function") return true;
+    if (!s.providerId) return false;
+    if (!providers.some((p) => p.id === s.providerId)) return false;
+    return getModels(s.providerId).includes(s.model || "");
+  }
+
   const sameStep = (a: RoutingStep, b: RoutingStep) =>
     a.type === b.type &&
     (a.type === "edge_function" || (a.providerId === b.providerId && a.model === b.model));
