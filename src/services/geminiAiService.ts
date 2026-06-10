@@ -174,7 +174,10 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
             model: chosenModel,
-            messages: [{ role: "user", content: userContent }],
+            messages: [
+              { role: "system", content: systemContent },
+              { role: "user", content: userContent },
+            ],
           }),
         });
       } else {
@@ -186,7 +189,10 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
         res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ role: "user", parts: userParts }] }),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemContent }] },
+            contents: [{ role: "user", parts: userParts }],
+          }),
         });
       }
 
