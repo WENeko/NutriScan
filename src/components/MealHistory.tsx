@@ -713,6 +713,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                 <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
                 <span style={{ color: MACRO_COLORS.fat }}>L: {Math.round(meal.total_fats)}g</span>
               </div>
+              <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
               <div className="text-right">
