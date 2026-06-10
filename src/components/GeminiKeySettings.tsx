@@ -847,6 +847,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <div className="bg-muted/40 rounded-lg p-2 space-y-1">
                       <div className="text-[10px] uppercase text-muted-foreground mb-1">Ordre de priorité</div>
                       {config[feature].map((s, idx) => (
+                        !stepIsValid(s) ? null : (
                         <div key={labelForStep(s) + idx} className="flex items-center gap-2 bg-card rounded-md px-2 py-1.5">
                           <span className="text-[10px] font-bold text-primary w-4">{idx + 1}</span>
                           <span className="text-xs flex-1 truncate">{labelForStep(s)}</span>
