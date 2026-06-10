@@ -1,11 +1,16 @@
 // src/services/geminiAiService.ts
 // Couche d'intégration IA : edge functions Lovable (si autorisé) ou fournisseur perso
 // (Gemini ou compatible OpenAI) sélectionné par l'utilisateur, avec modèle au choix.
-import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { isLovableAiEnabled, getActiveProviderConfig } from '@/lib/aiAccess';
 import { fallbackModelFor } from '@/lib/providerCatalog';
+// SOURCE UNIQUE DE VÉRITÉ du prompt — partagée avec l'edge function `analyze-meal`.
+import {
+  buildSystemContent,
+  buildCustomFoodsContext,
+  buildUserPromptText,
+} from '../../supabase/functions/_shared/mealAnalysisPrompt';
 
 // ============================================================
 // SYSTÈME DE CACHE
