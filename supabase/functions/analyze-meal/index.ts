@@ -1,90 +1,15 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import {
+  buildSystemContent,
+  buildCustomFoodsContext,
+  buildUserPromptText,
+} from "../_shared/mealAnalysisPrompt.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-const SYSTEM_PROMPT = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
-
-IMPORTANT - Extraction temporelle :
-Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
-
-IMPORTANT - Détection des aliments comptables en unités :
-Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut.
-
-RÈGLE PRINCIPALE : Si l'utilisateur mentionne un nombre SANS unité de poids ou volume après (g, kg, ml, cl, L), c'est un indice TRÈS FORT que cet aliment se compte en unités. Exemples :
-- "2 tranches de jambon" → unit_count=2, unit_label="tranche" (PAS de poids mentionné = unités)
-- "3 oeufs" → unit_count=3, unit_label="oeuf" (PAS de poids mentionné = unités)
-- "1 portion de Kiri" → unit_count=1, unit_label="portion" (PAS de poids mentionné = unités)
-- "2 fromages triangle" → unit_count=2, unit_label="triangle" (PAS de poids mentionné = unités)
-- "2 Babybel" → unit_count=2, unit_label="portion" (PAS de poids mentionné = unités)
-- "4 biscuits" → unit_count=4, unit_label="biscuit" (PAS de poids mentionné = unités)
-- "200g de riz" → poids brut (unité de poids mentionnée = PAS d'unités)
-En résumé : nombre + nom d'aliment SANS g/kg/ml/cl/L = TOUJOURS utiliser unit_count/unit_label/unit_weight_g.
-
-Autres cas où utiliser des unités même sans nombre explicite :
-- Oeufs, tranches (jambon, pain de mie, fromage, bacon), portions (fromage type Kiri/Vache qui rit/Babybel/triangle), biscuits, tartines, crêpes, saucisses, nuggets, fruits entiers (pomme, banane, abricot), tomates cerises, olives, crevettes, boulettes, bonbons, etc.
-
-Si l'aliment se compte en unités, remplis ces 3 champs :
-- "unit_count": nombre d'unités (entier, ex: 3)
-- "unit_weight_g": poids moyen d'UNE unité en grammes (entier, ex: 60)
-- "unit_label": libellé court de l'unité (ex: "oeuf", "tranche", "portion")
-Le champ "estimated_weight_g" doit être = unit_count * unit_weight_g.
-Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne mets PAS ces champs.
-
-IMPORTANT - Micronutriments :
-Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g).
-Liste STANDARD (NUTRIENTS_STD_LIST — source unique de vérité côté client) :
-- fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
-- sodium_mg (mg), potassium_mg (mg), magnesium_mg (mg), calcium_mg (mg)
-- iron_mg (mg), zinc_mg (mg)
-- vitamin_c_mg (mg), vitamin_d_mcg (µg), vitamin_b9_mcg (µg), vitamin_b12_mcg (µg), vitamin_e_mg (mg)
-
-Si l'utilisateur t'a fourni une liste de "custom_nutrients" (clé + label + unité), retourne aussi
-ces clés dans chaque item avec la valeur numérique estimée pour le poids estimé. Si tu ne peux pas estimer, omets la clé.
-
-Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
-{
-  "meal_name": "string",
-  "confidence_score": 0.85,
-  "suggested_timestamp": "2025-01-15T22:00:00" (optionnel),
-  "items": [
-    {
-      "name": "string",
-      "estimated_weight_g": 150,
-      "unit_count": 3 (optionnel),
-      "unit_weight_g": 50 (optionnel),
-      "unit_label": "portion" (optionnel),
-      "calories": 250,
-      "proteins": 25,
-      "carbs": 2,
-      "fats": 15,
-      "fiber": 2,
-      "sugar": 1,
-      "saturated_fat": 3,
-      "omega3_mg": 50,
-      "sodium_mg": 200,
-      "potassium_mg": 300,
-      "magnesium_mg": 30,
-      "calcium_mg": 50,
-      "iron_mg": 1.2,
-      "zinc_mg": 0.5,
-      "vitamin_c_mg": 40,
-      "vitamin_d_mcg": 0,
-      "vitamin_b9_mcg": 20,
-      "vitamin_b12_mcg": 0.3,
-      "vitamin_e_mg": 0.2
-    }
-  ],
-  "total_summary": {
-    "calories": 250,
-    "proteins": 25,
-    "carbs": 2,
-    "fats": 15
-  }
-}`;
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
