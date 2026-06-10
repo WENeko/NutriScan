@@ -30,37 +30,20 @@ serve(async (req) => {
     const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
     if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY is not configured");
 
-    // Build custom foods context if available
-    let customFoodsContext = "";
-    if (custom_foods && Array.isArray(custom_foods) && custom_foods.length > 0) {
-      customFoodsContext = "\n\nIMPORTANT - L'utilisateur a une bibliothèque personnelle d'aliments. UTILISE CES DONNÉES EN PRIORITÉ quand tu reconnais un de ces aliments :\n";
-      custom_foods.forEach((f: any) => {
-        customFoodsContext += `- ${f.name}: portion=${f.serving_size_g ?? 100}g, Cal=${f.calories_per_100g}kcal/100g, P=${f.proteins_per_100g}g/100g, G=${f.carbs_per_100g}g/100g, L=${f.fats_per_100g}g/100g, Fibres=${f.fiber_per_100g ?? 0}g/100g, Sucres=${f.sugar_per_100g ?? 0}g/100g, AGS=${f.saturated_fat_per_100g ?? 0}g/100g, Omega3=${f.omega3_mg_per_100g ?? 0}mg/100g, Sodium=${f.sodium_mg_per_100g ?? 0}mg/100g, Potassium=${f.potassium_mg_per_100g ?? 0}mg/100g, Magnesium=${f.magnesium_mg_per_100g ?? 0}mg/100g, Calcium=${f.calcium_mg_per_100g ?? 0}mg/100g, VitB=${f.vitamin_b_per_100g ?? 0}mg/100g, VitC=${f.vitamin_c_per_100g ?? 0}mg/100g, VitD=${f.vitamin_d_per_100g ?? 0}µg/100g, VitE=${f.vitamin_e_per_100g ?? 0}mg/100g\n`;
-      });
-    }
-
-    // Custom nutrients (user-defined) à concaténer dans chaque item
-    let customNutrientsContext = "";
-    if (Array.isArray(custom_nutrients) && custom_nutrients.length > 0) {
-      customNutrientsContext = "\n\nNUTRIMENTS CUSTOM à estimer pour chaque item (clé JSON exacte = unité) :\n" +
-        custom_nutrients
-          .filter((c: any) => c?.key && c?.unit)
-          .map((c: any) => `- ${c.key} (${c.unit}) — ${c.label ?? c.key}`)
-          .join("\n");
-    }
+    // Prompt construit depuis la SOURCE UNIQUE DE VÉRITÉ partagée (_shared).
+    const customFoodsContext = buildCustomFoodsContext(custom_foods);
+    const systemContent = buildSystemContent(custom_nutrients);
 
     const userContent: any[] = [];
-
     if (image) {
       userContent.push(
-        { type: "text", text: `Analyse ce repas et donne-moi les macronutriments et micronutriments de chaque aliment visible.${customFoodsContext}` },
+        { type: "text", text: buildUserPromptText({ hasImage: true, local_time, customFoodsContext }) },
         { type: "image_url", image_url: { url: image } }
       );
     } else if (text) {
-      const timeContext = local_time ? `\nL'heure locale actuelle de l'utilisateur est : ${local_time}. Utilise cette référence pour calculer "hier", "ce matin", etc.` : "";
       userContent.push({
         type: "text",
-        text: `Analyse cette description de repas et donne-moi les macronutriments et micronutriments de chaque aliment mentionné : "${text}"${customFoodsContext}${timeContext}`,
+        text: buildUserPromptText({ hasImage: false, text, local_time, customFoodsContext }),
       });
     }
 
@@ -73,7 +56,7 @@ serve(async (req) => {
       body: JSON.stringify({
         model: "google/gemini-2.5-flash",
         messages: [
-          { role: "system", content: SYSTEM_PROMPT + customFoodsContext + customNutrientsContext },
+          { role: "system", content: systemContent },
           { role: "user", content: userContent },
         ],
       }),
