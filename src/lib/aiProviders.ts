@@ -79,9 +79,20 @@ export async function fetchProviderModels(
   });
   if (!res.ok) throw new Error(`Erreur ${res.status} lors de la récupération des modèles.`);
   const json = await res.json();
-  const list = (json?.data ?? json?.models ?? []) as Array<{ id?: string; name?: string }>;
+  // Certains fournisseurs (GitHub Models, Azure AI) renvoient un tableau au
+  // niveau racine ; d'autres encapsulent dans { data: [...] } ou { models: [...] }.
+  const list = (Array.isArray(json) ? json : (json?.data ?? json?.models ?? [])) as Array<{
+    id?: string;
+    name?: string;
+  }>;
   return list
-    .map((m) => m.id ?? m.name ?? "")
+    .map((m) => {
+      // Si l'id est une URI (ex. azureml://.../versions/3), il n'est pas utilisable
+      // tel quel comme nom de modèle : on privilégie alors le champ `name`.
+      const id = m.id ?? "";
+      if (id && !id.includes("://")) return id;
+      return m.name ?? id ?? "";
+    })
     .filter(Boolean)
     .sort();
 }
