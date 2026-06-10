@@ -1,11 +1,16 @@
 // src/services/geminiAiService.ts
 // Couche d'intégration IA : edge functions Lovable (si autorisé) ou fournisseur perso
 // (Gemini ou compatible OpenAI) sélectionné par l'utilisateur, avec modèle au choix.
-import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 import { appLogger } from './appLogger';
 import { supabase } from '@/integrations/supabase/client';
 import { isLovableAiEnabled, getActiveProviderConfig } from '@/lib/aiAccess';
 import { fallbackModelFor } from '@/lib/providerCatalog';
+// SOURCE UNIQUE DE VÉRITÉ du prompt — partagée avec l'edge function `analyze-meal`.
+import {
+  buildSystemContent,
+  buildCustomFoodsContext,
+  buildUserPromptText,
+} from '../../supabase/functions/_shared/mealAnalysisPrompt';
 
 // ============================================================
 // SYSTÈME DE CACHE
@@ -126,69 +131,10 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   }
 
 
-  // Liste master + custom user
-  const defaultMicroKeys = NUTRIENTS_STD_LIST.map(n => n.key);
-  const customKeys = (custom_nutrients || []).map(c => c.key).filter(Boolean);
-  const microKeysToRequest = requestedMicros.length ? requestedMicros : [...defaultMicroKeys, ...customKeys];
-
-  // Construire la liste des micronutriments pour le prompt
-  const microFieldsList = microKeysToRequest.join(", ");
-  
-  // System prompt ALIGNÉ sur la function Lovable `analyze-meal`
-  // (mêmes noms de champs : name, estimated_weight_g, unit_count, unit_weight_g, unit_label)
-  const basePrompt = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
-
-IMPORTANT - Extraction temporelle :
-Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin"), retourne-la dans "suggested_timestamp" au format ISO 8601.
-
-IMPORTANT - Aliments comptables en unités :
-Si l'utilisateur mentionne un nombre SANS unité de poids (g/kg/ml/cl/L), c'est un aliment en unités.
-- "2 tranches", "3 oeufs", "1 portion de Kiri", "2 Babybel", "4 biscuits" → unit_count, unit_label, unit_weight_g
-- "200g de riz" → poids brut (PAS d'unités)
-Si l'aliment se compte en unités : unit_count, unit_weight_g (poids moyen d'UNE unité), unit_label.
-estimated_weight_g = unit_count * unit_weight_g.
-
-IMPORTANT - Micronutriments :
-Pour chaque aliment, estime les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g) :
-${microFieldsList}
-Mets 0 si inconnu.
-
-FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
-{
-  "meal_name": "string",
-  "confidence_score": 0.85,
-  "suggested_timestamp": "2025-01-15T22:00:00",
-  "items": [
-    {
-      "name": "string",
-      "estimated_weight_g": 150,
-      "unit_count": 3,
-      "unit_weight_g": 50,
-      "unit_label": "portion",
-      "calories": 250,
-      "proteins": 25,
-      "carbs": 2,
-      "fats": 15,
-      ${microKeysToRequest.map(k => `"${k}": 0`).join(",\n      ")}
-    }
-  ],
-  "total_summary": { "calories": 0, "proteins": 0, "carbs": 0, "fats": 0 }
-}`;
-
-  // Gestion du contexte Custom Foods
-  let customFoodsContext = "";
-  if (custom_foods?.length) {
-    customFoodsContext = "\nUTILISE CES DONNÉES DE BIBLIOTHÈQUE EN PRIORITÉ :\n" + custom_foods
-      .map(f => `- ${f.name}: Cal=${f.calories_per_100g}, P=${f.proteins_per_100g}, G=${f.carbs_per_100g}, L=${f.fats_per_100g}`)
-      .join("\n");
-  }
-
-  // Nutriments custom (suivis en plus de la master list)
-  let customNutrientsContext = "";
-  if (custom_nutrients?.length) {
-    customNutrientsContext = "\nNUTRIMENTS CUSTOM à estimer pour CHAQUE item (clé JSON exacte = valeur numérique dans l'unité indiquée, 0 si inconnu) :\n" +
-      custom_nutrients.map(c => `- ${c.key} (${c.unit})${c.label ? ` — ${c.label}` : ""}`).join("\n");
-  }
+  // ── PROMPT : SOURCE UNIQUE DE VÉRITÉ (identique à l'edge function `analyze-meal`)
+  // quel que soit le fournisseur / modèle utilisé pour l'analyse.
+  const systemContent = buildSystemContent(custom_nutrients);
+  const customFoodsContext = buildCustomFoodsContext(custom_foods);
 
   // Détecte le mime type depuis le préfixe data:image/xxx;base64,
   let imageMime = "image/jpeg";
@@ -203,8 +149,8 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
     }
   }
 
-  // Texte complet du prompt (commun aux deux types d'API)
-  const promptText = `${basePrompt}\n\nAnalyse ce repas et extrais les nutriments demandés.${customFoodsContext}${customNutrientsContext}${local_time ? `\nHeure locale: ${local_time}.` : ""}${text ? `\nTexte: "${text}"` : ""}`;
+  // Message utilisateur identique à l'edge function (image ou description).
+  const promptText = buildUserPromptText({ hasImage: !!image, text, local_time, customFoodsContext });
 
   // Modèle choisi par l'utilisateur (jamais figé dans le code). Repli intelligent
   // selon le fournisseur uniquement si aucun modèle n'a été sélectionné.
@@ -228,7 +174,10 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
           body: JSON.stringify({
             model: chosenModel,
-            messages: [{ role: "user", content: userContent }],
+            messages: [
+              { role: "system", content: systemContent },
+              { role: "user", content: userContent },
+            ],
           }),
         });
       } else {
@@ -240,7 +189,10 @@ FORMAT JSON STRICT - réponds UNIQUEMENT le JSON, sans markdown :
         res = await fetch(url, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ contents: [{ role: "user", parts: userParts }] }),
+          body: JSON.stringify({
+            systemInstruction: { parts: [{ text: systemContent }] },
+            contents: [{ role: "user", parts: userParts }],
+          }),
         });
       }
 
