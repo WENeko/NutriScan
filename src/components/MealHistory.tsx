@@ -52,7 +52,47 @@ interface Meal {
   total_fats: number;
   meal_name?: string | null;
   is_favorite?: boolean;
+  model_used?: string | null;
+  confidence_score?: number | null;
 }
+
+/** Couleur de la pastille de confiance selon le score (0-100). */
+function confidenceColor(score: number): string {
+  if (score >= 90) return "#10b981"; // vert émeraude — confiance élevée
+  if (score >= 70) return "#f59e0b"; // orange — confiance moyenne
+  return "#ef4444"; // rouge — approximatif
+}
+
+/** Nettoie le libellé du modèle (retire le préfixe fournisseur si présent). */
+function modelShortLabel(raw: string): string {
+  const parts = raw.split("·").map((s) => s.trim());
+  return parts[parts.length - 1] || raw;
+}
+
+const AiBadges: React.FC<{ model?: string | null; confidence?: number | null }> = ({ model, confidence }) => {
+  if (model == null && confidence == null) return null;
+  return (
+    <div className="flex items-center gap-1.5 mt-1">
+      {confidence != null && (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold"
+          title={`Confiance : ${Math.round(confidence)}%`}
+        >
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ backgroundColor: confidenceColor(Math.round(confidence)) }}
+          />
+          {Math.round(confidence)}%
+        </span>
+      )}
+      {model && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          🤖 {modelShortLabel(model)}
+        </span>
+      )}
+    </div>
+  );
+};
 
 interface MealHistoryProps {
   meals: Meal[];
@@ -673,6 +713,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
                 <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
                 <span style={{ color: MACRO_COLORS.fat }}>L: {Math.round(meal.total_fats)}g</span>
               </div>
+              <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
             </div>
             <div className="flex flex-col items-end gap-1 flex-shrink-0">
               <div className="text-right">

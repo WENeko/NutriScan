@@ -144,7 +144,29 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       const selModel = ((profile as any)?.selected_ai_model as string) || "";
       setSelectedProviderId(selId);
       setSelectedModel(selModel);
-      setConfig(normalizeRoutingConfig((profile as any)?.routing_config));
+
+      // Nettoyage : retire de la cascade et de la liste des modèles tout
+      // fournisseur supprimé ou tout modèle qui n'existe plus.
+      const norm = normalizeRoutingConfig((profile as any)?.routing_config);
+      const validIds = new Set(provs.map((p) => p.id));
+      const prunedModels: Record<string, string[]> = {};
+      for (const [pid, list] of Object.entries(norm.models)) {
+        if (validIds.has(pid)) prunedModels[pid] = list;
+      }
+      const modelOk = (pid: string, model?: string) => (prunedModels[pid] ?? []).includes(model || "");
+      const cleaned: RoutingConfig = { ...norm, models: prunedModels };
+      let changed = JSON.stringify(prunedModels) !== JSON.stringify(norm.models);
+      for (const f of FEATURES) {
+        const filtered = norm[f].filter((s) =>
+          s.type === "edge_function" ? true : !!s.providerId && validIds.has(s.providerId) && modelOk(s.providerId, s.model),
+        );
+        if (filtered.length !== norm[f].length) changed = true;
+        cleaned[f] = filtered;
+      }
+      setConfig(cleaned);
+      if (changed) {
+        await supabase.from("profiles").update({ routing_config: cleaned as any }).eq("user_id", userId);
+      }
 
       const { data: keys } = await supabase
         .from("user_provider_keys")
@@ -339,6 +361,14 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     if (s.type === "edge_function") return EDGE_LABEL;
     const p = providerById(s.providerId);
     return `${p?.name ?? "Fournisseur"} · ${s.model || "modèle par défaut"}`;
+  }
+
+  /** Un step est valide si edge, ou si son fournisseur + modèle existent encore. */
+  function stepIsValid(s: RoutingStep): boolean {
+    if (s.type === "edge_function") return true;
+    if (!s.providerId) return false;
+    if (!providers.some((p) => p.id === s.providerId)) return false;
+    return getModels(s.providerId).includes(s.model || "");
   }
 
   const sameStep = (a: RoutingStep, b: RoutingStep) =>
@@ -817,6 +847,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <div className="bg-muted/40 rounded-lg p-2 space-y-1">
                       <div className="text-[10px] uppercase text-muted-foreground mb-1">Ordre de priorité</div>
                       {config[feature].map((s, idx) => (
+                        !stepIsValid(s) ? null : (
                         <div key={labelForStep(s) + idx} className="flex items-center gap-2 bg-card rounded-md px-2 py-1.5">
                           <span className="text-[10px] font-bold text-primary w-4">{idx + 1}</span>
                           <span className="text-xs flex-1 truncate">{labelForStep(s)}</span>
@@ -827,6 +858,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                             <ArrowDown className="w-3.5 h-3.5" />
                           </button>
                         </div>
+                        )
                       ))}
                     </div>
                   )}
