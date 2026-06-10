@@ -144,7 +144,29 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       const selModel = ((profile as any)?.selected_ai_model as string) || "";
       setSelectedProviderId(selId);
       setSelectedModel(selModel);
-      setConfig(normalizeRoutingConfig((profile as any)?.routing_config));
+
+      // Nettoyage : retire de la cascade et de la liste des modèles tout
+      // fournisseur supprimé ou tout modèle qui n'existe plus.
+      const norm = normalizeRoutingConfig((profile as any)?.routing_config);
+      const validIds = new Set(provs.map((p) => p.id));
+      const prunedModels: Record<string, string[]> = {};
+      for (const [pid, list] of Object.entries(norm.models)) {
+        if (validIds.has(pid)) prunedModels[pid] = list;
+      }
+      const modelOk = (pid: string, model?: string) => (prunedModels[pid] ?? []).includes(model || "");
+      const cleaned: RoutingConfig = { ...norm, models: prunedModels };
+      let changed = JSON.stringify(prunedModels) !== JSON.stringify(norm.models);
+      for (const f of FEATURES) {
+        const filtered = norm[f].filter((s) =>
+          s.type === "edge_function" ? true : !!s.providerId && validIds.has(s.providerId) && modelOk(s.providerId, s.model),
+        );
+        if (filtered.length !== norm[f].length) changed = true;
+        cleaned[f] = filtered;
+      }
+      setConfig(cleaned);
+      if (changed) {
+        await supabase.from("profiles").update({ routing_config: cleaned as any }).eq("user_id", userId);
+      }
 
       const { data: keys } = await supabase
         .from("user_provider_keys")
