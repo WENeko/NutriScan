@@ -135,7 +135,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   // ── PROMPT : SOURCE UNIQUE DE VÉRITÉ (identique à l'edge function `analyze-meal`)
   // quel que soit le fournisseur / modèle utilisé pour l'analyse.
-  const systemContent = buildSystemContent(custom_nutrients);
+  const systemContent = buildSystemContent(NUTRIENTS_STD_LIST, custom_nutrients);
   const customFoodsContext = buildCustomFoodsContext(custom_foods);
 
   // Détecte le mime type depuis le préfixe data:image/xxx;base64,
