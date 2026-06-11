@@ -731,7 +731,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             className="min-h-[100px] rounded-xl text-sm resize-none"
           />
           <Button
-            onClick={analyzeText}
+            onClick={() => analyzeText()}
             disabled={analyzing || !textInput.trim()}
             className="w-full rounded-xl h-11 bg-primary text-primary-foreground hover:opacity-90"
           >
