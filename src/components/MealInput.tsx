@@ -113,14 +113,24 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
 // Raw/cooked ratio: cooked weight = raw weight * 2.5 (for starches/grains)
 const RAW_TO_COOKED_RATIO = 2.5;
 
+export interface PrefillRecipe {
+  title: string;
+  portions: number;
+  ingredients: { name: string; grams: number }[];
+}
+
 interface MealInputProps {
   userId: string;
   onMealSaved: () => void;
+  /** Recette poussée depuis le Coach : déclenche une analyse automatique en attente de validation. */
+  prefillRecipe?: PrefillRecipe | null;
+  /** Appelé une fois la recette consommée (analyse lancée) pour vider le prefill côté parent. */
+  onPrefillConsumed?: () => void;
 }
 
 type InputMode = "image" | "text" | "barcode";
 
-const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
+const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecipe, onPrefillConsumed }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<InputMode>("image");
@@ -159,6 +169,23 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     init();
   }, [userId]);
 
+  // Recette poussée depuis le Coach → bascule en mode texte et lance l'analyse,
+  // l'utilisateur se retrouve en attente de validation comme pour une saisie texte.
+  useEffect(() => {
+    if (!prefillRecipe) return;
+    const ingredientsText = prefillRecipe.ingredients
+      .map((i) => `${i.name} (${i.grams}g)`)
+      .join(", ");
+    const description = `Recette "${prefillRecipe.title}" pour ${prefillRecipe.portions} portion(s). Ingrédients : ${ingredientsText}.`;
+    setMode("text");
+    setItems([]);
+    setMealName(prefillRecipe.title);
+    setTextInput(description);
+    onPrefillConsumed?.();
+    void analyzeText(description);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillRecipe]);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -196,8 +223,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     }
   };
 
-  const analyzeText = async () => {
-    if (!textInput.trim()) return;
+  const analyzeText = async (overrideText?: string) => {
+    const text = (overrideText ?? textInput).trim();
+    if (!text) return;
     setAnalyzing(true);
     setSource("text");
     try {
@@ -207,7 +235,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         .eq("user_id", userId);
 
       const result = await analyzeMeal({
-        text: textInput,
+        text,
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
         local_time: new Date().toLocaleString("fr-FR"),
@@ -730,7 +758,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             className="min-h-[100px] rounded-xl text-sm resize-none"
           />
           <Button
-            onClick={analyzeText}
+            onClick={() => analyzeText()}
             disabled={analyzing || !textInput.trim()}
             className="w-full rounded-xl h-11 bg-primary text-primary-foreground hover:opacity-90"
           >

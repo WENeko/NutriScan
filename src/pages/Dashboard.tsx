@@ -59,6 +59,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [weeklyCalorieTarget, setWeeklyCalorieTarget] = useState(0);
   const [weeklyElapsedTarget, setWeeklyElapsedTarget] = useState(0);
   const [activeTab, setActiveTab] = useState<TabId>("dashboard");
+  const [pendingRecipe, setPendingRecipe] = useState<{ title: string; portions: number; ingredients: { name: string; grams: number }[] } | null>(null);
   const [waterGoal, setWaterGoal] = useState(2000);
   const [weight, setWeight] = useState(70);
   const [sportCalories, setSportCalories] = useState(0);
@@ -644,7 +645,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
             {/* Meal input */}
             <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
-              <MealInput userId={userId} onMealSaved={fetchData} />
+              <MealInput userId={userId} onMealSaved={fetchData} prefillRecipe={pendingRecipe} onPrefillConsumed={() => setPendingRecipe(null)} />
             </section>
 
             {/* Today's meals */}
@@ -694,6 +695,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               targetWeight,
               phase: (userProfile as any)?.mass_gain_phase ?? null,
               userProfile,
+            }}
+            onExportRecipe={(recipe) => {
+              setPendingRecipe(recipe);
+              setActiveTab("dashboard");
             }}
           />
         )}
