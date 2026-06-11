@@ -18,43 +18,12 @@ export interface CustomNutrientDef {
   unit: string;
 }
 
-/** Liste STANDARD de micronutriments (clés JSON renvoyées dans chaque item). */
-export const STD_MICRO_KEYS = [
-  "fiber",
-  "sugar",
-  "saturated_fat",
-  "omega3_mg",
-  "sodium_mg",
-  "potassium_mg",
-  "magnesium_mg",
-  "calcium_mg",
-  "iron_mg",
-  "zinc_mg",
-  "vitamin_c_mg",
-  "vitamin_d_mcg",
-  "vitamin_b9_mcg",
-  "vitamin_b12_mcg",
-  "vitamin_e_mg",
-] as const;
-
-/** Valeurs d'exemple par défaut pour les micros standard dans le gabarit JSON. */
-const STD_MICRO_EXAMPLE: Record<string, number> = {
-  fiber: 2,
-  sugar: 1,
-  saturated_fat: 3,
-  omega3_mg: 50,
-  sodium_mg: 200,
-  potassium_mg: 300,
-  magnesium_mg: 30,
-  calcium_mg: 50,
-  iron_mg: 1.2,
-  zinc_mg: 0.5,
-  vitamin_c_mg: 40,
-  vitamin_d_mcg: 0,
-  vitamin_b9_mcg: 20,
-  vitamin_b12_mcg: 0.3,
-  vitamin_e_mg: 0.2,
-};
+/**
+ * La liste STANDARD de micronutriments N'EST PLUS codée en dur ici.
+ * Elle est fournie par l'appelant (`std_nutrients`) dont la SOURCE UNIQUE DE VÉRITÉ
+ * est `NUTRIENTS_STD_LIST` (src/utils/nutrition-logic.ts) côté client, transmise
+ * telle quelle à l'edge function via le corps de requête.
+ */
 
 /** Contexte « bibliothèque personnelle d'aliments » (prioritaire). */
 export function buildCustomFoodsContext(custom_foods?: any[]): string {
