@@ -111,7 +111,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   if (!providerOverride && isLovableAiEnabled()) {
     appLogger.info("IA", "Analyse via edge function Lovable");
     const { data, error } = await supabase.functions.invoke("analyze-meal", {
-      body: { image, text, custom_foods, custom_nutrients, local_time },
+      body: { image, text, custom_foods, custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time },
     });
     if (error) {
       appLogger.error("IA", "Erreur edge function analyze-meal", error);
