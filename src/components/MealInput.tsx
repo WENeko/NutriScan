@@ -113,9 +113,19 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
 // Raw/cooked ratio: cooked weight = raw weight * 2.5 (for starches/grains)
 const RAW_TO_COOKED_RATIO = 2.5;
 
+export interface PrefillRecipe {
+  title: string;
+  portions: number;
+  ingredients: { name: string; grams: number }[];
+}
+
 interface MealInputProps {
   userId: string;
   onMealSaved: () => void;
+  /** Recette poussée depuis le Coach : déclenche une analyse automatique en attente de validation. */
+  prefillRecipe?: PrefillRecipe | null;
+  /** Appelé une fois la recette consommée (analyse lancée) pour vider le prefill côté parent. */
+  onPrefillConsumed?: () => void;
 }
 
 type InputMode = "image" | "text" | "barcode";
