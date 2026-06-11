@@ -18,43 +18,12 @@ export interface CustomNutrientDef {
   unit: string;
 }
 
-/** Liste STANDARD de micronutriments (clés JSON renvoyées dans chaque item). */
-export const STD_MICRO_KEYS = [
-  "fiber",
-  "sugar",
-  "saturated_fat",
-  "omega3_mg",
-  "sodium_mg",
-  "potassium_mg",
-  "magnesium_mg",
-  "calcium_mg",
-  "iron_mg",
-  "zinc_mg",
-  "vitamin_c_mg",
-  "vitamin_d_mcg",
-  "vitamin_b9_mcg",
-  "vitamin_b12_mcg",
-  "vitamin_e_mg",
-] as const;
-
-/** Valeurs d'exemple par défaut pour les micros standard dans le gabarit JSON. */
-const STD_MICRO_EXAMPLE: Record<string, number> = {
-  fiber: 2,
-  sugar: 1,
-  saturated_fat: 3,
-  omega3_mg: 50,
-  sodium_mg: 200,
-  potassium_mg: 300,
-  magnesium_mg: 30,
-  calcium_mg: 50,
-  iron_mg: 1.2,
-  zinc_mg: 0.5,
-  vitamin_c_mg: 40,
-  vitamin_d_mcg: 0,
-  vitamin_b9_mcg: 20,
-  vitamin_b12_mcg: 0.3,
-  vitamin_e_mg: 0.2,
-};
+/**
+ * La liste STANDARD de micronutriments N'EST PLUS codée en dur ici.
+ * Elle est fournie par l'appelant (`std_nutrients`) dont la SOURCE UNIQUE DE VÉRITÉ
+ * est `NUTRIENTS_STD_LIST` (src/utils/nutrition-logic.ts) côté client, transmise
+ * telle quelle à l'edge function via le corps de requête.
+ */
 
 /** Contexte « bibliothèque personnelle d'aliments » (prioritaire). */
 export function buildCustomFoodsContext(custom_foods?: any[]): string {
@@ -78,12 +47,18 @@ export function buildCustomNutrientsContext(custom_nutrients?: CustomNutrientDef
 }
 
 /** Construit le system prompt complet, avec les clés custom intégrées au gabarit JSON. */
-export function buildSystemPrompt(custom_nutrients?: CustomNutrientDef[]): string {
+export function buildSystemPrompt(
+  std_nutrients?: CustomNutrientDef[],
+  custom_nutrients?: CustomNutrientDef[],
+): string {
+  const stdList = (std_nutrients ?? []).filter((c) => c?.key && c?.unit);
   const customKeys = (custom_nutrients ?? []).filter((c) => c?.key && c?.unit).map((c) => c.key);
 
-  const stdMicroLines = STD_MICRO_KEYS.map((k) => `      "${k}": ${STD_MICRO_EXAMPLE[k] ?? 0}`);
+  const stdMicroLines = stdList.map((c) => `      "${c.key}": 0`);
   const customMicroLines = customKeys.map((k) => `      "${k}": 0`);
   const itemMicroBlock = [...stdMicroLines, ...customMicroLines].join(",\n");
+
+  const stdListLine = stdList.map((c) => `${c.key} (${c.unit})`).join(", ");
 
   return `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
 
@@ -116,10 +91,7 @@ Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne m
 IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g).
 Liste STANDARD (NUTRIENTS_STD_LIST — source unique de vérité côté client) :
-- fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
-- sodium_mg (mg), potassium_mg (mg), magnesium_mg (mg), calcium_mg (mg)
-- iron_mg (mg), zinc_mg (mg)
-- vitamin_c_mg (mg), vitamin_d_mcg (µg), vitamin_b9_mcg (µg), vitamin_b12_mcg (µg), vitamin_e_mg (mg)
+- ${stdListLine}
 
 Si l'utilisateur t'a fourni une liste de "custom_nutrients" (clé + label + unité), retourne aussi
 ces clés dans chaque item avec la valeur numérique estimée pour le poids estimé. Mets 0 si tu ne peux pas estimer, mais n'omets JAMAIS la clé.
@@ -153,8 +125,11 @@ ${itemMicroBlock}
 }
 
 /** Contenu système complet = system prompt + contexte nutriments custom. */
-export function buildSystemContent(custom_nutrients?: CustomNutrientDef[]): string {
-  return buildSystemPrompt(custom_nutrients) + buildCustomNutrientsContext(custom_nutrients);
+export function buildSystemContent(
+  std_nutrients?: CustomNutrientDef[],
+  custom_nutrients?: CustomNutrientDef[],
+): string {
+  return buildSystemPrompt(std_nutrients, custom_nutrients) + buildCustomNutrientsContext(custom_nutrients);
 }
 
 /** Texte utilisateur (image ou description), incluant le contexte bibliothèque. */

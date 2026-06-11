@@ -767,24 +767,33 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
             )}
           </div>
 
+          {mode === "image" && preview && (
+            <div className="rounded-2xl overflow-hidden shadow-card">
+              <img src={preview} alt="Repas" className="w-full h-44 object-cover" />
+            </div>
+          )}
+
           {(modelUsed || confidenceScore != null) && (
-            <div className="flex flex-wrap items-center gap-2">
-              {modelUsed && (
-                <span className="inline-flex items-center gap-1 text-[10px] bg-primary/10 text-primary px-2 py-0.5 rounded-full font-semibold">
-                  🤖 Analysé par {modelUsed}
-                </span>
-              )}
+            <div className="flex items-center gap-1.5 flex-nowrap overflow-hidden">
               {confidenceScore != null && (
                 <span
-                  className={`inline-flex items-center gap-1 text-[10px] px-2 py-0.5 rounded-full font-semibold ${
-                    confidenceScore >= 80
-                      ? "bg-emerald-500/15 text-emerald-600"
-                      : confidenceScore >= 50
-                      ? "bg-amber-500/15 text-amber-600"
-                      : "bg-destructive/15 text-destructive"
-                  }`}
+                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold"
+                  title={`Confiance : ${confidenceScore}%`}
                 >
-                  Confiance {confidenceScore}%
+                  <span
+                    className="inline-block w-2 h-2 rounded-full"
+                    style={{
+                      backgroundColor:
+                        confidenceScore >= 90 ? "#10b981" : confidenceScore >= 70 ? "#f59e0b" : "#ef4444",
+                    }}
+                  />
+                  {confidenceScore}%
+                </span>
+              )}
+              {modelUsed && (
+                <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+                  <span className="shrink-0">🤖</span>
+                  <span className="truncate">{modelUsed.split("·").pop()?.trim() || modelUsed}</span>
                 </span>
               )}
             </div>

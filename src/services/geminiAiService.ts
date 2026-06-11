@@ -11,6 +11,8 @@ import {
   buildCustomFoodsContext,
   buildUserPromptText,
 } from '../../supabase/functions/_shared/mealAnalysisPrompt';
+// SOURCE UNIQUE DE VÉRITÉ de la liste des micros standard (JSON métier).
+import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 
 // ============================================================
 // SYSTÈME DE CACHE
@@ -109,7 +111,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   if (!providerOverride && isLovableAiEnabled()) {
     appLogger.info("IA", "Analyse via edge function Lovable");
     const { data, error } = await supabase.functions.invoke("analyze-meal", {
-      body: { image, text, custom_foods, custom_nutrients, local_time },
+      body: { image, text, custom_foods, custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time },
     });
     if (error) {
       appLogger.error("IA", "Erreur edge function analyze-meal", error);
@@ -133,7 +135,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   // ── PROMPT : SOURCE UNIQUE DE VÉRITÉ (identique à l'edge function `analyze-meal`)
   // quel que soit le fournisseur / modèle utilisé pour l'analyse.
-  const systemContent = buildSystemContent(custom_nutrients);
+  const systemContent = buildSystemContent(NUTRIENTS_STD_LIST, custom_nutrients);
   const customFoodsContext = buildCustomFoodsContext(custom_foods);
 
   // Détecte le mime type depuis le préfixe data:image/xxx;base64,

@@ -19,6 +19,7 @@ import { appLogger } from "@/services/appLogger";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import type { ActiveProviderConfig, ApiType } from "@/lib/aiAccess";
 import { fallbackModelFor } from "@/lib/providerCatalog";
+import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
@@ -259,7 +260,7 @@ export async function executeAIFeatureWithFallback(
         let data: any;
         if (step.type === "edge_function") {
           const { data: d, error } = await supabase.functions.invoke("analyze-meal", {
-            body: { image: ap.image, text: ap.text, custom_foods: ap.custom_foods, custom_nutrients: ap.custom_nutrients, local_time: ap.local_time },
+            body: { image: ap.image, text: ap.text, custom_foods: ap.custom_foods, custom_nutrients: ap.custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time: ap.local_time },
           });
           if (error) throw new Error(error.message || "Edge function indisponible");
           if (d?.error) throw new Error(d.error);
