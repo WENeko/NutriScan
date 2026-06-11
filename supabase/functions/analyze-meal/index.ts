@@ -18,7 +18,7 @@ serve(async (req) => {
 
   try {
     const body = await req.json();
-    const { image, text, custom_foods, custom_nutrients, local_time } = body;
+    const { image, text, custom_foods, custom_nutrients, std_nutrients, local_time } = body;
 
     if (!image && !text) {
       return new Response(
