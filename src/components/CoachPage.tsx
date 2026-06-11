@@ -305,7 +305,7 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
                           onClick={() => onExportRecipe(recipe)}
                           className="inline-flex items-center gap-1.5 h-8 px-3 rounded-lg bg-primary/10 text-primary text-xs font-semibold"
                         >
-                          <FileEdit className="w-3.5 h-3.5" /> Exporter vers un repas (recette)
+                          <FileEdit className="w-3.5 h-3.5" /> Ajouter à ma journée
                         </button>
                       )}
                       {m.model_used && (
