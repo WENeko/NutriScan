@@ -130,7 +130,7 @@ interface MealInputProps {
 
 type InputMode = "image" | "text" | "barcode";
 
-const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
+const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecipe, onPrefillConsumed }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const [mode, setMode] = useState<InputMode>("image");
