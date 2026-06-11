@@ -91,10 +91,7 @@ Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne m
 IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g).
 Liste STANDARD (NUTRIENTS_STD_LIST — source unique de vérité côté client) :
-- fiber (g), sugar (g), saturated_fat (g), omega3_mg (mg)
-- sodium_mg (mg), potassium_mg (mg), magnesium_mg (mg), calcium_mg (mg)
-- iron_mg (mg), zinc_mg (mg)
-- vitamin_c_mg (mg), vitamin_d_mcg (µg), vitamin_b9_mcg (µg), vitamin_b12_mcg (µg), vitamin_e_mg (mg)
+- ${stdListLine}
 
 Si l'utilisateur t'a fourni une liste de "custom_nutrients" (clé + label + unité), retourne aussi
 ces clés dans chaque item avec la valeur numérique estimée pour le poids estimé. Mets 0 si tu ne peux pas estimer, mais n'omets JAMAIS la clé.
