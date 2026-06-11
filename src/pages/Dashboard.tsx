@@ -645,7 +645,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
             {/* Meal input */}
             <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
-              <MealInput userId={userId} onMealSaved={fetchData} />
+              <MealInput userId={userId} onMealSaved={fetchData} prefillRecipe={pendingRecipe} onPrefillConsumed={() => setPendingRecipe(null)} />
             </section>
 
             {/* Today's meals */}
