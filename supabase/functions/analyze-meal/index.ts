@@ -32,7 +32,7 @@ serve(async (req) => {
 
     // Prompt construit depuis la SOURCE UNIQUE DE VÉRITÉ partagée (_shared).
     const customFoodsContext = buildCustomFoodsContext(custom_foods);
-    const systemContent = buildSystemContent(custom_nutrients);
+    const systemContent = buildSystemContent(std_nutrients, custom_nutrients);
 
     const userContent: any[] = [];
     if (image) {
