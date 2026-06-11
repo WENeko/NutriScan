@@ -169,6 +169,23 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     init();
   }, [userId]);
 
+  // Recette poussée depuis le Coach → bascule en mode texte et lance l'analyse,
+  // l'utilisateur se retrouve en attente de validation comme pour une saisie texte.
+  useEffect(() => {
+    if (!prefillRecipe) return;
+    const ingredientsText = prefillRecipe.ingredients
+      .map((i) => `${i.name} (${i.grams}g)`)
+      .join(", ");
+    const description = `Recette "${prefillRecipe.title}" pour ${prefillRecipe.portions} portion(s). Ingrédients : ${ingredientsText}.`;
+    setMode("text");
+    setItems([]);
+    setMealName(prefillRecipe.title);
+    setTextInput(description);
+    onPrefillConsumed?.();
+    void analyzeText(description);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [prefillRecipe]);
+
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
