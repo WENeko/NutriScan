@@ -125,8 +125,11 @@ ${itemMicroBlock}
 }
 
 /** Contenu système complet = system prompt + contexte nutriments custom. */
-export function buildSystemContent(custom_nutrients?: CustomNutrientDef[]): string {
-  return buildSystemPrompt(custom_nutrients) + buildCustomNutrientsContext(custom_nutrients);
+export function buildSystemContent(
+  std_nutrients?: CustomNutrientDef[],
+  custom_nutrients?: CustomNutrientDef[],
+): string {
+  return buildSystemPrompt(std_nutrients, custom_nutrients) + buildCustomNutrientsContext(custom_nutrients);
 }
 
 /** Texte utilisateur (image ou description), incluant le contexte bibliothèque. */
