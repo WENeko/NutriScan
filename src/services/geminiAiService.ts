@@ -11,6 +11,8 @@ import {
   buildCustomFoodsContext,
   buildUserPromptText,
 } from '../../supabase/functions/_shared/mealAnalysisPrompt';
+// SOURCE UNIQUE DE VÉRITÉ de la liste des micros standard (JSON métier).
+import { NUTRIENTS_STD_LIST } from '@/utils/nutrition-logic';
 
 // ============================================================
 // SYSTÈME DE CACHE
