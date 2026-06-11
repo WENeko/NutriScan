@@ -696,6 +696,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               phase: (userProfile as any)?.mass_gain_phase ?? null,
               userProfile,
             }}
+            onExportRecipe={(recipe) => {
+              setPendingRecipe(recipe);
+              setActiveTab("dashboard");
+            }}
           />
         )}
 
