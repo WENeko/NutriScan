@@ -208,7 +208,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
         .eq("user_id", userId);
 
       const result = await analyzeMeal({
-        text: textInput,
+        text,
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
         local_time: new Date().toLocaleString("fr-FR"),
