@@ -19,6 +19,7 @@ import { appLogger } from "@/services/appLogger";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import type { ActiveProviderConfig, ApiType } from "@/lib/aiAccess";
 import { fallbackModelFor } from "@/lib/providerCatalog";
+import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
