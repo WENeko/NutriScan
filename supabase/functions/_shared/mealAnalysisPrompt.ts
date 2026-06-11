@@ -47,12 +47,18 @@ export function buildCustomNutrientsContext(custom_nutrients?: CustomNutrientDef
 }
 
 /** Construit le system prompt complet, avec les clés custom intégrées au gabarit JSON. */
-export function buildSystemPrompt(custom_nutrients?: CustomNutrientDef[]): string {
+export function buildSystemPrompt(
+  std_nutrients?: CustomNutrientDef[],
+  custom_nutrients?: CustomNutrientDef[],
+): string {
+  const stdList = (std_nutrients ?? []).filter((c) => c?.key && c?.unit);
   const customKeys = (custom_nutrients ?? []).filter((c) => c?.key && c?.unit).map((c) => c.key);
 
-  const stdMicroLines = STD_MICRO_KEYS.map((k) => `      "${k}": ${STD_MICRO_EXAMPLE[k] ?? 0}`);
+  const stdMicroLines = stdList.map((c) => `      "${c.key}": 0`);
   const customMicroLines = customKeys.map((k) => `      "${k}": 0`);
   const itemMicroBlock = [...stdMicroLines, ...customMicroLines].join(",\n");
+
+  const stdListLine = stdList.map((c) => `${c.key} (${c.unit})`).join(", ");
 
   return `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
 
