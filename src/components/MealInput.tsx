@@ -196,8 +196,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved }) => {
     }
   };
 
-  const analyzeText = async () => {
-    if (!textInput.trim()) return;
+  const analyzeText = async (overrideText?: string) => {
+    const text = (overrideText ?? textInput).trim();
+    if (!text) return;
     setAnalyzing(true);
     setSource("text");
     try {
