@@ -1225,11 +1225,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <ThemeSwitcher />
             </section>
+          </>
+        )}
 
+        {/* ============ ADMIN IA ============ */}
+        {subPage === "admin" && (
+          <>
             <GeminiKeySettings userId={userId} />
             <AdminUsersPanel userId={userId} />
           </>
         )}
+
 
         {/* Save button at bottom of every sub-page */}
         {subPage !== null && (
