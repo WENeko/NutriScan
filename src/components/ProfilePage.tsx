@@ -482,6 +482,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     health: "Santé & Mode de vie",
     goals: "Objectifs nutritionnels",
     settings: "Préférences & Rappels",
+    admin: "Administration IA",
   };
 
   const hubItems: Array<{ id: Exclude<SubPage, null>; icon: any; label: string; desc: string }> = [
