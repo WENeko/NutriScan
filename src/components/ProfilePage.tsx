@@ -516,6 +516,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       label: "Préférences & Rappels",
       desc: `Pesée ${WEIGHIN_FREQUENCIES.find((f) => f.value === weighinFrequency)?.label.toLowerCase() ?? weighinFrequency}`,
     },
+    {
+      id: "admin",
+      icon: Sparkles,
+      label: "Administration IA",
+      desc: "Fournisseurs, modèles & accès IA",
+    },
   ];
 
   const goBack = () => (subPage ? setSubPage(null) : onBack());
