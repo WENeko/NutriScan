@@ -694,51 +694,53 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
     <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
       <button
         onClick={() => onSelect(meal.id)}
-        className="w-full flex items-center gap-3 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
+        className="w-full flex items-start gap-3 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
       >
-            {meal.image_url ? (
-              <img src={meal.image_url} alt="Repas" className="w-14 h-14 rounded-lg object-cover flex-shrink-0" />
-            ) : (
-              <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center flex-shrink-0">
-                <Utensils className="w-6 h-6 text-muted-foreground" />
-              </div>
-            )}
-            <div className="flex-1 min-w-0">
-              {meal.meal_name && <p className="text-sm font-bold truncate">{meal.meal_name}</p>}
-              <p className={`text-xs text-muted-foreground truncate ${meal.meal_name ? '' : 'text-sm font-semibold text-foreground'}`}>
-                {format(new Date(meal.timestamp), "EEEE d MMM, HH:mm", { locale: fr })}
-              </p>
-              <div className="flex gap-2 text-xs mt-0.5 font-medium">
-                <span style={{ color: MACRO_COLORS.protein }}>P: {Math.round(meal.total_proteins)}g</span>
-                <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
-                <span style={{ color: MACRO_COLORS.fat }}>L: {Math.round(meal.total_fats)}g</span>
-              </div>
-              <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
+        <div className="flex flex-col gap-1 flex-shrink-0">
+          {meal.image_url ? (
+            <img src={meal.image_url} alt="Repas" className="w-14 h-14 rounded-lg object-cover" />
+          ) : (
+            <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
+              <Utensils className="w-6 h-6 text-muted-foreground" />
             </div>
-            <div className="flex flex-col items-end gap-1 flex-shrink-0">
-              <div className="text-right">
-                <span className="text-sm font-bold text-primary">{Math.round(meal.total_calories)}</span>
-                <span className="text-[10px] text-muted-foreground block">kcal</span>
-              </div>
-              <div className="flex items-center gap-0.5">
-                <button onClick={(e) => toggleExpand(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Voir les ingrédients">
-                  <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
-                </button>
-                <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                  <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
-                </button>
-                <button onClick={(e) => startEdit(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                  <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-                <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                  <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-                </button>
-                <button onClick={(e) => deleteMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                  <Trash2 className="w-3.5 h-3.5 text-destructive" />
-                </button>
-              </div>
-            </div>
-          </button>
+          )}
+          <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
+        </div>
+        <div className="flex-1 min-w-0">
+          {meal.meal_name && <p className="text-sm font-bold truncate">{meal.meal_name}</p>}
+          <p className={`text-xs text-muted-foreground truncate ${meal.meal_name ? '' : 'text-sm font-semibold text-foreground'}`}>
+            {format(new Date(meal.timestamp), "EEEE d MMM, HH:mm", { locale: fr })}
+          </p>
+          <div className="flex gap-2 text-xs mt-0.5 font-medium">
+            <span style={{ color: MACRO_COLORS.protein }}>P: {Math.round(meal.total_proteins)}g</span>
+            <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
+            <span style={{ color: MACRO_COLORS.fat }}>L: {Math.round(meal.total_fats)}g</span>
+          </div>
+        </div>
+        <div className="flex flex-col items-end gap-1 flex-shrink-0">
+          <div className="text-right">
+            <span className="text-sm font-bold text-primary">{Math.round(meal.total_calories)}</span>
+            <span className="text-[10px] text-muted-foreground block">kcal</span>
+          </div>
+          <div className="flex items-center gap-0.5">
+            <button onClick={(e) => toggleExpand(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Voir les ingrédients">
+              <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
+            </button>
+            <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+              <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
+            </button>
+            <button onClick={(e) => startEdit(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+              <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+            <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
+              <Copy className="w-3.5 h-3.5 text-muted-foreground" />
+            </button>
+            <button onClick={(e) => deleteMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
+              <Trash2 className="w-3.5 h-3.5 text-destructive" />
+            </button>
+          </div>
+        </div>
+      </button>
 
           {/* Read-only expanded ingredient list */}
           {expandedMealId === meal.id && editingMealId !== meal.id && (

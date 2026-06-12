@@ -801,32 +801,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
             </div>
           )}
 
-          {(modelUsed || confidenceScore != null) && (
-            <div className="flex items-center gap-1.5 flex-nowrap overflow-hidden">
-              {confidenceScore != null && (
-                <span
-                  className="inline-flex shrink-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold"
-                  title={`Confiance : ${confidenceScore}%`}
-                >
-                  <span
-                    className="inline-block w-2 h-2 rounded-full"
-                    style={{
-                      backgroundColor:
-                        confidenceScore >= 90 ? "#10b981" : confidenceScore >= 70 ? "#f59e0b" : "#ef4444",
-                    }}
-                  />
-                  {confidenceScore}%
-                </span>
-              )}
-              {modelUsed && (
-                <span className="inline-flex min-w-0 items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
-                  <span className="shrink-0">🤖</span>
-                  <span className="truncate">{modelUsed.split("·").pop()?.trim() || modelUsed}</span>
-                </span>
-              )}
-            </div>
-          )}
-
           <div className="flex items-center gap-2">
             <Clock className="w-3.5 h-3.5 text-muted-foreground" />
             <Input
