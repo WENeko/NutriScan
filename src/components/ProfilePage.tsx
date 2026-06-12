@@ -29,7 +29,7 @@ import {
 import { computeSmoothedDailySport } from "@/services/sport-calories";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
-type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings";
+type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings" | "admin";
 
 
 interface SuggestedCustom extends CustomNutrientDef {}
@@ -482,6 +482,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     health: "Santé & Mode de vie",
     goals: "Objectifs nutritionnels",
     settings: "Préférences & Rappels",
+    admin: "Administration IA",
   };
 
   const hubItems: Array<{ id: Exclude<SubPage, null>; icon: any; label: string; desc: string }> = [
@@ -514,6 +515,12 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       icon: Settings,
       label: "Préférences & Rappels",
       desc: `Pesée ${WEIGHIN_FREQUENCIES.find((f) => f.value === weighinFrequency)?.label.toLowerCase() ?? weighinFrequency}`,
+    },
+    {
+      id: "admin",
+      icon: Sparkles,
+      label: "Administration IA",
+      desc: "Fournisseurs, modèles & accès IA",
     },
   ];
 
@@ -1218,11 +1225,17 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <ThemeSwitcher />
             </section>
+          </>
+        )}
 
+        {/* ============ ADMIN IA ============ */}
+        {subPage === "admin" && (
+          <>
             <GeminiKeySettings userId={userId} />
             <AdminUsersPanel userId={userId} />
           </>
         )}
+
 
         {/* Save button at bottom of every sub-page */}
         {subPage !== null && (
