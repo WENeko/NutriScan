@@ -29,7 +29,7 @@ import {
 import { computeSmoothedDailySport } from "@/services/sport-calories";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
-type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings";
+type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings" | "admin";
 
 
 interface SuggestedCustom extends CustomNutrientDef {}
