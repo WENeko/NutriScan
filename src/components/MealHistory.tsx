@@ -701,7 +701,12 @@ const [searchQuery, setSearchQuery] = useState("");
         <div className="w-full flex items-start gap-3">
           <div className="flex-shrink-0">
             {meal.image_url ? (
-              <img src={meal.image_url} alt="Repas" className="w-14 h-14 rounded-lg object-cover" />
+              <img
+                src={meal.image_url}
+                alt="Repas"
+                className="w-14 h-14 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); setLightboxUrl(meal.image_url); }}
+              />
             ) : (
               <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
                 <Utensils className="w-6 h-6 text-muted-foreground" />
