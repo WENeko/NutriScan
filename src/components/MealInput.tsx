@@ -113,6 +113,45 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
 // Raw/cooked ratio: cooked weight = raw weight * 2.5 (for starches/grains)
 const RAW_TO_COOKED_RATIO = 2.5;
 
+/** Couleur de la pastille de confiance selon le score (0-100). */
+function confidenceColor(score: number): string {
+  if (score >= 90) return "#10b981"; // vert émeraude — confiance élevée
+  if (score >= 70) return "#f59e0b"; // orange — confiance moyenne
+  return "#ef4444"; // rouge — approximatif
+}
+
+/** Nettoie le libellé du modèle (retire le préfixe fournisseur si présent). */
+function modelShortLabel(raw: string): string {
+  const parts = raw.split("·").map((s) => s.trim());
+  return parts[parts.length - 1] || raw;
+}
+
+const AiBadges: React.FC<{ model?: string | null; confidence?: number | null }> = ({ model, confidence }) => {
+  if (model == null && confidence == null) return null;
+  return (
+    <div className="flex items-center gap-1.5 mt-2">
+      {confidence != null && (
+        <span
+          className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-semibold"
+          title={`Confiance : ${Math.round(confidence)}%`}
+        >
+          <span
+            className="inline-block w-2 h-2 rounded-full"
+            style={{ backgroundColor: confidenceColor(Math.round(confidence)) }}
+          />
+          {Math.round(confidence)}%
+        </span>
+      )}
+      {model && (
+        <span className="inline-flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-[10px] font-medium text-muted-foreground">
+          🤖 {modelShortLabel(model)}
+        </span>
+      )}
+    </div>
+  );
+};
+
+
 export interface PrefillRecipe {
   title: string;
   portions: number;
@@ -964,6 +1003,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
               <span>G: {Math.round(totals.carbs)}g</span>
               <span>L: {Math.round(totals.fats)}g</span>
             </div>
+            <AiBadges model={modelUsed} confidence={confidenceScore} />
           </div>
 
           <div className="flex gap-2">
