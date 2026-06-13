@@ -126,10 +126,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
   // Search + collapsed groups
-  const [searchQuery, setSearchQuery] = useState("");
+const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   // Map mealId -> concatenated lowercase ingredient names (for search)
   const [itemNamesByMeal, setItemNamesByMeal] = useState<Record<string, string>>({});
+  // Full-screen image viewer
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Prefetch ingredient names for all visible meals (search source)
   useEffect(() => {
@@ -699,7 +701,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         <div className="w-full flex items-start gap-3">
           <div className="flex-shrink-0">
             {meal.image_url ? (
-              <img src={meal.image_url} alt="Repas" className="w-14 h-14 rounded-lg object-cover" />
+              <img
+                src={meal.image_url}
+                alt="Repas"
+                className="w-14 h-14 rounded-lg object-cover cursor-pointer hover:opacity-90 transition-opacity"
+                onClick={(e) => { e.stopPropagation(); setLightboxUrl(meal.image_url); }}
+              />
             ) : (
               <div className="w-14 h-14 rounded-lg bg-muted flex items-center justify-center">
                 <Utensils className="w-6 h-6 text-muted-foreground" />
@@ -946,6 +953,27 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
         })
       ) : (
         filteredMeals.map((meal, idx) => renderMealCard(meal, idx))
+      )}
+
+      {/* Full-screen image lightbox */}
+      {lightboxUrl && (
+        <div
+          className="fixed inset-0 z-50 bg-black/90 flex items-center justify-center p-4 animate-in fade-in duration-200"
+          onClick={() => setLightboxUrl(null)}
+        >
+          <button
+            onClick={() => setLightboxUrl(null)}
+            className="absolute top-4 right-4 p-2 rounded-full bg-black/50 text-white hover:bg-black/70 transition-colors"
+          >
+            <X className="w-6 h-6" />
+          </button>
+          <img
+            src={lightboxUrl}
+            alt="Repas en plein écran"
+            className="max-w-full max-h-[85vh] object-contain rounded-lg shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
     </div>
   );
