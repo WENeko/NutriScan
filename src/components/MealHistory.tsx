@@ -126,10 +126,12 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
   // Search + collapsed groups
-  const [searchQuery, setSearchQuery] = useState("");
+const [searchQuery, setSearchQuery] = useState("");
   const [collapsedGroups, setCollapsedGroups] = useState<Record<string, boolean>>({});
   // Map mealId -> concatenated lowercase ingredient names (for search)
   const [itemNamesByMeal, setItemNamesByMeal] = useState<Record<string, string>>({});
+  // Full-screen image viewer
+  const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
 
   // Prefetch ingredient names for all visible meals (search source)
   useEffect(() => {
