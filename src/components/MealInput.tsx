@@ -1003,6 +1003,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
               <span>G: {Math.round(totals.carbs)}g</span>
               <span>L: {Math.round(totals.fats)}g</span>
             </div>
+            <AiBadges model={modelUsed} confidence={confidenceScore} />
           </div>
 
           <div className="flex gap-2">
