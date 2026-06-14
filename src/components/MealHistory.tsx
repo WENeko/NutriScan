@@ -258,6 +258,8 @@ const [searchQuery, setSearchQuery] = useState("");
           is_confirmed: true,
           is_favorite: originalMeal.is_favorite || false,
           source: "ai",
+          model_used: originalMeal.model_used,
+          confidence_score: originalMeal.confidence_score,
         })
         .select().single();
       if (mealErr) throw mealErr;
