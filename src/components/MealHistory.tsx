@@ -106,7 +106,7 @@ interface MealHistoryProps {
   searchable?: boolean;
 }
 
-type AddMode = "manual" | "text" | "barcode";
+type AddMode = "text" | "barcode";
 
 const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs, groupByPeriod = false, searchable = false }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
