@@ -123,8 +123,6 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   // Add ingredient state
   const [addMode, setAddMode] = useState<AddMode | null>(null);
   const [addTextInput, setAddTextInput] = useState("");
-  const [addManualName, setAddManualName] = useState("");
-  const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
   // Search + collapsed groups
 const [searchQuery, setSearchQuery] = useState("");
