@@ -572,6 +572,7 @@ const [searchQuery, setSearchQuery] = useState("");
       fiber, sugar, sodium_mg: sodium,
     }]);
     setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: fiber / weight, sugarD: sugar / weight, satFatD: 0, omega3D: 0, sodiumD: sodium / weight, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
+    setEditCustomPerGram((prev) => [...prev, {}]);
     setEditWeightInputs((prev) => [...prev, String(weight)]);
     setAddMode(null);
     toast({ title: "Produit ajouté !" });
