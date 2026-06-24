@@ -496,6 +496,8 @@ const [searchQuery, setSearchQuery] = useState("");
       const data = await analyzeMeal({
         text: addTextInput,
         custom_foods: customFoods || [],
+        // Liste complète des nutriments custom de l'utilisateur (jamais codée en dur)
+        custom_nutrients: (customDefs || []).map((d) => ({ key: d.key, label: d.label, unit: d.unit })),
         local_time: new Date().toLocaleString("fr-FR"),
       });
 
@@ -507,23 +509,41 @@ const [searchQuery, setSearchQuery] = useState("");
 
       for (const item of items) {
         const weight = parseFloat(item.quantity || item.estimated_weight_g || item.weight_g || "100") || 100;
-        const p = Number(item.proteins) || 0;
-        const c = Number(item.carbs) || 0;
-        const f = Number(item.fats) || 0;
+        const num = (v: any) => Number(v) || 0;
+        const p = num(item.proteins);
+        const c = num(item.carbs);
+        const f = num(item.fats);
+
+        // Nutriments custom renvoyés par l'IA, indexés dynamiquement par leur clé
+        const nutrientsCustom: Record<string, number> = {};
+        const customPerGram: Record<string, number> = {};
+        for (const d of customDefs || []) {
+          const v = num(item[d.key]);
+          if (v !== 0) {
+            nutrientsCustom[d.key] = v;
+            customPerGram[d.key] = v / weight;
+          }
+        }
+
         const newItem: MealItem = {
           id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
           name: item.food_name || item.name || "Aliment",
           quantity: `${weight}g`,
           proteins: p, carbs: c, fats: f,
           calories: Math.round(p * 4 + c * 4 + f * 9),
-          fiber: item.fiber || 0, sugar: item.sugar || 0, saturated_fat: item.saturated_fat || 0,
-          omega3_mg: item.omega3_mg || 0, sodium_mg: item.sodium_mg || 0, potassium_mg: item.potassium_mg || 0,
-          magnesium_mg: item.magnesium_mg || 0, calcium_mg: item.calcium_mg || 0,
-          vitamin_b_mg: item.vitamin_b_mg || 0, vitamin_c_mg: item.vitamin_c_mg || 0,
-          vitamin_d_mcg: item.vitamin_d_mcg || 0, vitamin_e_mg: item.vitamin_e_mg || 0,
+          fiber: num(item.fiber), sugar: num(item.sugar), saturated_fat: num(item.saturated_fat),
+          omega3_mg: num(item.omega3_mg), sodium_mg: num(item.sodium_mg), potassium_mg: num(item.potassium_mg),
+          magnesium_mg: num(item.magnesium_mg), calcium_mg: num(item.calcium_mg),
+          vitamin_b_mg: num(item.vitamin_b_mg), vitamin_c_mg: num(item.vitamin_c_mg),
+          vitamin_d_mcg: num(item.vitamin_d_mcg), vitamin_e_mg: num(item.vitamin_e_mg),
+          // Micros supplémentaires persistés par saveEdit / nutrients_std
+          ...( { vitamin_b9_mcg: num(item.vitamin_b9_mcg), vitamin_b12_mcg: num(item.vitamin_b12_mcg),
+                 iron_mg: num(item.iron_mg), zinc_mg: num(item.zinc_mg),
+                 nutrients_custom: nutrientsCustom } as any ),
         };
         setEditItems((prev) => [...prev, newItem]);
-        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: (item.fiber || 0) / weight, sugarD: (item.sugar || 0) / weight, satFatD: (item.saturated_fat || 0) / weight, omega3D: (item.omega3_mg || 0) / weight, sodiumD: (item.sodium_mg || 0) / weight, potassiumD: (item.potassium_mg || 0) / weight, magnesiumD: (item.magnesium_mg || 0) / weight, calciumD: (item.calcium_mg || 0) / weight, vitBD: (item.vitamin_b_mg || 0) / weight, vitCD: (item.vitamin_c_mg || 0) / weight, vitDD: (item.vitamin_d_mcg || 0) / weight, vitED: (item.vitamin_e_mg || 0) / weight }]);
+        setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: num(item.fiber) / weight, sugarD: num(item.sugar) / weight, satFatD: num(item.saturated_fat) / weight, omega3D: num(item.omega3_mg) / weight, sodiumD: num(item.sodium_mg) / weight, potassiumD: num(item.potassium_mg) / weight, magnesiumD: num(item.magnesium_mg) / weight, calciumD: num(item.calcium_mg) / weight, vitBD: num(item.vitamin_b_mg) / weight, vitCD: num(item.vitamin_c_mg) / weight, vitDD: num(item.vitamin_d_mcg) / weight, vitED: num(item.vitamin_e_mg) / weight }]);
+        setEditCustomPerGram((prev) => [...prev, customPerGram]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
       }
       toast({ title: items.length > 1 ? "Ingrédients ajoutés !" : "Ingrédient ajouté !" });
