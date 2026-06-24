@@ -543,11 +543,15 @@ const [searchQuery, setSearchQuery] = useState("");
     const p = product.proteins || 0;
     const c = product.carbs || 0;
     const f = product.fats || 0;
+    const fiber = product.fiber || 0;
+    const sugar = product.sugar || 0;
+    const sodium = product.sodium_mg || 0;
     setEditItems((prev) => [...prev, {
       id: `new-${Date.now()}`, name: product.name, quantity: `${weight}g`,
       proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
+      fiber, sugar, sodium_mg: sodium,
     }]);
-    setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: 0, sugarD: 0, satFatD: 0, omega3D: 0, sodiumD: 0, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
+    setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: fiber / weight, sugarD: sugar / weight, satFatD: 0, omega3D: 0, sodiumD: sodium / weight, potassiumD: 0, magnesiumD: 0, calciumD: 0, vitBD: 0, vitCD: 0, vitDD: 0, vitED: 0 }]);
     setEditWeightInputs((prev) => [...prev, String(weight)]);
     setAddMode(null);
     toast({ title: "Produit ajouté !" });
