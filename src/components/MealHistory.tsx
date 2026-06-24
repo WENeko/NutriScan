@@ -858,11 +858,8 @@ const [searchQuery, setSearchQuery] = useState("");
               {/* Add ingredient section */}
               {addMode === null && (
                 <div className="flex gap-1.5">
-                  <button onClick={() => setAddMode("manual")} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-primary/30 text-[10px] font-semibold text-primary">
+                  <button onClick={() => setAddMode("text")} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-primary/30 text-[10px] font-semibold text-primary">
                     <Plus className="w-3 h-3" /> Ajouter
-                  </button>
-                  <button onClick={() => setAddMode("text")} className="p-1.5 rounded-lg border border-dashed border-primary/30 text-primary" title="Texte">
-                    <MessageSquareText className="w-3 h-3" />
                   </button>
                   <button onClick={() => setAddMode("barcode")} className="p-1.5 rounded-lg border border-dashed border-primary/30 text-primary" title="Scanner">
                     <ScanBarcode className="w-3 h-3" />
@@ -870,20 +867,7 @@ const [searchQuery, setSearchQuery] = useState("");
                 </div>
               )}
 
-              {addMode === "manual" && (
-                <div className="bg-card rounded-lg p-2 space-y-2 animate-fade-up">
-                  <div className="flex gap-2">
-                    <Input value={addManualName} onChange={(e) => setAddManualName(e.target.value)} placeholder="Nom" className="h-7 text-xs rounded-md flex-1" />
-                    <Input value={addManualWeight} onChange={(e) => setAddManualWeight(e.target.value)} placeholder="g" className="h-7 text-xs rounded-md w-16" type="number" />
-                  </div>
-                  <div className="flex gap-1.5">
-                    <button onClick={() => setAddMode(null)} className="flex-1 py-1 text-[10px] rounded-md bg-muted">Annuler</button>
-                    <button onClick={addIngredientManual} disabled={addAnalyzing} className="flex-1 py-1 text-[10px] rounded-md nutri-gradient text-primary-foreground">
-                      {addAnalyzing ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Ajouter"}
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {addMode === "text" && (
                 <div className="bg-card rounded-lg p-2 space-y-2 animate-fade-up">
