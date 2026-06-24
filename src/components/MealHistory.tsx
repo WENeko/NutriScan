@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, MessageSquareText, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -13,6 +13,7 @@ import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 import { buildStdNutrients } from "@/utils/nutrients-helpers";
 import { MACRO_COLORS } from "@/lib/macro-colors";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 
 
 
@@ -105,7 +106,7 @@ interface MealHistoryProps {
   searchable?: boolean;
 }
 
-type AddMode = "manual" | "text" | "barcode";
+type AddMode = "text" | "barcode";
 
 const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs, groupByPeriod = false, searchable = false }) => {
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
@@ -122,8 +123,6 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   // Add ingredient state
   const [addMode, setAddMode] = useState<AddMode | null>(null);
   const [addTextInput, setAddTextInput] = useState("");
-  const [addManualName, setAddManualName] = useState("");
-  const [addManualWeight, setAddManualWeight] = useState("");
   const [addAnalyzing, setAddAnalyzing] = useState(false);
   // Search + collapsed groups
 const [searchQuery, setSearchQuery] = useState("");
@@ -484,25 +483,36 @@ const [searchQuery, setSearchQuery] = useState("");
     );
   };
 
-  // Add ingredient via AI text
+  // Add ingredient via AI text (uses the cascading AI routing engine, same as MealInput)
   const addIngredientText = async () => {
     if (!addTextInput.trim()) return;
     setAddAnalyzing(true);
     try {
-      const response = await supabase.functions.invoke("analyze-meal", {
-        body: { text: addTextInput },
+      const { data: customFoods } = await supabase
+        .from("custom_foods")
+        .select("*")
+        .eq("user_id", userId);
+
+      const data = await analyzeMeal({
+        text: addTextInput,
+        custom_foods: customFoods || [],
+        local_time: new Date().toLocaleString("fr-FR"),
       });
-      if (response.error) throw new Error(response.error.message);
-      const data = response.data;
-      const item = data.items?.[0];
-      if (item) {
-        const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
-        const p = item.proteins || 0;
-        const c = item.carbs || 0;
-        const f = item.fats || 0;
+
+      const items = data?.items || [];
+      if (!items.length) {
+        toast({ title: "Aucun ingrédient détecté", variant: "destructive" });
+        return;
+      }
+
+      for (const item of items) {
+        const weight = parseFloat(item.quantity || item.estimated_weight_g || item.weight_g || "100") || 100;
+        const p = Number(item.proteins) || 0;
+        const c = Number(item.carbs) || 0;
+        const f = Number(item.fats) || 0;
         const newItem: MealItem = {
-          id: `new-${Date.now()}`,
-          name: item.name,
+          id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: item.food_name || item.name || "Aliment",
           quantity: `${weight}g`,
           proteins: p, carbs: c, fats: f,
           calories: Math.round(p * 4 + c * 4 + f * 9),
@@ -515,8 +525,8 @@ const [searchQuery, setSearchQuery] = useState("");
         setEditItems((prev) => [...prev, newItem]);
         setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: (item.fiber || 0) / weight, sugarD: (item.sugar || 0) / weight, satFatD: (item.saturated_fat || 0) / weight, omega3D: (item.omega3_mg || 0) / weight, sodiumD: (item.sodium_mg || 0) / weight, potassiumD: (item.potassium_mg || 0) / weight, magnesiumD: (item.magnesium_mg || 0) / weight, calciumD: (item.calcium_mg || 0) / weight, vitBD: (item.vitamin_b_mg || 0) / weight, vitCD: (item.vitamin_c_mg || 0) / weight, vitDD: (item.vitamin_d_mcg || 0) / weight, vitED: (item.vitamin_e_mg || 0) / weight }]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
-        toast({ title: "Ingrédient ajouté !" });
       }
+      toast({ title: items.length > 1 ? "Ingrédients ajoutés !" : "Ingrédient ajouté !" });
     } catch (e: any) {
       toast({ title: "Erreur", description: e.message, variant: "destructive" });
     } finally {
@@ -526,82 +536,7 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  // Add ingredient manually
-  const addIngredientManual = async () => {
-    if (!addManualName.trim()) return;
-    const userWeight = parseFloat(addManualWeight);
-    const hasUserWeight = !isNaN(userWeight) && userWeight > 0;
-    setAddAnalyzing(true);
-    try {
-      // Check custom foods first
-      const { data: customFoods } = await supabase
-        .from("custom_foods")
-        .select("*")
-        .eq("user_id", userId)
-        .ilike("name", `%${addManualName}%`)
-        .limit(1);
 
-      if (customFoods && customFoods.length > 0) {
-        const cf = customFoods[0] as any;
-        // If no weight provided, ask AI for estimate
-        let weight = hasUserWeight ? userWeight : 100;
-        if (!hasUserWeight) {
-          try {
-            const resp = await supabase.functions.invoke("analyze-meal", {
-              body: { text: addManualName },
-            });
-            const aiItem = resp.data?.items?.[0];
-            if (aiItem) {
-              weight = parseFloat(aiItem.estimated_weight_g || aiItem.weight_g || "100") || 100;
-            }
-          } catch {}
-        }
-        const p = Math.round(cf.proteins_per_100g * weight / 100 * 10) / 10;
-        const c = Math.round(cf.carbs_per_100g * weight / 100 * 10) / 10;
-        const f = Math.round(cf.fats_per_100g * weight / 100 * 10) / 10;
-        const newItem: MealItem = {
-          id: `new-${Date.now()}`, name: cf.name, quantity: `${weight}g`,
-          proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9), isCustom: true,
-        };
-        setEditItems((prev) => [...prev, newItem]);
-        setEditDensities((prev) => [...prev, { protD: cf.proteins_per_100g / 100, carbsD: cf.carbs_per_100g / 100, fatsD: cf.fats_per_100g / 100, fiberD: (cf.fiber_per_100g || 0) / 100, sugarD: (cf.sugar_per_100g || 0) / 100, satFatD: (cf.saturated_fat_per_100g || 0) / 100, omega3D: (cf.omega3_mg_per_100g || 0) / 100, sodiumD: (cf.sodium_mg_per_100g || 0) / 100, potassiumD: (cf.potassium_mg_per_100g || 0) / 100, magnesiumD: (cf.magnesium_mg_per_100g || 0) / 100, calciumD: (cf.calcium_mg_per_100g || 0) / 100, vitBD: (cf.vitamin_b_per_100g || 0) / 100, vitCD: (cf.vitamin_c_per_100g || 0) / 100, vitDD: (cf.vitamin_d_per_100g || 0) / 100, vitED: (cf.vitamin_e_per_100g || 0) / 100 }]);
-        setEditWeightInputs((prev) => [...prev, String(weight)]);
-      } else {
-        // Let AI estimate everything including weight
-        const textPrompt = hasUserWeight ? `${userWeight}g de ${addManualName}` : addManualName;
-        const response = await supabase.functions.invoke("analyze-meal", {
-          body: { text: textPrompt },
-        });
-        if (response.error) throw new Error(response.error.message);
-        const item = response.data.items?.[0];
-        if (item) {
-          const weight = hasUserWeight ? userWeight : (parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100);
-          const p = item.proteins || 0;
-          const c = item.carbs || 0;
-          const f = item.fats || 0;
-          setEditItems((prev) => [...prev, {
-            id: `new-${Date.now()}`, name: item.name || addManualName, quantity: `${weight}g`,
-            proteins: p, carbs: c, fats: f, calories: Math.round(p * 4 + c * 4 + f * 9),
-            fiber: item.fiber || 0, sugar: item.sugar || 0, saturated_fat: item.saturated_fat || 0,
-            omega3_mg: item.omega3_mg || 0, sodium_mg: item.sodium_mg || 0, potassium_mg: item.potassium_mg || 0,
-            magnesium_mg: item.magnesium_mg || 0, calcium_mg: item.calcium_mg || 0,
-            vitamin_b_mg: item.vitamin_b_mg || 0, vitamin_c_mg: item.vitamin_c_mg || 0,
-            vitamin_d_mcg: item.vitamin_d_mcg || 0, vitamin_e_mg: item.vitamin_e_mg || 0,
-          }]);
-          setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: (item.fiber || 0) / weight, sugarD: (item.sugar || 0) / weight, satFatD: (item.saturated_fat || 0) / weight, omega3D: (item.omega3_mg || 0) / weight, sodiumD: (item.sodium_mg || 0) / weight, potassiumD: (item.potassium_mg || 0) / weight, magnesiumD: (item.magnesium_mg || 0) / weight, calciumD: (item.calcium_mg || 0) / weight, vitBD: (item.vitamin_b_mg || 0) / weight, vitCD: (item.vitamin_c_mg || 0) / weight, vitDD: (item.vitamin_d_mcg || 0) / weight, vitED: (item.vitamin_e_mg || 0) / weight }]);
-          setEditWeightInputs((prev) => [...prev, String(weight)]);
-        }
-      }
-      toast({ title: "Ingrédient ajouté !" });
-    } catch (e: any) {
-      toast({ title: "Erreur", description: e.message, variant: "destructive" });
-    } finally {
-      setAddAnalyzing(false);
-      setAddManualName("");
-      setAddManualWeight("");
-      setAddMode(null);
-    }
-  };
 
   const handleBarcodeProduct = (product: any) => {
     const weight = product.weight_g || 100;
@@ -846,11 +781,8 @@ const [searchQuery, setSearchQuery] = useState("");
               {/* Add ingredient section */}
               {addMode === null && (
                 <div className="flex gap-1.5">
-                  <button onClick={() => setAddMode("manual")} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-primary/30 text-[10px] font-semibold text-primary">
+                  <button onClick={() => setAddMode("text")} className="flex-1 flex items-center justify-center gap-1 py-1.5 rounded-lg border border-dashed border-primary/30 text-[10px] font-semibold text-primary">
                     <Plus className="w-3 h-3" /> Ajouter
-                  </button>
-                  <button onClick={() => setAddMode("text")} className="p-1.5 rounded-lg border border-dashed border-primary/30 text-primary" title="Texte">
-                    <MessageSquareText className="w-3 h-3" />
                   </button>
                   <button onClick={() => setAddMode("barcode")} className="p-1.5 rounded-lg border border-dashed border-primary/30 text-primary" title="Scanner">
                     <ScanBarcode className="w-3 h-3" />
@@ -858,20 +790,7 @@ const [searchQuery, setSearchQuery] = useState("");
                 </div>
               )}
 
-              {addMode === "manual" && (
-                <div className="bg-card rounded-lg p-2 space-y-2 animate-fade-up">
-                  <div className="flex gap-2">
-                    <Input value={addManualName} onChange={(e) => setAddManualName(e.target.value)} placeholder="Nom" className="h-7 text-xs rounded-md flex-1" />
-                    <Input value={addManualWeight} onChange={(e) => setAddManualWeight(e.target.value)} placeholder="g" className="h-7 text-xs rounded-md w-16" type="number" />
-                  </div>
-                  <div className="flex gap-1.5">
-                    <button onClick={() => setAddMode(null)} className="flex-1 py-1 text-[10px] rounded-md bg-muted">Annuler</button>
-                    <button onClick={addIngredientManual} disabled={addAnalyzing} className="flex-1 py-1 text-[10px] rounded-md nutri-gradient text-primary-foreground">
-                      {addAnalyzing ? <Loader2 className="w-3 h-3 animate-spin mx-auto" /> : "Ajouter"}
-                    </button>
-                  </div>
-                </div>
-              )}
+
 
               {addMode === "text" && (
                 <div className="bg-card rounded-lg p-2 space-y-2 animate-fade-up">
