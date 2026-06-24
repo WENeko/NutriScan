@@ -485,25 +485,36 @@ const [searchQuery, setSearchQuery] = useState("");
     );
   };
 
-  // Add ingredient via AI text
+  // Add ingredient via AI text (uses the cascading AI routing engine, same as MealInput)
   const addIngredientText = async () => {
     if (!addTextInput.trim()) return;
     setAddAnalyzing(true);
     try {
-      const response = await supabase.functions.invoke("analyze-meal", {
-        body: { text: addTextInput },
+      const { data: customFoods } = await supabase
+        .from("custom_foods")
+        .select("*")
+        .eq("user_id", userId);
+
+      const data = await analyzeMeal({
+        text: addTextInput,
+        custom_foods: customFoods || [],
+        local_time: new Date().toLocaleString("fr-FR"),
       });
-      if (response.error) throw new Error(response.error.message);
-      const data = response.data;
-      const item = data.items?.[0];
-      if (item) {
-        const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
-        const p = item.proteins || 0;
-        const c = item.carbs || 0;
-        const f = item.fats || 0;
+
+      const items = data?.items || [];
+      if (!items.length) {
+        toast({ title: "Aucun ingrédient détecté", variant: "destructive" });
+        return;
+      }
+
+      for (const item of items) {
+        const weight = parseFloat(item.quantity || item.estimated_weight_g || item.weight_g || "100") || 100;
+        const p = Number(item.proteins) || 0;
+        const c = Number(item.carbs) || 0;
+        const f = Number(item.fats) || 0;
         const newItem: MealItem = {
-          id: `new-${Date.now()}`,
-          name: item.name,
+          id: `new-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+          name: item.food_name || item.name || "Aliment",
           quantity: `${weight}g`,
           proteins: p, carbs: c, fats: f,
           calories: Math.round(p * 4 + c * 4 + f * 9),
@@ -516,8 +527,8 @@ const [searchQuery, setSearchQuery] = useState("");
         setEditItems((prev) => [...prev, newItem]);
         setEditDensities((prev) => [...prev, { protD: p / weight, carbsD: c / weight, fatsD: f / weight, fiberD: (item.fiber || 0) / weight, sugarD: (item.sugar || 0) / weight, satFatD: (item.saturated_fat || 0) / weight, omega3D: (item.omega3_mg || 0) / weight, sodiumD: (item.sodium_mg || 0) / weight, potassiumD: (item.potassium_mg || 0) / weight, magnesiumD: (item.magnesium_mg || 0) / weight, calciumD: (item.calcium_mg || 0) / weight, vitBD: (item.vitamin_b_mg || 0) / weight, vitCD: (item.vitamin_c_mg || 0) / weight, vitDD: (item.vitamin_d_mcg || 0) / weight, vitED: (item.vitamin_e_mg || 0) / weight }]);
         setEditWeightInputs((prev) => [...prev, String(weight)]);
-        toast({ title: "Ingrédient ajouté !" });
       }
+      toast({ title: items.length > 1 ? "Ingrédients ajoutés !" : "Ingrédient ajouté !" });
     } catch (e: any) {
       toast({ title: "Erreur", description: e.message, variant: "destructive" });
     } finally {
