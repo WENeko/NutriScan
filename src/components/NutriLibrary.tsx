@@ -111,6 +111,26 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   // Standards SANS colonne dédiée → stockés dans nutrients_std (iron, zinc, b9, b12…)
   const STD_EXTRA = NUTRIENTS_STD_LIST.filter((n) => !STD_COLUMN_KEYS.has(n.key));
 
+  // Construit la ligne custom_foods : tous les micros vont dans nutrients_std (per_100g),
+  // les colonnes per_100g individuelles n'existent plus.
+  const buildFoodRow = (f: typeof form, cals: number) => {
+    const std = { ...(f.nutrients_std || {}) };
+    for (const key of Object.values(PER100_FIELD_TO_STDKEY)) delete (std as any)[key];
+    Object.assign(std, stdFromPer100(f as unknown as Record<string, unknown>));
+    return {
+      name: f.name,
+      brand: f.brand,
+      barcode: f.barcode,
+      serving_size_g: f.serving_size_g,
+      calories_per_100g: cals,
+      proteins_per_100g: f.proteins_per_100g,
+      carbs_per_100g: f.carbs_per_100g,
+      fats_per_100g: f.fats_per_100g,
+      nutrients_std: std,
+      nutrients_custom: f.nutrients_custom || {},
+    };
+  };
+
   useEffect(() => {
     fetchFoods();
     (async () => {
