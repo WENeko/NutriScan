@@ -11,7 +11,7 @@ import MealMicros from "./MealMicros";
 import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
-import { buildStdNutrients } from "@/utils/nutrients-helpers";
+import { buildStdNutrients, hydrateMealItem } from "@/utils/nutrients-helpers";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { analyzeMeal } from "@/services/mealAnalysisService";
 
