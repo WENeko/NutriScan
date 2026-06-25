@@ -1,0 +1,55 @@
+-- Étape 2/2 : suppression des colonnes micros individuelles (données déjà copiées dans les JSON)
+
+ALTER TABLE public.meal_items
+  DROP COLUMN IF EXISTS fiber,
+  DROP COLUMN IF EXISTS sugar,
+  DROP COLUMN IF EXISTS saturated_fat,
+  DROP COLUMN IF EXISTS omega3_mg,
+  DROP COLUMN IF EXISTS sodium_mg,
+  DROP COLUMN IF EXISTS potassium_mg,
+  DROP COLUMN IF EXISTS magnesium_mg,
+  DROP COLUMN IF EXISTS calcium_mg,
+  DROP COLUMN IF EXISTS iron_mg,
+  DROP COLUMN IF EXISTS zinc_mg,
+  DROP COLUMN IF EXISTS vitamin_b_mg,
+  DROP COLUMN IF EXISTS vitamin_b9_mcg,
+  DROP COLUMN IF EXISTS vitamin_b12_mcg,
+  DROP COLUMN IF EXISTS vitamin_c_mg,
+  DROP COLUMN IF EXISTS vitamin_d_mcg,
+  DROP COLUMN IF EXISTS vitamin_e_mg;
+
+ALTER TABLE public.custom_foods
+  DROP COLUMN IF EXISTS fiber_per_100g,
+  DROP COLUMN IF EXISTS sodium_mg_per_100g,
+  DROP COLUMN IF EXISTS sugar_per_100g,
+  DROP COLUMN IF EXISTS saturated_fat_per_100g,
+  DROP COLUMN IF EXISTS omega3_mg_per_100g,
+  DROP COLUMN IF EXISTS potassium_mg_per_100g,
+  DROP COLUMN IF EXISTS magnesium_mg_per_100g,
+  DROP COLUMN IF EXISTS calcium_mg_per_100g,
+  DROP COLUMN IF EXISTS vitamin_b_per_100g,
+  DROP COLUMN IF EXISTS vitamin_c_per_100g,
+  DROP COLUMN IF EXISTS vitamin_d_per_100g,
+  DROP COLUMN IF EXISTS vitamin_e_per_100g,
+  DROP COLUMN IF EXISTS iron_mg_per_100g,
+  DROP COLUMN IF EXISTS zinc_mg_per_100g,
+  DROP COLUMN IF EXISTS vitamin_b9_mcg_per_100g,
+  DROP COLUMN IF EXISTS vitamin_b12_mcg_per_100g;
+
+ALTER TABLE public.recipe_ingredients
+  DROP COLUMN IF EXISTS fiber_per_100g,
+  DROP COLUMN IF EXISTS sodium_mg_per_100g,
+  DROP COLUMN IF EXISTS sugar_per_100g,
+  DROP COLUMN IF EXISTS saturated_fat_per_100g,
+  DROP COLUMN IF EXISTS omega3_mg_per_100g,
+  DROP COLUMN IF EXISTS potassium_mg_per_100g,
+  DROP COLUMN IF EXISTS magnesium_mg_per_100g,
+  DROP COLUMN IF EXISTS calcium_mg_per_100g,
+  DROP COLUMN IF EXISTS vitamin_b_per_100g,
+  DROP COLUMN IF EXISTS vitamin_c_per_100g,
+  DROP COLUMN IF EXISTS vitamin_d_per_100g,
+  DROP COLUMN IF EXISTS vitamin_e_per_100g,
+  DROP COLUMN IF EXISTS iron_mg_per_100g,
+  DROP COLUMN IF EXISTS zinc_mg_per_100g,
+  DROP COLUMN IF EXISTS vitamin_b9_mcg_per_100g,
+  DROP COLUMN IF EXISTS vitamin_b12_mcg_per_100g;
