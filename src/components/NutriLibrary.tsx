@@ -190,35 +190,34 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     const factor = 100 / unitW;
     const round1 = (v: number) => Math.round((v || 0) * factor * 10) / 10;
 
-    const suppForm: Omit<CustomFood, "id"> = {
-      ...emptyFood,
-      name: form.name,
-      brand: form.brand,
-      serving_size_g: unitW,
-      calories_per_100g: Math.round(suppCalories * factor),
-      nutrients_std: {},
-      nutrients_custom: {},
-    };
+    const stdMicros: Record<string, number> = {};
+    const customMicros: Record<string, number> = {};
 
-    // Micros standards : colonne dédiée OU nutrients_std
+    // Micros standards : tous dans nutrients_std (per_100g)
     for (const n of NUTRIENTS_STD_LIST) {
       const perUnit = suppPerUnit[n.key] || 0;
-      if (perUnit <= 0) continue;
-      const col = STD_COLUMN_BY_KEY[n.key];
-      if (col) {
-        (suppForm as any)[col] = round1(perUnit);
-      } else {
-        suppForm.nutrients_std![n.key] = round1(perUnit);
-      }
+      if (perUnit > 0) stdMicros[n.key] = round1(perUnit);
     }
     // Micros personnalisés → nutrients_custom
     for (const d of customDefs) {
       const perUnit = suppPerUnit[d.key] || 0;
-      if (perUnit > 0) suppForm.nutrients_custom![d.key] = round1(perUnit);
+      if (perUnit > 0) customMicros[d.key] = round1(perUnit);
     }
 
+    const suppRow = {
+      name: form.name,
+      brand: form.brand,
+      serving_size_g: unitW,
+      calories_per_100g: Math.round(suppCalories * factor),
+      proteins_per_100g: 0,
+      carbs_per_100g: 0,
+      fats_per_100g: 0,
+      nutrients_std: stdMicros,
+      nutrients_custom: customMicros,
+    };
+
     try {
-      await supabase.from("custom_foods").insert({ ...suppForm, user_id: userId } as any);
+      await supabase.from("custom_foods").insert({ ...suppRow, user_id: userId } as any);
       toast({ title: "Complément ajouté !" });
       setCreating(false);
       setForm(emptyFood);
