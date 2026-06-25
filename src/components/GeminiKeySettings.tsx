@@ -351,7 +351,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     const out: RoutingStep[] = [];
     if (lovableEnabled) out.push({ type: "edge_function" });
     for (const p of sorted) {
-      if (!cards[p.id]?.hasStored) continue;
+      // Les fournisseurs locaux n'ont pas besoin de clé enregistrée.
+      if (p.api_type !== "local" && !cards[p.id]?.hasStored) continue;
       for (const m of getModels(p.id)) out.push({ type: "byok", providerId: p.id, model: m });
     }
     return out;
