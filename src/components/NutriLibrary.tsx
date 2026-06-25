@@ -11,6 +11,7 @@ import RecipeBuilder from "./RecipeBuilder";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { useMicroCategories } from "@/hooks/useMicroCategories";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
+import { stdFromPer100, per100FromStd } from "@/utils/nutrients-helpers";
 
 interface CustomFood {
   id: string;
