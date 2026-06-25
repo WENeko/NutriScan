@@ -330,18 +330,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
           proteins_per_100g: ing.per100.proteins,
           carbs_per_100g: ing.per100.carbs,
           fats_per_100g: ing.per100.fats,
-          fiber_per_100g: ing.per100.fiber,
-          sugar_per_100g: ing.per100.sugar,
-          saturated_fat_per_100g: ing.per100.saturated_fat,
-          omega3_mg_per_100g: ing.per100.omega3_mg,
-          sodium_mg_per_100g: ing.per100.sodium_mg,
-          potassium_mg_per_100g: ing.per100.potassium_mg,
-          magnesium_mg_per_100g: ing.per100.magnesium_mg,
-          calcium_mg_per_100g: ing.per100.calcium_mg,
-          vitamin_b_per_100g: ing.per100.vitamin_b,
-          vitamin_c_per_100g: ing.per100.vitamin_c,
-          vitamin_d_per_100g: ing.per100.vitamin_d,
-          vitamin_e_per_100g: ing.per100.vitamin_e,
+          nutrients_std: per100MicrosToStd(ing.per100),
+          nutrients_custom: {},
         }));
         await (supabase.from("recipe_ingredients" as any) as any).insert(ingRows);
       }
