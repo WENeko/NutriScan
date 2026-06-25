@@ -152,7 +152,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       .select("*")
       .eq("user_id", userId)
       .order("name");
-    if (data) setFoods(data as any);
+    if (data) setFoods((data as any[]).map((f) => ({ ...f, ...per100FromStd(f.nutrients_std || {}) })) as any);
   };
 
   const handleSave = async () => {
