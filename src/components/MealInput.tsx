@@ -245,7 +245,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
       const { data: customFoods } = await supabaseLovable
         .from("custom_foods")
-        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, fiber_per_100g, sugar_per_100g, saturated_fat_per_100g, omega3_mg_per_100g, sodium_mg_per_100g, potassium_mg_per_100g, magnesium_mg_per_100g, calcium_mg_per_100g, iron_mg_per_100g, zinc_mg_per_100g, vitamin_b_per_100g, vitamin_b9_mcg_per_100g, vitamin_b12_mcg_per_100g, vitamin_c_per_100g, vitamin_d_per_100g, vitamin_e_per_100g, nutrients_std, nutrients_custom")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, nutrients_std, nutrients_custom")
         .eq("user_id", userId);
 
       const result = await analyzeMeal({
