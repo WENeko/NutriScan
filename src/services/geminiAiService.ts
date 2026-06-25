@@ -168,13 +168,15 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      if (apiType === "openai") {
-        // ── API compatible OpenAI ──────────────────────────────
+      if (apiType === "openai" || apiType === "local") {
+        // ── API compatible OpenAI (inclut les modèles locaux) ──
         const userContent: any[] = [{ type: "text", text: promptText }];
         if (image) userContent.push({ type: "image_url", image_url: { url: image } });
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
         res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          headers,
           body: JSON.stringify({
             model: chosenModel,
             messages: [
