@@ -16,7 +16,9 @@ import { supabase } from "@/integrations/supabase/client";
 const LS_LOVABLE = "lovable_ai_enabled";
 const LS_PROVIDER = "ai_provider_config";
 
-export type ApiType = "gemini" | "openai";
+// "local" = endpoint compatible OpenAI hébergé sur l'appareil / le réseau local
+// (ex: Google AI Edge Gallery, Ollama, LM Studio, llama.cpp server) — aucune clé requise.
+export type ApiType = "gemini" | "openai" | "local";
 
 export interface ActiveProviderConfig {
   providerId: string;
