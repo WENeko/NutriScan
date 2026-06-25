@@ -182,13 +182,9 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
           weightG: weight,
           isCustom: true,
           per100: {
+            ...emptyPer100(),
             proteins: cf.proteins_per_100g, carbs: cf.carbs_per_100g, fats: cf.fats_per_100g,
-            fiber: cf.fiber_per_100g || 0, sugar: cf.sugar_per_100g || 0,
-            saturated_fat: cf.saturated_fat_per_100g || 0, omega3_mg: cf.omega3_mg_per_100g || 0,
-            sodium_mg: cf.sodium_mg_per_100g || 0, potassium_mg: cf.potassium_mg_per_100g || 0,
-            magnesium_mg: cf.magnesium_mg_per_100g || 0, calcium_mg: cf.calcium_mg_per_100g || 0,
-            vitamin_b: cf.vitamin_b_per_100g || 0, vitamin_c: cf.vitamin_c_per_100g || 0,
-            vitamin_d: cf.vitamin_d_per_100g || 0, vitamin_e: cf.vitamin_e_per_100g || 0,
+            ...stdToPer100Micros((cf.nutrients_std || {}) as Record<string, number>),
           },
         }]);
       } else {
