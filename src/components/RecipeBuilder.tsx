@@ -37,6 +37,34 @@ const emptyPer100 = (): Per100 => ({
   magnesium_mg: 0, calcium_mg: 0, vitamin_b: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0,
 });
 
+// Correspondance Per100 (vitamin_b/c/d/e) <-> nutrients_std (vitamin_b_mg/vitamin_c_mg/…)
+const PER100_TO_STD: Partial<Record<keyof Per100, string>> = {
+  fiber: "fiber", sugar: "sugar", saturated_fat: "saturated_fat", omega3_mg: "omega3_mg",
+  sodium_mg: "sodium_mg", potassium_mg: "potassium_mg", magnesium_mg: "magnesium_mg", calcium_mg: "calcium_mg",
+  vitamin_b: "vitamin_b_mg", vitamin_c: "vitamin_c_mg", vitamin_d: "vitamin_d_mcg", vitamin_e: "vitamin_e_mg",
+};
+
+/** Reconstruit les micros Per100 depuis un map nutrients_std. */
+const stdToPer100Micros = (std: Record<string, number> = {}): Partial<Per100> => {
+  const out: Partial<Per100> = {};
+  (Object.keys(PER100_TO_STD) as (keyof Per100)[]).forEach((k) => {
+    const sk = PER100_TO_STD[k];
+    if (sk) (out as any)[k] = Number(std[sk]) || 0;
+  });
+  return out;
+};
+
+/** Convertit les micros Per100 en map nutrients_std. */
+const per100MicrosToStd = (p: Per100): Record<string, number> => {
+  const out: Record<string, number> = {};
+  (Object.keys(PER100_TO_STD) as (keyof Per100)[]).forEach((k) => {
+    const sk = PER100_TO_STD[k];
+    const v = Number(p[k]);
+    if (sk && Number.isFinite(v) && v > 0) out[sk] = v;
+  });
+  return out;
+};
+
 const toPer100FromItem = (item: any, weight: number): Per100 => {
   const w = weight > 0 ? weight : 100;
   const r = (v: number) => Math.round((v / w) * 100 * 10) / 10;
