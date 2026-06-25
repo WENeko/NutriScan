@@ -235,7 +235,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   // Extraction du texte selon le type d'API
   const content = (
-    apiType === "openai"
+    apiType === "openai" || apiType === "local"
       ? data?.choices?.[0]?.message?.content
       : data?.candidates?.[0]?.content?.parts?.[0]?.text
   ) || "{}";
