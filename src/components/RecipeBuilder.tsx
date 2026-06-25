@@ -286,6 +286,21 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
     if (!recipeName.trim()) { toast({ title: "Nom requis", variant: "destructive" }); return; }
     if (ingredients.length === 0) { toast({ title: "Ajoutez au moins un ingrédient", variant: "destructive" }); return; }
     try {
+      const recipePer100: Per100 = {
+        proteins: per100.proteins, carbs: per100.carbs, fats: per100.fats,
+        fiber: Math.round(totals.fiber * to100 * 10) / 10,
+        sugar: Math.round(totals.sugar * to100 * 10) / 10,
+        saturated_fat: Math.round(totals.saturated_fat * to100 * 10) / 10,
+        omega3_mg: Math.round(totals.omega3_mg * to100 * 10) / 10,
+        sodium_mg: Math.round(totals.sodium_mg * to100 * 10) / 10,
+        potassium_mg: Math.round(totals.potassium_mg * to100 * 10) / 10,
+        magnesium_mg: Math.round(totals.magnesium_mg * to100 * 10) / 10,
+        calcium_mg: Math.round(totals.calcium_mg * to100 * 10) / 10,
+        vitamin_b: Math.round(totals.vitamin_b * to100 * 10) / 10,
+        vitamin_c: Math.round(totals.vitamin_c * to100 * 10) / 10,
+        vitamin_d: Math.round(totals.vitamin_d * to100 * 10) / 10,
+        vitamin_e: Math.round(totals.vitamin_e * to100 * 10) / 10,
+      };
       const foodData = {
         user_id: userId,
         name: recipeName,
@@ -294,18 +309,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         proteins_per_100g: per100.proteins,
         carbs_per_100g: per100.carbs,
         fats_per_100g: per100.fats,
-        fiber_per_100g: Math.round(totals.fiber * to100 * 10) / 10,
-        sugar_per_100g: Math.round(totals.sugar * to100 * 10) / 10,
-        saturated_fat_per_100g: Math.round(totals.saturated_fat * to100 * 10) / 10,
-        omega3_mg_per_100g: Math.round(totals.omega3_mg * to100 * 10) / 10,
-        sodium_mg_per_100g: Math.round(totals.sodium_mg * to100 * 10) / 10,
-        potassium_mg_per_100g: Math.round(totals.potassium_mg * to100 * 10) / 10,
-        magnesium_mg_per_100g: Math.round(totals.magnesium_mg * to100 * 10) / 10,
-        calcium_mg_per_100g: Math.round(totals.calcium_mg * to100 * 10) / 10,
-        vitamin_b_per_100g: Math.round(totals.vitamin_b * to100 * 10) / 10,
-        vitamin_c_per_100g: Math.round(totals.vitamin_c * to100 * 10) / 10,
-        vitamin_d_per_100g: Math.round(totals.vitamin_d * to100 * 10) / 10,
-        vitamin_e_per_100g: Math.round(totals.vitamin_e * to100 * 10) / 10,
+        nutrients_std: per100MicrosToStd(recipePer100),
+        nutrients_custom: {},
       };
 
       let foodId = editFoodId;
