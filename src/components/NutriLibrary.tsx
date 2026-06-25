@@ -165,10 +165,10 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     const cals = form.calories_per_100g > 0 ? form.calories_per_100g : computedCals;
     try {
       if (editing) {
-        await supabase.from("custom_foods").update({ ...form, calories_per_100g: cals } as any).eq("id", editing.id);
+        await supabase.from("custom_foods").update(buildFoodRow(form, cals) as any).eq("id", editing.id);
         toast({ title: "Aliment modifié !" });
       } else {
-        await supabase.from("custom_foods").insert({ ...form, calories_per_100g: cals, user_id: userId } as any);
+        await supabase.from("custom_foods").insert({ ...buildFoodRow(form, cals), user_id: userId } as any);
         toast({ title: "Aliment ajouté !" });
       }
       setEditing(null);
