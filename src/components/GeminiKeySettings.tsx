@@ -414,7 +414,11 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             api_type: t,
             base_url:
               d.base_url ||
-              (t === "gemini" ? "https://generativelanguage.googleapis.com" : "https://api.openai.com/v1"),
+              (t === "gemini"
+                ? "https://generativelanguage.googleapis.com"
+                : t === "local"
+                ? "http://localhost:11434/v1"
+                : "https://api.openai.com/v1"),
             models_endpoint: d.models_endpoint || (t === "gemini" ? "/v1beta/models" : "/models"),
           }
         : d,
