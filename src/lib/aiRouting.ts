@@ -172,10 +172,12 @@ function toConfidenceInt(raw: any): number | undefined {
 // ── Appel chat générique (BYOK) pour coach / recettes ────────────────────────
 async function callChatProvider(p: ResolvedProvider, model: string, system: string, userText: string): Promise<string> {
   const baseUrl = p.baseUrl.replace(/\/+$/, "");
-  if (p.apiType === "openai") {
+  if (p.apiType === "openai" || p.apiType === "local") {
+    const headers: Record<string, string> = { "Content-Type": "application/json" };
+    if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
-      headers: { "Content-Type": "application/json", Authorization: `Bearer ${p.apiKey}` },
+      headers,
       body: JSON.stringify({
         model,
         messages: [
