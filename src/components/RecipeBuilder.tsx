@@ -124,13 +124,9 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         name: ing.name,
         weightG: Number(ing.weight_g),
         per100: {
+          ...emptyPer100(),
           proteins: Number(ing.proteins_per_100g), carbs: Number(ing.carbs_per_100g), fats: Number(ing.fats_per_100g),
-          fiber: Number(ing.fiber_per_100g), sugar: Number(ing.sugar_per_100g),
-          saturated_fat: Number(ing.saturated_fat_per_100g), omega3_mg: Number(ing.omega3_mg_per_100g),
-          sodium_mg: Number(ing.sodium_mg_per_100g), potassium_mg: Number(ing.potassium_mg_per_100g),
-          magnesium_mg: Number(ing.magnesium_mg_per_100g), calcium_mg: Number(ing.calcium_mg_per_100g),
-          vitamin_b: Number(ing.vitamin_b_per_100g), vitamin_c: Number(ing.vitamin_c_per_100g),
-          vitamin_d: Number(ing.vitamin_d_per_100g), vitamin_e: Number(ing.vitamin_e_per_100g),
+          ...stdToPer100Micros((ing.nutrients_std || {}) as Record<string, number>),
         },
       }));
       setIngredients(loaded);
