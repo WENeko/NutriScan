@@ -783,6 +783,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             >
               <option value="openai">Compatible OpenAI</option>
               <option value="gemini">Google Gemini</option>
+              <option value="local">Local (sur l'appareil — sans clé)</option>
+
             </select>
           </div>
           <div>
