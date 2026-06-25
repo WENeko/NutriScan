@@ -139,8 +139,12 @@ async function loadRoutingContext(userId: string): Promise<RoutingContext> {
 function defaultSteps(ctx: RoutingContext): RoutingStep[] {
   const steps: RoutingStep[] = [];
   if (ctx.lovableEnabled) steps.push({ type: "edge_function" });
-  if (ctx.selectedProviderId && ctx.providers.get(ctx.selectedProviderId)?.apiKey) {
-    steps.push({ type: "byok", providerId: ctx.selectedProviderId, model: ctx.selectedModel ?? undefined });
+  if (ctx.selectedProviderId) {
+    const p = ctx.providers.get(ctx.selectedProviderId);
+    // Un fournisseur local n'a pas besoin de clé.
+    if (p && (p.apiKey || p.apiType === "local")) {
+      steps.push({ type: "byok", providerId: ctx.selectedProviderId, model: ctx.selectedModel ?? undefined });
+    }
   }
   return steps;
 }
@@ -149,11 +153,11 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
 function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   let steps = ctx.routing.enabled ? ctx.routing[feature] : [];
   if (!steps || steps.length === 0) steps = defaultSteps(ctx);
-  // Filtre les steps non exécutables (edge sans droit, byok sans clé).
+  // Filtre les steps non exécutables (edge sans droit, byok sans clé sauf local).
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
-    return !!p?.apiKey;
+    return !!p && (!!p.apiKey || p.apiType === "local");
   });
 }
 
