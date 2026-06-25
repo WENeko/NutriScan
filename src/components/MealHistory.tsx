@@ -305,8 +305,9 @@ const [searchQuery, setSearchQuery] = useState("");
         .eq("user_id", userId);
       const customNames = new Set((customFoods || []).map((f: any) => f.name.toLowerCase()));
 
-      const items = (data || []).map((item: any) => {
-        const w = parseFloat(item.quantity || "100") || 100;
+      const items = (data || []).map((raw: any) => {
+        // Source unique de vérité : on hydrate les champs micros depuis nutrients_std
+        const item = hydrateMealItem(raw);
         // Use saved unit data from DB (set by AI at creation time)
         const unitCount = item.unit_count || null;
         const unitWeightG = item.unit_weight_g || null;
