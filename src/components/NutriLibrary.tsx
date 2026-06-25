@@ -252,6 +252,8 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     setEditing(food);
     setCreating(true);
     setCreateMode("manual");
+    const fStd = ((food as any).nutrients_std || {}) as Record<string, number>;
+    const p100 = per100FromStd(fStd);
     setForm({
       name: food.name,
       brand: food.brand,
@@ -261,19 +263,19 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       proteins_per_100g: food.proteins_per_100g,
       carbs_per_100g: food.carbs_per_100g,
       fats_per_100g: food.fats_per_100g,
-      fiber_per_100g: food.fiber_per_100g,
-      sodium_mg_per_100g: food.sodium_mg_per_100g,
-      sugar_per_100g: food.sugar_per_100g,
-      saturated_fat_per_100g: food.saturated_fat_per_100g,
-      omega3_mg_per_100g: food.omega3_mg_per_100g,
-      potassium_mg_per_100g: food.potassium_mg_per_100g,
-      magnesium_mg_per_100g: food.magnesium_mg_per_100g,
-      calcium_mg_per_100g: food.calcium_mg_per_100g,
-      vitamin_b_per_100g: food.vitamin_b_per_100g,
-      vitamin_c_per_100g: food.vitamin_c_per_100g,
-      vitamin_d_per_100g: food.vitamin_d_per_100g,
-      vitamin_e_per_100g: food.vitamin_e_per_100g,
-      nutrients_std: (food as any).nutrients_std || {},
+      fiber_per_100g: p100.fiber_per_100g,
+      sodium_mg_per_100g: p100.sodium_mg_per_100g,
+      sugar_per_100g: p100.sugar_per_100g,
+      saturated_fat_per_100g: p100.saturated_fat_per_100g,
+      omega3_mg_per_100g: p100.omega3_mg_per_100g,
+      potassium_mg_per_100g: p100.potassium_mg_per_100g,
+      magnesium_mg_per_100g: p100.magnesium_mg_per_100g,
+      calcium_mg_per_100g: p100.calcium_mg_per_100g,
+      vitamin_b_per_100g: p100.vitamin_b_per_100g,
+      vitamin_c_per_100g: p100.vitamin_c_per_100g,
+      vitamin_d_per_100g: p100.vitamin_d_per_100g,
+      vitamin_e_per_100g: p100.vitamin_e_per_100g,
+      nutrients_std: fStd,
       nutrients_custom: (food as any).nutrients_custom || {},
     });
   };
