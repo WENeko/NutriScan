@@ -580,6 +580,8 @@ export type Database = {
           iron_mg_per_100g: number | null
           magnesium_mg_per_100g: number
           name: string
+          nutrients_custom: Json
+          nutrients_std: Json
           omega3_mg_per_100g: number
           potassium_mg_per_100g: number
           proteins_per_100g: number
@@ -606,6 +608,8 @@ export type Database = {
           iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number
           name: string
+          nutrients_custom?: Json
+          nutrients_std?: Json
           omega3_mg_per_100g?: number
           potassium_mg_per_100g?: number
           proteins_per_100g?: number
@@ -632,6 +636,8 @@ export type Database = {
           iron_mg_per_100g?: number | null
           magnesium_mg_per_100g?: number
           name?: string
+          nutrients_custom?: Json
+          nutrients_std?: Json
           omega3_mg_per_100g?: number
           potassium_mg_per_100g?: number
           proteins_per_100g?: number
