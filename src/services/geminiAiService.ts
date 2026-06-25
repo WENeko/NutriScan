@@ -127,7 +127,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   const apiKey = provider?.apiKey || (typeof window !== "undefined" ? import.meta.env.VITE_GEMINI_API_KEY : undefined);
   const apiType = provider?.apiType ?? "gemini";
 
-  if (!apiKey) {
+  // Les modèles locaux (sur l'appareil) ne nécessitent pas de clé API.
+  if (!apiKey && apiType !== "local") {
     appLogger.error("IA", "Aucune clé API fournisseur configurée");
     throw new Error("Aucune clé API configurée. Choisissez un fournisseur et entrez votre clé dans Réglages, ou demandez l'accès à l'IA Lovable à un administrateur.");
   }
