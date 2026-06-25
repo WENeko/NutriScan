@@ -152,6 +152,7 @@ export function popularityOf(baseUrl: string): number {
 export function fallbackModelFor(baseUrl: string, apiType: ApiType): string {
   const entry = getCatalogEntry(baseUrl);
   if (entry) return entry.modelPlaceholder;
+  if (apiType === "local") return "gemma-3-4b-it";
   return apiType === "openai" ? "gpt-4o-mini" : "gemini-flash-latest";
 }
 
