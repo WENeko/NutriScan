@@ -31,7 +31,10 @@ export function buildCustomFoodsContext(custom_foods?: any[]): string {
   let ctx =
     "\n\nIMPORTANT - L'utilisateur a une bibliothèque personnelle d'aliments. UTILISE CES DONNÉES EN PRIORITÉ quand tu reconnais un de ces aliments :\n";
   for (const f of custom_foods as any[]) {
-    ctx += `- ${f.name}: portion=${f.serving_size_g ?? 100}g, Cal=${f.calories_per_100g}kcal/100g, P=${f.proteins_per_100g}g/100g, G=${f.carbs_per_100g}g/100g, L=${f.fats_per_100g}g/100g, Fibres=${f.fiber_per_100g ?? 0}g/100g, Sucres=${f.sugar_per_100g ?? 0}g/100g, AGS=${f.saturated_fat_per_100g ?? 0}g/100g, Omega3=${f.omega3_mg_per_100g ?? 0}mg/100g, Sodium=${f.sodium_mg_per_100g ?? 0}mg/100g, Potassium=${f.potassium_mg_per_100g ?? 0}mg/100g, Magnesium=${f.magnesium_mg_per_100g ?? 0}mg/100g, Calcium=${f.calcium_mg_per_100g ?? 0}mg/100g, VitB=${f.vitamin_b_per_100g ?? 0}mg/100g, VitC=${f.vitamin_c_per_100g ?? 0}mg/100g, VitD=${f.vitamin_d_per_100g ?? 0}µg/100g, VitE=${f.vitamin_e_per_100g ?? 0}mg/100g\n`;
+    // Les micros (per_100g) sont désormais stockés dans nutrients_std ; fallback colonnes héritées si présentes
+    const s = (f.nutrients_std || {}) as Record<string, number>;
+    const g = (key: string, legacy: string) => (s[key] ?? f[legacy] ?? 0);
+    ctx += `- ${f.name}: portion=${f.serving_size_g ?? 100}g, Cal=${f.calories_per_100g}kcal/100g, P=${f.proteins_per_100g}g/100g, G=${f.carbs_per_100g}g/100g, L=${f.fats_per_100g}g/100g, Fibres=${g("fiber", "fiber_per_100g")}g/100g, Sucres=${g("sugar", "sugar_per_100g")}g/100g, AGS=${g("saturated_fat", "saturated_fat_per_100g")}g/100g, Omega3=${g("omega3_mg", "omega3_mg_per_100g")}mg/100g, Sodium=${g("sodium_mg", "sodium_mg_per_100g")}mg/100g, Potassium=${g("potassium_mg", "potassium_mg_per_100g")}mg/100g, Magnesium=${g("magnesium_mg", "magnesium_mg_per_100g")}mg/100g, Calcium=${g("calcium_mg", "calcium_mg_per_100g")}mg/100g, VitB=${g("vitamin_b_mg", "vitamin_b_per_100g")}mg/100g, VitC=${g("vitamin_c_mg", "vitamin_c_per_100g")}mg/100g, VitD=${g("vitamin_d_mcg", "vitamin_d_per_100g")}µg/100g, VitE=${g("vitamin_e_mg", "vitamin_e_per_100g")}mg/100g\n`;
   }
   return ctx;
 }

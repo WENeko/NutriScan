@@ -127,7 +127,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   const apiKey = provider?.apiKey || (typeof window !== "undefined" ? import.meta.env.VITE_GEMINI_API_KEY : undefined);
   const apiType = provider?.apiType ?? "gemini";
 
-  if (!apiKey) {
+  // Les modèles locaux (sur l'appareil) ne nécessitent pas de clé API.
+  if (!apiKey && apiType !== "local") {
     appLogger.error("IA", "Aucune clé API fournisseur configurée");
     throw new Error("Aucune clé API configurée. Choisissez un fournisseur et entrez votre clé dans Réglages, ou demandez l'accès à l'IA Lovable à un administrateur.");
   }
@@ -167,13 +168,15 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      if (apiType === "openai") {
-        // ── API compatible OpenAI ──────────────────────────────
+      if (apiType === "openai" || apiType === "local") {
+        // ── API compatible OpenAI (inclut les modèles locaux) ──
         const userContent: any[] = [{ type: "text", text: promptText }];
         if (image) userContent.push({ type: "image_url", image_url: { url: image } });
+        const headers: Record<string, string> = { "Content-Type": "application/json" };
+        if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
         res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
-          headers: { "Content-Type": "application/json", Authorization: `Bearer ${apiKey}` },
+          headers,
           body: JSON.stringify({
             model: chosenModel,
             messages: [
@@ -232,7 +235,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   // Extraction du texte selon le type d'API
   const content = (
-    apiType === "openai"
+    apiType === "openai" || apiType === "local"
       ? data?.choices?.[0]?.message?.content
       : data?.candidates?.[0]?.content?.parts?.[0]?.text
   ) || "{}";

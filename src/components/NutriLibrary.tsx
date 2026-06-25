@@ -11,6 +11,7 @@ import RecipeBuilder from "./RecipeBuilder";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { useMicroCategories } from "@/hooks/useMicroCategories";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
+import { stdFromPer100, per100FromStd, PER100_FIELD_TO_STDKEY } from "@/utils/nutrients-helpers";
 
 interface CustomFood {
   id: string;
@@ -110,6 +111,26 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   // Standards SANS colonne dédiée → stockés dans nutrients_std (iron, zinc, b9, b12…)
   const STD_EXTRA = NUTRIENTS_STD_LIST.filter((n) => !STD_COLUMN_KEYS.has(n.key));
 
+  // Construit la ligne custom_foods : tous les micros vont dans nutrients_std (per_100g),
+  // les colonnes per_100g individuelles n'existent plus.
+  const buildFoodRow = (f: typeof form, cals: number) => {
+    const std = { ...(f.nutrients_std || {}) };
+    for (const key of Object.values(PER100_FIELD_TO_STDKEY)) delete (std as any)[key];
+    Object.assign(std, stdFromPer100(f as unknown as Record<string, unknown>));
+    return {
+      name: f.name,
+      brand: f.brand,
+      barcode: f.barcode,
+      serving_size_g: f.serving_size_g,
+      calories_per_100g: cals,
+      proteins_per_100g: f.proteins_per_100g,
+      carbs_per_100g: f.carbs_per_100g,
+      fats_per_100g: f.fats_per_100g,
+      nutrients_std: std,
+      nutrients_custom: f.nutrients_custom || {},
+    };
+  };
+
   useEffect(() => {
     fetchFoods();
     (async () => {
@@ -131,7 +152,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       .select("*")
       .eq("user_id", userId)
       .order("name");
-    if (data) setFoods(data as any);
+    if (data) setFoods((data as any[]).map((f) => ({ ...f, ...per100FromStd(f.nutrients_std || {}) })) as any);
   };
 
   const handleSave = async () => {
@@ -144,10 +165,10 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     const cals = form.calories_per_100g > 0 ? form.calories_per_100g : computedCals;
     try {
       if (editing) {
-        await supabase.from("custom_foods").update({ ...form, calories_per_100g: cals } as any).eq("id", editing.id);
+        await supabase.from("custom_foods").update(buildFoodRow(form, cals) as any).eq("id", editing.id);
         toast({ title: "Aliment modifié !" });
       } else {
-        await supabase.from("custom_foods").insert({ ...form, calories_per_100g: cals, user_id: userId } as any);
+        await supabase.from("custom_foods").insert({ ...buildFoodRow(form, cals), user_id: userId } as any);
         toast({ title: "Aliment ajouté !" });
       }
       setEditing(null);
@@ -169,35 +190,34 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     const factor = 100 / unitW;
     const round1 = (v: number) => Math.round((v || 0) * factor * 10) / 10;
 
-    const suppForm: Omit<CustomFood, "id"> = {
-      ...emptyFood,
-      name: form.name,
-      brand: form.brand,
-      serving_size_g: unitW,
-      calories_per_100g: Math.round(suppCalories * factor),
-      nutrients_std: {},
-      nutrients_custom: {},
-    };
+    const stdMicros: Record<string, number> = {};
+    const customMicros: Record<string, number> = {};
 
-    // Micros standards : colonne dédiée OU nutrients_std
+    // Micros standards : tous dans nutrients_std (per_100g)
     for (const n of NUTRIENTS_STD_LIST) {
       const perUnit = suppPerUnit[n.key] || 0;
-      if (perUnit <= 0) continue;
-      const col = STD_COLUMN_BY_KEY[n.key];
-      if (col) {
-        (suppForm as any)[col] = round1(perUnit);
-      } else {
-        suppForm.nutrients_std![n.key] = round1(perUnit);
-      }
+      if (perUnit > 0) stdMicros[n.key] = round1(perUnit);
     }
     // Micros personnalisés → nutrients_custom
     for (const d of customDefs) {
       const perUnit = suppPerUnit[d.key] || 0;
-      if (perUnit > 0) suppForm.nutrients_custom![d.key] = round1(perUnit);
+      if (perUnit > 0) customMicros[d.key] = round1(perUnit);
     }
 
+    const suppRow = {
+      name: form.name,
+      brand: form.brand,
+      serving_size_g: unitW,
+      calories_per_100g: Math.round(suppCalories * factor),
+      proteins_per_100g: 0,
+      carbs_per_100g: 0,
+      fats_per_100g: 0,
+      nutrients_std: stdMicros,
+      nutrients_custom: customMicros,
+    };
+
     try {
-      await supabase.from("custom_foods").insert({ ...suppForm, user_id: userId } as any);
+      await supabase.from("custom_foods").insert({ ...suppRow, user_id: userId } as any);
       toast({ title: "Complément ajouté !" });
       setCreating(false);
       setForm(emptyFood);
@@ -232,6 +252,8 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
     setEditing(food);
     setCreating(true);
     setCreateMode("manual");
+    const fStd = ((food as any).nutrients_std || {}) as Record<string, number>;
+    const p100 = per100FromStd(fStd);
     setForm({
       name: food.name,
       brand: food.brand,
@@ -241,19 +263,19 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
       proteins_per_100g: food.proteins_per_100g,
       carbs_per_100g: food.carbs_per_100g,
       fats_per_100g: food.fats_per_100g,
-      fiber_per_100g: food.fiber_per_100g,
-      sodium_mg_per_100g: food.sodium_mg_per_100g,
-      sugar_per_100g: food.sugar_per_100g,
-      saturated_fat_per_100g: food.saturated_fat_per_100g,
-      omega3_mg_per_100g: food.omega3_mg_per_100g,
-      potassium_mg_per_100g: food.potassium_mg_per_100g,
-      magnesium_mg_per_100g: food.magnesium_mg_per_100g,
-      calcium_mg_per_100g: food.calcium_mg_per_100g,
-      vitamin_b_per_100g: food.vitamin_b_per_100g,
-      vitamin_c_per_100g: food.vitamin_c_per_100g,
-      vitamin_d_per_100g: food.vitamin_d_per_100g,
-      vitamin_e_per_100g: food.vitamin_e_per_100g,
-      nutrients_std: (food as any).nutrients_std || {},
+      fiber_per_100g: p100.fiber_per_100g,
+      sodium_mg_per_100g: p100.sodium_mg_per_100g,
+      sugar_per_100g: p100.sugar_per_100g,
+      saturated_fat_per_100g: p100.saturated_fat_per_100g,
+      omega3_mg_per_100g: p100.omega3_mg_per_100g,
+      potassium_mg_per_100g: p100.potassium_mg_per_100g,
+      magnesium_mg_per_100g: p100.magnesium_mg_per_100g,
+      calcium_mg_per_100g: p100.calcium_mg_per_100g,
+      vitamin_b_per_100g: p100.vitamin_b_per_100g,
+      vitamin_c_per_100g: p100.vitamin_c_per_100g,
+      vitamin_d_per_100g: p100.vitamin_d_per_100g,
+      vitamin_e_per_100g: p100.vitamin_e_per_100g,
+      nutrients_std: fStd,
       nutrients_custom: (food as any).nutrients_custom || {},
     });
   };

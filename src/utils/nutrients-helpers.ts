@@ -23,6 +23,53 @@ export function buildStdNutrients(item: Record<string, unknown>): Record<string,
   return out;
 }
 
+/**
+ * Mapping colonne historique `*_per_100g` (custom_foods / recipe_ingredients) → clé de nutriment.
+ * Sert à reconstruire les champs per_100g depuis `nutrients_std` (et inversement).
+ */
+export const PER100_FIELD_TO_STDKEY: Record<string, string> = {
+  fiber_per_100g: "fiber",
+  sugar_per_100g: "sugar",
+  saturated_fat_per_100g: "saturated_fat",
+  omega3_mg_per_100g: "omega3_mg",
+  sodium_mg_per_100g: "sodium_mg",
+  potassium_mg_per_100g: "potassium_mg",
+  magnesium_mg_per_100g: "magnesium_mg",
+  calcium_mg_per_100g: "calcium_mg",
+  iron_mg_per_100g: "iron_mg",
+  zinc_mg_per_100g: "zinc_mg",
+  vitamin_c_per_100g: "vitamin_c_mg",
+  vitamin_d_per_100g: "vitamin_d_mcg",
+  vitamin_e_per_100g: "vitamin_e_mg",
+  vitamin_b9_mcg_per_100g: "vitamin_b9_mcg",
+  vitamin_b12_mcg_per_100g: "vitamin_b12_mcg",
+  vitamin_b_per_100g: "vitamin_b_mg",
+};
+
+/** Reconstruit les champs `*_per_100g` à partir d'un map `nutrients_std`. */
+export function per100FromStd(std: Record<string, number> = {}): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [field, key] of Object.entries(PER100_FIELD_TO_STDKEY)) {
+    out[field] = Number(std?.[key]) || 0;
+  }
+  return out;
+}
+
+/** Construit `nutrients_std` (base per_100g) à partir des champs `*_per_100g` d'un formulaire/row. */
+export function stdFromPer100(row: Record<string, unknown>): Record<string, number> {
+  const out: Record<string, number> = {};
+  for (const [field, key] of Object.entries(PER100_FIELD_TO_STDKEY)) {
+    const v = Number(row?.[field]);
+    if (Number.isFinite(v) && v > 0) out[key] = v;
+  }
+  return out;
+}
+
+/** Hydrate un row meal_items : recopie `nutrients_std` sur les champs micros de premier niveau. */
+export function hydrateMealItem<T extends Record<string, unknown>>(row: T): T {
+  return { ...row, ...((row.nutrients_std as Record<string, number>) || {}) };
+}
+
 /** Construit nutrients_custom à partir des définitions custom de l'utilisateur. */
 export function buildCustomNutrients(
   item: Record<string, unknown>,

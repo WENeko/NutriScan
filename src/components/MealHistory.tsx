@@ -11,7 +11,7 @@ import MealMicros from "./MealMicros";
 import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
-import { buildStdNutrients } from "@/utils/nutrients-helpers";
+import { buildStdNutrients, hydrateMealItem } from "@/utils/nutrients-helpers";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { analyzeMeal } from "@/services/mealAnalysisService";
 
@@ -272,22 +272,6 @@ const [searchQuery, setSearchQuery] = useState("");
             proteins: item.proteins,
             carbs: item.carbs,
             fats: item.fats,
-            fiber: item.fiber,
-            sugar: item.sugar,
-            saturated_fat: item.saturated_fat,
-            omega3_mg: item.omega3_mg,
-            sodium_mg: item.sodium_mg,
-            potassium_mg: item.potassium_mg,
-            magnesium_mg: item.magnesium_mg,
-            calcium_mg: item.calcium_mg,
-            vitamin_b_mg: item.vitamin_b_mg,
-            vitamin_c_mg: item.vitamin_c_mg,
-            vitamin_d_mcg: item.vitamin_d_mcg,
-            vitamin_e_mg: item.vitamin_e_mg,
-            vitamin_b9_mcg: item.vitamin_b9_mcg,
-            vitamin_b12_mcg: item.vitamin_b12_mcg,
-            iron_mg: item.iron_mg,
-            zinc_mg: item.zinc_mg,
             unit_count: item.unit_count,
             unit_weight_g: item.unit_weight_g,
             unit_label: item.unit_label,
@@ -321,8 +305,9 @@ const [searchQuery, setSearchQuery] = useState("");
         .eq("user_id", userId);
       const customNames = new Set((customFoods || []).map((f: any) => f.name.toLowerCase()));
 
-      const items = (data || []).map((item: any) => {
-        const w = parseFloat(item.quantity || "100") || 100;
+      const items = (data || []).map((raw: any) => {
+        // Source unique de vérité : on hydrate les champs micros depuis nutrients_std
+        const item = hydrateMealItem(raw);
         // Use saved unit data from DB (set by AI at creation time)
         const unitCount = item.unit_count || null;
         const unitWeightG = item.unit_weight_g || null;
@@ -592,22 +577,6 @@ const [searchQuery, setSearchQuery] = useState("");
             carbs: item.carbs,
             fats: item.fats,
             calories: Math.round((item.proteins || 0) * 4 + (item.carbs || 0) * 4 + (item.fats || 0) * 9),
-            fiber: item.fiber || 0,
-            sugar: item.sugar || 0,
-            saturated_fat: item.saturated_fat || 0,
-            omega3_mg: item.omega3_mg || 0,
-            sodium_mg: item.sodium_mg || 0,
-            potassium_mg: item.potassium_mg || 0,
-            magnesium_mg: item.magnesium_mg || 0,
-            calcium_mg: item.calcium_mg || 0,
-            vitamin_b_mg: item.vitamin_b_mg || 0,
-            vitamin_c_mg: item.vitamin_c_mg || 0,
-            vitamin_d_mcg: item.vitamin_d_mcg || 0,
-            vitamin_e_mg: item.vitamin_e_mg || 0,
-            vitamin_b9_mcg: (item as any).vitamin_b9_mcg || 0,
-            vitamin_b12_mcg: (item as any).vitamin_b12_mcg || 0,
-            iron_mg: (item as any).iron_mg || 0,
-            zinc_mg: (item as any).zinc_mg || 0,
             unit_count: item.unitCount || null,
             unit_weight_g: item.unitWeightG || null,
             unit_label: item.unitLabel || null,

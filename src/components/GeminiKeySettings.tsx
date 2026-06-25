@@ -87,7 +87,7 @@ const blankCard = (): CardState => ({
 type AdminDraft = {
   id?: string;
   name: string;
-  api_type: "gemini" | "openai";
+  api_type: "gemini" | "openai" | "local";
   base_url: string;
   models_endpoint: string;
   is_active: boolean;
@@ -351,7 +351,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     const out: RoutingStep[] = [];
     if (lovableEnabled) out.push({ type: "edge_function" });
     for (const p of sorted) {
-      if (!cards[p.id]?.hasStored) continue;
+      // Les fournisseurs locaux n'ont pas besoin de clé enregistrée.
+      if (p.api_type !== "local" && !cards[p.id]?.hasStored) continue;
       for (const m of getModels(p.id)) out.push({ type: "byok", providerId: p.id, model: m });
     }
     return out;
@@ -405,7 +406,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     });
   }
 
-  function onDraftType(t: "gemini" | "openai") {
+  function onDraftType(t: "gemini" | "openai" | "local") {
     setDraft((d) =>
       d
         ? {
@@ -413,7 +414,11 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             api_type: t,
             base_url:
               d.base_url ||
-              (t === "gemini" ? "https://generativelanguage.googleapis.com" : "https://api.openai.com/v1"),
+              (t === "gemini"
+                ? "https://generativelanguage.googleapis.com"
+                : t === "local"
+                ? "http://localhost:11434/v1"
+                : "https://api.openai.com/v1"),
             models_endpoint: d.models_endpoint || (t === "gemini" ? "/v1beta/models" : "/models"),
           }
         : d,
@@ -773,11 +778,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             <Label className="text-[10px] uppercase text-muted-foreground">Type d'API</Label>
             <select
               value={draft.api_type}
-              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai")}
+              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai" | "local")}
               className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
             >
               <option value="openai">Compatible OpenAI</option>
               <option value="gemini">Google Gemini</option>
+              <option value="local">Local (sur l'appareil — sans clé)</option>
+
             </select>
           </div>
           <div>

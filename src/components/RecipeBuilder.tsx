@@ -37,6 +37,34 @@ const emptyPer100 = (): Per100 => ({
   magnesium_mg: 0, calcium_mg: 0, vitamin_b: 0, vitamin_c: 0, vitamin_d: 0, vitamin_e: 0,
 });
 
+// Correspondance Per100 (vitamin_b/c/d/e) <-> nutrients_std (vitamin_b_mg/vitamin_c_mg/…)
+const PER100_TO_STD: Partial<Record<keyof Per100, string>> = {
+  fiber: "fiber", sugar: "sugar", saturated_fat: "saturated_fat", omega3_mg: "omega3_mg",
+  sodium_mg: "sodium_mg", potassium_mg: "potassium_mg", magnesium_mg: "magnesium_mg", calcium_mg: "calcium_mg",
+  vitamin_b: "vitamin_b_mg", vitamin_c: "vitamin_c_mg", vitamin_d: "vitamin_d_mcg", vitamin_e: "vitamin_e_mg",
+};
+
+/** Reconstruit les micros Per100 depuis un map nutrients_std. */
+const stdToPer100Micros = (std: Record<string, number> = {}): Partial<Per100> => {
+  const out: Partial<Per100> = {};
+  (Object.keys(PER100_TO_STD) as (keyof Per100)[]).forEach((k) => {
+    const sk = PER100_TO_STD[k];
+    if (sk) (out as any)[k] = Number(std[sk]) || 0;
+  });
+  return out;
+};
+
+/** Convertit les micros Per100 en map nutrients_std. */
+const per100MicrosToStd = (p: Per100): Record<string, number> => {
+  const out: Record<string, number> = {};
+  (Object.keys(PER100_TO_STD) as (keyof Per100)[]).forEach((k) => {
+    const sk = PER100_TO_STD[k];
+    const v = Number(p[k]);
+    if (sk && Number.isFinite(v) && v > 0) out[sk] = v;
+  });
+  return out;
+};
+
 const toPer100FromItem = (item: any, weight: number): Per100 => {
   const w = weight > 0 ? weight : 100;
   const r = (v: number) => Math.round((v / w) * 100 * 10) / 10;
@@ -96,13 +124,9 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         name: ing.name,
         weightG: Number(ing.weight_g),
         per100: {
+          ...emptyPer100(),
           proteins: Number(ing.proteins_per_100g), carbs: Number(ing.carbs_per_100g), fats: Number(ing.fats_per_100g),
-          fiber: Number(ing.fiber_per_100g), sugar: Number(ing.sugar_per_100g),
-          saturated_fat: Number(ing.saturated_fat_per_100g), omega3_mg: Number(ing.omega3_mg_per_100g),
-          sodium_mg: Number(ing.sodium_mg_per_100g), potassium_mg: Number(ing.potassium_mg_per_100g),
-          magnesium_mg: Number(ing.magnesium_mg_per_100g), calcium_mg: Number(ing.calcium_mg_per_100g),
-          vitamin_b: Number(ing.vitamin_b_per_100g), vitamin_c: Number(ing.vitamin_c_per_100g),
-          vitamin_d: Number(ing.vitamin_d_per_100g), vitamin_e: Number(ing.vitamin_e_per_100g),
+          ...stdToPer100Micros((ing.nutrients_std || {}) as Record<string, number>),
         },
       }));
       setIngredients(loaded);
@@ -158,13 +182,9 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
           weightG: weight,
           isCustom: true,
           per100: {
+            ...emptyPer100(),
             proteins: cf.proteins_per_100g, carbs: cf.carbs_per_100g, fats: cf.fats_per_100g,
-            fiber: cf.fiber_per_100g || 0, sugar: cf.sugar_per_100g || 0,
-            saturated_fat: cf.saturated_fat_per_100g || 0, omega3_mg: cf.omega3_mg_per_100g || 0,
-            sodium_mg: cf.sodium_mg_per_100g || 0, potassium_mg: cf.potassium_mg_per_100g || 0,
-            magnesium_mg: cf.magnesium_mg_per_100g || 0, calcium_mg: cf.calcium_mg_per_100g || 0,
-            vitamin_b: cf.vitamin_b_per_100g || 0, vitamin_c: cf.vitamin_c_per_100g || 0,
-            vitamin_d: cf.vitamin_d_per_100g || 0, vitamin_e: cf.vitamin_e_per_100g || 0,
+            ...stdToPer100Micros((cf.nutrients_std || {}) as Record<string, number>),
           },
         }]);
       } else {
@@ -266,6 +286,21 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
     if (!recipeName.trim()) { toast({ title: "Nom requis", variant: "destructive" }); return; }
     if (ingredients.length === 0) { toast({ title: "Ajoutez au moins un ingrédient", variant: "destructive" }); return; }
     try {
+      const recipePer100: Per100 = {
+        proteins: per100.proteins, carbs: per100.carbs, fats: per100.fats,
+        fiber: Math.round(totals.fiber * to100 * 10) / 10,
+        sugar: Math.round(totals.sugar * to100 * 10) / 10,
+        saturated_fat: Math.round(totals.saturated_fat * to100 * 10) / 10,
+        omega3_mg: Math.round(totals.omega3_mg * to100 * 10) / 10,
+        sodium_mg: Math.round(totals.sodium_mg * to100 * 10) / 10,
+        potassium_mg: Math.round(totals.potassium_mg * to100 * 10) / 10,
+        magnesium_mg: Math.round(totals.magnesium_mg * to100 * 10) / 10,
+        calcium_mg: Math.round(totals.calcium_mg * to100 * 10) / 10,
+        vitamin_b: Math.round(totals.vitamin_b * to100 * 10) / 10,
+        vitamin_c: Math.round(totals.vitamin_c * to100 * 10) / 10,
+        vitamin_d: Math.round(totals.vitamin_d * to100 * 10) / 10,
+        vitamin_e: Math.round(totals.vitamin_e * to100 * 10) / 10,
+      };
       const foodData = {
         user_id: userId,
         name: recipeName,
@@ -274,18 +309,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         proteins_per_100g: per100.proteins,
         carbs_per_100g: per100.carbs,
         fats_per_100g: per100.fats,
-        fiber_per_100g: Math.round(totals.fiber * to100 * 10) / 10,
-        sugar_per_100g: Math.round(totals.sugar * to100 * 10) / 10,
-        saturated_fat_per_100g: Math.round(totals.saturated_fat * to100 * 10) / 10,
-        omega3_mg_per_100g: Math.round(totals.omega3_mg * to100 * 10) / 10,
-        sodium_mg_per_100g: Math.round(totals.sodium_mg * to100 * 10) / 10,
-        potassium_mg_per_100g: Math.round(totals.potassium_mg * to100 * 10) / 10,
-        magnesium_mg_per_100g: Math.round(totals.magnesium_mg * to100 * 10) / 10,
-        calcium_mg_per_100g: Math.round(totals.calcium_mg * to100 * 10) / 10,
-        vitamin_b_per_100g: Math.round(totals.vitamin_b * to100 * 10) / 10,
-        vitamin_c_per_100g: Math.round(totals.vitamin_c * to100 * 10) / 10,
-        vitamin_d_per_100g: Math.round(totals.vitamin_d * to100 * 10) / 10,
-        vitamin_e_per_100g: Math.round(totals.vitamin_e * to100 * 10) / 10,
+        nutrients_std: per100MicrosToStd(recipePer100),
+        nutrients_custom: {},
       };
 
       let foodId = editFoodId;
@@ -305,18 +330,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
           proteins_per_100g: ing.per100.proteins,
           carbs_per_100g: ing.per100.carbs,
           fats_per_100g: ing.per100.fats,
-          fiber_per_100g: ing.per100.fiber,
-          sugar_per_100g: ing.per100.sugar,
-          saturated_fat_per_100g: ing.per100.saturated_fat,
-          omega3_mg_per_100g: ing.per100.omega3_mg,
-          sodium_mg_per_100g: ing.per100.sodium_mg,
-          potassium_mg_per_100g: ing.per100.potassium_mg,
-          magnesium_mg_per_100g: ing.per100.magnesium_mg,
-          calcium_mg_per_100g: ing.per100.calcium_mg,
-          vitamin_b_per_100g: ing.per100.vitamin_b,
-          vitamin_c_per_100g: ing.per100.vitamin_c,
-          vitamin_d_per_100g: ing.per100.vitamin_d,
-          vitamin_e_per_100g: ing.per100.vitamin_e,
+          nutrients_std: per100MicrosToStd(ing.per100),
+          nutrients_custom: {},
         }));
         await (supabase.from("recipe_ingredients" as any) as any).insert(ingRows);
       }
