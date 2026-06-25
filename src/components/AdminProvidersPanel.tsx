@@ -24,7 +24,7 @@ interface Props {
 type Draft = {
   id?: string;
   name: string;
-  api_type: "gemini" | "openai";
+  api_type: "gemini" | "openai" | "local";
   base_url: string;
   models_endpoint: string;
   is_active: boolean;
@@ -77,7 +77,7 @@ const AdminProvidersPanel: React.FC<Props> = ({ userId }) => {
     });
   }
 
-  function onTypeChange(t: "gemini" | "openai") {
+  function onTypeChange(t: "gemini" | "openai" | "local") {
     setDraft((d) =>
       d
         ? {
@@ -185,7 +185,7 @@ const AdminProvidersPanel: React.FC<Props> = ({ userId }) => {
                 <Label className="text-[10px] uppercase text-muted-foreground">Type d'API</Label>
                 <select
                   value={draft.api_type}
-                  onChange={(e) => onTypeChange(e.target.value as "gemini" | "openai")}
+                  onChange={(e) => onTypeChange(e.target.value as "gemini" | "openai" | "local")}
                   className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
                 >
                   <option value="openai">Compatible OpenAI</option>
