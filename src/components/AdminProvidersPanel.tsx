@@ -77,7 +77,7 @@ const AdminProvidersPanel: React.FC<Props> = ({ userId }) => {
     });
   }
 
-  function onTypeChange(t: "gemini" | "openai" | "local") {
+  function onTypeChange(t: "gemini" | "openai" | "local" | "local_intent") {
     setDraft((d) =>
       d
         ? {
