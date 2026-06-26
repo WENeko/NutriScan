@@ -548,7 +548,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate">{p.name}</div>
                   <div className="text-[10px] text-muted-foreground truncate">
-                    {p.api_type === "gemini" ? "Google Gemini" : "Compatible OpenAI"}
+                    {p.api_type === "gemini"
+                      ? "Google Gemini"
+                      : p.api_type === "local"
+                      ? "Local HTTP (sur l'appareil)"
+                      : p.api_type === "local_intent"
+                      ? "Local natif Android (Intent)"
+                      : "Compatible OpenAI"}
                     {entry && entry.label !== p.name ? ` · ${entry.label}` : ""}
                     {!p.is_active ? " · inactif" : ""}
                   </div>
