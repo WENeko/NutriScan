@@ -406,7 +406,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     });
   }
 
-  function onDraftType(t: "gemini" | "openai" | "local") {
+  function onDraftType(t: "gemini" | "openai" | "local" | "local_intent") {
     setDraft((d) =>
       d
         ? {
@@ -418,6 +418,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 ? "https://generativelanguage.googleapis.com"
                 : t === "local"
                 ? "http://localhost:11434/v1"
+                : t === "local_intent"
+                ? "intent://google-ai-edge-gallery"
                 : "https://api.openai.com/v1"),
             models_endpoint: d.models_endpoint || (t === "gemini" ? "/v1beta/models" : "/models"),
           }
