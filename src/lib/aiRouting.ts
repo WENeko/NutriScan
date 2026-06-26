@@ -174,6 +174,10 @@ function toConfidenceInt(raw: any): number | undefined {
 // ── Appel chat générique (BYOK) pour coach / recettes ────────────────────────
 async function callChatProvider(p: ResolvedProvider, model: string, system: string, userText: string): Promise<string> {
   const baseUrl = p.baseUrl.replace(/\/+$/, "");
+  if (p.apiType === "local_intent") {
+    // IA locale native (Intent Android, ex: Google AI Edge Gallery).
+    return runLocalIntentChat({ system, prompt: userText, model });
+  }
   if (p.apiType === "openai" || p.apiType === "local") {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;
