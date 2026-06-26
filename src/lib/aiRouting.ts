@@ -159,7 +159,7 @@ function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
-    return !!p && (!!p.apiKey || p.apiType === "local");
+    return !!p && (!!p.apiKey || isLocalApiType(p.apiType));
   });
 }
 
