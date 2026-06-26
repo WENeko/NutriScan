@@ -29,7 +29,7 @@ import {
   Cpu, CheckCircle2, XCircle, HelpCircle, CircleDashed, Sparkles, Gift, Pencil,
   Plus, X, Server, Workflow, ArrowUp, ArrowDown, Check,
 } from "lucide-react";
-import { isLovableAiEnabled, loadAiAccess } from "@/lib/aiAccess";
+import { isLovableAiEnabled, loadAiAccess, isLocalApiType } from "@/lib/aiAccess";
 import {
   listProviders,
   fetchProviderModels,
