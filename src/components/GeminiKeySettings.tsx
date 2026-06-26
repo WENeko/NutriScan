@@ -87,7 +87,7 @@ const blankCard = (): CardState => ({
 type AdminDraft = {
   id?: string;
   name: string;
-  api_type: "gemini" | "openai" | "local";
+  api_type: "gemini" | "openai" | "local" | "local_intent";
   base_url: string;
   models_endpoint: string;
   is_active: boolean;
