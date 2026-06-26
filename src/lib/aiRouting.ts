@@ -143,8 +143,8 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
   if (ctx.lovableEnabled) steps.push({ type: "edge_function" });
   if (ctx.selectedProviderId) {
     const p = ctx.providers.get(ctx.selectedProviderId);
-    // Un fournisseur local n'a pas besoin de clé.
-    if (p && (p.apiKey || p.apiType === "local")) {
+    // Un fournisseur local (HTTP ou Intent natif) n'a pas besoin de clé.
+    if (p && (p.apiKey || isLocalApiType(p.apiType))) {
       steps.push({ type: "byok", providerId: ctx.selectedProviderId, model: ctx.selectedModel ?? undefined });
     }
   }
