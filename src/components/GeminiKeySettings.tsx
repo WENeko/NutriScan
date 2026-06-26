@@ -780,12 +780,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             <Label className="text-[10px] uppercase text-muted-foreground">Type d'API</Label>
             <select
               value={draft.api_type}
-              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai" | "local")}
+              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai" | "local" | "local_intent")}
               className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
             >
               <option value="openai">Compatible OpenAI</option>
               <option value="gemini">Google Gemini</option>
-              <option value="local">Local (sur l'appareil — sans clé)</option>
+              <option value="local">Local HTTP (Ollama, LM Studio… — sans clé)</option>
+              <option value="local_intent">Local natif Android (Intent — sans clé)</option>
 
             </select>
           </div>
