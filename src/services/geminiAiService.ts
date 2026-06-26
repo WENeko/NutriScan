@@ -166,11 +166,23 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   let lastError: Error | null = null;
   let res: Response | null = null;
+  // Réponse texte directe d'une IA locale native (Intent Android), si applicable.
+  let intentContent: string | null = null;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
-      if (apiType === "openai" || apiType === "local") {
-        // ── API compatible OpenAI (inclut les modèles locaux) ──
+      if (apiType === "local_intent") {
+        // ── IA locale NATIVE via Intent Android (ex: Google AI Edge Gallery) ──
+        intentContent = await runLocalIntentChat({
+          system: systemContent,
+          prompt: promptText,
+          image,
+          model: chosenModel,
+        });
+        appLogger.info("IA", `Succès (Intent natif) avec ${chosenModel}`);
+        break;
+      } else if (apiType === "openai" || apiType === "local") {
+        // ── API compatible OpenAI (inclut les modèles locaux HTTP) ──
         const userContent: any[] = [{ type: "text", text: promptText }];
         if (image) userContent.push({ type: "image_url", image_url: { url: image } });
         const headers: Record<string, string> = { "Content-Type": "application/json" };
@@ -228,18 +240,21 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
     }
   }
 
-  if (!res || !res.ok) {
-    throw lastError || new Error("Échec de la requête IA");
-  }
-
-  const data = await res.json();
-
   // Extraction du texte selon le type d'API
-  const content = (
-    apiType === "openai" || apiType === "local"
-      ? data?.choices?.[0]?.message?.content
-      : data?.candidates?.[0]?.content?.parts?.[0]?.text
-  ) || "{}";
+  let content: string;
+  if (intentContent !== null) {
+    content = intentContent || "{}";
+  } else {
+    if (!res || !res.ok) {
+      throw lastError || new Error("Échec de la requête IA");
+    }
+    const data = await res.json();
+    content = (
+      apiType === "openai" || apiType === "local"
+        ? data?.choices?.[0]?.message?.content
+        : data?.candidates?.[0]?.content?.parts?.[0]?.text
+    ) || "{}";
+  }
   const trimmed = String(content).trim();
 
   appLogger.debug("IA", "Réponse reçue", trimmed.substring(0, 200));
