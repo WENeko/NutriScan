@@ -18,7 +18,9 @@ import { toast } from "@/hooks/use-toast";
 import { appLogger } from "@/services/appLogger";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import type { ActiveProviderConfig, ApiType } from "@/lib/aiAccess";
+import { isLocalApiType } from "@/lib/aiAccess";
 import { fallbackModelFor } from "@/lib/providerCatalog";
+import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
@@ -141,8 +143,8 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
   if (ctx.lovableEnabled) steps.push({ type: "edge_function" });
   if (ctx.selectedProviderId) {
     const p = ctx.providers.get(ctx.selectedProviderId);
-    // Un fournisseur local n'a pas besoin de clé.
-    if (p && (p.apiKey || p.apiType === "local")) {
+    // Un fournisseur local (HTTP ou Intent natif) n'a pas besoin de clé.
+    if (p && (p.apiKey || isLocalApiType(p.apiType))) {
       steps.push({ type: "byok", providerId: ctx.selectedProviderId, model: ctx.selectedModel ?? undefined });
     }
   }
@@ -157,7 +159,7 @@ function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
-    return !!p && (!!p.apiKey || p.apiType === "local");
+    return !!p && (!!p.apiKey || isLocalApiType(p.apiType));
   });
 }
 
@@ -172,6 +174,10 @@ function toConfidenceInt(raw: any): number | undefined {
 // ── Appel chat générique (BYOK) pour coach / recettes ────────────────────────
 async function callChatProvider(p: ResolvedProvider, model: string, system: string, userText: string): Promise<string> {
   const baseUrl = p.baseUrl.replace(/\/+$/, "");
+  if (p.apiType === "local_intent") {
+    // IA locale native (Intent Android, ex: Google AI Edge Gallery).
+    return runLocalIntentChat({ system, prompt: userText, model });
+  }
   if (p.apiType === "openai" || p.apiType === "local") {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;

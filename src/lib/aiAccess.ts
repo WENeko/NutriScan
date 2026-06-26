@@ -16,9 +16,17 @@ import { supabase } from "@/integrations/supabase/client";
 const LS_LOVABLE = "lovable_ai_enabled";
 const LS_PROVIDER = "ai_provider_config";
 
-// "local" = endpoint compatible OpenAI hébergé sur l'appareil / le réseau local
-// (ex: Google AI Edge Gallery, Ollama, LM Studio, llama.cpp server) — aucune clé requise.
-export type ApiType = "gemini" | "openai" | "local";
+// Deux modes d'IA locale (sur l'appareil), aucune clé requise :
+//  - "local"        = endpoint HTTP compatible OpenAI (ex: Ollama, LM Studio,
+//                     llama.cpp server, ou serveur local de Google AI Edge Gallery).
+//  - "local_intent" = intégration native Android par Intent (ex: Google AI Edge
+//                     Gallery exposant un Intent), via un plugin Capacitor.
+export type ApiType = "gemini" | "openai" | "local" | "local_intent";
+
+/** true si le type de fournisseur correspond à une IA locale (sur l'appareil, sans clé). */
+export function isLocalApiType(t: ApiType): boolean {
+  return t === "local" || t === "local_intent";
+}
 
 export interface ActiveProviderConfig {
   providerId: string;

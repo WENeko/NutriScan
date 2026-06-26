@@ -29,7 +29,7 @@ import {
   Cpu, CheckCircle2, XCircle, HelpCircle, CircleDashed, Sparkles, Gift, Pencil,
   Plus, X, Server, Workflow, ArrowUp, ArrowDown, Check,
 } from "lucide-react";
-import { isLovableAiEnabled, loadAiAccess } from "@/lib/aiAccess";
+import { isLovableAiEnabled, loadAiAccess, isLocalApiType } from "@/lib/aiAccess";
 import {
   listProviders,
   fetchProviderModels,
@@ -87,7 +87,7 @@ const blankCard = (): CardState => ({
 type AdminDraft = {
   id?: string;
   name: string;
-  api_type: "gemini" | "openai" | "local";
+  api_type: "gemini" | "openai" | "local" | "local_intent";
   base_url: string;
   models_endpoint: string;
   is_active: boolean;
@@ -351,8 +351,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     const out: RoutingStep[] = [];
     if (lovableEnabled) out.push({ type: "edge_function" });
     for (const p of sorted) {
-      // Les fournisseurs locaux n'ont pas besoin de clé enregistrée.
-      if (p.api_type !== "local" && !cards[p.id]?.hasStored) continue;
+      // Les fournisseurs locaux (HTTP ou Intent natif) n'ont pas besoin de clé enregistrée.
+      if (!isLocalApiType(p.api_type as any) && !cards[p.id]?.hasStored) continue;
       for (const m of getModels(p.id)) out.push({ type: "byok", providerId: p.id, model: m });
     }
     return out;
@@ -406,7 +406,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     });
   }
 
-  function onDraftType(t: "gemini" | "openai" | "local") {
+  function onDraftType(t: "gemini" | "openai" | "local" | "local_intent") {
     setDraft((d) =>
       d
         ? {
@@ -418,6 +418,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 ? "https://generativelanguage.googleapis.com"
                 : t === "local"
                 ? "http://localhost:11434/v1"
+                : t === "local_intent"
+                ? "intent://google-ai-edge-gallery"
                 : "https://api.openai.com/v1"),
             models_endpoint: d.models_endpoint || (t === "gemini" ? "/v1beta/models" : "/models"),
           }
@@ -546,7 +548,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 <div className="flex-1 min-w-0">
                   <div className="font-semibold text-sm truncate">{p.name}</div>
                   <div className="text-[10px] text-muted-foreground truncate">
-                    {p.api_type === "gemini" ? "Google Gemini" : "Compatible OpenAI"}
+                    {p.api_type === "gemini"
+                      ? "Google Gemini"
+                      : p.api_type === "local"
+                      ? "Local HTTP (sur l'appareil)"
+                      : p.api_type === "local_intent"
+                      ? "Local natif Android (Intent)"
+                      : "Compatible OpenAI"}
                     {entry && entry.label !== p.name ? ` · ${entry.label}` : ""}
                     {!p.is_active ? " · inactif" : ""}
                   </div>
@@ -778,12 +786,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             <Label className="text-[10px] uppercase text-muted-foreground">Type d'API</Label>
             <select
               value={draft.api_type}
-              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai" | "local")}
+              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai" | "local" | "local_intent")}
               className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
             >
               <option value="openai">Compatible OpenAI</option>
               <option value="gemini">Google Gemini</option>
-              <option value="local">Local (sur l'appareil — sans clé)</option>
+              <option value="local">Local HTTP (Ollama, LM Studio… — sans clé)</option>
+              <option value="local_intent">Local natif Android (Intent — sans clé)</option>
 
             </select>
           </div>
