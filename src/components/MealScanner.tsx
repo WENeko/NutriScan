@@ -50,7 +50,7 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
         reader.readAsDataURL(file);
       });
 
-      const result = await analyzeMealWithGemini({
+      const result = await analyzeMeal({
         image: base64,
       });
 
