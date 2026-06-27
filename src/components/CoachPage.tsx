@@ -212,7 +212,7 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
       // Analyse des photos pour extraire les ingrédients visibles (vision).
       for (const img of recipePhotos) {
         try {
-          const { data } = await supabase.functions.invoke("analyze-meal", { body: { image: img } });
+          const data = await analyzeMeal({ image: img });
           (data?.items ?? []).forEach((it: any) => {
             const n = it?.food_name || it?.name;
             if (n) detected.push(String(n));
