@@ -217,9 +217,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
     if (!addTextInput.trim()) return;
     setAddAnalyzing(true);
     try {
-      const response = await supabase.functions.invoke("analyze-meal", { body: { text: addTextInput } });
-      if (response.error) throw new Error(response.error.message);
-      const item = response.data?.items?.[0];
+      const data = await analyzeMeal({ text: addTextInput });
+      const item = data?.items?.[0];
       if (item) {
         const w = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
         setIngredients((prev) => [...prev, {
