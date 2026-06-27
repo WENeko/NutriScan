@@ -173,8 +173,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         let weight = hasUserWeight ? userWeight : 100;
         if (!hasUserWeight) {
           try {
-            const resp = await supabase.functions.invoke("analyze-meal", { body: { text: addManualName } });
-            const aiItem = resp.data?.items?.[0];
+            const aiData = await analyzeMeal({ text: addManualName });
+            const aiItem = aiData?.items?.[0];
             if (aiItem) weight = parseFloat(aiItem.estimated_weight_g || aiItem.weight_g || "100") || 100;
           } catch {}
         }
