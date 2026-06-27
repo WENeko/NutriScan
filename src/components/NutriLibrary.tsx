@@ -12,6 +12,7 @@ import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { useMicroCategories } from "@/hooks/useMicroCategories";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { stdFromPer100, per100FromStd, PER100_FIELD_TO_STDKEY } from "@/utils/nutrients-helpers";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 
 interface CustomFood {
   id: string;
