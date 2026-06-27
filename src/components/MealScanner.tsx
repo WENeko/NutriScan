@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, Loader2, Check, X, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { analyzeMealWithGemini } from "@/services/geminiAiService";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
 
@@ -50,7 +50,7 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
         reader.readAsDataURL(file);
       });
 
-      const result = await analyzeMealWithGemini({
+      const result = await analyzeMeal({
         image: base64,
       });
 

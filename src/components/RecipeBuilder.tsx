@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { Plus, X, Check, Loader2, Trash2, MessageSquareText, ScanBarcode, BadgeCheck } from "lucide-react";
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 
 interface Per100 {
   proteins: number; carbs: number; fats: number; fiber: number; sugar: number;
@@ -172,8 +173,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         let weight = hasUserWeight ? userWeight : 100;
         if (!hasUserWeight) {
           try {
-            const resp = await supabase.functions.invoke("analyze-meal", { body: { text: addManualName } });
-            const aiItem = resp.data?.items?.[0];
+            const aiData = await analyzeMeal({ text: addManualName });
+            const aiItem = aiData?.items?.[0];
             if (aiItem) weight = parseFloat(aiItem.estimated_weight_g || aiItem.weight_g || "100") || 100;
           } catch {}
         }
@@ -189,9 +190,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         }]);
       } else {
         const textPrompt = hasUserWeight ? `${userWeight}g de ${addManualName}` : addManualName;
-        const response = await supabase.functions.invoke("analyze-meal", { body: { text: textPrompt } });
-        if (response.error) throw new Error(response.error.message);
-        const item = response.data?.items?.[0];
+        const data = await analyzeMeal({ text: textPrompt });
+        const item = data?.items?.[0];
         if (item) {
           const w = hasUserWeight ? userWeight : (parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100);
           setIngredients((prev) => [...prev, {
@@ -217,9 +217,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
     if (!addTextInput.trim()) return;
     setAddAnalyzing(true);
     try {
-      const response = await supabase.functions.invoke("analyze-meal", { body: { text: addTextInput } });
-      if (response.error) throw new Error(response.error.message);
-      const item = response.data?.items?.[0];
+      const data = await analyzeMeal({ text: addTextInput });
+      const item = data?.items?.[0];
       if (item) {
         const w = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
         setIngredients((prev) => [...prev, {

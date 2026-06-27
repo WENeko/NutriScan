@@ -12,6 +12,7 @@ import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { useMicroCategories } from "@/hooks/useMicroCategories";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { stdFromPer100, per100FromStd, PER100_FIELD_TO_STDKEY } from "@/utils/nutrients-helpers";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 
 interface CustomFood {
   id: string;
@@ -299,9 +300,7 @@ const NutriLibrary: React.FC<NutriLibraryProps> = ({ userId }) => {
   const analyzeForLibrary = async (payload: { image?: string; text?: string }) => {
     setAnalyzing(true);
     try {
-      const response = await supabase.functions.invoke("analyze-meal", { body: payload });
-      if (response.error) throw new Error(response.error.message);
-      const data = response.data;
+      const data = await analyzeMeal(payload);
       const item = data.items?.[0];
       if (item) {
         const weight = parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100;
