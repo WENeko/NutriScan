@@ -190,9 +190,8 @@ const RecipeBuilder: React.FC<RecipeBuilderProps> = ({ userId, onDone, editFoodI
         }]);
       } else {
         const textPrompt = hasUserWeight ? `${userWeight}g de ${addManualName}` : addManualName;
-        const response = await supabase.functions.invoke("analyze-meal", { body: { text: textPrompt } });
-        if (response.error) throw new Error(response.error.message);
-        const item = response.data?.items?.[0];
+        const data = await analyzeMeal({ text: textPrompt });
+        const item = data?.items?.[0];
         if (item) {
           const w = hasUserWeight ? userWeight : (parseFloat(item.estimated_weight_g || item.weight_g || "100") || 100);
           setIngredients((prev) => [...prev, {
