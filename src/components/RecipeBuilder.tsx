@@ -7,6 +7,7 @@ import { toast } from "@/hooks/use-toast";
 import { Plus, X, Check, Loader2, Trash2, MessageSquareText, ScanBarcode, BadgeCheck } from "lucide-react";
 import NumericInput from "./NumericInput";
 import BarcodeScanner from "./BarcodeScanner";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 
 interface Per100 {
   proteins: number; carbs: number; fats: number; fiber: number; sugar: number;
