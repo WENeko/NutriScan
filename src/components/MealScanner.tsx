@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Camera, Loader2, Check, X, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
-import { analyzeMealWithGemini } from "@/services/geminiAiService";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
 
