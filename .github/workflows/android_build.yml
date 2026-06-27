@@ -66,9 +66,7 @@ jobs:
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
-      - name: Generate Gradle Wrapper
-        run: gradle wrapper --gradle-version 8.13
-        working-directory: android
+
 
         
       - name: Build Debug APK
