@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Leaf, Send, ChefHat, BarChart3, Loader2, Trash2, Camera, X, Cpu, FileEdit } from "lucide-react";
 import { executeAIFeatureWithFallback, type FeatureKey } from "@/lib/aiRouting";
+import { analyzeMeal } from "@/services/mealAnalysisService";
 import type { UserProfile } from "@/lib/micro-goals";
 
 interface Macro {
