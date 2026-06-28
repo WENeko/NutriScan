@@ -532,6 +532,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
           const formatOk = keyTrimmed.length > 0 && isKeyFormatValid(p.base_url, keyTrimmed);
           const models = getModels(p.id);
           const addOptions = st.available.filter((m) => !models.includes(m));
+          const isLocal = isLocalApiType(p.api_type as any);
 
           return (
             <Card
