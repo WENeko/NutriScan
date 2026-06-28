@@ -769,19 +769,27 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                       value={st.newModel}
                       onChange={(e) => patch(p.id, { newModel: e.target.value })}
                       onKeyDown={(e) => e.key === "Enter" && addModel(p)}
-                      placeholder={entry?.modelPlaceholder ?? (p.api_type === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini")}
+                      placeholder={
+                        isLocal
+                          ? "nom du modèle local (ex: gemma-3n)"
+                          : entry?.modelPlaceholder ?? (p.api_type === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini")
+                      }
                       className="h-9 flex-1 font-mono text-xs"
                     />
                   )}
                   <Button onClick={() => addModel(p)} disabled={!st.newModel.trim()} className="h-9 px-3" aria-label="Ajouter le modèle">
                     <Plus className="w-4 h-4" />
                   </Button>
+                  {p.api_type !== "local_intent" && (
                   <Button onClick={() => loadAvailable(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rafraîchir la liste">
                     {st.loadingModels ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   </Button>
+                  )}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu.
+                  {p.api_type === "local_intent"
+                    ? "Saisissez le nom exact du modèle installé dans Google AI Edge Gallery, puis ajoutez-le."
+                    : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
             </Card>
