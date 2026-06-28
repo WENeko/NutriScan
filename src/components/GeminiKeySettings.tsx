@@ -592,7 +592,14 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
               )}
 
-              {/* Clé + guide d'obtention */}
+              {/* Clé + guide d'obtention (masqué pour les IA locales sans clé) */}
+              {isLocal ? (
+                <div className="rounded-xl bg-accent/60 px-3 py-2 text-[11px] text-muted-foreground">
+                  {p.api_type === "local_intent"
+                    ? "IA locale native Android (Google AI Edge Gallery) — aucune clé requise. Ajoutez simplement le nom du modèle installé sur l'appareil ci-dessous."
+                    : "IA locale HTTP (Ollama, LM Studio…) — aucune clé requise. Vérifiez l'URL de base puis ajoutez vos modèles ci-dessous."}
+                </div>
+              ) : (
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-[10px] uppercase text-muted-foreground">Votre clé</Label>
