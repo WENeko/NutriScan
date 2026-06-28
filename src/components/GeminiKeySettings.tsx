@@ -532,6 +532,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
           const formatOk = keyTrimmed.length > 0 && isKeyFormatValid(p.base_url, keyTrimmed);
           const models = getModels(p.id);
           const addOptions = st.available.filter((m) => !models.includes(m));
+          const isLocal = isLocalApiType(p.api_type as any);
 
           return (
             <Card
@@ -559,7 +560,11 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     {!p.is_active ? " · inactif" : ""}
                   </div>
                 </div>
-                {st.hasStored ? (
+                {isLocal ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
+                    <CheckCircle2 className="w-3 h-3" /> Sans clé
+                  </span>
+                ) : st.hasStored ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
                     <CheckCircle2 className="w-3 h-3" /> Connecté
                   </span>
@@ -587,7 +592,14 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
               )}
 
-              {/* Clé + guide d'obtention */}
+              {/* Clé + guide d'obtention (masqué pour les IA locales sans clé) */}
+              {isLocal ? (
+                <div className="rounded-xl bg-accent/60 px-3 py-2 text-[11px] text-muted-foreground">
+                  {p.api_type === "local_intent"
+                    ? "IA locale native Android (Google AI Edge Gallery) — aucune clé requise. Ajoutez simplement le nom du modèle installé sur l'appareil ci-dessous."
+                    : "IA locale HTTP (Ollama, LM Studio…) — aucune clé requise. Vérifiez l'URL de base puis ajoutez vos modèles ci-dessous."}
+                </div>
+              ) : (
               <div>
                 <div className="flex items-center justify-between">
                   <Label className="text-[10px] uppercase text-muted-foreground">Votre clé</Label>
@@ -663,6 +675,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Modèles : gestion complète (ajout / édition / suppression / vérification) */}
               <div className={`mt-4 border-t border-border pt-3 ${disabledCls}`}>
@@ -670,6 +683,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   <Label className="text-[10px] uppercase text-muted-foreground flex items-center gap-1">
                     <Cpu className="w-3 h-3" /> Modèles
                   </Label>
+                  {!isLocal && (
                   <Button
                     onClick={() => verifyModels(p)}
                     disabled={st.verifying || models.length === 0}
@@ -679,6 +693,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     {st.verifying ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1" />}
                     Vérifier l'état
                   </Button>
+                  )}
                 </div>
 
                 {/* Liste des modèles ajoutés */}
@@ -754,19 +769,27 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                       value={st.newModel}
                       onChange={(e) => patch(p.id, { newModel: e.target.value })}
                       onKeyDown={(e) => e.key === "Enter" && addModel(p)}
-                      placeholder={entry?.modelPlaceholder ?? (p.api_type === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini")}
+                      placeholder={
+                        isLocal
+                          ? "nom du modèle local (ex: gemma-3n)"
+                          : entry?.modelPlaceholder ?? (p.api_type === "gemini" ? "gemini-flash-latest" : "gpt-4o-mini")
+                      }
                       className="h-9 flex-1 font-mono text-xs"
                     />
                   )}
                   <Button onClick={() => addModel(p)} disabled={!st.newModel.trim()} className="h-9 px-3" aria-label="Ajouter le modèle">
                     <Plus className="w-4 h-4" />
                   </Button>
+                  {p.api_type !== "local_intent" && (
                   <Button onClick={() => loadAvailable(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rafraîchir la liste">
                     {st.loadingModels ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
                   </Button>
+                  )}
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
-                  Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu.
+                  {p.api_type === "local_intent"
+                    ? "Saisissez le nom exact du modèle installé dans Google AI Edge Gallery, puis ajoutez-le."
+                    : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
             </Card>
