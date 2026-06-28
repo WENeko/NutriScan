@@ -683,6 +683,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   <Label className="text-[10px] uppercase text-muted-foreground flex items-center gap-1">
                     <Cpu className="w-3 h-3" /> Modèles
                   </Label>
+                  {!isLocal && (
                   <Button
                     onClick={() => verifyModels(p)}
                     disabled={st.verifying || models.length === 0}
@@ -692,6 +693,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     {st.verifying ? <Loader2 className="w-3.5 h-3.5 mr-1 animate-spin" /> : <ShieldCheck className="w-3.5 h-3.5 mr-1" />}
                     Vérifier l'état
                   </Button>
+                  )}
                 </div>
 
                 {/* Liste des modèles ajoutés */}
