@@ -675,6 +675,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   )}
                 </div>
               </div>
+              )}
 
               {/* Modèles : gestion complète (ajout / édition / suppression / vérification) */}
               <div className={`mt-4 border-t border-border pt-3 ${disabledCls}`}>
