@@ -560,7 +560,11 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     {!p.is_active ? " · inactif" : ""}
                   </div>
                 </div>
-                {st.hasStored ? (
+                {isLocal ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
+                    <CheckCircle2 className="w-3 h-3" /> Sans clé
+                  </span>
+                ) : st.hasStored ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
                     <CheckCircle2 className="w-3 h-3" /> Connecté
                   </span>
