@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(HealthPlugin.class);
     registerPlugin(BoneMassPlugin.class);
     registerPlugin(SportSamplesPlugin.class);
+    registerPlugin(LocalAiGalleryPlugin.class);
     super.onCreate(savedInstanceState);
   }
 }
