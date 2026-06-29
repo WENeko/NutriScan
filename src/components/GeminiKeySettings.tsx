@@ -554,7 +554,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                       : p.api_type === "local"
                       ? "Local HTTP (sur l'appareil)"
                       : p.api_type === "local_intent"
-                      ? "Local natif Android (Intent)"
+                      ? "Local natif (on-device)"
                       : "Compatible OpenAI"}
                     {entry && entry.label !== p.name ? ` · ${entry.label}` : ""}
                     {!p.is_active ? " · inactif" : ""}
@@ -815,7 +815,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
               <option value="openai">Compatible OpenAI</option>
               <option value="gemini">Google Gemini</option>
               <option value="local">Local HTTP (Ollama, LM Studio… — sans clé)</option>
-              <option value="local_intent">Local natif Android (Intent — sans clé)</option>
+              <option value="local_intent">Local natif (on-device — sans clé)</option>
 
             </select>
           </div>
