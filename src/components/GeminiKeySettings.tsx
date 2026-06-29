@@ -594,10 +594,36 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
               {/* Clé + guide d'obtention (masqué pour les IA locales sans clé) */}
               {isLocal ? (
-                <div className="rounded-xl bg-accent/60 px-3 py-2 text-[11px] text-muted-foreground">
-                  {p.api_type === "local_intent"
-                    ? "IA locale native (moteur on-device, comme Google AI Edge Gallery) — aucune clé ni URL requise. Placez un fichier modèle .task sur l'appareil (dossier de l'app ou Téléchargements), puis indiquez son nom ci-dessous."
-                    : "IA locale HTTP (Ollama, LM Studio…) — aucune clé requise. Vérifiez l'URL de base puis ajoutez vos modèles ci-dessous."}
+                <div className="rounded-xl bg-accent/60 px-3 py-2 text-[11px] text-muted-foreground space-y-1.5">
+                  {p.api_type === "local_intent" ? (
+                    <>
+                      <p>
+                        IA locale native (moteur on-device MediaPipe) — aucune clé ni URL requise.
+                        Téléchargez un modèle <span className="font-mono">.task</span> compatible LiteRT et
+                        placez-le sur l'appareil, puis indiquez le nom du fichier (sans <span className="font-mono">.task</span>) ci-dessous.
+                      </p>
+                      <p className="font-semibold text-foreground">Où placer le fichier (cherché dans cet ordre) :</p>
+                      <ul className="list-disc pl-4 space-y-0.5">
+                        <li><span className="font-mono">Download/</span> (dossier Téléchargements — le plus simple)</li>
+                        <li><span className="font-mono">Android/data/{`{app}`}/files/llm/</span></li>
+                        <li>dossier privé de l'app (<span className="font-mono">filesDir/llm</span>)</li>
+                      </ul>
+                      <p>
+                        Modèles compatibles :{" "}
+                        <a
+                          href="https://huggingface.co/litert-community"
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="font-semibold text-primary underline"
+                        >
+                          LiteRT Community (Hugging Face)
+                        </a>{" "}
+                        — ex. <span className="font-mono">gemma-3n</span>, <span className="font-mono">gemma-3-1b-it</span> (int4).
+                      </p>
+                    </>
+                  ) : (
+                    "IA locale HTTP (Ollama, LM Studio…) — aucune clé requise. Vérifiez l'URL de base puis ajoutez vos modèles ci-dessous."
+                  )}
                 </div>
               ) : (
               <div>
