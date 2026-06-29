@@ -596,7 +596,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
               {isLocal ? (
                 <div className="rounded-xl bg-accent/60 px-3 py-2 text-[11px] text-muted-foreground">
                   {p.api_type === "local_intent"
-                    ? "IA locale native Android (Google AI Edge Gallery) — aucune clé requise. Ajoutez simplement le nom du modèle installé sur l'appareil ci-dessous."
+                    ? "IA locale native (moteur on-device, comme Google AI Edge Gallery) — aucune clé ni URL requise. Placez un fichier modèle .task sur l'appareil (dossier de l'app ou Téléchargements), puis indiquez son nom ci-dessous."
                     : "IA locale HTTP (Ollama, LM Studio…) — aucune clé requise. Vérifiez l'URL de base puis ajoutez vos modèles ci-dessous."}
                 </div>
               ) : (
@@ -788,7 +788,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
-                    ? "Saisissez le nom exact du modèle installé dans Google AI Edge Gallery, puis ajoutez-le."
+                    ? "Saisissez le nom du fichier modèle .task présent sur l'appareil (sans le suffixe .task), puis ajoutez-le."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>

@@ -1,11 +1,12 @@
 /**
- * Pont vers une IA locale native Android (Intent).
+ * Pont vers l'IA locale native Android (inférence on-device).
  *
- * Contrairement au mode "local" (HTTP compatible OpenAI), ce pont communique avec
- * une application d'IA installée sur l'appareil (ex: Google AI Edge Gallery) via un
- * plugin Capacitor exposant un Intent Android.
+ * Contrairement au mode "local" (HTTP compatible OpenAI), ce pont exécute le
+ * modèle DIRECTEMENT sur l'appareil via le plugin Capacitor natif `LocalAiGallery`
+ * (moteur MediaPipe LLM Inference / LiteRT — le même que Google AI Edge Gallery).
+ * Aucune clé, aucun réseau : le modèle (.task) est chargé localement.
  *
- * Le plugin natif attendu s'appelle `LocalAiGallery` et doit exposer :
+ * Le plugin natif `LocalAiGallery` expose :
  *   isAvailable(): Promise<{ available: boolean }>
  *   generate({ system, prompt, image?, model? }): Promise<{ text: string }>
  *
