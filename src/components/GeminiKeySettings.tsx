@@ -788,7 +788,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
-                    ? "Saisissez le nom exact du modèle installé dans Google AI Edge Gallery, puis ajoutez-le."
+                    ? "Saisissez le nom du fichier modèle .task présent sur l'appareil (sans le suffixe .task), puis ajoutez-le."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
