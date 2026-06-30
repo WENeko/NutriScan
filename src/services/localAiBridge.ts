@@ -14,11 +14,22 @@
  * une erreur explicite — le moteur de cascade bascule alors sur la priorité suivante.
  */
 import { appLogger } from "@/services/appLogger";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 
-function getPlugin(): any | null {
-  const { Capacitor } = (typeof window !== "undefined" ? window : {}) as any;
-  if (!Capacitor) return null;
-  return Capacitor.Plugins?.LocalAiGallery ?? null;
+interface LocalAiGalleryPlugin {
+  isAvailable(): Promise<{ available: boolean }>;
+  generate(opts: { system?: string; prompt?: string; image?: string; model?: string }): Promise<{ text: string }>;
+}
+
+// En Capacitor 8, les plugins natifs custom doivent être déclarés côté JS via
+// registerPlugin — ils ne sont PAS exposés automatiquement sur Capacitor.Plugins.
+// registerPlugin renvoie un proxy ; le pont natif n'est réellement présent que
+// sur plateforme native (Android), d'où la garde isNativePlatform ci-dessous.
+const LocalAiGallery = registerPlugin<LocalAiGalleryPlugin>("LocalAiGallery");
+
+function getPlugin(): LocalAiGalleryPlugin | null {
+  if (!Capacitor.isNativePlatform()) return null;
+  return LocalAiGallery;
 }
 
 /** true si l'IA locale native (Intent Android) est disponible sur cet appareil. */
