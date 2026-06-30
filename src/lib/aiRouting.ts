@@ -322,8 +322,8 @@ export async function executeAIFeatureWithFallback(
       const hasNext = i < steps.length - 1;
       if (hasNext) {
         toast({
-          title: "Modèle principal indisponible",
-          description: "Basculement automatique sur la priorité suivante…",
+          title: `Priorité ${i + 1} indisponible (${label})`,
+          description: `${msg} — basculement sur la priorité suivante…`,
         });
       }
     }
