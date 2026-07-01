@@ -49,6 +49,7 @@ import {
   normalizeRoutingConfig,
 } from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
+import { importLocalIntentModel } from "@/services/localAiBridge";
 
 interface Props {
   userId: string;
@@ -299,6 +300,35 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     }
     setModels(p.id, next);
     toast({ title: "Modèle ajouté", description: `${p.name} · ${m}` });
+  }
+
+  async function importNativeLocalModel(p: AiProvider) {
+    patch(p.id, { loadingModels: true });
+    try {
+      const imported = await importLocalIntentModel();
+      const m = imported.model?.trim();
+      if (!m) throw new Error("Le fichier a été importé mais son nom de modèle est vide.");
+
+      const list = getModels(p.id);
+      const next = list.includes(m) ? list : [...list, m];
+      if (!selectedProviderId || !selectedModel) {
+        void saveUserSelection(userId, p.id, m).then(() => {
+          setSelectedProviderId(p.id);
+          setSelectedModel(m);
+          loadAiAccess(userId);
+        });
+      }
+      setModels(p.id, next);
+      patch(p.id, { status: { ...cards[p.id]?.status, [m]: "ok" }, newModel: "" });
+      toast({
+        title: list.includes(m) ? "Modèle déjà importé" : "Modèle local importé",
+        description: `${p.name} · ${m}`,
+      });
+    } catch (e: any) {
+      toast({ title: "Import du modèle KO", description: e.message, variant: "destructive" });
+    } finally {
+      patch(p.id, { loadingModels: false });
+    }
   }
 
   function deleteModel(p: AiProvider, model: string) {
@@ -599,12 +629,12 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <>
                       <p>
                         IA locale native (moteur on-device MediaPipe) — aucune clé ni URL requise.
-                        Téléchargez un modèle <span className="font-mono">.task</span> compatible LiteRT et
-                        placez-le sur l'appareil, puis indiquez le nom du fichier (sans <span className="font-mono">.task</span>) ci-dessous.
+                        Téléchargez un modèle <span className="font-mono">.task</span> compatible LiteRT, puis utilisez
+                        le bouton d'import ci-dessous. L'app le copiera dans son stockage privé pour éviter les erreurs Android <span className="font-mono">open() failed</span>.
                       </p>
                       <p className="font-semibold text-foreground">Où placer le fichier (cherché dans cet ordre) :</p>
                       <ul className="list-disc pl-4 space-y-0.5">
-                        <li><span className="font-mono">Download/</span> (dossier Téléchargements — le plus simple)</li>
+                        <li>Import via le bouton <span className="font-semibold">Importer .task</span> (recommandé)</li>
                         <li><span className="font-mono">Android/data/{`{app}`}/files/llm/</span></li>
                         <li>dossier privé de l'app (<span className="font-mono">filesDir/llm</span>)</li>
                       </ul>
@@ -806,6 +836,12 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   <Button onClick={() => addModel(p)} disabled={!st.newModel.trim()} className="h-9 px-3" aria-label="Ajouter le modèle">
                     <Plus className="w-4 h-4" />
                   </Button>
+                  {p.api_type === "local_intent" && (
+                    <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs">
+                      {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
+                      Importer .task
+                    </Button>
+                  )}
                   {p.api_type !== "local_intent" && (
                   <Button onClick={() => loadAvailable(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rafraîchir la liste">
                     {st.loadingModels ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
@@ -814,7 +850,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
-                    ? "Saisissez le nom du fichier modèle .task présent sur l'appareil (sans le suffixe .task), puis ajoutez-le."
+                    ? "Recommandé : importez le fichier .task avec le bouton. Sinon, saisissez le nom exact d'un modèle déjà présent dans le dossier privé de l'app."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
