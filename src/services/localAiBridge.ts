@@ -8,6 +8,7 @@
  *
  * Le plugin natif `LocalAiGallery` expose :
  *   isAvailable(): Promise<{ available: boolean }>
+ *   importModel(): Promise<{ model: string; path: string; size: number }>
  *   generate({ system, prompt, image?, model? }): Promise<{ text: string }>
  *
  * Sur le web (ou si le plugin n'est pas installé), le pont est indisponible et lève
@@ -18,6 +19,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 
 interface LocalAiGalleryPlugin {
   isAvailable(): Promise<{ available: boolean }>;
+  importModel(): Promise<{ model: string; path?: string; size?: number }>;
   generate(opts: { system?: string; prompt?: string; image?: string; model?: string }): Promise<{ text: string }>;
 }
 
@@ -32,7 +34,7 @@ function getPlugin(): LocalAiGalleryPlugin | null {
   return LocalAiGallery;
 }
 
-/** true si l'IA locale native (Intent Android) est disponible sur cet appareil. */
+/** true si l'IA locale native est disponible sur cet appareil. */
 export async function isLocalIntentAvailable(): Promise<boolean> {
   const plugin = getPlugin();
   if (!plugin) return false;
@@ -45,6 +47,15 @@ export async function isLocalIntentAvailable(): Promise<boolean> {
   }
 }
 
+/** Importe un fichier `.task` via le sélecteur Android vers le stockage privé de l'app. */
+export async function importLocalIntentModel(): Promise<{ model: string; path?: string; size?: number }> {
+  const plugin = getPlugin();
+  if (!plugin) {
+    throw new Error("Import disponible uniquement dans l'app Android native.");
+  }
+  return plugin.importModel();
+}
+
 export interface LocalIntentRequest {
   system: string;
   prompt: string;
@@ -55,7 +66,7 @@ export interface LocalIntentRequest {
 }
 
 /**
- * Lance une inférence sur l'IA locale native via Intent Android.
+ * Lance une inférence sur l'IA locale native Android.
  * Retourne le texte brut renvoyé par le modèle (à parser par l'appelant).
  */
 export async function runLocalIntentChat(req: LocalIntentRequest): Promise<string> {
@@ -65,7 +76,7 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
       "IA locale native indisponible : le plugin Android (Google AI Edge Gallery) n'est pas installé. Utilisez l'app native ou le mode local HTTP.",
     );
   }
-  appLogger.info("LocalAiBridge", "Inférence via Intent natif", { model: req.model });
+  appLogger.info("LocalAiBridge", "Inférence locale native", { model: req.model });
   const res = await plugin.generate({
     system: req.system,
     prompt: req.prompt,

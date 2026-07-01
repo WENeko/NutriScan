@@ -19,8 +19,8 @@ const LS_PROVIDER = "ai_provider_config";
 // Deux modes d'IA locale (sur l'appareil), aucune clé requise :
 //  - "local"        = endpoint HTTP compatible OpenAI (ex: Ollama, LM Studio,
 //                     llama.cpp server, ou serveur local de Google AI Edge Gallery).
-//  - "local_intent" = intégration native Android par Intent (ex: Google AI Edge
-//                     Gallery exposant un Intent), via un plugin Capacitor.
+//  - "local_intent" = intégration native Android on-device via plugin Capacitor
+//                     (MediaPipe/LiteRT), sans Google AI Edge Gallery externe.
 export type ApiType = "gemini" | "openai" | "local" | "local_intent";
 
 /** true si le type de fournisseur correspond à une IA locale (sur l'appareil, sans clé). */
@@ -117,6 +117,6 @@ export function clearAiAccessCache(): void {
 export function isAiConfigured(): boolean {
   if (isLovableAiEnabled()) return true;
   const cfg = getActiveProviderConfig();
-  return !!(cfg && cfg.apiKey);
+  return !!(cfg && (cfg.apiKey || isLocalApiType(cfg.apiType)));
 }
 
