@@ -808,7 +808,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 )}
 
                 {/* Ajout d'un modèle */}
-                <div className="flex gap-2">
+                <div className="flex flex-wrap gap-2">
                   {addOptions.length > 0 ? (
                     <select
                       value={st.newModel}
@@ -837,7 +837,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <Plus className="w-4 h-4" />
                   </Button>
                   {p.api_type === "local_intent" && (
-                    <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs">
+                    <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs flex-1 min-w-[8.5rem]">
                       {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
                       Importer .task
                     </Button>
