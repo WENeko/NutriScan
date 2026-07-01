@@ -1,13 +1,22 @@
 package com.nutriscan.app
 
+import android.app.Activity
+import android.content.Intent
+import android.net.Uri
 import android.os.Environment
+import android.provider.OpenableColumns
+import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
+import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
 
@@ -70,6 +79,30 @@ class LocalAiGalleryPlugin : Plugin() {
     private fun sanitizeTaskFileName(name: String): String {
         val clean = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
         return if (clean.endsWith(".task", ignoreCase = true)) clean else "$clean.task"
+    }
+
+    private fun modelNameFromFile(file: File): String = file.name.removeSuffix(".task")
+
+    private fun displayName(uri: Uri): String? {
+        return runCatching {
+            context.contentResolver.query(uri, arrayOf(OpenableColumns.DISPLAY_NAME), null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) cursor.getString(0) else null
+            }
+        }.getOrNull()
+    }
+
+    private fun copyUriToPrivateModel(uri: Uri, preferredName: String?): File {
+        val safeName = sanitizeTaskFileName(preferredName ?: "model-${System.currentTimeMillis()}.task")
+        val dest = File(privateModelDir(), safeName)
+        context.contentResolver.openInputStream(uri).use { input ->
+            if (input == null) throw IOException("Impossible d'ouvrir le fichier sélectionné")
+            dest.outputStream().use { output -> input.copyTo(output) }
+        }
+        if (!dest.isFile || dest.length() == 0L) {
+            dest.delete()
+            throw IOException("Import du modèle vide")
+        }
+        return dest
     }
 
     /**
@@ -161,6 +194,55 @@ class LocalAiGalleryPlugin : Plugin() {
         val ret = JSObject()
         ret.put("available", resolveModelPath(null) != null)
         call.resolve(ret)
+    }
+
+    /**
+     * Ouvre le sélecteur de fichiers Android et importe un `.task` dans
+     * filesDir/llm. C'est le chemin recommandé pour éviter les erreurs
+     * MediaPipe `open() failed` depuis Download/ sous Android scoped storage.
+     */
+    @PluginMethod
+    fun importModel(call: PluginCall) {
+        try {
+            val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+                addCategory(Intent.CATEGORY_OPENABLE)
+                type = "*/*"
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                addFlags(Intent.FLAG_GRANT_PERSISTABLE_URI_PERMISSION)
+            }
+            startActivityForResult(call, intent, "importModelResult")
+        } catch (e: Exception) {
+            call.reject("Impossible d'ouvrir le sélecteur de modèle : ${e.message}", e)
+        }
+    }
+
+    @ActivityCallback
+    private fun importModelResult(call: PluginCall?, result: ActivityResult) {
+        if (call == null) return
+        if (result.resultCode != Activity.RESULT_OK) {
+            call.reject("Import du modèle annulé")
+            return
+        }
+        val uri = result.data?.data
+        if (uri == null) {
+            call.reject("Aucun fichier sélectionné")
+            return
+        }
+        runCatching {
+            context.contentResolver.takePersistableUriPermission(uri, Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        }
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val imported = copyUriToPrivateModel(uri, displayName(uri))
+                val ret = JSObject()
+                ret.put("model", modelNameFromFile(imported))
+                ret.put("path", imported.absolutePath)
+                ret.put("size", imported.length())
+                call.resolve(ret)
+            } catch (e: Exception) {
+                call.reject("Import du modèle impossible : ${e.message}", e)
+            }
+        }
     }
 
     @PluginMethod
