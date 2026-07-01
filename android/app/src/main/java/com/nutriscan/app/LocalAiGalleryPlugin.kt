@@ -30,6 +30,7 @@ import java.io.IOException
  *
  * Côté JS (voir src/services/localAiBridge.ts), le plugin expose :
  *   isAvailable(): Promise<{ available: boolean }>
+ *   importModel(): Promise<{ model: string; path: string; size: number }>
  *   generate({ system, prompt, image?, model? }): Promise<{ text: string }>
  *
  * Résolution du modèle (`model`) :
@@ -81,7 +82,7 @@ class LocalAiGalleryPlugin : Plugin() {
         return if (clean.endsWith(".task", ignoreCase = true)) clean else "$clean.task"
     }
 
-    private fun modelNameFromFile(file: File): String = file.name.removeSuffix(".task")
+    private fun modelNameFromFile(file: File): String = file.name.replace(Regex("\\.task$", RegexOption.IGNORE_CASE), "")
 
     private fun displayName(uri: Uri): String? {
         return runCatching {
