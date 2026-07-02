@@ -20,6 +20,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 interface LocalAiGalleryPlugin {
   isAvailable(): Promise<{ available: boolean }>;
   importModel(): Promise<{ model: string; path?: string; size?: number }>;
+  listModels(): Promise<{ models: string[] }>;
   generate(opts: { system?: string; prompt?: string; image?: string; model?: string }): Promise<{ text: string }>;
 }
 
