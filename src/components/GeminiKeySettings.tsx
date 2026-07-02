@@ -49,7 +49,7 @@ import {
   normalizeRoutingConfig,
 } from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { importLocalIntentModel } from "@/services/localAiBridge";
+import { importLocalIntentModel, listLocalIntentModels } from "@/services/localAiBridge";
 
 interface Props {
   userId: string;
