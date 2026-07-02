@@ -331,6 +331,27 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     }
   }
 
+  /** Recherche auto des .task compatibles dans les emplacements connus (local natif). */
+  async function scanNativeLocalModels(p: AiProvider) {
+    patch(p.id, { loadingModels: true });
+    try {
+      const found = await listLocalIntentModels();
+      patch(p.id, { available: found });
+      if (found.length === 0) {
+        toast({
+          title: "Aucun modèle trouvé",
+          description: "Placez un fichier .task compatible dans les dossiers recherchés, ou utilisez « Importer .task ».",
+        });
+      } else {
+        toast({ title: `${found.length} modèle(s) trouvé(s)`, description: p.name });
+      }
+    } catch (e: any) {
+      toast({ title: "Recherche KO", description: e.message, variant: "destructive" });
+    } finally {
+      patch(p.id, { loadingModels: false });
+    }
+  }
+
   function deleteModel(p: AiProvider, model: string) {
     const next = getModels(p.id).filter((m) => m !== model);
     // Retire aussi ce modèle de la cascade.
