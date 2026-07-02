@@ -480,6 +480,11 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
   async function submitDraft() {
     if (!draft) return;
+    // L'IA locale native n'a besoin ni d'URL ni d'endpoint : on les renseigne par défaut.
+    if (draft.api_type === "local_intent") {
+      draft.base_url = draft.base_url.trim() || "intent://google-ai-edge-gallery";
+      draft.models_endpoint = draft.models_endpoint.trim() || "/models";
+    }
     if (!draft.name.trim() || !draft.base_url.trim() || !draft.models_endpoint.trim()) {
       toast({ title: "Champs requis", description: "Nom, URL de base et endpoint sont obligatoires.", variant: "destructive" });
       return;
