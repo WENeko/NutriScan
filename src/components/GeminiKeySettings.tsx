@@ -907,14 +907,34 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
             </select>
           </div>
-          <div>
-            <Label className="text-[10px] uppercase text-muted-foreground">URL de base</Label>
-            <Input value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} placeholder="https://api.openai.com/v1" className="h-9 font-mono text-xs" />
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase text-muted-foreground">Endpoint liste des modèles</Label>
-            <Input value={draft.models_endpoint} onChange={(e) => setDraft({ ...draft, models_endpoint: e.target.value })} placeholder="/models" className="h-9 font-mono text-xs" />
-          </div>
+          {draft.api_type === "local_intent" ? (
+            <div className="rounded-xl bg-card px-3 py-2 text-[11px] text-muted-foreground space-y-1.5">
+              <p className="font-semibold text-foreground flex items-center gap-1">
+                <Cpu className="w-3.5 h-3.5" /> IA locale native (on-device)
+              </p>
+              <p>
+                Aucune clé, aucune URL ni endpoint : le moteur MediaPipe/LiteRT tourne 100% hors-ligne.
+                Après création, ouvrez la carte du fournisseur puis utilisez <span className="font-semibold">🔄 Rechercher</span> pour
+                détecter automatiquement les modèles <span className="font-mono">.task</span> présents, ou <span className="font-semibold">Importer .task</span>.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">URL de base</Label>
+                <Input value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} placeholder={draft.api_type === "local" ? "http://localhost:11434/v1" : "https://api.openai.com/v1"} className="h-9 font-mono text-xs" />
+                {draft.api_type === "local" && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Serveur local compatible OpenAI (Ollama, LM Studio…) — aucune clé requise.
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Endpoint liste des modèles</Label>
+                <Input value={draft.models_endpoint} onChange={(e) => setDraft({ ...draft, models_endpoint: e.target.value })} placeholder="/models" className="h-9 font-mono text-xs" />
+              </div>
+            </>
+          )}
           <div className="flex items-center justify-between bg-card rounded-lg p-2">
             <div className="text-xs font-semibold">Actif</div>
             <Switch checked={draft.is_active} onCheckedChange={(v) => setDraft({ ...draft, is_active: v })} />
