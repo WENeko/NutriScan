@@ -858,10 +858,15 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <Plus className="w-4 h-4" />
                   </Button>
                   {p.api_type === "local_intent" && (
-                    <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs flex-1 min-w-[8.5rem]">
-                      {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
-                      Importer .task
-                    </Button>
+                    <>
+                      <Button onClick={() => scanNativeLocalModels(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rechercher les modèles locaux">
+                        {st.loadingModels ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      </Button>
+                      <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs flex-1 min-w-[8.5rem]">
+                        {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
+                        Importer .task
+                      </Button>
+                    </>
                   )}
                   {p.api_type !== "local_intent" && (
                   <Button onClick={() => loadAvailable(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rafraîchir la liste">
@@ -871,7 +876,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
-                    ? "Recommandé : importez le fichier .task avec le bouton. Sinon, saisissez le nom exact d'un modèle déjà présent dans le dossier privé de l'app."
+                    ? "Utilisez 🔄 pour rechercher automatiquement les modèles .task présents sur l'appareil, ou « Importer .task » pour en ajouter un depuis vos fichiers."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
