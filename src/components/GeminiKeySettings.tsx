@@ -49,7 +49,7 @@ import {
   normalizeRoutingConfig,
 } from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { importLocalIntentModel } from "@/services/localAiBridge";
+import { importLocalIntentModel, listLocalIntentModels } from "@/services/localAiBridge";
 
 interface Props {
   userId: string;
@@ -331,6 +331,27 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     }
   }
 
+  /** Recherche auto des .task compatibles dans les emplacements connus (local natif). */
+  async function scanNativeLocalModels(p: AiProvider) {
+    patch(p.id, { loadingModels: true });
+    try {
+      const found = await listLocalIntentModels();
+      patch(p.id, { available: found });
+      if (found.length === 0) {
+        toast({
+          title: "Aucun modèle trouvé",
+          description: "Placez un fichier .task compatible dans les dossiers recherchés, ou utilisez « Importer .task ».",
+        });
+      } else {
+        toast({ title: `${found.length} modèle(s) trouvé(s)`, description: p.name });
+      }
+    } catch (e: any) {
+      toast({ title: "Recherche KO", description: e.message, variant: "destructive" });
+    } finally {
+      patch(p.id, { loadingModels: false });
+    }
+  }
+
   function deleteModel(p: AiProvider, model: string) {
     const next = getModels(p.id).filter((m) => m !== model);
     // Retire aussi ce modèle de la cascade.
@@ -459,6 +480,11 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
   async function submitDraft() {
     if (!draft) return;
+    // L'IA locale native n'a besoin ni d'URL ni d'endpoint : on les renseigne par défaut.
+    if (draft.api_type === "local_intent") {
+      draft.base_url = draft.base_url.trim() || "intent://google-ai-edge-gallery";
+      draft.models_endpoint = draft.models_endpoint.trim() || "/models";
+    }
     if (!draft.name.trim() || !draft.base_url.trim() || !draft.models_endpoint.trim()) {
       toast({ title: "Champs requis", description: "Nom, URL de base et endpoint sont obligatoires.", variant: "destructive" });
       return;
@@ -837,10 +863,15 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <Plus className="w-4 h-4" />
                   </Button>
                   {p.api_type === "local_intent" && (
-                    <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs flex-1 min-w-[8.5rem]">
-                      {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
-                      Importer .task
-                    </Button>
+                    <>
+                      <Button onClick={() => scanNativeLocalModels(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rechercher les modèles locaux">
+                        {st.loadingModels ? <Loader2 className="w-4 h-4 animate-spin" /> : <RefreshCw className="w-4 h-4" />}
+                      </Button>
+                      <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs flex-1 min-w-[8.5rem]">
+                        {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
+                        Importer .task
+                      </Button>
+                    </>
                   )}
                   {p.api_type !== "local_intent" && (
                   <Button onClick={() => loadAvailable(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3" aria-label="Rafraîchir la liste">
@@ -850,7 +881,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
-                    ? "Recommandé : importez le fichier .task avec le bouton. Sinon, saisissez le nom exact d'un modèle déjà présent dans le dossier privé de l'app."
+                    ? "Utilisez 🔄 pour rechercher automatiquement les modèles .task présents sur l'appareil, ou « Importer .task » pour en ajouter un depuis vos fichiers."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
@@ -881,14 +912,34 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
             </select>
           </div>
-          <div>
-            <Label className="text-[10px] uppercase text-muted-foreground">URL de base</Label>
-            <Input value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} placeholder="https://api.openai.com/v1" className="h-9 font-mono text-xs" />
-          </div>
-          <div>
-            <Label className="text-[10px] uppercase text-muted-foreground">Endpoint liste des modèles</Label>
-            <Input value={draft.models_endpoint} onChange={(e) => setDraft({ ...draft, models_endpoint: e.target.value })} placeholder="/models" className="h-9 font-mono text-xs" />
-          </div>
+          {draft.api_type === "local_intent" ? (
+            <div className="rounded-xl bg-card px-3 py-2 text-[11px] text-muted-foreground space-y-1.5">
+              <p className="font-semibold text-foreground flex items-center gap-1">
+                <Cpu className="w-3.5 h-3.5" /> IA locale native (on-device)
+              </p>
+              <p>
+                Aucune clé, aucune URL ni endpoint : le moteur MediaPipe/LiteRT tourne 100% hors-ligne.
+                Après création, ouvrez la carte du fournisseur puis utilisez <span className="font-semibold">🔄 Rechercher</span> pour
+                détecter automatiquement les modèles <span className="font-mono">.task</span> présents, ou <span className="font-semibold">Importer .task</span>.
+              </p>
+            </div>
+          ) : (
+            <>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">URL de base</Label>
+                <Input value={draft.base_url} onChange={(e) => setDraft({ ...draft, base_url: e.target.value })} placeholder={draft.api_type === "local" ? "http://localhost:11434/v1" : "https://api.openai.com/v1"} className="h-9 font-mono text-xs" />
+                {draft.api_type === "local" && (
+                  <p className="text-[10px] text-muted-foreground mt-1">
+                    Serveur local compatible OpenAI (Ollama, LM Studio…) — aucune clé requise.
+                  </p>
+                )}
+              </div>
+              <div>
+                <Label className="text-[10px] uppercase text-muted-foreground">Endpoint liste des modèles</Label>
+                <Input value={draft.models_endpoint} onChange={(e) => setDraft({ ...draft, models_endpoint: e.target.value })} placeholder="/models" className="h-9 font-mono text-xs" />
+              </div>
+            </>
+          )}
           <div className="flex items-center justify-between bg-card rounded-lg p-2">
             <div className="text-xs font-semibold">Actif</div>
             <Switch checked={draft.is_active} onCheckedChange={(v) => setDraft({ ...draft, is_active: v })} />

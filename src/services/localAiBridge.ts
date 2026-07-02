@@ -20,6 +20,7 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 interface LocalAiGalleryPlugin {
   isAvailable(): Promise<{ available: boolean }>;
   importModel(): Promise<{ model: string; path?: string; size?: number }>;
+  listModels(): Promise<{ models: string[] }>;
   generate(opts: { system?: string; prompt?: string; image?: string; model?: string }): Promise<{ text: string }>;
 }
 
@@ -54,6 +55,16 @@ export async function importLocalIntentModel(): Promise<{ model: string; path?: 
     throw new Error("Import disponible uniquement dans l'app Android native.");
   }
   return plugin.importModel();
+}
+
+/** Recherche automatiquement les fichiers `.task` compatibles dans les emplacements connus. */
+export async function listLocalIntentModels(): Promise<string[]> {
+  const plugin = getPlugin();
+  if (!plugin) {
+    throw new Error("Recherche disponible uniquement dans l'app Android native.");
+  }
+  const res = await plugin.listModels();
+  return Array.isArray(res?.models) ? res.models.filter(Boolean) : [];
 }
 
 export interface LocalIntentRequest {
