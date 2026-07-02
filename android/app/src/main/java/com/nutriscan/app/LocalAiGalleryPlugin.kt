@@ -200,6 +200,25 @@ class LocalAiGalleryPlugin : Plugin() {
     }
 
     /**
+     * Analyse tous les dossiers connus et renvoie la liste des modèles `.task`
+     * compatibles trouvés (déduplication par nom sans suffixe).
+     */
+    @PluginMethod
+    fun listModels(call: PluginCall) {
+        val found = LinkedHashSet<String>()
+        for (dir in candidateDirs()) {
+            dir.listFiles { f -> f.isFile && f.name.endsWith(".task", ignoreCase = true) }?.forEach { f ->
+                found.add(modelNameFromFile(f))
+            }
+        }
+        val arr = com.getcapacitor.JSArray()
+        found.forEach { arr.put(it) }
+        val ret = JSObject()
+        ret.put("models", arr)
+        call.resolve(ret)
+    }
+
+    /**
      * Ouvre le sélecteur de fichiers Android et importe un `.task` dans
      * filesDir/llm. C'est le chemin recommandé pour éviter les erreurs
      * MediaPipe `open() failed` depuis Download/ sous Android scoped storage.
