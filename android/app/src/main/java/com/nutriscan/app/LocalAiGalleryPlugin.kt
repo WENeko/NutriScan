@@ -106,7 +106,7 @@ class LocalAiGalleryPlugin : Plugin() {
     }
 
     private fun copyUriToPrivateModel(uri: Uri, preferredName: String?): File {
-        val safeName = sanitizeTaskFileName(preferredName ?: "model-${System.currentTimeMillis()}.task")
+        val safeName = sanitizeTaskFileName(preferredName ?: "model-${System.currentTimeMillis()}.litertlm")
         val dest = File(privateModelDir(), safeName)
         context.contentResolver.openInputStream(uri).use { input ->
             if (input == null) throw IOException("Impossible d'ouvrir le fichier sélectionné")
@@ -145,7 +145,7 @@ class LocalAiGalleryPlugin : Plugin() {
             val appFolder = context.getExternalFilesDir(null)?.absolutePath ?: "Android/data/${context.packageName}/files"
             throw IOException(
                 "Le modèle a été trouvé dans ${source.absolutePath}, mais Android bloque son ouverture directe. " +
-                    "Placez le fichier .task dans $appFolder/llm puis relancez l'analyse.",
+                    "Placez le fichier .litertlm dans $appFolder/llm puis relancez l'analyse.",
                 e
             )
         }
@@ -291,7 +291,7 @@ class LocalAiGalleryPlugin : Plugin() {
             call.reject(
                 "Aucun modèle local introuvable" +
                     (if (model.isNullOrBlank()) "" else " pour « $model »") +
-                    ". Placez un fichier .task dans le dossier de l'app (filesDir/llm) ou les Téléchargements."
+                    ". Placez un fichier .litertlm dans le dossier de l'app (filesDir/llm) ou les Téléchargements."
             )
             return
         }
