@@ -220,7 +220,7 @@ class LocalAiGalleryPlugin : Plugin() {
     fun listModels(call: PluginCall) {
         val found = LinkedHashSet<String>()
         for (dir in candidateDirs()) {
-            dir.listFiles { f -> f.isFile && f.name.endsWith(".task", ignoreCase = true) }?.forEach { f ->
+            dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
                 found.add(modelNameFromFile(f))
             }
         }
