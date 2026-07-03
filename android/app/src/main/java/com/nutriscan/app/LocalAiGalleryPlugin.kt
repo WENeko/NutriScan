@@ -90,10 +90,12 @@ class LocalAiGalleryPlugin : Plugin() {
 
     private fun sanitizeTaskFileName(name: String): String {
         val clean = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        return if (clean.endsWith(".task", ignoreCase = true)) clean else "$clean.task"
+        val hasExt = modelExtensions.any { clean.endsWith(it, ignoreCase = true) }
+        return if (hasExt) clean else "$clean$defaultExtension"
     }
 
-    private fun modelNameFromFile(file: File): String = file.name.replace(Regex("\\.task$", RegexOption.IGNORE_CASE), "")
+    private fun modelNameFromFile(file: File): String =
+        file.name.replace(Regex("\\.(litertlm|task)$", RegexOption.IGNORE_CASE), "")
 
     private fun displayName(uri: Uri): String? {
         return runCatching {
