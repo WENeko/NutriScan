@@ -49,6 +49,17 @@ class LocalAiGalleryPlugin : Plugin() {
     // Cache d'une instance par chemin de modèle (le chargement est coûteux).
     private val engines = HashMap<String, LlmInference>()
 
+    /**
+     * Extensions de modèles locaux supportées. Le format moderne LiteRT-LM
+     * `.litertlm` (utilisé par les Gemma récents dans Google AI Edge Gallery)
+     * est prioritaire ; `.task` reste accepté pour la rétro-compatibilité.
+     */
+    private val modelExtensions = listOf(".litertlm", ".task")
+    private val defaultExtension = ".litertlm"
+
+    private fun isModelFile(f: File): Boolean =
+        f.isFile && modelExtensions.any { f.name.endsWith(it, ignoreCase = true) }
+
     /** Dossiers où chercher un modèle local à partir de son nom. */
     private fun candidateDirs(): List<File> {
         val ctx = context
