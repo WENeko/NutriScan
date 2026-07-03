@@ -196,11 +196,11 @@ class LocalAiGalleryPlugin : Plugin() {
         val msg = e.message ?: e.javaClass.simpleName
         return when {
             msg.contains("-web.task", ignoreCase = true) ->
-                "Ce fichier ressemble à une variante Web (-web.task). Utilisez un modèle .task Android compatible LLM Inference/LiteRT, puis importez-le dans l'app."
+                "Ce fichier ressemble à une variante Web (-web.task). Utilisez un modèle .litertlm (ou .task) Android compatible LLM Inference/LiteRT, puis importez-le dans l'app."
             msg.contains("open() failed", ignoreCase = true) || msg.contains("scoped_file", ignoreCase = true) ->
-                "MediaPipe n'a pas pu ouvrir le fichier .task. Placez-le dans le dossier privé de l'app (filesDir/llm) ou dans Android/data/${context.packageName}/files/llm."
+                "MediaPipe n'a pas pu ouvrir le fichier modèle. Placez-le dans le dossier privé de l'app (filesDir/llm) ou dans Android/data/${context.packageName}/files/llm."
             msg.contains("Failed to initialize engine", ignoreCase = true) ->
-                "MediaPipe n'a pas pu initialiser ce modèle. Vérifiez que c'est un fichier .task Android compatible LLM Inference/LiteRT et qu'il tient en mémoire."
+                "MediaPipe n'a pas pu initialiser ce modèle. Vérifiez que c'est un fichier .litertlm (ou .task) Android compatible LLM Inference/LiteRT récent et qu'il tient en mémoire."
             else -> msg.take(500)
         }
     }
