@@ -331,7 +331,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     }
   }
 
-  /** Recherche auto des .task compatibles dans les emplacements connus (local natif). */
+  /** Recherche auto des modèles .litertlm/.task compatibles dans les emplacements connus (local natif). */
   async function scanNativeLocalModels(p: AiProvider) {
     patch(p.id, { loadingModels: true });
     try {
@@ -340,7 +340,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       if (found.length === 0) {
         toast({
           title: "Aucun modèle trouvé",
-          description: "Placez un fichier .task compatible dans les dossiers recherchés, ou utilisez « Importer .task ».",
+          description: "Placez un fichier .litertlm (ou .task) compatible dans les dossiers recherchés, ou utilisez « Importer un modèle ».",
         });
       } else {
         toast({ title: `${found.length} modèle(s) trouvé(s)`, description: p.name });
@@ -655,12 +655,12 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     <>
                       <p>
                         IA locale native (moteur on-device MediaPipe) — aucune clé ni URL requise.
-                        Téléchargez un modèle <span className="font-mono">.task</span> compatible LiteRT, puis utilisez
+                        Téléchargez un modèle <span className="font-mono">.litertlm</span> (format LiteRT-LM moderne, ou l'ancien <span className="font-mono">.task</span>), puis utilisez
                         le bouton d'import ci-dessous. L'app le copiera dans son stockage privé pour éviter les erreurs Android <span className="font-mono">open() failed</span>.
                       </p>
                       <p className="font-semibold text-foreground">Où placer le fichier (cherché dans cet ordre) :</p>
                       <ul className="list-disc pl-4 space-y-0.5">
-                        <li>Import via le bouton <span className="font-semibold">Importer .task</span> (recommandé)</li>
+                        <li>Import via le bouton <span className="font-semibold">Importer un modèle</span> (recommandé)</li>
                         <li><span className="font-mono">Android/data/{`{app}`}/files/llm/</span></li>
                         <li>dossier privé de l'app (<span className="font-mono">filesDir/llm</span>)</li>
                       </ul>
@@ -869,7 +869,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                       </Button>
                       <Button onClick={() => importNativeLocalModel(p)} disabled={st.loadingModels} variant="outline" className="h-9 px-3 text-xs flex-1 min-w-[8.5rem]">
                         {st.loadingModels ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <ExternalLink className="w-4 h-4 mr-1" />}
-                        Importer .task
+                        Importer un modèle
                       </Button>
                     </>
                   )}
@@ -881,7 +881,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
-                    ? "Utilisez 🔄 pour rechercher automatiquement les modèles .task présents sur l'appareil, ou « Importer .task » pour en ajouter un depuis vos fichiers."
+                    ? "Utilisez 🔄 pour rechercher automatiquement les modèles .litertlm/.task présents sur l'appareil, ou « Importer un modèle » pour en ajouter un depuis vos fichiers."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
@@ -920,7 +920,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
               <p>
                 Aucune clé, aucune URL ni endpoint : le moteur MediaPipe/LiteRT tourne 100% hors-ligne.
                 Après création, ouvrez la carte du fournisseur puis utilisez <span className="font-semibold">🔄 Rechercher</span> pour
-                détecter automatiquement les modèles <span className="font-mono">.task</span> présents, ou <span className="font-semibold">Importer .task</span>.
+                détecter automatiquement les modèles <span className="font-mono">.litertlm</span>/<span className="font-mono">.task</span> présents, ou <span className="font-semibold">Importer un modèle</span>.
               </p>
             </div>
           ) : (
