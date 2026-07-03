@@ -47,7 +47,7 @@ dependencies {
     implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.25"
     // IA locale native (on-device) — moteur MediaPipe LLM Inference / LiteRT,
     // identique à celui de Google AI Edge Gallery. Inférence 100% hors-ligne.
-    implementation 'com.google.mediapipe:tasks-genai:0.10.24'
+    implementation 'com.google.mediapipe:tasks-genai:0.10.29'
 }
 
 apply from: 'capacitor.build.gradle'

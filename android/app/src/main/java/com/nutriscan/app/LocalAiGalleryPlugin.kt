@@ -49,6 +49,17 @@ class LocalAiGalleryPlugin : Plugin() {
     // Cache d'une instance par chemin de modèle (le chargement est coûteux).
     private val engines = HashMap<String, LlmInference>()
 
+    /**
+     * Extensions de modèles locaux supportées. Le format moderne LiteRT-LM
+     * `.litertlm` (utilisé par les Gemma récents dans Google AI Edge Gallery)
+     * est prioritaire ; `.task` reste accepté pour la rétro-compatibilité.
+     */
+    private val modelExtensions = listOf(".litertlm", ".task")
+    private val defaultExtension = ".litertlm"
+
+    private fun isModelFile(f: File): Boolean =
+        f.isFile && modelExtensions.any { f.name.endsWith(it, ignoreCase = true) }
+
     /** Dossiers où chercher un modèle local à partir de son nom. */
     private fun candidateDirs(): List<File> {
         val ctx = context
@@ -79,10 +90,12 @@ class LocalAiGalleryPlugin : Plugin() {
 
     private fun sanitizeTaskFileName(name: String): String {
         val clean = name.replace(Regex("[^A-Za-z0-9._-]"), "_")
-        return if (clean.endsWith(".task", ignoreCase = true)) clean else "$clean.task"
+        val hasExt = modelExtensions.any { clean.endsWith(it, ignoreCase = true) }
+        return if (hasExt) clean else "$clean$defaultExtension"
     }
 
-    private fun modelNameFromFile(file: File): String = file.name.replace(Regex("\\.task$", RegexOption.IGNORE_CASE), "")
+    private fun modelNameFromFile(file: File): String =
+        file.name.replace(Regex("\\.(litertlm|task)$", RegexOption.IGNORE_CASE), "")
 
     private fun displayName(uri: Uri): String? {
         return runCatching {
@@ -93,7 +106,7 @@ class LocalAiGalleryPlugin : Plugin() {
     }
 
     private fun copyUriToPrivateModel(uri: Uri, preferredName: String?): File {
-        val safeName = sanitizeTaskFileName(preferredName ?: "model-${System.currentTimeMillis()}.task")
+        val safeName = sanitizeTaskFileName(preferredName ?: "model-${System.currentTimeMillis()}.litertlm")
         val dest = File(privateModelDir(), safeName)
         context.contentResolver.openInputStream(uri).use { input ->
             if (input == null) throw IOException("Impossible d'ouvrir le fichier sélectionné")
@@ -132,18 +145,18 @@ class LocalAiGalleryPlugin : Plugin() {
             val appFolder = context.getExternalFilesDir(null)?.absolutePath ?: "Android/data/${context.packageName}/files"
             throw IOException(
                 "Le modèle a été trouvé dans ${source.absolutePath}, mais Android bloque son ouverture directe. " +
-                    "Placez le fichier .task dans $appFolder/llm puis relancez l'analyse.",
+                    "Placez le fichier .litertlm dans $appFolder/llm puis relancez l'analyse.",
                 e
             )
         }
     }
 
-    /** Résout un identifiant de modèle vers un fichier `.task` existant. */
+    /** Résout un identifiant de modèle vers un fichier `.litertlm`/`.task` existant. */
     private fun resolveModelPath(model: String?): File? {
         if (model.isNullOrBlank()) {
-            // Aucun nom fourni : prendre le premier `.task` trouvé.
+            // Aucun nom fourni : prendre le premier modèle trouvé.
             for (dir in candidateDirs()) {
-                val found = dir.listFiles { f -> f.isFile && f.name.endsWith(".task") }?.firstOrNull()
+                val found = dir.listFiles { f -> isModelFile(f) }?.firstOrNull()
                 if (found != null) return found
             }
             return null
@@ -152,15 +165,15 @@ class LocalAiGalleryPlugin : Plugin() {
         val direct = File(model)
         if (direct.isAbsolute && direct.isFile) return direct
 
-        val names = listOf(model, "$model.task")
+        val names = listOf(model) + modelExtensions.map { "$model$it" }
         for (dir in candidateDirs()) {
             for (n in names) {
                 val f = File(dir, n)
                 if (f.isFile) return f
             }
             // Recherche tolérante (insensible à la casse / suffixe).
-            dir.listFiles { f -> f.isFile && f.name.endsWith(".task") }?.forEach { f ->
-                val base = f.name.removeSuffix(".task")
+            dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
+                val base = modelNameFromFile(f)
                 if (base.equals(model, ignoreCase = true) || f.name.equals(model, ignoreCase = true)) return f
             }
         }
@@ -183,11 +196,11 @@ class LocalAiGalleryPlugin : Plugin() {
         val msg = e.message ?: e.javaClass.simpleName
         return when {
             msg.contains("-web.task", ignoreCase = true) ->
-                "Ce fichier ressemble à une variante Web (-web.task). Utilisez un modèle .task Android compatible LLM Inference/LiteRT, puis importez-le dans l'app."
+                "Ce fichier ressemble à une variante Web (-web.task). Utilisez un modèle .litertlm (ou .task) Android compatible LLM Inference/LiteRT, puis importez-le dans l'app."
             msg.contains("open() failed", ignoreCase = true) || msg.contains("scoped_file", ignoreCase = true) ->
-                "MediaPipe n'a pas pu ouvrir le fichier .task. Placez-le dans le dossier privé de l'app (filesDir/llm) ou dans Android/data/${context.packageName}/files/llm."
+                "MediaPipe n'a pas pu ouvrir le fichier modèle. Placez-le dans le dossier privé de l'app (filesDir/llm) ou dans Android/data/${context.packageName}/files/llm."
             msg.contains("Failed to initialize engine", ignoreCase = true) ->
-                "MediaPipe n'a pas pu initialiser ce modèle. Vérifiez que c'est un fichier .task Android compatible LLM Inference/LiteRT et qu'il tient en mémoire."
+                "MediaPipe n'a pas pu initialiser ce modèle. Vérifiez que c'est un fichier .litertlm (ou .task) Android compatible LLM Inference/LiteRT récent et qu'il tient en mémoire."
             else -> msg.take(500)
         }
     }
@@ -207,7 +220,7 @@ class LocalAiGalleryPlugin : Plugin() {
     fun listModels(call: PluginCall) {
         val found = LinkedHashSet<String>()
         for (dir in candidateDirs()) {
-            dir.listFiles { f -> f.isFile && f.name.endsWith(".task", ignoreCase = true) }?.forEach { f ->
+            dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
                 found.add(modelNameFromFile(f))
             }
         }
@@ -278,7 +291,7 @@ class LocalAiGalleryPlugin : Plugin() {
             call.reject(
                 "Aucun modèle local introuvable" +
                     (if (model.isNullOrBlank()) "" else " pour « $model »") +
-                    ". Placez un fichier .task dans le dossier de l'app (filesDir/llm) ou les Téléchargements."
+                    ". Placez un fichier .litertlm dans le dossier de l'app (filesDir/llm) ou les Téléchargements."
             )
             return
         }
