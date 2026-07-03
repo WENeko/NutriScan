@@ -151,12 +151,12 @@ class LocalAiGalleryPlugin : Plugin() {
         }
     }
 
-    /** Résout un identifiant de modèle vers un fichier `.task` existant. */
+    /** Résout un identifiant de modèle vers un fichier `.litertlm`/`.task` existant. */
     private fun resolveModelPath(model: String?): File? {
         if (model.isNullOrBlank()) {
-            // Aucun nom fourni : prendre le premier `.task` trouvé.
+            // Aucun nom fourni : prendre le premier modèle trouvé.
             for (dir in candidateDirs()) {
-                val found = dir.listFiles { f -> f.isFile && f.name.endsWith(".task") }?.firstOrNull()
+                val found = dir.listFiles { f -> isModelFile(f) }?.firstOrNull()
                 if (found != null) return found
             }
             return null
@@ -165,15 +165,15 @@ class LocalAiGalleryPlugin : Plugin() {
         val direct = File(model)
         if (direct.isAbsolute && direct.isFile) return direct
 
-        val names = listOf(model, "$model.task")
+        val names = listOf(model) + modelExtensions.map { "$model$it" }
         for (dir in candidateDirs()) {
             for (n in names) {
                 val f = File(dir, n)
                 if (f.isFile) return f
             }
             // Recherche tolérante (insensible à la casse / suffixe).
-            dir.listFiles { f -> f.isFile && f.name.endsWith(".task") }?.forEach { f ->
-                val base = f.name.removeSuffix(".task")
+            dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
+                val base = modelNameFromFile(f)
                 if (base.equals(model, ignoreCase = true) || f.name.equals(model, ignoreCase = true)) return f
             }
         }
