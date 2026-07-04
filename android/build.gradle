@@ -9,7 +9,7 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
         classpath 'com.google.gms:google-services:4.4.4'
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.4.0'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -24,18 +24,19 @@ allprojects {
         mavenCentral()
     }
 
-    // Le moteur IA natif (com.google.mediapipe:tasks-genai:0.10.29) et
-    // kotlinx-coroutines récents sont compilés avec une kotlin-stdlib 2.x.
-    // On aligne donc tout l'écosystème Kotlin sur la 2.0.21 (compilateur +
-    // stdlib) pour que les métadonnées soient lisibles : cela résout à la fois
-    // les "Unresolved reference" (isNullOrBlank) et les erreurs de coroutines
-    // (suspend / CancellationException).
+    // Le moteur IA natif et @capgo/capacitor-health récents sont compilés avec
+    // Kotlin/coroutines modernes. On aligne donc tout l'écosystème Kotlin sur
+    // la version utilisée par le plugin Health afin que les métadonnées restent
+    // lisibles (launch / CancellationException / suspend functions).
     configurations.all {
         resolutionStrategy {
-            force "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
-            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21"
-            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21"
-            force "org.jetbrains.kotlin:kotlin-stdlib-common:2.0.21"
+            force "org.jetbrains.kotlin:kotlin-stdlib:2.4.0"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.4.0"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.4.0"
+            force "org.jetbrains.kotlin:kotlin-stdlib-common:2.4.0"
+            force "org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0"
+            force "org.jetbrains.kotlinx:kotlinx-coroutines-core:1.11.0"
+            force "org.jetbrains.kotlinx:kotlinx-coroutines-core-jvm:1.11.0"
         }
     }
 }
