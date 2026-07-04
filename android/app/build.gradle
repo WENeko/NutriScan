@@ -44,7 +44,7 @@ dependencies {
     implementation project(':capgo-capacitor-health')
     implementation 'androidx.health.connect:connect-client:1.1.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.8.1'
-    implementation "org.jetbrains.kotlin:kotlin-stdlib:1.9.25"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
     // IA locale native (on-device) — moteur MediaPipe LLM Inference / LiteRT,
     // identique à celui de Google AI Edge Gallery. Inférence 100% hors-ligne.
     implementation 'com.google.mediapipe:tasks-genai:0.10.29'
