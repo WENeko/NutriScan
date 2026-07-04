@@ -9,7 +9,7 @@ buildscript {
     dependencies {
         classpath 'com.android.tools.build:gradle:8.13.0'
         classpath 'com.google.gms:google-services:4.4.4'
-        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:1.9.25'
+        classpath 'org.jetbrains.kotlin:kotlin-gradle-plugin:2.0.21'
 
         // NOTE: Do not place your application dependencies here; they belong
         // in the individual module build.gradle files
@@ -24,17 +24,18 @@ allprojects {
         mavenCentral()
     }
 
-    // Le moteur IA natif (com.google.mediapipe:tasks-genai) tire une
-    // kotlin-stdlib 2.x en transitif. Le compilateur Kotlin du projet est en
-    // 1.9.25 et ne sait pas lire les métadonnées d'une stdlib 2.x, ce qui
-    // provoque des "Unresolved reference" sur des fonctions standard comme
-    // isNullOrBlank(). On force donc toute la stdlib Kotlin en 1.9.25.
+    // Le moteur IA natif (com.google.mediapipe:tasks-genai:0.10.29) et
+    // kotlinx-coroutines récents sont compilés avec une kotlin-stdlib 2.x.
+    // On aligne donc tout l'écosystème Kotlin sur la 2.0.21 (compilateur +
+    // stdlib) pour que les métadonnées soient lisibles : cela résout à la fois
+    // les "Unresolved reference" (isNullOrBlank) et les erreurs de coroutines
+    // (suspend / CancellationException).
     configurations.all {
         resolutionStrategy {
-            force "org.jetbrains.kotlin:kotlin-stdlib:1.9.25"
-            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.25"
-            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:1.9.25"
-            force "org.jetbrains.kotlin:kotlin-stdlib-common:1.9.25"
+            force "org.jetbrains.kotlin:kotlin-stdlib:2.0.21"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.0.21"
+            force "org.jetbrains.kotlin:kotlin-stdlib-jdk7:2.0.21"
+            force "org.jetbrains.kotlin:kotlin-stdlib-common:2.0.21"
         }
     }
 }
