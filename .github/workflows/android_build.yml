@@ -21,7 +21,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: '22'
+          node-version: '24'
           cache: npm
 
       # Note: le fichier .env est versionné dans le repo avec les bonnes clés
@@ -31,9 +31,7 @@ jobs:
 
 
       - name: Install dependencies
-        run: |
-          npm install
-          npm install @capacitor/android@^8.0.0 @capacitor/core@^8.0.0 @capgo/capacitor-health@^8.4.2
+        run: npm ci
 
 
       - name: Build web app
