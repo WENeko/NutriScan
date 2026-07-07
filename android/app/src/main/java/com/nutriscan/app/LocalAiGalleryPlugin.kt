@@ -175,7 +175,11 @@ class LocalAiGalleryPlugin : Plugin() {
 
     private fun copyDownloadModelByName(displayName: String): File? {
         for (ref in downloadModelRefs(displayName)) {
-            runCatching { return copyUriToPrivateModel(ref.uri, ref.name, ref.size) }
+            try {
+                return copyUriToPrivateModel(ref.uri, ref.name, ref.size)
+            } catch (_: Exception) {
+                // Essayer une autre entrée homonyme si MediaStore en expose plusieurs.
+            }
         }
         return null
     }
