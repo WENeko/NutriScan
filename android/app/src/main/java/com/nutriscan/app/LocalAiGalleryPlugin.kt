@@ -221,28 +221,43 @@ class LocalAiGalleryPlugin : Plugin() {
         if (model.isNullOrBlank()) {
             // Aucun nom fourni : prendre le premier modèle trouvé.
             for (dir in candidateDirs()) {
+                if (publicDownloadsDir()?.let { isInside(it, dir) } == true) continue
                 val found = dir.listFiles { f -> isModelFile(f) }?.firstOrNull()
                 if (found != null) return found
+            }
+            downloadModelRefs().firstOrNull()?.let { ref ->
+                runCatching { copyUriToPrivateModel(ref.uri, ref.name, ref.size) }.getOrNull()?.let { return it }
             }
             return null
         }
         // Chemin absolu direct.
         val direct = File(model)
-        if (direct.isAbsolute && direct.isFile) return direct
+        if (direct.isAbsolute && direct.isFile) {
+            if (isPublicDownloadsFile(direct)) {
+                copyDownloadModelByName(direct.name)?.let { return it }
+            } else {
+                return direct
+            }
+        }
 
         val names = LinkedHashSet<String>().apply {
             add(model)
             if (!isModelFileName(model)) modelExtensions.forEach { add("$model$it") }
         }.toList()
         for (dir in candidateDirs()) {
+            val isDownloads = publicDownloadsDir()?.let { isInside(it, dir) } == true
             for (n in names) {
                 val f = File(dir, n)
-                if (f.isFile) return f
+                if (f.isFile) {
+                    if (isDownloads) copyDownloadModelByName(f.name)?.let { return it } else return f
+                }
             }
             // Recherche tolérante (insensible à la casse / suffixe).
             dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
                 val base = modelNameFromFile(f)
-                if (base.equals(model, ignoreCase = true) || f.name.equals(model, ignoreCase = true)) return f
+                if (base.equals(model, ignoreCase = true) || f.name.equals(model, ignoreCase = true)) {
+                    if (isDownloads) copyDownloadModelByName(f.name)?.let { return it } else return f
+                }
             }
         }
         for (n in names) {
