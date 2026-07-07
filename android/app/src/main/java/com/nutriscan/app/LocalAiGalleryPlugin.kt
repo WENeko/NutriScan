@@ -1,9 +1,12 @@
 package com.nutriscan.app
 
 import android.app.Activity
+import android.content.ContentUris
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Environment
+import android.provider.MediaStore
 import android.provider.OpenableColumns
 import androidx.activity.result.ActivityResult
 import com.getcapacitor.JSObject
@@ -57,8 +60,21 @@ class LocalAiGalleryPlugin : Plugin() {
     private val modelExtensions = listOf(".litertlm", ".task")
     private val defaultExtension = ".litertlm"
 
-    private fun isModelFile(f: File): Boolean =
-        f.isFile && modelExtensions.any { f.name.endsWith(it, ignoreCase = true) }
+    private data class DownloadModelRef(val name: String, val uri: Uri, val size: Long?)
+
+    private fun isModelFileName(name: String?): Boolean =
+        !name.isNullOrBlank() && modelExtensions.any { name.endsWith(it, ignoreCase = true) }
+
+    private fun isModelFile(f: File): Boolean = f.isFile && isModelFileName(f.name)
+
+    @Suppress("DEPRECATION")
+    private fun publicDownloadsDir(): File? =
+        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+
+    private fun isPublicDownloadsFile(file: File): Boolean {
+        val downloads = publicDownloadsDir() ?: return false
+        return isInside(downloads, file)
+    }
 
     /** Dossiers où chercher un modèle local à partir de son nom. */
     private fun candidateDirs(): List<File> {
@@ -66,8 +82,7 @@ class LocalAiGalleryPlugin : Plugin() {
         val dirs = ArrayList<File>()
         ctx.filesDir?.let { dirs.add(File(it, "llm")); dirs.add(it) }
         ctx.getExternalFilesDir(null)?.let { dirs.add(File(it, "llm")); dirs.add(it) }
-        @Suppress("DEPRECATION")
-        Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)?.let { dirs.add(it) }
+        publicDownloadsDir()?.let { dirs.add(it) }
         dirs.add(File("/data/local/tmp/llm"))
         return dirs
     }
@@ -105,9 +120,12 @@ class LocalAiGalleryPlugin : Plugin() {
         }.getOrNull()
     }
 
-    private fun copyUriToPrivateModel(uri: Uri, preferredName: String?): File {
+    private fun copyUriToPrivateModel(uri: Uri, preferredName: String?, expectedSize: Long? = null): File {
         val safeName = sanitizeTaskFileName(preferredName ?: "model-${System.currentTimeMillis()}.litertlm")
         val dest = File(privateModelDir(), safeName)
+        if (expectedSize != null && expectedSize > 0L && dest.isFile && dest.length() == expectedSize) {
+            return dest
+        }
         context.contentResolver.openInputStream(uri).use { input ->
             if (input == null) throw IOException("Impossible d'ouvrir le fichier sélectionné")
             dest.outputStream().use { output -> input.copyTo(output) }
@@ -117,6 +135,53 @@ class LocalAiGalleryPlugin : Plugin() {
             throw IOException("Import du modèle vide")
         }
         return dest
+    }
+
+    /**
+     * Android 10+ bloque les accès FileInputStream directs à Download/ pour les
+     * fichiers non-média. Quand c'est possible, on passe donc par MediaStore puis
+     * on recopie le modèle dans le stockage privé avant l'inférence native.
+     */
+    private fun downloadModelRefs(displayName: String? = null): List<DownloadModelRef> {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.Q) return emptyList()
+        val out = ArrayList<DownloadModelRef>()
+        val collection = MediaStore.Downloads.EXTERNAL_CONTENT_URI
+        val projection = arrayOf(
+            MediaStore.Downloads._ID,
+            MediaStore.MediaColumns.DISPLAY_NAME,
+            MediaStore.MediaColumns.SIZE,
+        )
+        val selection = displayName?.let { "${MediaStore.MediaColumns.DISPLAY_NAME} = ?" }
+        val args = displayName?.let { arrayOf(it) }
+        try {
+            context.contentResolver.query(collection, projection, selection, args, null)?.use { cursor ->
+                val idCol = cursor.getColumnIndexOrThrow(MediaStore.Downloads._ID)
+                val nameCol = cursor.getColumnIndexOrThrow(MediaStore.MediaColumns.DISPLAY_NAME)
+                val sizeCol = cursor.getColumnIndex(MediaStore.MediaColumns.SIZE)
+                while (cursor.moveToNext()) {
+                    val name = cursor.getString(nameCol) ?: continue
+                    if (!isModelFileName(name)) continue
+                    val id = cursor.getLong(idCol)
+                    val size = if (sizeCol >= 0 && !cursor.isNull(sizeCol)) cursor.getLong(sizeCol) else null
+                    out.add(DownloadModelRef(name, ContentUris.withAppendedId(collection, id), size))
+                }
+            }
+        } catch (_: Exception) {
+            // Certains constructeurs restreignent MediaStore.Downloads. Le flux
+            // d'import SAF reste alors le chemin garanti.
+        }
+        return out
+    }
+
+    private fun copyDownloadModelByName(displayName: String): File? {
+        for (ref in downloadModelRefs(displayName)) {
+            try {
+                return copyUriToPrivateModel(ref.uri, ref.name, ref.size)
+            } catch (_: Exception) {
+                // Essayer une autre entrée homonyme si MediaStore en expose plusieurs.
+            }
+        }
+        return null
     }
 
     /**
@@ -132,6 +197,10 @@ class LocalAiGalleryPlugin : Plugin() {
         val sourceLength = runCatching { source.length() }.getOrDefault(-1L)
         if (dest.isFile && sourceLength > 0 && dest.length() == sourceLength) return dest
 
+        if (isPublicDownloadsFile(source)) {
+            copyDownloadModelByName(source.name)?.let { return it }
+        }
+
         try {
             source.inputStream().use { input ->
                 dest.outputStream().use { output -> input.copyTo(output) }
@@ -145,7 +214,7 @@ class LocalAiGalleryPlugin : Plugin() {
             val appFolder = context.getExternalFilesDir(null)?.absolutePath ?: "Android/data/${context.packageName}/files"
             throw IOException(
                 "Le modèle a été trouvé dans ${source.absolutePath}, mais Android bloque son ouverture directe. " +
-                    "Placez le fichier .litertlm dans $appFolder/llm puis relancez l'analyse.",
+                    "Importez-le avec le bouton Importer un modèle, ou placez le fichier .litertlm dans $appFolder/llm puis relancez l'analyse.",
                 e
             )
         }
@@ -156,26 +225,47 @@ class LocalAiGalleryPlugin : Plugin() {
         if (model.isNullOrBlank()) {
             // Aucun nom fourni : prendre le premier modèle trouvé.
             for (dir in candidateDirs()) {
+                if (publicDownloadsDir()?.let { isInside(it, dir) } == true) continue
                 val found = dir.listFiles { f -> isModelFile(f) }?.firstOrNull()
                 if (found != null) return found
+            }
+            downloadModelRefs().firstOrNull()?.let { ref ->
+                runCatching { copyUriToPrivateModel(ref.uri, ref.name, ref.size) }.getOrNull()?.let { return it }
             }
             return null
         }
         // Chemin absolu direct.
         val direct = File(model)
-        if (direct.isAbsolute && direct.isFile) return direct
+        if (direct.isAbsolute && direct.isFile) {
+            if (isPublicDownloadsFile(direct)) {
+                copyDownloadModelByName(direct.name)?.let { return it }
+            } else {
+                return direct
+            }
+        }
 
-        val names = listOf(model) + modelExtensions.map { "$model$it" }
+        val names = LinkedHashSet<String>().apply {
+            add(model)
+            if (!isModelFileName(model)) modelExtensions.forEach { add("$model$it") }
+        }.toList()
         for (dir in candidateDirs()) {
+            val isDownloads = publicDownloadsDir()?.let { isInside(it, dir) } == true
             for (n in names) {
                 val f = File(dir, n)
-                if (f.isFile) return f
+                if (f.isFile) {
+                    if (isDownloads) copyDownloadModelByName(f.name)?.let { return it } else return f
+                }
             }
             // Recherche tolérante (insensible à la casse / suffixe).
             dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
                 val base = modelNameFromFile(f)
-                if (base.equals(model, ignoreCase = true) || f.name.equals(model, ignoreCase = true)) return f
+                if (base.equals(model, ignoreCase = true) || f.name.equals(model, ignoreCase = true)) {
+                    if (isDownloads) copyDownloadModelByName(f.name)?.let { return it } else return f
+                }
             }
+        }
+        for (n in names) {
+            if (isModelFileName(n)) copyDownloadModelByName(n)?.let { return it }
         }
         return null
     }
@@ -218,17 +308,37 @@ class LocalAiGalleryPlugin : Plugin() {
      */
     @PluginMethod
     fun listModels(call: PluginCall) {
-        val found = LinkedHashSet<String>()
-        for (dir in candidateDirs()) {
-            dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
-                found.add(modelNameFromFile(f))
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val found = LinkedHashSet<String>()
+                val warnings = ArrayList<String>()
+                val downloads = publicDownloadsDir()
+                for (dir in candidateDirs()) {
+                    if (downloads != null && isInside(downloads, dir)) continue
+                    dir.listFiles { f -> isModelFile(f) }?.forEach { f ->
+                        found.add(modelNameFromFile(f))
+                    }
+                }
+                for (ref in downloadModelRefs()) {
+                    try {
+                        val imported = copyUriToPrivateModel(ref.uri, ref.name, ref.size)
+                        found.add(modelNameFromFile(imported))
+                    } catch (e: Exception) {
+                        warnings.add("${ref.name}: ${e.message ?: "import impossible"}")
+                    }
+                }
+                val arr = com.getcapacitor.JSArray()
+                found.forEach { arr.put(it) }
+                val warnArr = com.getcapacitor.JSArray()
+                warnings.forEach { warnArr.put(it) }
+                val ret = JSObject()
+                ret.put("models", arr)
+                ret.put("warnings", warnArr)
+                call.resolve(ret)
+            } catch (e: Exception) {
+                call.reject("Recherche des modèles impossible : ${e.message}", e)
             }
         }
-        val arr = com.getcapacitor.JSArray()
-        found.forEach { arr.put(it) }
-        val ret = JSObject()
-        ret.put("models", arr)
-        call.resolve(ret)
     }
 
     /**
@@ -286,36 +396,38 @@ class LocalAiGalleryPlugin : Plugin() {
         val prompt = call.getString("prompt") ?: ""
         val model = call.getString("model")
 
-        val path = resolveModelPath(model)
-        if (path == null) {
-            call.reject(
-                "Aucun modèle local introuvable" +
-                    (if (model.isNullOrBlank()) "" else " pour « $model »") +
-                    ". Placez un fichier .litertlm dans le dossier de l'app (filesDir/llm) ou les Téléchargements."
-            )
-            return
-        }
-
-        try {
-            val preparedPath = prepareModelForInference(path)
-            val engine = engineFor(preparedPath)
-            val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
-                .setTemperature(0.6f)
-                .setTopK(40)
-                .build()
-            val session = LlmInferenceSession.createFromOptions(engine, sessionOptions)
-            try {
-                val fullPrompt = if (system.isBlank()) prompt else "$system\n\n$prompt"
-                session.addQueryChunk(fullPrompt)
-                val text = session.generateResponse()
-                val ret = JSObject()
-                ret.put("text", text ?: "")
-                call.resolve(ret)
-            } finally {
-                session.close()
+        CoroutineScope(Dispatchers.Default).launch {
+            val path = resolveModelPath(model)
+            if (path == null) {
+                call.reject(
+                    "Aucun modèle local introuvable" +
+                        (if (model.isNullOrBlank()) "" else " pour « $model »") +
+                        ". Utilisez Importer un modèle, ou placez un fichier .litertlm dans le dossier de l'app (filesDir/llm)."
+                )
+                return@launch
             }
-        } catch (e: Exception) {
-            call.reject("Échec de l'inférence locale : ${friendlyInferenceError(e)}", e)
+
+            try {
+                val preparedPath = prepareModelForInference(path)
+                val engine = engineFor(preparedPath)
+                val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
+                    .setTemperature(0.6f)
+                    .setTopK(40)
+                    .build()
+                val session = LlmInferenceSession.createFromOptions(engine, sessionOptions)
+                try {
+                    val fullPrompt = if (system.isBlank()) prompt else "$system\n\n$prompt"
+                    session.addQueryChunk(fullPrompt)
+                    val text = session.generateResponse()
+                    val ret = JSObject()
+                    ret.put("text", text ?: "")
+                    call.resolve(ret)
+                } finally {
+                    session.close()
+                }
+            } catch (e: Exception) {
+                call.reject("Échec de l'inférence locale : ${friendlyInferenceError(e)}", e)
+            }
         }
     }
 }
