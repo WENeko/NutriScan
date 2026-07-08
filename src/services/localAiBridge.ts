@@ -87,14 +87,38 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
       "IA locale native indisponible : le plugin Android (Google AI Edge Gallery) n'est pas installé. Utilisez l'app native ou le mode local HTTP.",
     );
   }
-  appLogger.info("LocalAiBridge", "Inférence locale native", { model: req.model });
-  const res = await plugin.generate({
-    system: req.system,
-    prompt: req.prompt,
-    image: req.image ?? undefined,
-    model: req.model ?? undefined,
+  const started = Date.now();
+  // Journalisation granulaire et PERSISTÉE (localStorage) : si l'inférence native
+  // fait planter l'app, ces marqueurs survivent au crash et sont exportables via
+  // le bouton "Exporter les logs" au redémarrage → on sait exactement où ça casse.
+  appLogger.info("LocalAiBridge", "generate() → appel natif START", {
+    model: req.model ?? null,
+    hasImage: !!req.image,
+    imageChars: req.image ? req.image.length : 0,
+    systemChars: req.system?.length ?? 0,
+    promptChars: req.prompt?.length ?? 0,
   });
+  let res: { text: string };
+  try {
+    res = await plugin.generate({
+      system: req.system,
+      prompt: req.prompt,
+      image: req.image ?? undefined,
+      model: req.model ?? undefined,
+    });
+  } catch (e: any) {
+    appLogger.error("LocalAiBridge", "generate() → échec natif", {
+      message: e?.message ?? String(e),
+      code: e?.code,
+      elapsedMs: Date.now() - started,
+    });
+    throw e;
+  }
   const text = res?.text ?? "";
+  appLogger.info("LocalAiBridge", "generate() → réponse native OK", {
+    textChars: text.length,
+    elapsedMs: Date.now() - started,
+  });
   if (!text || !String(text).trim()) {
     throw new Error("L'IA locale native n'a renvoyé aucune réponse.");
   }
