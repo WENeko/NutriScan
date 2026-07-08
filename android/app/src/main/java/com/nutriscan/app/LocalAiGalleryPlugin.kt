@@ -397,19 +397,27 @@ class LocalAiGalleryPlugin : Plugin() {
         val model = call.getString("model")
 
         CoroutineScope(Dispatchers.Default).launch {
-            val path = resolveModelPath(model)
-            if (path == null) {
-                call.reject(
-                    "Aucun modèle local introuvable" +
-                        (if (model.isNullOrBlank()) "" else " pour « $model »") +
-                        ". Utilisez Importer un modèle, ou placez un fichier .litertlm dans le dossier de l'app (filesDir/llm)."
-                )
-                return@launch
-            }
-
+            // On capture Throwable (et pas seulement Exception) : les moteurs natifs
+            // MediaPipe/LiteRT peuvent lever des Error (UnsatisfiedLinkError, OOM,
+            // AssertionError…) qui, non attrapées, font planter tout le process.
             try {
+                android.util.Log.i(TAG, "generate: résolution du modèle « $model »")
+                val path = resolveModelPath(model)
+                if (path == null) {
+                    android.util.Log.w(TAG, "generate: aucun modèle trouvé")
+                    call.reject(
+                        "Aucun modèle local introuvable" +
+                            (if (model.isNullOrBlank()) "" else " pour « $model »") +
+                            ". Utilisez Importer un modèle, ou placez un fichier .litertlm dans le dossier de l'app (filesDir/llm)."
+                    )
+                    return@launch
+                }
+
+                android.util.Log.i(TAG, "generate: préparation du modèle ${path.absolutePath}")
                 val preparedPath = prepareModelForInference(path)
+                android.util.Log.i(TAG, "generate: chargement du moteur (${preparedPath.length()} octets)")
                 val engine = engineFor(preparedPath)
+                android.util.Log.i(TAG, "generate: moteur prêt, création de la session")
                 val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
                     .setTemperature(0.6f)
                     .setTopK(40)
@@ -417,17 +425,26 @@ class LocalAiGalleryPlugin : Plugin() {
                 val session = LlmInferenceSession.createFromOptions(engine, sessionOptions)
                 try {
                     val fullPrompt = if (system.isBlank()) prompt else "$system\n\n$prompt"
+                    android.util.Log.i(TAG, "generate: inférence en cours (${fullPrompt.length} car.)")
                     session.addQueryChunk(fullPrompt)
                     val text = session.generateResponse()
+                    android.util.Log.i(TAG, "generate: réponse reçue (${text?.length ?: 0} car.)")
                     val ret = JSObject()
                     ret.put("text", text ?: "")
                     call.resolve(ret)
                 } finally {
                     session.close()
                 }
-            } catch (e: Exception) {
-                call.reject("Échec de l'inférence locale : ${friendlyInferenceError(e)}", e)
+            } catch (e: Throwable) {
+                android.util.Log.e(TAG, "generate: échec inférence", e)
+                val detail = if (e is Exception) friendlyInferenceError(e)
+                    else "${e.javaClass.simpleName}: ${(e.message ?: "").take(400)}"
+                call.reject("Échec de l'inférence locale : $detail")
             }
         }
+    }
+
+    companion object {
+        private const val TAG = "LocalAiGallery"
     }
 }
