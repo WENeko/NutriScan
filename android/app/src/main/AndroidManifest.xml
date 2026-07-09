@@ -28,6 +28,11 @@
         android:supportsRtl="true"
         android:theme="@style/AppTheme">
 
+        <!-- Bibliothèques optionnelles requises par LiteRT-LM si le backend GPU
+             est disponible sur l'appareil. CPU reste le fallback sûr. -->
+        <uses-native-library android:name="libvndksupport.so" android:required="false" />
+        <uses-native-library android:name="libOpenCL.so" android:required="false" />
+
         <activity
             android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|smallestScreenSize|screenLayout|uiMode|navigation|density"
             android:name=".MainActivity"

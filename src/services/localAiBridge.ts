@@ -107,8 +107,13 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
       model: req.model ?? undefined,
     });
   } catch (e: any) {
+    const message = e?.message ?? String(e);
     appLogger.error("LocalAiBridge", "generate() → échec natif", {
-      message: e?.message ?? String(e),
+      message,
+      code: e?.code,
+      elapsedMs: Date.now() - started,
+    });
+    appLogger.error("LocalAiBridge", `generate() → échec natif : ${message}`, {
       code: e?.code,
       elapsedMs: Date.now() - started,
     });
