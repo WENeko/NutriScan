@@ -2,6 +2,7 @@ package com.nutriscan.app
 
 import android.app.Activity
 import android.content.ContentUris
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -70,6 +71,46 @@ class LocalAiGalleryPlugin : Plugin() {
     private val defaultExtension = ".litertlm"
 
     private data class DownloadModelRef(val name: String, val uri: Uri, val size: Long?)
+
+    private fun diagnosticsPrefs() = context.getSharedPreferences("local_ai_diagnostics", Context.MODE_PRIVATE)
+
+    private fun appendNativeTrace(level: String, message: String, error: Throwable? = null) {
+        val line = buildString {
+            append(System.currentTimeMillis())
+            append(" [")
+            append(level)
+            append("] ")
+            append(message)
+            if (error != null) {
+                append(" :: ")
+                append(error.javaClass.simpleName)
+                append(": ")
+                append(error.message ?: "")
+            }
+        }
+        val prefs = diagnosticsPrefs()
+        val previous = prefs.getString("trace", "") ?: ""
+        val next = (previous + "\n" + line).lines().takeLast(160).joinToString("\n").trim()
+        prefs.edit()
+            .putString("trace", next)
+            .putString("last_at", java.time.Instant.now().toString())
+            .apply()
+    }
+
+    private fun logInfo(message: String) {
+        android.util.Log.i(TAG, message)
+        appendNativeTrace("INFO", message)
+    }
+
+    private fun logWarn(message: String) {
+        android.util.Log.w(TAG, message)
+        appendNativeTrace("WARN", message)
+    }
+
+    private fun logError(message: String, error: Throwable) {
+        android.util.Log.e(TAG, message, error)
+        appendNativeTrace("ERROR", message, error)
+    }
 
     private fun isModelFileName(name: String?): Boolean =
         !name.isNullOrBlank() && modelExtensions.any { name.endsWith(it, ignoreCase = true) }
@@ -321,7 +362,7 @@ class LocalAiGalleryPlugin : Plugin() {
     }
 
     private suspend fun generateWithLiteRtLm(path: File, system: String, prompt: String): String {
-        android.util.Log.i(TAG, "generate: LiteRT-LM initialise ${path.absolutePath}")
+        logInfo("generate: LiteRT-LM initialise ${path.absolutePath}")
         LiteRtLmEngine.setNativeMinLogSeverity(LogSeverity.INFO)
         val engine = liteRtLmEngineFor(path)
         val conversationConfig = ConversationConfig(
@@ -330,7 +371,7 @@ class LocalAiGalleryPlugin : Plugin() {
         )
         engine.createConversation(conversationConfig).use { conversation ->
             val response = StringBuilder()
-            android.util.Log.i(TAG, "generate: LiteRT-LM streaming (${prompt.length} car.)")
+            logInfo("generate: LiteRT-LM streaming (${prompt.length} car.)")
             conversation.sendMessageAsync(prompt)
                 .collect { message -> response.append(messageText(message)) }
             return response.toString()
@@ -338,9 +379,9 @@ class LocalAiGalleryPlugin : Plugin() {
     }
 
     private fun generateWithMediaPipe(path: File, system: String, prompt: String): String {
-        android.util.Log.i(TAG, "generate: MediaPipe charge ${path.absolutePath}")
+        logInfo("generate: MediaPipe charge ${path.absolutePath}")
         val engine = mediaPipeEngineFor(path)
-        android.util.Log.i(TAG, "generate: moteur MediaPipe prêt, création de la session")
+        logInfo("generate: moteur MediaPipe prêt, création de la session")
         val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
             .setTemperature(0.6f)
             .setTopK(40)
@@ -348,7 +389,7 @@ class LocalAiGalleryPlugin : Plugin() {
         val session = LlmInferenceSession.createFromOptions(engine, sessionOptions)
         try {
             val fullPrompt = if (system.isBlank()) prompt else "$system\n\n$prompt"
-            android.util.Log.i(TAG, "generate: MediaPipe inférence en cours (${fullPrompt.length} car.)")
+            logInfo("generate: MediaPipe inférence en cours (${fullPrompt.length} car.)")
             session.addQueryChunk(fullPrompt)
             return session.generateResponse() ?: ""
         } finally {
@@ -375,6 +416,20 @@ class LocalAiGalleryPlugin : Plugin() {
     fun isAvailable(call: PluginCall) {
         val ret = JSObject()
         ret.put("available", resolveModelPath(null) != null)
+        call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun getDiagnostics(call: PluginCall) {
+        val prefs = diagnosticsPrefs()
+        val ret = JSObject()
+        ret.put("trace", prefs.getString("trace", "") ?: "")
+        ret.put("lastAt", prefs.getString("last_at", "") ?: "")
+        ret.put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+        ret.put("sdk", Build.VERSION.SDK_INT)
+        ret.put("abis", Build.SUPPORTED_ABIS.joinToString(","))
+        ret.put("filesDir", context.filesDir?.absolutePath ?: "")
+        ret.put("cacheDir", context.cacheDir?.absolutePath ?: "")
         call.resolve(ret)
     }
 
@@ -477,10 +532,10 @@ class LocalAiGalleryPlugin : Plugin() {
             // MediaPipe/LiteRT peuvent lever des Error (UnsatisfiedLinkError, OOM,
             // AssertionError…) qui, non attrapées, font planter tout le process.
             try {
-                android.util.Log.i(TAG, "generate: résolution du modèle « $model »")
+                logInfo("generate: résolution du modèle « $model »")
                 val path = resolveModelPath(model)
                 if (path == null) {
-                    android.util.Log.w(TAG, "generate: aucun modèle trouvé")
+                    logWarn("generate: aucun modèle trouvé")
                     call.reject(
                         "Aucun modèle local introuvable" +
                             (if (model.isNullOrBlank()) "" else " pour « $model »") +
@@ -489,23 +544,23 @@ class LocalAiGalleryPlugin : Plugin() {
                     return@launch
                 }
 
-                android.util.Log.i(TAG, "generate: préparation du modèle ${path.absolutePath}")
+                logInfo("generate: préparation du modèle ${path.absolutePath}")
                 val preparedPath = prepareModelForInference(path)
                 val engineKind = if (isLiteRtLmModel(preparedPath)) "LiteRT-LM" else "MediaPipe"
-                android.util.Log.i(TAG, "generate: chargement $engineKind (${preparedPath.length()} octets)")
+                logInfo("generate: chargement $engineKind (${preparedPath.length()} octets)")
                 val text = if (isLiteRtLmModel(preparedPath)) {
                     generateWithLiteRtLm(preparedPath, system, prompt)
                 } else {
                     generateWithMediaPipe(preparedPath, system, prompt)
                 }
-                android.util.Log.i(TAG, "generate: réponse reçue (${text.length} car.) via $engineKind")
+                logInfo("generate: réponse reçue (${text.length} car.) via $engineKind")
                 val ret = JSObject()
                 ret.put("text", text)
                 ret.put("engine", engineKind)
                 ret.put("modelPath", preparedPath.absolutePath)
                 call.resolve(ret)
             } catch (e: Throwable) {
-                android.util.Log.e(TAG, "generate: échec inférence", e)
+                logError("generate: échec inférence", e)
                 val detail = if (e is Exception) friendlyInferenceError(e)
                     else "${e.javaClass.simpleName}: ${(e.message ?: "").take(400)}"
                 call.reject("Échec de l'inférence locale : $detail")
