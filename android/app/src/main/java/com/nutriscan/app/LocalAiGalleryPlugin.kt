@@ -2,6 +2,7 @@ package com.nutriscan.app
 
 import android.app.Activity
 import android.content.ContentUris
+import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -15,10 +16,19 @@ import com.getcapacitor.PluginCall
 import com.getcapacitor.PluginMethod
 import com.getcapacitor.annotation.ActivityCallback
 import com.getcapacitor.annotation.CapacitorPlugin
+import com.google.ai.edge.litertlm.Backend
+import com.google.ai.edge.litertlm.Content
+import com.google.ai.edge.litertlm.Contents
+import com.google.ai.edge.litertlm.ConversationConfig
+import com.google.ai.edge.litertlm.Engine as LiteRtLmEngine
+import com.google.ai.edge.litertlm.EngineConfig
+import com.google.ai.edge.litertlm.LogSeverity
+import com.google.ai.edge.litertlm.SamplerConfig
 import com.google.mediapipe.tasks.genai.llminference.LlmInference
 import com.google.mediapipe.tasks.genai.llminference.LlmInferenceSession
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.launch
 import java.io.File
 import java.io.IOException
@@ -26,10 +36,9 @@ import java.io.IOException
 /**
  * Plugin Capacitor d'IA locale NATIVE (sur l'appareil), sans clé ni réseau.
  *
- * Embarque le moteur d'inférence MediaPipe LLM (LiteRT) — le même que celui
- * utilisé par l'application Google AI Edge Gallery — directement dans l'app.
- * L'inférence tourne 100% hors-ligne à partir d'un fichier modèle `.task`
- * présent sur l'appareil.
+ * Embarque deux moteurs selon le format :
+ *   - `.litertlm` → SDK moderne LiteRT-LM, requis par Gemma 4 / modèles récents.
+ *   - `.task`     → ancien moteur MediaPipe LLM Inference, conservé en fallback.
  *
  * Côté JS (voir src/services/localAiBridge.ts), le plugin expose :
  *   isAvailable(): Promise<{ available: boolean }>
@@ -37,9 +46,9 @@ import java.io.IOException
  *   generate({ system, prompt, image?, model? }): Promise<{ text: string }>
  *
  * Résolution du modèle (`model`) :
- *   - chemin absolu vers un fichier `.task` → utilisé tel quel,
+ *   - chemin absolu vers un fichier `.litertlm`/`.task` → utilisé tel quel,
  *   - sinon un NOM (ex: "gemma-3n") → recherché dans des dossiers connus,
- *     avec ou sans suffixe `.task`.
+ *     avec ou sans suffixe `.litertlm`/`.task`.
  *
  * Important Android scoped storage : MediaPipe/LiteRT ouvre le modèle depuis
  * du code natif POSIX. Même si Kotlin voit un fichier dans Download/, le moteur
@@ -50,7 +59,8 @@ import java.io.IOException
 class LocalAiGalleryPlugin : Plugin() {
 
     // Cache d'une instance par chemin de modèle (le chargement est coûteux).
-    private val engines = HashMap<String, LlmInference>()
+    private val mediaPipeEngines = HashMap<String, LlmInference>()
+    private val liteRtLmEngines = HashMap<String, LiteRtLmEngine>()
 
     /**
      * Extensions de modèles locaux supportées. Le format moderne LiteRT-LM
@@ -61,6 +71,46 @@ class LocalAiGalleryPlugin : Plugin() {
     private val defaultExtension = ".litertlm"
 
     private data class DownloadModelRef(val name: String, val uri: Uri, val size: Long?)
+
+    private fun diagnosticsPrefs() = context.getSharedPreferences("local_ai_diagnostics", Context.MODE_PRIVATE)
+
+    private fun appendNativeTrace(level: String, message: String, error: Throwable? = null) {
+        val line = buildString {
+            append(System.currentTimeMillis())
+            append(" [")
+            append(level)
+            append("] ")
+            append(message)
+            if (error != null) {
+                append(" :: ")
+                append(error.javaClass.simpleName)
+                append(": ")
+                append(error.message ?: "")
+            }
+        }
+        val prefs = diagnosticsPrefs()
+        val previous = prefs.getString("trace", "") ?: ""
+        val next = (previous + "\n" + line).lines().takeLast(160).joinToString("\n").trim()
+        prefs.edit()
+            .putString("trace", next)
+            .putString("last_at", java.time.Instant.now().toString())
+            .apply()
+    }
+
+    private fun logInfo(message: String) {
+        android.util.Log.i(TAG, message)
+        appendNativeTrace("INFO", message)
+    }
+
+    private fun logWarn(message: String) {
+        android.util.Log.w(TAG, message)
+        appendNativeTrace("WARN", message)
+    }
+
+    private fun logError(message: String, error: Throwable) {
+        android.util.Log.e(TAG, message, error)
+        appendNativeTrace("ERROR", message, error)
+    }
 
     private fun isModelFileName(name: String?): Boolean =
         !name.isNullOrBlank() && modelExtensions.any { name.endsWith(it, ignoreCase = true) }
@@ -111,6 +161,8 @@ class LocalAiGalleryPlugin : Plugin() {
 
     private fun modelNameFromFile(file: File): String =
         file.name.replace(Regex("\\.(litertlm|task)$", RegexOption.IGNORE_CASE), "")
+
+    private fun isLiteRtLmModel(file: File): Boolean = file.name.endsWith(".litertlm", ignoreCase = true)
 
     private fun displayName(uri: Uri): String? {
         return runCatching {
@@ -270,16 +322,79 @@ class LocalAiGalleryPlugin : Plugin() {
         return null
     }
 
-    private fun engineFor(path: File): LlmInference {
+    private fun mediaPipeEngineFor(path: File): LlmInference {
         val key = path.absolutePath
-        engines[key]?.let { return it }
+        mediaPipeEngines[key]?.let { return it }
         val options = LlmInference.LlmInferenceOptions.builder()
             .setModelPath(path.absolutePath)
             .setMaxTokens(1024)
             .build()
         val engine = LlmInference.createFromOptions(context, options)
-        engines[key] = engine
+        mediaPipeEngines[key] = engine
         return engine
+    }
+
+    private fun liteRtLmEngineFor(path: File): LiteRtLmEngine {
+        val key = path.absolutePath
+        liteRtLmEngines[key]?.let { return it }
+        val cache = File(context.cacheDir, "litertlm")
+        if (!cache.exists()) cache.mkdirs()
+        val config = EngineConfig(
+            modelPath = path.absolutePath,
+            backend = Backend.CPU(),
+            maxNumTokens = 1024,
+            cacheDir = cache.absolutePath,
+        )
+        val engine = LiteRtLmEngine(config)
+        engine.initialize()
+        liteRtLmEngines[key] = engine
+        return engine
+    }
+
+    private fun messageText(message: com.google.ai.edge.litertlm.Message): String {
+        val pieces = message.contents.contents.mapNotNull { content ->
+            when (content) {
+                is Content.Text -> content.text
+                else -> null
+            }
+        }
+        return if (pieces.isNotEmpty()) pieces.joinToString("") else message.toString()
+    }
+
+    private suspend fun generateWithLiteRtLm(path: File, system: String, prompt: String): String {
+        logInfo("generate: LiteRT-LM initialise ${path.absolutePath}")
+        LiteRtLmEngine.setNativeMinLogSeverity(LogSeverity.INFO)
+        val engine = liteRtLmEngineFor(path)
+        val conversationConfig = ConversationConfig(
+            systemInstruction = if (system.isBlank()) Contents.of("") else Contents.of(system),
+            samplerConfig = SamplerConfig(topK = 40, topP = 0.95, temperature = 0.6),
+        )
+        engine.createConversation(conversationConfig).use { conversation ->
+            val response = StringBuilder()
+            logInfo("generate: LiteRT-LM streaming (${prompt.length} car.)")
+            conversation.sendMessageAsync(prompt)
+                .collect { message -> response.append(messageText(message)) }
+            return response.toString()
+        }
+    }
+
+    private fun generateWithMediaPipe(path: File, system: String, prompt: String): String {
+        logInfo("generate: MediaPipe charge ${path.absolutePath}")
+        val engine = mediaPipeEngineFor(path)
+        logInfo("generate: moteur MediaPipe prêt, création de la session")
+        val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
+            .setTemperature(0.6f)
+            .setTopK(40)
+            .build()
+        val session = LlmInferenceSession.createFromOptions(engine, sessionOptions)
+        try {
+            val fullPrompt = if (system.isBlank()) prompt else "$system\n\n$prompt"
+            logInfo("generate: MediaPipe inférence en cours (${fullPrompt.length} car.)")
+            session.addQueryChunk(fullPrompt)
+            return session.generateResponse() ?: ""
+        } finally {
+            session.close()
+        }
     }
 
     private fun friendlyInferenceError(e: Exception): String {
@@ -291,6 +406,8 @@ class LocalAiGalleryPlugin : Plugin() {
                 "MediaPipe n'a pas pu ouvrir le fichier modèle. Placez-le dans le dossier privé de l'app (filesDir/llm) ou dans Android/data/${context.packageName}/files/llm."
             msg.contains("Failed to initialize engine", ignoreCase = true) ->
                 "MediaPipe n'a pas pu initialiser ce modèle. Vérifiez que c'est un fichier .litertlm (ou .task) Android compatible LLM Inference/LiteRT récent et qu'il tient en mémoire."
+            msg.contains("LiteRtLmJniException", ignoreCase = true) || msg.contains("litertlm", ignoreCase = true) ->
+                "LiteRT-LM n'a pas pu initialiser ce modèle. Vérifiez que le fichier .litertlm correspond bien à une variante Android LiteRT-LM et que l'appareil dispose d'assez de RAM. Détail : ${msg.take(350)}"
             else -> msg.take(500)
         }
     }
@@ -299,6 +416,20 @@ class LocalAiGalleryPlugin : Plugin() {
     fun isAvailable(call: PluginCall) {
         val ret = JSObject()
         ret.put("available", resolveModelPath(null) != null)
+        call.resolve(ret)
+    }
+
+    @PluginMethod
+    fun getDiagnostics(call: PluginCall) {
+        val prefs = diagnosticsPrefs()
+        val ret = JSObject()
+        ret.put("trace", prefs.getString("trace", "") ?: "")
+        ret.put("lastAt", prefs.getString("last_at", "") ?: "")
+        ret.put("device", "${Build.MANUFACTURER} ${Build.MODEL}")
+        ret.put("sdk", Build.VERSION.SDK_INT)
+        ret.put("abis", Build.SUPPORTED_ABIS.joinToString(","))
+        ret.put("filesDir", context.filesDir?.absolutePath ?: "")
+        ret.put("cacheDir", context.cacheDir?.absolutePath ?: "")
         call.resolve(ret)
     }
 
@@ -401,10 +532,10 @@ class LocalAiGalleryPlugin : Plugin() {
             // MediaPipe/LiteRT peuvent lever des Error (UnsatisfiedLinkError, OOM,
             // AssertionError…) qui, non attrapées, font planter tout le process.
             try {
-                android.util.Log.i(TAG, "generate: résolution du modèle « $model »")
+                logInfo("generate: résolution du modèle « $model »")
                 val path = resolveModelPath(model)
                 if (path == null) {
-                    android.util.Log.w(TAG, "generate: aucun modèle trouvé")
+                    logWarn("generate: aucun modèle trouvé")
                     call.reject(
                         "Aucun modèle local introuvable" +
                             (if (model.isNullOrBlank()) "" else " pour « $model »") +
@@ -413,30 +544,23 @@ class LocalAiGalleryPlugin : Plugin() {
                     return@launch
                 }
 
-                android.util.Log.i(TAG, "generate: préparation du modèle ${path.absolutePath}")
+                logInfo("generate: préparation du modèle ${path.absolutePath}")
                 val preparedPath = prepareModelForInference(path)
-                android.util.Log.i(TAG, "generate: chargement du moteur (${preparedPath.length()} octets)")
-                val engine = engineFor(preparedPath)
-                android.util.Log.i(TAG, "generate: moteur prêt, création de la session")
-                val sessionOptions = LlmInferenceSession.LlmInferenceSessionOptions.builder()
-                    .setTemperature(0.6f)
-                    .setTopK(40)
-                    .build()
-                val session = LlmInferenceSession.createFromOptions(engine, sessionOptions)
-                try {
-                    val fullPrompt = if (system.isBlank()) prompt else "$system\n\n$prompt"
-                    android.util.Log.i(TAG, "generate: inférence en cours (${fullPrompt.length} car.)")
-                    session.addQueryChunk(fullPrompt)
-                    val text = session.generateResponse()
-                    android.util.Log.i(TAG, "generate: réponse reçue (${text?.length ?: 0} car.)")
-                    val ret = JSObject()
-                    ret.put("text", text ?: "")
-                    call.resolve(ret)
-                } finally {
-                    session.close()
+                val engineKind = if (isLiteRtLmModel(preparedPath)) "LiteRT-LM" else "MediaPipe"
+                logInfo("generate: chargement $engineKind (${preparedPath.length()} octets)")
+                val text = if (isLiteRtLmModel(preparedPath)) {
+                    generateWithLiteRtLm(preparedPath, system, prompt)
+                } else {
+                    generateWithMediaPipe(preparedPath, system, prompt)
                 }
+                logInfo("generate: réponse reçue (${text.length} car.) via $engineKind")
+                val ret = JSObject()
+                ret.put("text", text)
+                ret.put("engine", engineKind)
+                ret.put("modelPath", preparedPath.absolutePath)
+                call.resolve(ret)
             } catch (e: Throwable) {
-                android.util.Log.e(TAG, "generate: échec inférence", e)
+                logError("generate: échec inférence", e)
                 val detail = if (e is Exception) friendlyInferenceError(e)
                     else "${e.javaClass.simpleName}: ${(e.message ?: "").take(400)}"
                 call.reject("Échec de l'inférence locale : $detail")

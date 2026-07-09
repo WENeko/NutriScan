@@ -21,6 +21,7 @@ interface LocalAiGalleryPlugin {
   isAvailable(): Promise<{ available: boolean }>;
   importModel(): Promise<{ model: string; path?: string; size?: number }>;
   listModels(): Promise<{ models: string[] }>;
+  getDiagnostics(): Promise<{ trace?: string; lastAt?: string; device?: string; sdk?: number; abis?: string; filesDir?: string; cacheDir?: string }>;
   generate(opts: { system?: string; prompt?: string; image?: string; model?: string }): Promise<{ text: string }>;
 }
 
@@ -67,6 +68,15 @@ export async function listLocalIntentModels(): Promise<string[]> {
   return Array.isArray(res?.models) ? res.models.filter(Boolean) : [];
 }
 
+async function readLocalDiagnostics(plugin: LocalAiGalleryPlugin): Promise<Record<string, unknown> | null> {
+  try {
+    const diagnostics = await plugin.getDiagnostics();
+    return diagnostics && Object.keys(diagnostics).length > 0 ? diagnostics : null;
+  } catch {
+    return null;
+  }
+}
+
 export interface LocalIntentRequest {
   system: string;
   prompt: string;
@@ -98,6 +108,10 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
     systemChars: req.system?.length ?? 0,
     promptChars: req.prompt?.length ?? 0,
   });
+  const previousDiagnostics = await readLocalDiagnostics(plugin);
+  if (previousDiagnostics?.trace) {
+    appLogger.debug("LocalAiBridge", "diagnostics natifs avant appel", previousDiagnostics);
+  }
   let res: { text: string };
   try {
     res = await plugin.generate({
@@ -107,10 +121,18 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
       model: req.model ?? undefined,
     });
   } catch (e: any) {
+    const message = e?.message ?? String(e);
+    const diagnostics = await readLocalDiagnostics(plugin);
     appLogger.error("LocalAiBridge", "generate() → échec natif", {
-      message: e?.message ?? String(e),
+      message,
       code: e?.code,
       elapsedMs: Date.now() - started,
+      diagnostics,
+    });
+    appLogger.error("LocalAiBridge", `generate() → échec natif : ${message}`, {
+      code: e?.code,
+      elapsedMs: Date.now() - started,
+      diagnostics,
     });
     throw e;
   }

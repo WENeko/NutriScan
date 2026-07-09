@@ -45,8 +45,10 @@ dependencies {
     implementation 'androidx.health.connect:connect-client:1.1.0'
     implementation 'org.jetbrains.kotlinx:kotlinx-coroutines-android:1.11.0'
     implementation "org.jetbrains.kotlin:kotlin-stdlib:2.4.0"
-    // IA locale native (on-device) — moteur MediaPipe LLM Inference / LiteRT,
-    // identique à celui de Google AI Edge Gallery. Inférence 100% hors-ligne.
+    // IA locale native (on-device).
+    // - .litertlm : SDK moderne LiteRT-LM (Gemma 4 / Gemma 3 récents)
+    // - .task     : ancien moteur MediaPipe LLM Inference, conservé en fallback
+    implementation 'com.google.ai.edge.litertlm:litertlm-android:0.14.0'
     implementation 'com.google.mediapipe:tasks-genai:0.10.29'
 }
 
