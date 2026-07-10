@@ -342,7 +342,10 @@ class LocalAiGalleryPlugin : Plugin() {
         val config = EngineConfig(
             modelPath = path.absolutePath,
             backend = Backend.CPU(),
-            maxNumTokens = 1024,
+            // 1024 était trop bas : le prompt nutritionnel et la réponse JSON
+            // partageaient cette fenêtre. Le client envoie désormais un prompt
+            // compact, tandis que 4096 laisse assez de place à la réponse.
+            maxNumTokens = 4096,
             cacheDir = cache.absolutePath,
         )
         val engine = LiteRtLmEngine(config)
@@ -406,6 +409,8 @@ class LocalAiGalleryPlugin : Plugin() {
                 "MediaPipe n'a pas pu ouvrir le fichier modèle. Placez-le dans le dossier privé de l'app (filesDir/llm) ou dans Android/data/${context.packageName}/files/llm."
             msg.contains("Failed to initialize engine", ignoreCase = true) ->
                 "MediaPipe n'a pas pu initialiser ce modèle. Vérifiez que c'est un fichier .litertlm (ou .task) Android compatible LLM Inference/LiteRT récent et qu'il tient en mémoire."
+            msg.contains("Input token ids are too long", ignoreCase = true) ->
+                "La description du repas dépasse la capacité de contexte de ce modèle local. Raccourcissez-la puis réessayez."
             msg.contains("LiteRtLmJniException", ignoreCase = true) || msg.contains("litertlm", ignoreCase = true) ->
                 "LiteRT-LM n'a pas pu initialiser ce modèle. Vérifiez que le fichier .litertlm correspond bien à une variante Android LiteRT-LM et que l'appareil dispose d'assez de RAM. Détail : ${msg.take(350)}"
             else -> msg.take(500)

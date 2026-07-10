@@ -10,6 +10,9 @@ import { fallbackModelFor } from '@/lib/providerCatalog';
 import {
   buildSystemContent,
   buildCustomFoodsContext,
+  buildLocalSystemContent,
+  buildLocalCustomFoodsContext,
+  buildLocalUserPromptText,
   buildUserPromptText,
 } from '../../supabase/functions/_shared/mealAnalysisPrompt';
 // SOURCE UNIQUE DE VÉRITÉ de la liste des micros standard (JSON métier).
@@ -173,9 +176,21 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
     try {
       if (apiType === "local_intent") {
         // ── IA locale NATIVE via Intent Android (ex: Google AI Edge Gallery) ──
+        const localSystemContent = buildLocalSystemContent(NUTRIENTS_STD_LIST, custom_nutrients);
+        const localFoodsContext = buildLocalCustomFoodsContext(custom_foods, text);
+        const localPromptText = buildLocalUserPromptText({
+          hasImage: !!image,
+          text,
+          local_time,
+          customFoodsContext: localFoodsContext,
+        });
+        appLogger.debug("IA", "Prompt local compact préparé", {
+          systemChars: localSystemContent.length,
+          promptChars: localPromptText.length,
+        });
         intentContent = await runLocalIntentChat({
-          system: systemContent,
-          prompt: promptText,
+          system: localSystemContent,
+          prompt: localPromptText,
           image,
           model: chosenModel,
         });

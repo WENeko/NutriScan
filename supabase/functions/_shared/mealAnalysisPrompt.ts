@@ -135,6 +135,55 @@ export function buildSystemContent(
   return buildSystemPrompt(std_nutrients, custom_nutrients) + buildCustomNutrientsContext(custom_nutrients);
 }
 
+/**
+ * Variante volontairement compacte pour les modèles exécutés sur l'appareil.
+ * Leur fenêtre de contexte est nettement plus petite que celle des modèles cloud :
+ * conserver le prompt riche ferait consommer plusieurs milliers de tokens avant
+ * même que le modèle puisse commencer sa réponse.
+ */
+export function buildLocalSystemContent(
+  std_nutrients?: CustomNutrientDef[],
+  custom_nutrients?: CustomNutrientDef[],
+): string {
+  const nutrients = [...(std_nutrients ?? []), ...(custom_nutrients ?? [])]
+    .filter((n) => n?.key)
+    .filter((n, index, all) => all.findIndex((candidate) => candidate.key === n.key) === index);
+  const nutrientFields = nutrients.map((n) => `"${n.key}":0`).join(",");
+
+  return `Nutritionniste. Reponds uniquement en JSON compact valide: {"meal_name":"","confidence_score":0.8,"items":[{"name":"","estimated_weight_g":0,"calories":0,"proteins":0,"carbs":0,"fats":0${nutrientFields ? `,${nutrientFields}` : ""}}],"total_summary":{"calories":0,"proteins":0,"carbs":0,"fats":0}}. Valeurs pour la portion consommee; tous les nutriments sont obligatoires (0 si inconnu). Si nombre sans g/kg/ml/cl/L, ajoute unit_count, unit_weight_g, unit_label et calcule le poids. Ajoute suggested_timestamp ISO si une date est indiquee. Si ambigu ou frit, estime plutot haut.`;
+}
+
+/** Références personnelles pertinentes, fortement bornées pour le contexte local. */
+export function buildLocalCustomFoodsContext(custom_foods?: any[], text?: string): string {
+  if (!Array.isArray(custom_foods) || !text?.trim()) return "";
+  const normalizedText = text.toLocaleLowerCase();
+  const matches = custom_foods.filter((food) => {
+    const name = String(food?.name ?? "").trim();
+    return name.length >= 2 && normalizedText.includes(name.toLocaleLowerCase());
+  });
+  if (matches.length === 0) return "";
+
+  const compact = matches.slice(0, 2).map((food) =>
+    `${String(food.name).slice(0, 40)}:${Number(food.serving_size_g ?? 100)}g,${Number(food.calories_per_100g ?? 0)}kcal/100g,P${Number(food.proteins_per_100g ?? 0)},G${Number(food.carbs_per_100g ?? 0)},L${Number(food.fats_per_100g ?? 0)}`
+  ).join(";");
+  return ` Reference perso prioritaire: ${compact.slice(0, 220)}.`;
+}
+
+/** Message repas compact et borné pour éviter de dépasser le contexte local. */
+export function buildLocalUserPromptText(opts: {
+  hasImage: boolean;
+  text?: string;
+  local_time?: string;
+  customFoodsContext?: string;
+}): string {
+  const description = String(opts.text ?? "").trim().slice(0, 500);
+  const time = opts.local_time ? ` Heure locale:${String(opts.local_time).slice(0, 40)}.` : "";
+  const refs = String(opts.customFoodsContext ?? "").slice(0, 240);
+  return opts.hasImage
+    ? `Analyse le repas visible.${description ? ` Indication:${description}.` : ""}${refs}${time}`
+    : `Analyse ce repas: ${description}.${refs}${time}`;
+}
+
 /** Texte utilisateur (image ou description), incluant le contexte bibliothèque. */
 export function buildUserPromptText(opts: {
   hasImage: boolean;
