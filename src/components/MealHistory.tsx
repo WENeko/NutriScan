@@ -256,6 +256,7 @@ const [searchQuery, setSearchQuery] = useState("");
           total_fats: originalMeal.total_fats,
           is_confirmed: true,
           is_favorite: originalMeal.is_favorite || false,
+          parent_meal_id: (originalMeal as any).parent_meal_id ?? mealId,
           source: "ai",
           model_used: originalMeal.model_used,
           confidence_score: originalMeal.confidence_score,

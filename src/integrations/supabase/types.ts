@@ -275,6 +275,7 @@ export type Database = {
           is_favorite: boolean
           meal_name: string | null
           model_used: string | null
+          parent_meal_id: string | null
           raw_ai_analysis: string | null
           source: string
           timestamp: string
@@ -293,6 +294,7 @@ export type Database = {
           is_favorite?: boolean
           meal_name?: string | null
           model_used?: string | null
+          parent_meal_id?: string | null
           raw_ai_analysis?: string | null
           source?: string
           timestamp?: string
@@ -311,6 +313,7 @@ export type Database = {
           is_favorite?: boolean
           meal_name?: string | null
           model_used?: string | null
+          parent_meal_id?: string | null
           raw_ai_analysis?: string | null
           source?: string
           timestamp?: string
@@ -320,7 +323,15 @@ export type Database = {
           total_proteins?: number | null
           user_id?: string
         }
-        Relationships: []
+        Relationships: [
+          {
+            foreignKeyName: "meals_parent_meal_id_fkey"
+            columns: ["parent_meal_id"]
+            isOneToOne: false
+            referencedRelation: "meals"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       micronutrient_categories: {
         Row: {
