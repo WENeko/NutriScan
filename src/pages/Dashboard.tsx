@@ -266,6 +266,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setFavoriteMeals(
         typedMeals
           .filter((m) => m.is_favorite)
+          .filter((m) => !(m as any).parent_meal_id)
           .filter((meal, index, self) => 
             index === self.findIndex((t) => t.meal_name === meal.meal_name)
           )
