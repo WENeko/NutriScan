@@ -176,9 +176,9 @@ export function buildLocalUserPromptText(opts: {
   local_time?: string;
   customFoodsContext?: string;
 }): string {
-  const description = String(opts.text ?? "").trim().slice(0, 500);
+  const description = String(opts.text ?? "").trim().slice(0, 900);
   const time = opts.local_time ? ` Heure locale:${String(opts.local_time).slice(0, 40)}.` : "";
-  const refs = String(opts.customFoodsContext ?? "").slice(0, 240);
+  const refs = String(opts.customFoodsContext ?? "").slice(0, 400);
   return opts.hasImage
     ? `Analyse le repas visible.${description ? ` Indication:${description}.` : ""}${refs}${time}`
     : `Analyse ce repas: ${description}.${refs}${time}`;
