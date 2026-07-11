@@ -150,7 +150,7 @@ export function buildLocalSystemContent(
     .filter((n, index, all) => all.findIndex((candidate) => candidate.key === n.key) === index);
   const nutrientFields = nutrients.map((n) => `"${n.key}":0`).join(",");
 
-  return `Nutritionniste. Reponds uniquement en JSON compact valide: {"meal_name":"","confidence_score":0.8,"items":[{"name":"","estimated_weight_g":0,"calories":0,"proteins":0,"carbs":0,"fats":0${nutrientFields ? `,${nutrientFields}` : ""}}],"total_summary":{"calories":0,"proteins":0,"carbs":0,"fats":0}}. Valeurs pour la portion consommee; tous les nutriments sont obligatoires (0 si inconnu). Si nombre sans g/kg/ml/cl/L, ajoute unit_count, unit_weight_g, unit_label et calcule le poids. Ajoute suggested_timestamp ISO si une date est indiquee. Si ambigu ou frit, estime plutot haut.`;
+  return `Nutritionniste expert. Reponds uniquement en JSON compact valide: {"meal_name":"","confidence_score":0.8,"items":[{"name":"","estimated_weight_g":0,"calories":0,"proteins":0,"carbs":0,"fats":0${nutrientFields ? `,${nutrientFields}` : ""}}],"total_summary":{"calories":0,"proteins":0,"carbs":0,"fats":0}}. Valeurs pour la portion consommee; tous les nutriments sont obligatoires (0 si inconnu). UNITES: si un nombre est donne sans g/kg/ml/cl/L, ajoute unit_count, unit_weight_g (poids d'UNE unite), unit_label, et estimated_weight_g=unit_count*unit_weight_g. Ex: "3 oeufs"->unit_count=3,unit_label="oeuf"; "2 tranches jambon"->2,"tranche"; "1 portion Kiri"->1,"portion"; mais "200g riz"->poids brut sans unites. Aliments comptables: oeufs, tranches, portions fromage, biscuits, crepes, saucisses, nuggets, fruits entiers, tomates cerises. GRAISSES: si aspect brillant/frit, ajoute +5 a +10g de lipides. IMAGE: utilise couverts et assiette pour estimer les portions; si ambigu choisis l'option la plus calorique. Ajoute suggested_timestamp ISO si une date/heure est indiquee (ex "hier 22h").`;
 }
 
 /** Références personnelles pertinentes, fortement bornées pour le contexte local. */
@@ -163,10 +163,10 @@ export function buildLocalCustomFoodsContext(custom_foods?: any[], text?: string
   });
   if (matches.length === 0) return "";
 
-  const compact = matches.slice(0, 2).map((food) =>
+  const compact = matches.slice(0, 3).map((food) =>
     `${String(food.name).slice(0, 40)}:${Number(food.serving_size_g ?? 100)}g,${Number(food.calories_per_100g ?? 0)}kcal/100g,P${Number(food.proteins_per_100g ?? 0)},G${Number(food.carbs_per_100g ?? 0)},L${Number(food.fats_per_100g ?? 0)}`
   ).join(";");
-  return ` Reference perso prioritaire: ${compact.slice(0, 220)}.`;
+  return ` Reference perso prioritaire: ${compact.slice(0, 400)}.`;
 }
 
 /** Message repas compact et borné pour éviter de dépasser le contexte local. */
@@ -176,9 +176,9 @@ export function buildLocalUserPromptText(opts: {
   local_time?: string;
   customFoodsContext?: string;
 }): string {
-  const description = String(opts.text ?? "").trim().slice(0, 500);
+  const description = String(opts.text ?? "").trim().slice(0, 900);
   const time = opts.local_time ? ` Heure locale:${String(opts.local_time).slice(0, 40)}.` : "";
-  const refs = String(opts.customFoodsContext ?? "").slice(0, 240);
+  const refs = String(opts.customFoodsContext ?? "").slice(0, 400);
   return opts.hasImage
     ? `Analyse le repas visible.${description ? ` Indication:${description}.` : ""}${refs}${time}`
     : `Analyse ce repas: ${description}.${refs}${time}`;
