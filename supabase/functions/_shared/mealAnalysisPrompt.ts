@@ -163,10 +163,10 @@ export function buildLocalCustomFoodsContext(custom_foods?: any[], text?: string
   });
   if (matches.length === 0) return "";
 
-  const compact = matches.slice(0, 2).map((food) =>
+  const compact = matches.slice(0, 3).map((food) =>
     `${String(food.name).slice(0, 40)}:${Number(food.serving_size_g ?? 100)}g,${Number(food.calories_per_100g ?? 0)}kcal/100g,P${Number(food.proteins_per_100g ?? 0)},G${Number(food.carbs_per_100g ?? 0)},L${Number(food.fats_per_100g ?? 0)}`
   ).join(";");
-  return ` Reference perso prioritaire: ${compact.slice(0, 220)}.`;
+  return ` Reference perso prioritaire: ${compact.slice(0, 400)}.`;
 }
 
 /** Message repas compact et borné pour éviter de dépasser le contexte local. */
