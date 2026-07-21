@@ -131,11 +131,14 @@ export interface PersoBridgeResult {
   itemsInserted?: number;
 }
 
-export async function callPersoBridge(): Promise<PersoBridgeResult> {
+export async function callPersoBridge(
+  _path?: string,
+  _body?: Record<string, unknown>,
+): Promise<PersoBridgeResult> {
   return { ok: false, error: "personal DB bridge disabled" };
 }
 
-export async function pingPersoBridge(): Promise<PersoBridgeResult> {
+export async function pingPersoBridge(_userId?: string): Promise<PersoBridgeResult> {
   return { ok: false, error: "personal DB bridge disabled" };
 }
 
