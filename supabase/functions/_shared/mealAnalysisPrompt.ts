@@ -65,6 +65,9 @@ export function buildSystemPrompt(
 
   return `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
 
+IMPORTANT - Poids cru vs cuit (source d'erreur majeure) :
+Quand l'utilisateur indique un poids par écrit pour un aliment féculent qui absorbe de l'eau à la cuisson (pâtes, riz, semoule, quinoa, lentilles, haricots secs, boulgour, etc.), considère TOUJOURS ce poids comme CRU/SEC par défaut, sauf mention explicite "cuit"/"cuites"/"cooked". Utilise les valeurs nutritionnelles du produit CRU (ex: pâtes crues ≈ 350 kcal/100g, riz cru ≈ 350 kcal/100g) et NON les valeurs cuites (≈ 130-140 kcal/100g). Idem pour les viandes/poissons si l'utilisateur donne un poids texte sans précision : considère-le comme cru. Sur une IMAGE en revanche, tu vois l'aliment cuit dans l'assiette : utilise les valeurs cuites, mais estime le poids visible cuit (ratio cru→cuit ≈ x2.5 pour pâtes/riz).
+
 IMPORTANT - Extraction temporelle :
 Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
 
