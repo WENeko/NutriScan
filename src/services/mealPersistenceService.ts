@@ -1,6 +1,10 @@
 /**
- * Persistance des repas — double écriture Lovable + BDD perso via edge function bridge.
- * La BDD perso reçoit les écritures via la function `save-meal` (service_role, contourne RLS).
+ * Persistance des repas — écriture unique dans Lovable Cloud (Supabase géré).
+ *
+ * Note sécurité : l'ancien pont vers une "BDD perso" externe a été retiré.
+ * Il envoyait un secret partagé depuis le navigateur vers des edge functions
+ * en service_role qui ne vérifiaient pas cryptographiquement le JWT, ce qui
+ * permettait de forger des requêtes au nom de n'importe quel utilisateur.
  */
 
 import { supabase } from "@/integrations/supabase/client";
@@ -11,9 +15,7 @@ import {
   type CustomNutrientDef,
 } from "@/utils/nutrients-helpers";
 
-const PERSO_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL as string | undefined;
-const PERSO_BRIDGE_SECRET = import.meta.env.VITE_PERSONAL_BRIDGE_SECRET as string | undefined;
-const PERSO_ENABLED = !!(PERSO_URL && PERSO_BRIDGE_SECRET);
+const PERSO_ENABLED = false;
 
 export type MealItemWithMicros = {
   food_name?: string;
@@ -65,9 +67,6 @@ interface SaveMealParams {
   items: MealItemWithMicros[];
 }
 
-// ------------------------------------------------------------------
-// Builders
-// ------------------------------------------------------------------
 function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
   return {
     user_id: userId,
@@ -106,7 +105,6 @@ function buildItemRows(
       unit_count: it.unit_count ?? null,
       unit_label: it.unit_label ?? null,
       unit_weight_g: it.unit_weight_g ?? null,
-      // Source unique de vérité : nutrients_std (master list) + nutrients_custom (user-defined)
       nutrients_std: buildStdNutrients(it as Record<string, unknown>),
       nutrients_custom: buildCustomNutrients(it as Record<string, unknown>, customDefs),
     };
@@ -124,7 +122,7 @@ async function loadCustomNutrientDefs(userId: string): Promise<CustomNutrientDef
 }
 
 // ------------------------------------------------------------------
-// Bridge call (BDD perso)
+// Bridge (désactivé) — les stubs sont conservés pour compatibilité UI.
 // ------------------------------------------------------------------
 export interface PersoBridgeResult {
   ok: boolean;
@@ -134,59 +132,35 @@ export interface PersoBridgeResult {
 }
 
 export async function callPersoBridge(
-  path: string,
-  body: Record<string, unknown>,
+  _path?: string,
+  _body?: Record<string, unknown>,
 ): Promise<PersoBridgeResult> {
-  if (!PERSO_ENABLED) return { ok: false, error: "perso disabled" };
-  try {
-    const { data: { session } } = await supabase.auth.getSession();
-    const headers: Record<string, string> = {
-      "Content-Type": "application/json",
-      "x-shared-secret": PERSO_BRIDGE_SECRET!,
-    };
-    if (session?.access_token) headers["Authorization"] = `Bearer ${session.access_token}`;
-
-    const res = await fetch(`${PERSO_URL}/functions/v1/${path}`, {
-      method: "POST",
-      headers,
-      body: JSON.stringify(body),
-    });
-    const json = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      return { ok: false, status: res.status, error: json?.error || res.statusText };
-    }
-    return { ok: true, status: res.status, ...(json ?? {}) };
-  } catch (e: any) {
-    return { ok: false, error: e?.message ?? "network error" };
-  }
+  return { ok: false, error: "personal DB bridge disabled" };
 }
 
-export async function pingPersoBridge(userId: string): Promise<PersoBridgeResult> {
-  return callPersoBridge("save-meal", {
-    userId,
-    meal: { meal_name: "__ping__" },
-    items: [],
-    dryRun: true,
-  });
+export async function pingPersoBridge(_userId?: string): Promise<PersoBridgeResult> {
+  return { ok: false, error: "personal DB bridge disabled" };
+}
+
+export function isPersonalDbEnabled() {
+  return PERSO_ENABLED;
 }
 
 // ------------------------------------------------------------------
-// Main dual-write
+// Main write (Lovable Cloud only)
 // ------------------------------------------------------------------
 export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMealParams) => {
-  appLogger.info("DualWrite", "Démarrage sauvegarde", {
+  appLogger.info("MealSave", "Démarrage sauvegarde", {
     userId,
     name: mealData.meal_name,
     items: items?.length || 0,
-    persoEnabled: PERSO_ENABLED,
   });
 
-  // 1. Lovable (source de vérité) -----------------------------------
   const mealRow = buildMealRow(mealData, userId);
   const { data: primaryMeal, error: primaryErr } = await supabase
     .from("meals").insert([mealRow]).select().single();
   if (primaryErr) {
-    appLogger.error("DualWrite", "Echec insert Lovable", primaryErr);
+    appLogger.error("MealSave", "Echec insert", primaryErr);
     throw primaryErr;
   }
 
@@ -195,34 +169,11 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
   if (itemRows.length > 0) {
     const { error: itemsErr } = await supabase.from("meal_items").insert(itemRows);
     if (itemsErr) {
-      appLogger.error("DualWrite", "Echec insert items Lovable", itemsErr);
+      appLogger.error("MealSave", "Echec insert items", itemsErr);
       throw new Error(`meal_items: ${itemsErr.message}`);
     }
   }
-  appLogger.info("DualWrite", "Lovable OK", { mealId: primaryMeal.id });
+  appLogger.info("MealSave", "OK", { mealId: primaryMeal.id });
 
-  // 2. BDD perso via bridge -----------------------------------------
-  let perso: PersoBridgeResult | null = null;
-  if (PERSO_ENABLED) {
-    // mêmes payloads, mais sans user_id (le bridge l'ajoute) et avec email récup pour création auto user
-    const { data: { user } } = await supabase.auth.getUser();
-    const mealPayload = { ...mealRow, email: user?.email };
-    delete (mealPayload as any).user_id;
-    const itemsPayload = itemRows.map(({ meal_id: _omit, ...rest }) => rest);
-
-    perso = await callPersoBridge("save-meal", {
-      userId,
-      meal: mealPayload,
-      items: itemsPayload,
-    });
-    if (perso.ok) {
-      appLogger.info("DualWrite", "Perso OK", perso);
-    } else {
-      appLogger.warn("DualWrite", "Perso KO (ne bloque pas)", perso);
-    }
-  }
-
-  return { lovable: primaryMeal, personal: perso };
+  return { lovable: primaryMeal, personal: null as PersoBridgeResult | null };
 };
-
-export function isPersonalDbEnabled() { return PERSO_ENABLED; }
