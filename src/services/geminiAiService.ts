@@ -128,7 +128,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   // Sinon → fournisseur d'IA perso (imposé par le moteur, ou sélection par défaut).
   const provider = providerOverride ?? (typeof window !== "undefined" ? getActiveProviderConfig() : null);
-  const apiKey = provider?.apiKey || (typeof window !== "undefined" ? import.meta.env.VITE_GEMINI_API_KEY : undefined);
+  const apiKey = provider?.apiKey;
   const apiType = provider?.apiType ?? "gemini";
 
   // Les modèles locaux (sur l'appareil, HTTP ou Intent natif) ne nécessitent pas de clé API.
