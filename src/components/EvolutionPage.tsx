@@ -23,6 +23,8 @@ interface EvolutionPageProps {
   userProfile?: any;
   customNutrients?: CustomNutrientDef[];
   microOverrides?: MicroOverrides;
+  customCharts?: CustomChartConfig[];
+  onCustomChartsChange?: (next: CustomChartConfig[]) => void;
 }
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
