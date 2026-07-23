@@ -132,7 +132,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, water_goal_ml, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, is_athlete, is_smoker, is_pregnant, is_menopausal, goals_mode")
+      .select("goals, water_goal_ml, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, custom_charts, is_athlete, is_smoker, is_pregnant, is_menopausal, goals_mode")
       .eq("user_id", userId)
       .single();
 
