@@ -70,6 +70,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [customNutrients, setCustomNutrients] = useState<CustomNutrientDef[]>([]);
   const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
+  const [customCharts, setCustomCharts] = useState<any[]>([]);
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
