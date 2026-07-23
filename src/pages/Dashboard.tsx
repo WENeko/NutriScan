@@ -190,6 +190,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       void backfillCustomDescriptions(cnArr);
       const mo = (profile as any).micro_overrides;
       setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
+      const cc = (profile as any).custom_charts;
+      setCustomCharts(Array.isArray(cc) ? cc : []);
 
       // `baseCalories` (= profile.goals.calories) inclut déjà la moyenne
       // sportive 7 j lissée pour le Mode Scientifique (calculée à la synchro/sauvegarde).
