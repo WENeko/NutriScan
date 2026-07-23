@@ -362,6 +362,7 @@ export type Database = {
           bmr: number | null
           bmr_method: string | null
           created_at: string
+          custom_charts: Json
           custom_nutrients: Json
           date_of_birth: string | null
           email: string | null
@@ -404,6 +405,7 @@ export type Database = {
           bmr?: number | null
           bmr_method?: string | null
           created_at?: string
+          custom_charts?: Json
           custom_nutrients?: Json
           date_of_birth?: string | null
           email?: string | null
@@ -446,6 +448,7 @@ export type Database = {
           bmr?: number | null
           bmr_method?: string | null
           created_at?: string
+          custom_charts?: Json
           custom_nutrients?: Json
           date_of_birth?: string | null
           email?: string | null
