@@ -9,6 +9,7 @@ import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } f
 import { fr } from "date-fns/locale";
 import { getMasterList, resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
+import CustomChartsManager, { type CustomChartConfig } from "@/components/CustomChartsManager";
 
 interface EvolutionPageProps {
   userId: string;
