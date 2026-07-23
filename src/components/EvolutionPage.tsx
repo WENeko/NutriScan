@@ -358,6 +358,126 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </section>
 
+      {/* 3bis. GRAPHIQUES PERSONNALISÉS */}
+      <div className="space-y-3 pt-2">
+        <CustomChartsManager
+          userId={userId}
+          charts={customCharts}
+          onChange={(next) => onCustomChartsChange?.(next)}
+          resolvedMicros={resolvedMicros}
+        />
+        {customCharts.map((chart) => {
+          // Agrégation quotidienne : somme des micros sélectionnés
+          const selected = chart.micros
+            .map((k) => resolvedMicros.find((r) => r.key === k))
+            .filter(Boolean) as typeof resolvedMicros;
+          if (selected.length === 0) return null;
+          const isLimit = selected.some((s) => s.isLimit);
+          const goalTotal = selected.reduce((sum, s) => sum + (s.goal || 0), 0);
+          const unit = selected[0].unit;
+          const data = nutritionData.map((d) => {
+            const value = chart.micros.reduce((sum, k) => sum + (Number(d[k]) || 0), 0);
+            const rounded = Math.round(value * 10) / 10;
+            return {
+              day: d.day,
+              date: d.date,
+              value: rounded,
+              baseValue: isLimit ? Math.min(rounded, goalTotal) : rounded,
+              overValue: isLimit && rounded > goalTotal ? rounded - goalTotal : 0,
+            };
+          });
+          const badgeIcon = isLimit ? "⚠️" : "🎯";
+          const badgeLabel = `${isLimit ? "Max" : "Min"}: ${Math.round(goalTotal * 10) / 10} ${unit}`;
+
+          const referenceLine = (
+            <ReferenceLine
+              y={goalTotal}
+              stroke={isLimit ? "hsl(var(--destructive))" : chart.color}
+              strokeDasharray="4 4"
+              strokeWidth={1.5}
+              label={{
+                position: "insideTopRight",
+                value: `${badgeIcon} ${badgeLabel}`,
+                fill: isLimit ? "hsl(var(--destructive))" : chart.color,
+                fontSize: 10,
+                fontWeight: 600,
+              }}
+            />
+          );
+
+          const commonAxes = (
+            <>
+              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <Tooltip
+                contentStyle={tooltipStyle}
+                itemStyle={{ color: "#FFFFFF" }}
+                cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                formatter={(v: any) => [`${v} ${unit}`, chart.title]}
+              />
+            </>
+          );
+
+          return (
+            <section key={chart.id} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
+              <div className="flex items-center justify-between mb-1">
+                <h3 className="font-display font-semibold text-sm flex items-center gap-2">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chart.color }} />
+                  {chart.title}
+                </h3>
+                <span
+                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                    isLimit
+                      ? "bg-destructive/15 text-destructive"
+                      : "bg-primary/15 text-primary"
+                  }`}
+                >
+                  {badgeIcon} {badgeLabel}
+                </span>
+              </div>
+              <p className="text-[10px] text-muted-foreground mb-3">
+                {selected.map((s) => s.label).join(" + ")}
+              </p>
+              <div className="h-48">
+                <ResponsiveContainer width="100%" height="100%">
+                  {chart.chart_type === "bar" ? (
+                    <BarChart data={data}>
+                      {commonAxes}
+                      {referenceLine}
+                      <Bar dataKey="baseValue" stackId="a" radius={isLimit ? [0, 0, 0, 0] : [4, 4, 0, 0]}>
+                        {data.map((entry, index) => {
+                          let fill = chart.color;
+                          let opacity = 1;
+                          if (!isLimit && entry.value < goalTotal) opacity = 0.35;
+                          return <Cell key={`cell-${index}`} fill={fill} fillOpacity={opacity} />;
+                        })}
+                      </Bar>
+                      {isLimit && (
+                        <Bar dataKey="overValue" stackId="a" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                      )}
+                    </BarChart>
+                  ) : (
+                    <LineChart data={data}>
+                      {commonAxes}
+                      {referenceLine}
+                      <Line
+                        type="monotone"
+                        dataKey="value"
+                        stroke={chart.color}
+                        strokeWidth={3}
+                        dot={{ r: 3, fill: chart.color }}
+                        activeDot={{ r: 5 }}
+                      />
+                    </LineChart>
+                  )}
+                </ResponsiveContainer>
+              </div>
+            </section>
+          );
+        })}
+      </div>
+
 
       {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
