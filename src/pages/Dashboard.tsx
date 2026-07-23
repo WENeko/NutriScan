@@ -70,6 +70,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [userProfile, setUserProfile] = useState<UserProfile>({});
   const [customNutrients, setCustomNutrients] = useState<CustomNutrientDef[]>([]);
   const [microOverrides, setMicroOverrides] = useState<MicroOverrides>({});
+  const [customCharts, setCustomCharts] = useState<any[]>([]);
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
 
@@ -131,7 +132,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const fetchData = useCallback(async () => {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("goals, water_goal_ml, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, is_athlete, is_smoker, is_pregnant, is_menopausal, goals_mode")
+      .select("goals, water_goal_ml, target_weight_kg, target_body_fat_percent, target_muscle_mass_kg, gender, age, activity_level, custom_nutrients, micro_overrides, custom_charts, is_athlete, is_smoker, is_pregnant, is_menopausal, goals_mode")
       .eq("user_id", userId)
       .single();
 
@@ -189,6 +190,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       void backfillCustomDescriptions(cnArr);
       const mo = (profile as any).micro_overrides;
       setMicroOverrides(mo && typeof mo === "object" ? (mo as MicroOverrides) : {});
+      const cc = (profile as any).custom_charts;
+      setCustomCharts(Array.isArray(cc) ? cc : []);
 
       // `baseCalories` (= profile.goals.calories) inclut déjà la moyenne
       // sportive 7 j lissée pour le Mode Scientifique (calculée à la synchro/sauvegarde).
@@ -705,7 +708,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         )}
 
         {activeTab === "evolution" && (
-          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} microOverrides={microOverrides} />
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} microOverrides={microOverrides} customCharts={customCharts} onCustomChartsChange={setCustomCharts} />
         )}
 
         {activeTab === "library" && (
