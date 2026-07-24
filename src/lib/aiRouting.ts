@@ -241,9 +241,18 @@ function labelForStep(ctx: RoutingContext, step: RoutingStep): string {
  * Exécute une fonctionnalité IA en suivant la liste de priorité avec fallback en cascade.
  * Retourne le résultat, le nom du modèle ayant réussi, et un indice de confiance (analyse).
  */
+export type RoutingProgressStep = "preparing" | "vision" | "nutrition" | "finalizing";
+export interface RoutingProgressEvent {
+  step: RoutingProgressStep;
+  modelLabel: string;
+  attempt: number;
+  isFallback: boolean;
+}
+
 export async function executeAIFeatureWithFallback(
   feature: FeatureKey,
-  payload: AnalysisPayload | ChatPayload
+  payload: AnalysisPayload | ChatPayload,
+  onProgress?: (evt: RoutingProgressEvent) => void
 ): Promise<FeatureResult> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
