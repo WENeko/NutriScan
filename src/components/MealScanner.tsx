@@ -1,12 +1,14 @@
 import React, { useRef, useState } from "react";
 import { supabase as supabaseLovable } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Camera, Loader2, Check, X, Pencil } from "lucide-react";
+import { Camera, Check, X, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { analyzeMeal } from "@/services/mealAnalysisService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
+import AnalysisProgressCard from "@/components/AnalysisProgressCard";
+import type { RoutingProgressStep } from "@/lib/aiRouting";
 
 interface MealItem {
   name: string;
