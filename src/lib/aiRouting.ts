@@ -304,6 +304,7 @@ export async function executeAIFeatureWithFallback(
           data = await analyzeMealWithGemini({ ...ap, providerOverride: override });
           if (!data || !Array.isArray(data.items)) throw new Error("Réponse vide/invalide");
         }
+        onProgress?.({ step: "nutrition", modelLabel: label, attempt: i + 1, isFallback });
         return { result: data, modelUsed: label, confidence: toConfidenceInt(data?.confidence_score) };
       }
 
