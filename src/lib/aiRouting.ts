@@ -241,9 +241,18 @@ function labelForStep(ctx: RoutingContext, step: RoutingStep): string {
  * Exécute une fonctionnalité IA en suivant la liste de priorité avec fallback en cascade.
  * Retourne le résultat, le nom du modèle ayant réussi, et un indice de confiance (analyse).
  */
+export type RoutingProgressStep = "preparing" | "vision" | "nutrition" | "finalizing";
+export interface RoutingProgressEvent {
+  step: RoutingProgressStep;
+  modelLabel: string;
+  attempt: number;
+  isFallback: boolean;
+}
+
 export async function executeAIFeatureWithFallback(
   feature: FeatureKey,
-  payload: AnalysisPayload | ChatPayload
+  payload: AnalysisPayload | ChatPayload,
+  onProgress?: (evt: RoutingProgressEvent) => void
 ): Promise<FeatureResult> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
@@ -264,12 +273,15 @@ export async function executeAIFeatureWithFallback(
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const label = labelForStep(ctx, step);
+    const isFallback = i > 0;
     try {
       appLogger.info("AIRouting", `Tentative priorité ${i + 1} (${feature}) : ${label}`);
+      onProgress?.({ step: "preparing", modelLabel: label, attempt: i + 1, isFallback });
 
       if (isAnalysis) {
         const ap = payload as AnalysisPayload;
         let data: any;
+        onProgress?.({ step: "vision", modelLabel: label, attempt: i + 1, isFallback });
         if (step.type === "edge_function") {
           const { data: d, error } = await supabase.functions.invoke("analyze-meal", {
             body: { image: ap.image, text: ap.text, custom_foods: ap.custom_foods, custom_nutrients: ap.custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time: ap.local_time },
@@ -292,6 +304,7 @@ export async function executeAIFeatureWithFallback(
           data = await analyzeMealWithGemini({ ...ap, providerOverride: override });
           if (!data || !Array.isArray(data.items)) throw new Error("Réponse vide/invalide");
         }
+        onProgress?.({ step: "nutrition", modelLabel: label, attempt: i + 1, isFallback });
         return { result: data, modelUsed: label, confidence: toConfidenceInt(data?.confidence_score) };
       }
 

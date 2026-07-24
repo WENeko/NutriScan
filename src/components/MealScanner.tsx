@@ -1,12 +1,14 @@
 import React, { useRef, useState } from "react";
 import { supabase as supabaseLovable } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Camera, Loader2, Check, X, Pencil } from "lucide-react";
+import { Camera, Check, X, Pencil } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { analyzeMeal } from "@/services/mealAnalysisService";
 import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
+import AnalysisProgressCard from "@/components/AnalysisProgressCard";
+import type { RoutingProgressStep } from "@/lib/aiRouting";
 
 interface MealItem {
   name: string;
@@ -30,6 +32,10 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
   const [rawAnalysis, setRawAnalysis] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [progressStep, setProgressStep] = useState<RoutingProgressStep>("preparing");
+  const [progressModel, setProgressModel] = useState("");
+  const [progressAttempt, setProgressAttempt] = useState(1);
+  const [progressFallback, setProgressFallback] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -42,6 +48,10 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
   const analyzeImage = async (file: File) => {
     setAnalyzing(true);
+    setProgressStep("preparing");
+    setProgressModel("Préparation…");
+    setProgressAttempt(1);
+    setProgressFallback(false);
     try {
       // Convert to base64
       const reader = new FileReader();
@@ -52,10 +62,17 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
       const result = await analyzeMeal({
         image: base64,
+        onProgress: (evt) => {
+          setProgressStep(evt.step);
+          setProgressModel(evt.modelLabel);
+          setProgressAttempt(evt.attempt);
+          setProgressFallback(evt.isFallback);
+        },
       });
 
       if (!result) throw new Error("Aucun résultat de l'analyse");
 
+      setProgressStep("finalizing");
       setRawAnalysis(JSON.stringify(result));
       // Map items from the new AI response format
       const mappedItems: MealItem[] = (result.items || []).map((item: any) => ({
@@ -202,17 +219,19 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
       {preview && (
         <div className="space-y-4 animate-fade-up">
-          <div className="relative rounded-2xl overflow-hidden shadow-card">
-            <img src={preview} alt="Repas" className="w-full h-48 object-cover" />
-            {analyzing && (
-              <div className="absolute inset-0 bg-foreground/50 flex items-center justify-center">
-                <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-full">
-                  <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                  <span className="text-sm font-medium">Analyse en cours...</span>
-                </div>
-              </div>
-            )}
-          </div>
+          {analyzing ? (
+            <AnalysisProgressCard
+              preview={preview}
+              currentStep={progressStep}
+              modelLabel={progressModel}
+              isFallback={progressFallback}
+              attempt={progressAttempt}
+            />
+          ) : (
+            <div className="relative rounded-2xl overflow-hidden shadow-card">
+              <img src={preview} alt="Repas" className="w-full h-48 object-cover" />
+            </div>
+          )}
 
           {items.length > 0 && (
             <div className="space-y-3">
