@@ -32,6 +32,10 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
   const [rawAnalysis, setRawAnalysis] = useState("");
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
+  const [progressStep, setProgressStep] = useState<RoutingProgressStep>("preparing");
+  const [progressModel, setProgressModel] = useState("");
+  const [progressAttempt, setProgressAttempt] = useState(1);
+  const [progressFallback, setProgressFallback] = useState(false);
 
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
