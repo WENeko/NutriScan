@@ -273,12 +273,15 @@ export async function executeAIFeatureWithFallback(
   for (let i = 0; i < steps.length; i++) {
     const step = steps[i];
     const label = labelForStep(ctx, step);
+    const isFallback = i > 0;
     try {
       appLogger.info("AIRouting", `Tentative priorité ${i + 1} (${feature}) : ${label}`);
+      onProgress?.({ step: "preparing", modelLabel: label, attempt: i + 1, isFallback });
 
       if (isAnalysis) {
         const ap = payload as AnalysisPayload;
         let data: any;
+        onProgress?.({ step: "vision", modelLabel: label, attempt: i + 1, isFallback });
         if (step.type === "edge_function") {
           const { data: d, error } = await supabase.functions.invoke("analyze-meal", {
             body: { image: ap.image, text: ap.text, custom_foods: ap.custom_foods, custom_nutrients: ap.custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time: ap.local_time },
