@@ -48,6 +48,10 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
   const analyzeImage = async (file: File) => {
     setAnalyzing(true);
+    setProgressStep("preparing");
+    setProgressModel("Préparation…");
+    setProgressAttempt(1);
+    setProgressFallback(false);
     try {
       // Convert to base64
       const reader = new FileReader();
@@ -58,10 +62,17 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
       const result = await analyzeMeal({
         image: base64,
+        onProgress: (evt) => {
+          setProgressStep(evt.step);
+          setProgressModel(evt.modelLabel);
+          setProgressAttempt(evt.attempt);
+          setProgressFallback(evt.isFallback);
+        },
       });
 
       if (!result) throw new Error("Aucun résultat de l'analyse");
 
+      setProgressStep("finalizing");
       setRawAnalysis(JSON.stringify(result));
       // Map items from the new AI response format
       const mappedItems: MealItem[] = (result.items || []).map((item: any) => ({
