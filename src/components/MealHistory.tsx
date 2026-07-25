@@ -670,6 +670,9 @@ const [searchQuery, setSearchQuery] = useState("");
               <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
                 <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
               </button>
+              <button onClick={(e) => { e.stopPropagation(); setReevaluatingMeal(meal); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Réévaluer avec l'IA">
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+              </button>
               <button onClick={(e) => startEdit(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
                 <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
               </button>
