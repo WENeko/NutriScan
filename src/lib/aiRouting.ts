@@ -252,14 +252,15 @@ export interface RoutingProgressEvent {
 export async function executeAIFeatureWithFallback(
   feature: FeatureKey,
   payload: AnalysisPayload | ChatPayload,
-  onProgress?: (evt: RoutingProgressEvent) => void
+  onProgress?: (evt: RoutingProgressEvent) => void,
+  overrideSteps?: RoutingStep[]
 ): Promise<FeatureResult> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
   if (!userId) throw new Error("Utilisateur non authentifié.");
 
   const ctx = await loadRoutingContext(userId);
-  const steps = resolveSteps(ctx, feature);
+  const steps = overrideSteps && overrideSteps.length > 0 ? overrideSteps : resolveSteps(ctx, feature);
 
   if (steps.length === 0) {
     throw new Error(
