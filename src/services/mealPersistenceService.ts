@@ -79,6 +79,7 @@ function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
     timestamp: m.timestamp ?? new Date().toISOString(),
     image_url: m.image_url ?? null,
     raw_ai_analysis: m.raw_ai_analysis ?? null,
+    raw_text_input: m.raw_text_input ?? null,
     is_confirmed: m.is_confirmed ?? true,
     source: m.source ?? "ai",
     model_used: m.model_used ?? null,
