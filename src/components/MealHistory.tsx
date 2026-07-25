@@ -132,6 +132,7 @@ const [searchQuery, setSearchQuery] = useState("");
   const [itemNamesByMeal, setItemNamesByMeal] = useState<Record<string, string>>({});
   // Full-screen image viewer
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [reevaluatingMeal, setReevaluatingMeal] = useState<Meal | null>(null);
 
   // Prefetch ingredient names for all visible meals (search source)
   useEffect(() => {
