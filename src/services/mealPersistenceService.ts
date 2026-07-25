@@ -59,6 +59,7 @@ interface SaveMealParams {
     image_url?: string | null;
     timestamp?: string;
     raw_ai_analysis?: string | null;
+    raw_text_input?: string | null;
     is_confirmed?: boolean;
     source?: string;
     model_used?: string | null;
