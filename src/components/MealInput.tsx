@@ -817,6 +817,15 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
       {mode === "text" && !hasResults && (
         <div className="space-y-3">
+          {analyzing && (
+            <AnalysisProgressCard
+              preview={null}
+              currentStep={progressStep}
+              modelLabel={progressModel || "Préparation…"}
+              isFallback={progressFallback}
+              attempt={progressAttempt}
+            />
+          )}
           <Textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}
