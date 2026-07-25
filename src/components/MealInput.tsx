@@ -798,18 +798,19 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
               </button>
             </div>
           )}
-          {preview && (
+          {preview && !analyzing && (
             <div className="relative rounded-2xl overflow-hidden shadow-card">
               <img src={preview} alt="Repas" className="w-full h-44 object-cover" />
-              {analyzing && (
-                <div className="absolute inset-0 bg-foreground/50 flex items-center justify-center">
-                  <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-full">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-sm font-medium">Analyse en cours...</span>
-                  </div>
-                </div>
-              )}
             </div>
+          )}
+          {preview && analyzing && (
+            <AnalysisProgressCard
+              preview={preview}
+              currentStep={progressStep}
+              modelLabel={progressModel || "Préparation…"}
+              isFallback={progressFallback}
+              attempt={progressAttempt}
+            />
           )}
         </>
       )}
