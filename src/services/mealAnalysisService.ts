@@ -11,7 +11,7 @@
 import { appLogger } from "./appLogger";
 import { executeAIFeatureWithFallback } from "@/lib/aiRouting";
 
-import type { RoutingProgressEvent } from "@/lib/aiRouting";
+import type { RoutingProgressEvent, RoutingStep } from "@/lib/aiRouting";
 
 export interface AnalyzeMealParams {
   image?: string;
@@ -20,6 +20,7 @@ export interface AnalyzeMealParams {
   custom_nutrients?: { key: string; label?: string; unit: string }[];
   local_time?: string;
   onProgress?: (evt: RoutingProgressEvent) => void;
+  overrideSteps?: RoutingStep[];
 }
 
 export async function analyzeMeal(params: AnalyzeMealParams): Promise<any> {
@@ -38,7 +39,8 @@ export async function analyzeMeal(params: AnalyzeMealParams): Promise<any> {
       custom_nutrients: params.custom_nutrients,
       local_time: params.local_time,
     },
-    params.onProgress
+    params.onProgress,
+    params.overrideSteps
   );
 
   appLogger.info("MealAnalysis", `OK via ${modelUsed}`, { confidence });
@@ -49,3 +51,4 @@ export async function analyzeMeal(params: AnalyzeMealParams): Promise<any> {
   }
   return result;
 }
+
