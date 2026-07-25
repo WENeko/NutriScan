@@ -177,6 +177,17 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const [mode, setMode] = useState<InputMode>("image");
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [progressStep, setProgressStep] = useState<RoutingProgressStep>("preparing");
+  const [progressModel, setProgressModel] = useState<string>("");
+  const [progressFallback, setProgressFallback] = useState(false);
+  const [progressAttempt, setProgressAttempt] = useState(1);
+  const [rawTextInput, setRawTextInput] = useState<string | null>(null);
+  const onAnalyzeProgress = (evt: RoutingProgressEvent) => {
+    setProgressStep(evt.step);
+    setProgressModel(evt.modelLabel);
+    setProgressFallback(evt.isFallback);
+    setProgressAttempt(evt.attempt);
+  };
   const [items, setItems] = useState<MealItem[]>([]);
   const [rawAnalysis, setRawAnalysis] = useState("");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
