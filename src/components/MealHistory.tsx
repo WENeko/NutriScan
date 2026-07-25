@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search, Sparkles } from "lucide-react";
+import ReevaluateMealDialog from "./ReevaluateMealDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
