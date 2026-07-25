@@ -896,6 +896,16 @@ const [searchQuery, setSearchQuery] = useState("");
           />
         </div>
       )}
+
+      {reevaluatingMeal && (
+        <ReevaluateMealDialog
+          meal={reevaluatingMeal}
+          userId={userId}
+          customDefs={customDefs?.map((d) => ({ key: d.key, label: d.label, unit: d.unit }))}
+          onClose={() => setReevaluatingMeal(null)}
+          onApplied={onRefresh}
+        />
+      )}
     </div>
   );
 };
