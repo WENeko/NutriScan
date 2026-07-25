@@ -15,6 +15,8 @@ import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB, logDatabaseHealth } from "@/services/databaseSyncService";
 import { localToUtcIso } from "@/lib/timezoneUtils";
 import { appLogger } from "@/services/appLogger";
+import AnalysisProgressCard from "./AnalysisProgressCard";
+import type { RoutingProgressEvent, RoutingProgressStep } from "@/lib/aiRouting";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
