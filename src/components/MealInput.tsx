@@ -249,6 +249,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
   const analyzeImage = async (file: File) => {
     setAnalyzing(true);
+    setProgressStep("preparing");
+    setProgressModel("");
+    setProgressFallback(false);
+    setProgressAttempt(1);
     try {
       const reader = new FileReader();
       const base64 = await new Promise<string>((resolve) => {
@@ -265,8 +269,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         image: base64,
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
+        onProgress: onAnalyzeProgress,
       });
-      
+      setRawTextInput(null);
       handleAIResponse(result, customFoods || []);
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
@@ -280,6 +285,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     if (!text) return;
     setAnalyzing(true);
     setSource("text");
+    setProgressStep("preparing");
+    setProgressModel("");
+    setProgressFallback(false);
+    setProgressAttempt(1);
     try {
       const { data: customFoods } = await supabaseLovable
         .from("custom_foods")
@@ -291,8 +300,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
         local_time: new Date().toLocaleString("fr-FR"),
+        onProgress: onAnalyzeProgress,
       });
-      
+      setRawTextInput(text);
       handleAIResponse(result, customFoods || []);
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
@@ -300,6 +310,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       setAnalyzing(false);
     }
   };
+
+
 
   const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
