@@ -718,6 +718,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     setEditingName(false);
     setAddingManual(false);
     setManualIsCooked(false);
+    setRawTextInput(null);
   };
 
   const totals = computeTotals();
