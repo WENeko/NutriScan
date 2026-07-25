@@ -252,14 +252,15 @@ export interface RoutingProgressEvent {
 export async function executeAIFeatureWithFallback(
   feature: FeatureKey,
   payload: AnalysisPayload | ChatPayload,
-  onProgress?: (evt: RoutingProgressEvent) => void
+  onProgress?: (evt: RoutingProgressEvent) => void,
+  overrideSteps?: RoutingStep[]
 ): Promise<FeatureResult> {
   const { data: auth } = await supabase.auth.getUser();
   const userId = auth.user?.id;
   if (!userId) throw new Error("Utilisateur non authentifié.");
 
   const ctx = await loadRoutingContext(userId);
-  const steps = resolveSteps(ctx, feature);
+  const steps = overrideSteps && overrideSteps.length > 0 ? overrideSteps : resolveSteps(ctx, feature);
 
   if (steps.length === 0) {
     throw new Error(
@@ -357,3 +358,110 @@ export async function loadRoutingConfig(userId: string): Promise<RoutingConfig> 
   const { data } = await supabase.from("profiles").select("routing_config").eq("user_id", userId).maybeSingle();
   return normalizeRoutingConfig((data as any)?.routing_config);
 }
+
+export interface AvailableStep {
+  step: RoutingStep;
+  label: string;
+  providerName?: string;
+  model?: string;
+  requiresKey: boolean;
+  hasKey: boolean;
+}
+
+/** Liste tous les modèles disponibles pour l'utilisateur (Edge Function + BYOK configurés). */
+export async function listAvailableStepsForUser(userId: string, feature: FeatureKey = "photo"): Promise<AvailableStep[]> {
+  const ctx = await loadRoutingContext(userId);
+  const out: AvailableStep[] = [];
+  if (ctx.lovableEnabled) {
+    out.push({
+      step: { type: "edge_function" },
+      label: EDGE_LABEL,
+      requiresKey: false,
+      hasKey: true,
+    });
+  }
+  // Steps définis dans le routage expert
+  const routingSteps = ctx.routing.enabled ? ctx.routing[feature] : [];
+  const seen = new Set<string>();
+  const pushByok = (providerId: string, model?: string) => {
+    const key = `${providerId}::${model ?? ""}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    const p = ctx.providers.get(providerId);
+    if (!p) return;
+    const requiresKey = !isLocalApiType(p.apiType);
+    out.push({
+      step: { type: "byok", providerId, model },
+      label: `${p.name}${model ? " · " + model : ""}`,
+      providerName: p.name,
+      model,
+      requiresKey,
+      hasKey: requiresKey ? !!p.apiKey : true,
+    });
+  };
+  routingSteps.forEach((s) => { if (s.type === "byok" && s.providerId) pushByok(s.providerId, s.model); });
+  // Sélection courante
+  if (ctx.selectedProviderId) pushByok(ctx.selectedProviderId, ctx.selectedModel ?? undefined);
+  // Modèles enregistrés par fournisseur
+  for (const [pid, models] of Object.entries(ctx.routing.models || {})) {
+    for (const m of models) pushByok(pid, m);
+  }
+  // Fournisseurs actifs avec clé configurée (sans modèle précis)
+  ctx.providers.forEach((p) => {
+    if ((p.apiKey || isLocalApiType(p.apiType)) && !Array.from(seen).some((k) => k.startsWith(p.id + "::"))) {
+      pushByok(p.id, undefined);
+    }
+  });
+  return out;
+}
+
+export interface HealthCheckResult {
+  status: "ok" | "slow" | "down";
+  latencyMs: number;
+  message?: string;
+}
+
+/** Vérifie la disponibilité d'un step (ping léger). */
+export async function checkStepHealth(userId: string, step: RoutingStep): Promise<HealthCheckResult> {
+  const start = Date.now();
+  try {
+    if (step.type === "edge_function") {
+      // Ping léger de l'Edge Function via un HEAD (invoke retourne rapidement sur payload minimal).
+      const { error } = await supabase.functions.invoke("analyze-meal", { body: { ping: true } });
+      const latency = Date.now() - start;
+      if (error && !/ping|invalid/i.test(error.message || "")) {
+        return { status: "down", latencyMs: latency, message: error.message };
+      }
+      return { status: latency > 3000 ? "slow" : "ok", latencyMs: latency };
+    }
+    const ctx = await loadRoutingContext(userId);
+    const p = step.providerId ? ctx.providers.get(step.providerId) : null;
+    if (!p) return { status: "down", latencyMs: 0, message: "Fournisseur introuvable" };
+    if (!p.apiKey && !isLocalApiType(p.apiType)) {
+      return { status: "down", latencyMs: 0, message: "Clé API manquante" };
+    }
+    if (isLocalApiType(p.apiType)) {
+      return { status: "ok", latencyMs: Date.now() - start };
+    }
+    // Ping via l'endpoint de listing des modèles.
+    const base = p.baseUrl.replace(/\/+$/, "");
+    let url = "";
+    const headers: Record<string, string> = {};
+    if (p.apiType === "gemini") {
+      url = `${base}/v1beta/models?key=${encodeURIComponent(p.apiKey!)}`;
+    } else {
+      url = `${base}${p.modelsEndpoint || "/models"}`;
+      headers.Authorization = `Bearer ${p.apiKey}`;
+    }
+    const controller = new AbortController();
+    const to = setTimeout(() => controller.abort(), 5000);
+    const res = await fetch(url, { headers, signal: controller.signal });
+    clearTimeout(to);
+    const latency = Date.now() - start;
+    if (!res.ok) return { status: "down", latencyMs: latency, message: `HTTP ${res.status}` };
+    return { status: latency > 3000 ? "slow" : "ok", latencyMs: latency };
+  } catch (e: any) {
+    return { status: "down", latencyMs: Date.now() - start, message: e?.message ?? "erreur" };
+  }
+}
+

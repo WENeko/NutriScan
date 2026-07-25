@@ -277,12 +277,14 @@ export type Database = {
           model_used: string | null
           parent_meal_id: string | null
           raw_ai_analysis: string | null
+          raw_text_input: string | null
           source: string
           timestamp: string
           total_calories: number | null
           total_carbs: number | null
           total_fats: number | null
           total_proteins: number | null
+          updated_at: string
           user_id: string
         }
         Insert: {
@@ -296,12 +298,14 @@ export type Database = {
           model_used?: string | null
           parent_meal_id?: string | null
           raw_ai_analysis?: string | null
+          raw_text_input?: string | null
           source?: string
           timestamp?: string
           total_calories?: number | null
           total_carbs?: number | null
           total_fats?: number | null
           total_proteins?: number | null
+          updated_at?: string
           user_id: string
         }
         Update: {
@@ -315,12 +319,14 @@ export type Database = {
           model_used?: string | null
           parent_meal_id?: string | null
           raw_ai_analysis?: string | null
+          raw_text_input?: string | null
           source?: string
           timestamp?: string
           total_calories?: number | null
           total_carbs?: number | null
           total_fats?: number | null
           total_proteins?: number | null
+          updated_at?: string
           user_id?: string
         }
         Relationships: [

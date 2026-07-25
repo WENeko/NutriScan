@@ -15,6 +15,8 @@ import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB, logDatabaseHealth } from "@/services/databaseSyncService";
 import { localToUtcIso } from "@/lib/timezoneUtils";
 import { appLogger } from "@/services/appLogger";
+import AnalysisProgressCard from "./AnalysisProgressCard";
+import type { RoutingProgressEvent, RoutingProgressStep } from "@/lib/aiRouting";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -175,6 +177,17 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const [mode, setMode] = useState<InputMode>("image");
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
+  const [progressStep, setProgressStep] = useState<RoutingProgressStep>("preparing");
+  const [progressModel, setProgressModel] = useState<string>("");
+  const [progressFallback, setProgressFallback] = useState(false);
+  const [progressAttempt, setProgressAttempt] = useState(1);
+  const [rawTextInput, setRawTextInput] = useState<string | null>(null);
+  const onAnalyzeProgress = (evt: RoutingProgressEvent) => {
+    setProgressStep(evt.step);
+    setProgressModel(evt.modelLabel);
+    setProgressFallback(evt.isFallback);
+    setProgressAttempt(evt.attempt);
+  };
   const [items, setItems] = useState<MealItem[]>([]);
   const [rawAnalysis, setRawAnalysis] = useState("");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
@@ -236,6 +249,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
   const analyzeImage = async (file: File) => {
     setAnalyzing(true);
+    setProgressStep("preparing");
+    setProgressModel("");
+    setProgressFallback(false);
+    setProgressAttempt(1);
     try {
       const reader = new FileReader();
       const base64 = await new Promise<string>((resolve) => {
@@ -252,8 +269,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         image: base64,
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
+        onProgress: onAnalyzeProgress,
       });
-      
+      setRawTextInput(null);
       handleAIResponse(result, customFoods || []);
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
@@ -267,6 +285,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     if (!text) return;
     setAnalyzing(true);
     setSource("text");
+    setProgressStep("preparing");
+    setProgressModel("");
+    setProgressFallback(false);
+    setProgressAttempt(1);
     try {
       const { data: customFoods } = await supabaseLovable
         .from("custom_foods")
@@ -278,8 +300,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients,
         local_time: new Date().toLocaleString("fr-FR"),
+        onProgress: onAnalyzeProgress,
       });
-      
+      setRawTextInput(text);
       handleAIResponse(result, customFoods || []);
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
@@ -287,6 +310,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       setAnalyzing(false);
     }
   };
+
+
 
   const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
@@ -630,6 +655,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           image_url: imageUrl,
           timestamp,
           raw_ai_analysis: rawAnalysis || null,
+          raw_text_input: rawTextInput,
           is_confirmed: true,
           source: source,
           model_used: modelUsed,
@@ -692,6 +718,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     setEditingName(false);
     setAddingManual(false);
     setManualIsCooked(false);
+    setRawTextInput(null);
   };
 
   const totals = computeTotals();
@@ -772,24 +799,34 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
               </button>
             </div>
           )}
-          {preview && (
+          {preview && !analyzing && (
             <div className="relative rounded-2xl overflow-hidden shadow-card">
               <img src={preview} alt="Repas" className="w-full h-44 object-cover" />
-              {analyzing && (
-                <div className="absolute inset-0 bg-foreground/50 flex items-center justify-center">
-                  <div className="flex items-center gap-2 bg-card px-4 py-2 rounded-full">
-                    <Loader2 className="w-4 h-4 animate-spin text-primary" />
-                    <span className="text-sm font-medium">Analyse en cours...</span>
-                  </div>
-                </div>
-              )}
             </div>
+          )}
+          {preview && analyzing && (
+            <AnalysisProgressCard
+              preview={preview}
+              currentStep={progressStep}
+              modelLabel={progressModel || "Préparation…"}
+              isFallback={progressFallback}
+              attempt={progressAttempt}
+            />
           )}
         </>
       )}
 
       {mode === "text" && !hasResults && (
         <div className="space-y-3">
+          {analyzing && (
+            <AnalysisProgressCard
+              preview={null}
+              currentStep={progressStep}
+              modelLabel={progressModel || "Préparation…"}
+              isFallback={progressFallback}
+              attempt={progressAttempt}
+            />
+          )}
           <Textarea
             value={textInput}
             onChange={(e) => setTextInput(e.target.value)}

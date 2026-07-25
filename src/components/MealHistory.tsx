@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search, Sparkles } from "lucide-react";
+import ReevaluateMealDialog from "./ReevaluateMealDialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -131,6 +132,7 @@ const [searchQuery, setSearchQuery] = useState("");
   const [itemNamesByMeal, setItemNamesByMeal] = useState<Record<string, string>>({});
   // Full-screen image viewer
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
+  const [reevaluatingMeal, setReevaluatingMeal] = useState<Meal | null>(null);
 
   // Prefetch ingredient names for all visible meals (search source)
   useEffect(() => {
@@ -668,6 +670,9 @@ const [searchQuery, setSearchQuery] = useState("");
               <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
                 <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
               </button>
+              <button onClick={(e) => { e.stopPropagation(); setReevaluatingMeal(meal); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Réévaluer avec l'IA">
+                <Sparkles className="w-3.5 h-3.5 text-primary" />
+              </button>
               <button onClick={(e) => startEdit(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
                 <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
               </button>
@@ -890,6 +895,16 @@ const [searchQuery, setSearchQuery] = useState("");
             onClick={(e) => e.stopPropagation()}
           />
         </div>
+      )}
+
+      {reevaluatingMeal && (
+        <ReevaluateMealDialog
+          meal={reevaluatingMeal}
+          userId={userId}
+          customDefs={customDefs?.map((d) => ({ key: d.key, label: d.label, unit: d.unit }))}
+          onClose={() => setReevaluatingMeal(null)}
+          onApplied={onRefresh}
+        />
       )}
     </div>
   );
