@@ -1,0 +1,1 @@
+ALTER TABLE public.meals ADD COLUMN IF NOT EXISTS raw_text_input TEXT; ALTER TABLE public.meals ADD COLUMN IF NOT EXISTS updated_at TIMESTAMP WITH TIME ZONE NOT NULL DEFAULT now(); DROP TRIGGER IF EXISTS update_meals_updated_at ON public.meals; CREATE TRIGGER update_meals_updated_at BEFORE UPDATE ON public.meals FOR EACH ROW EXECUTE FUNCTION public.update_updated_at_column();
