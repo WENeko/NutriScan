@@ -392,7 +392,8 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
           )}
         </div>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 };
 
