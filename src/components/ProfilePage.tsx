@@ -1225,6 +1225,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <ThemeSwitcher />
             </section>
+
+            <MealCardSettings />
+
           </>
         )}
 
