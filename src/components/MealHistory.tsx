@@ -308,8 +308,8 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  const startEdit = async (mealId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const startEdit = async (mealId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setLoadingEdit(true);
     setAddMode(null);
     try {
