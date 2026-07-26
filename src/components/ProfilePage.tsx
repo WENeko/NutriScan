@@ -13,6 +13,8 @@ import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import GeminiKeySettings from "@/components/GeminiKeySettings";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
+import MealCardSettings from "@/components/MealCardSettings";
+
 
 
 import MicroGoalsEditor from "@/components/MicroGoalsEditor";
@@ -1225,6 +1227,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <ThemeSwitcher />
             </section>
+
+            <MealCardSettings />
+
           </>
         )}
 
