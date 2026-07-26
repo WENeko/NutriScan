@@ -946,6 +946,29 @@ const [searchQuery, setSearchQuery] = useState("");
           onApplied={onRefresh}
         />
       )}
+
+      <AlertDialog open={!!pendingDeleteId} onOpenChange={(o) => !o && setPendingDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce repas ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est définitive : le repas et ses ingrédients seront supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteId) deleteMeal(pendingDeleteId);
+                setPendingDeleteId(null);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
