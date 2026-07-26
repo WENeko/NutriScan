@@ -688,41 +688,103 @@ const [searchQuery, setSearchQuery] = useState("");
               <button onClick={(e) => toggleExpand(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Voir les ingrédients">
                 <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
               </button>
-              <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Dupliquer">
-                <Copy className="w-4 h-4 text-muted-foreground" />
-              </button>
-              <DropdownMenu>
-                <DropdownMenuTrigger asChild>
-                  <button
-                    onClick={(e) => e.stopPropagation()}
-                    className="p-1.5 rounded-lg hover:bg-accent transition-colors"
-                    title="Plus d'actions"
-                    aria-label="Plus d'actions"
-                  >
-                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
-                  </button>
-                </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-52 z-[60]" onClick={(e) => e.stopPropagation()}>
-                  <DropdownMenuItem onSelect={() => setReevaluatingMeal(meal)}>
-                    <Sparkles className="w-4 h-4 mr-2 text-primary" /> Réévaluer par l'IA
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => startEdit(meal.id)}>
-                    <Pencil className="w-4 h-4 mr-2" /> Éditer
-                  </DropdownMenuItem>
-                  <DropdownMenuItem onSelect={() => toggleFavorite(meal.id, !!meal.is_favorite)}>
-                    <Heart className={`w-4 h-4 mr-2 ${meal.is_favorite ? 'fill-destructive text-destructive' : ''}`} />
-                    {meal.is_favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
-                  </DropdownMenuItem>
-                  <DropdownMenuSeparator />
-                  <DropdownMenuItem
-                    onSelect={() => setPendingDeleteId(meal.id)}
-                    className="text-destructive focus:text-destructive"
-                  >
-                    <Trash2 className="w-4 h-4 mr-2" /> Supprimer
-                  </DropdownMenuItem>
-                </DropdownMenuContent>
-              </DropdownMenu>
+              {quickActions.map((action) => {
+                switch (action) {
+                  case "duplicate":
+                    return (
+                      <button key={action} onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Dupliquer" aria-label="Dupliquer">
+                        <Copy className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    );
+                  case "favorite":
+                    return (
+                      <button key={action} onClick={(e) => { e.stopPropagation(); toggleFavorite(meal.id, !!meal.is_favorite); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title={meal.is_favorite ? "Retirer des favoris" : "Ajouter aux favoris"} aria-label="Favoris">
+                        <Heart className={`w-4 h-4 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
+                      </button>
+                    );
+                  case "reevaluate":
+                    return (
+                      <button key={action} onClick={(e) => { e.stopPropagation(); setReevaluatingMeal(meal); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Réévaluer par l'IA" aria-label="Réévaluer par l'IA">
+                        <Sparkles className="w-4 h-4 text-primary" />
+                      </button>
+                    );
+                  case "edit":
+                    return (
+                      <button key={action} onClick={(e) => { e.stopPropagation(); startEdit(meal.id); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Éditer" aria-label="Éditer">
+                        <Pencil className="w-4 h-4 text-muted-foreground" />
+                      </button>
+                    );
+                  case "delete":
+                    return (
+                      <button key={action} onClick={(e) => { e.stopPropagation(); setPendingDeleteId(meal.id); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Supprimer" aria-label="Supprimer">
+                        <Trash2 className="w-4 h-4 text-destructive" />
+                      </button>
+                    );
+                  default:
+                    return null;
+                }
+              })}
+              {menuActions.length > 0 && (
+                <DropdownMenu>
+                  <DropdownMenuTrigger asChild>
+                    <button
+                      onClick={(e) => e.stopPropagation()}
+                      className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+                      title="Plus d'actions"
+                      aria-label="Plus d'actions"
+                    >
+                      <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="end" className="w-52 z-[60]" onClick={(e) => e.stopPropagation()}>
+                    {menuActions.map((action, idx) => {
+                      switch (action) {
+                        case "reevaluate":
+                          return (
+                            <DropdownMenuItem key={action} onSelect={() => setReevaluatingMeal(meal)}>
+                              <Sparkles className="w-4 h-4 mr-2 text-primary" /> Réévaluer par l'IA
+                            </DropdownMenuItem>
+                          );
+                        case "edit":
+                          return (
+                            <DropdownMenuItem key={action} onSelect={() => startEdit(meal.id)}>
+                              <Pencil className="w-4 h-4 mr-2" /> Éditer
+                            </DropdownMenuItem>
+                          );
+                        case "favorite":
+                          return (
+                            <DropdownMenuItem key={action} onSelect={() => toggleFavorite(meal.id, !!meal.is_favorite)}>
+                              <Heart className={`w-4 h-4 mr-2 ${meal.is_favorite ? 'fill-destructive text-destructive' : ''}`} />
+                              {meal.is_favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                            </DropdownMenuItem>
+                          );
+                        case "duplicate":
+                          return (
+                            <DropdownMenuItem key={action} onSelect={() => duplicateMeal(meal.id)}>
+                              <Copy className="w-4 h-4 mr-2" /> Dupliquer
+                            </DropdownMenuItem>
+                          );
+                        case "delete":
+                          return (
+                            <React.Fragment key={action}>
+                              {idx > 0 && <DropdownMenuSeparator />}
+                              <DropdownMenuItem
+                                onSelect={() => setPendingDeleteId(meal.id)}
+                                className="text-destructive focus:text-destructive"
+                              >
+                                <Trash2 className="w-4 h-4 mr-2" /> Supprimer
+                              </DropdownMenuItem>
+                            </React.Fragment>
+                          );
+                        default:
+                          return null;
+                      }
+                    })}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+              )}
             </div>
+
           </div>
         </div>
         <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
