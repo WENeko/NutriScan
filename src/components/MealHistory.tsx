@@ -1,8 +1,25 @@
 import React, { useState, useMemo, useEffect } from "react";
 import { format, isToday, isYesterday, isThisWeek, isThisMonth, isThisYear, startOfDay } from "date-fns";
 import { fr } from "date-fns/locale";
-import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search, Sparkles } from "lucide-react";
+import { Utensils, Copy, Trash2, Heart, Pencil, X, Check, Plus, Clock, Camera, ScanBarcode, Loader2, BadgeCheck, Minus, ChevronDown, Search, Sparkles, MoreVertical } from "lucide-react";
 import ReevaluateMealDialog from "./ReevaluateMealDialog";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
@@ -133,6 +150,7 @@ const [searchQuery, setSearchQuery] = useState("");
   // Full-screen image viewer
   const [lightboxUrl, setLightboxUrl] = useState<string | null>(null);
   const [reevaluatingMeal, setReevaluatingMeal] = useState<Meal | null>(null);
+  const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
   // Prefetch ingredient names for all visible meals (search source)
   useEffect(() => {
@@ -215,8 +233,8 @@ const [searchQuery, setSearchQuery] = useState("");
   };
 
 
-  const deleteMeal = async (mealId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const deleteMeal = async (mealId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       await supabase.from("meal_items").delete().eq("meal_id", mealId);
       const { error } = await supabase.from("meals").delete().eq("id", mealId);
@@ -228,8 +246,8 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  const toggleFavorite = async (mealId: string, current: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleFavorite = async (mealId: string, current: boolean, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       const { error } = await supabase.from("meals").update({ is_favorite: !current }).eq("id", mealId);
       if (error) throw error;
@@ -239,8 +257,8 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  const duplicateMeal = async (mealId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const duplicateMeal = async (mealId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       const { data: items, error: itemsErr } = await supabase.from("meal_items").select("*").eq("meal_id", mealId);
       if (itemsErr) throw itemsErr;
@@ -290,8 +308,8 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  const startEdit = async (mealId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const startEdit = async (mealId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     setLoadingEdit(true);
     setAddMode(null);
     try {
@@ -628,9 +646,12 @@ const [searchQuery, setSearchQuery] = useState("");
 
   const renderMealCard = (meal: Meal, idx: number) => (
     <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onSelect(meal.id)}
-        className="w-full flex flex-col gap-2 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
+        onKeyDown={(e) => { if (e.key === "Enter") onSelect(meal.id); }}
+        className="w-full flex flex-col gap-2 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left cursor-pointer"
       >
         <div className="w-full flex items-start gap-3">
           <div className="flex-shrink-0">
@@ -665,28 +686,47 @@ const [searchQuery, setSearchQuery] = useState("");
             </div>
             <div className="flex items-center gap-0.5">
               <button onClick={(e) => toggleExpand(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Voir les ingrédients">
-                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
               </button>
-              <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
+              <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Dupliquer">
+                <Copy className="w-4 h-4 text-muted-foreground" />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); setReevaluatingMeal(meal); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Réévaluer avec l'IA">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-              </button>
-              <button onClick={(e) => startEdit(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-              <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-              <button onClick={(e) => deleteMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                <Trash2 className="w-3.5 h-3.5 text-destructive" />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+                    title="Plus d'actions"
+                    aria-label="Plus d'actions"
+                  >
+                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 z-[60]" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onSelect={() => setReevaluatingMeal(meal)}>
+                    <Sparkles className="w-4 h-4 mr-2 text-primary" /> Réévaluer par l'IA
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => startEdit(meal.id)}>
+                    <Pencil className="w-4 h-4 mr-2" /> Éditer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => toggleFavorite(meal.id, !!meal.is_favorite)}>
+                    <Heart className={`w-4 h-4 mr-2 ${meal.is_favorite ? 'fill-destructive text-destructive' : ''}`} />
+                    {meal.is_favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => setPendingDeleteId(meal.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Supprimer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
         <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
-      </button>
+      </div>
 
           {/* Read-only expanded ingredient list */}
           {expandedMealId === meal.id && editingMealId !== meal.id && (
@@ -906,6 +946,29 @@ const [searchQuery, setSearchQuery] = useState("");
           onApplied={onRefresh}
         />
       )}
+
+      <AlertDialog open={!!pendingDeleteId} onOpenChange={(o) => !o && setPendingDeleteId(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Supprimer ce repas ?</AlertDialogTitle>
+            <AlertDialogDescription>
+              Cette action est définitive : le repas et ses ingrédients seront supprimés.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Annuler</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => {
+                if (pendingDeleteId) deleteMeal(pendingDeleteId);
+                setPendingDeleteId(null);
+              }}
+            >
+              Supprimer
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 };
