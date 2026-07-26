@@ -646,9 +646,12 @@ const [searchQuery, setSearchQuery] = useState("");
 
   const renderMealCard = (meal: Meal, idx: number) => (
     <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
-      <button
+      <div
+        role="button"
+        tabIndex={0}
         onClick={() => onSelect(meal.id)}
-        className="w-full flex flex-col gap-2 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left"
+        onKeyDown={(e) => { if (e.key === "Enter") onSelect(meal.id); }}
+        className="w-full flex flex-col gap-2 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left cursor-pointer"
       >
         <div className="w-full flex items-start gap-3">
           <div className="flex-shrink-0">
@@ -683,28 +686,47 @@ const [searchQuery, setSearchQuery] = useState("");
             </div>
             <div className="flex items-center gap-0.5">
               <button onClick={(e) => toggleExpand(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Voir les ingrédients">
-                <ChevronDown className={`w-3.5 h-3.5 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
+                <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${expandedMealId === meal.id ? 'rotate-180' : ''}`} />
               </button>
-              <button onClick={(e) => toggleFavorite(meal.id, !!meal.is_favorite, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                <Heart className={`w-3.5 h-3.5 ${meal.is_favorite ? 'fill-destructive text-destructive' : 'text-muted-foreground'}`} />
+              <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Dupliquer">
+                <Copy className="w-4 h-4 text-muted-foreground" />
               </button>
-              <button onClick={(e) => { e.stopPropagation(); setReevaluatingMeal(meal); }} className="p-1.5 rounded-lg hover:bg-accent transition-colors" title="Réévaluer avec l'IA">
-                <Sparkles className="w-3.5 h-3.5 text-primary" />
-              </button>
-              <button onClick={(e) => startEdit(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-              <button onClick={(e) => duplicateMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-accent transition-colors">
-                <Copy className="w-3.5 h-3.5 text-muted-foreground" />
-              </button>
-              <button onClick={(e) => deleteMeal(meal.id, e)} className="p-1.5 rounded-lg hover:bg-destructive/10 transition-colors">
-                <Trash2 className="w-3.5 h-3.5 text-destructive" />
-              </button>
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <button
+                    onClick={(e) => e.stopPropagation()}
+                    className="p-1.5 rounded-lg hover:bg-accent transition-colors"
+                    title="Plus d'actions"
+                    aria-label="Plus d'actions"
+                  >
+                    <MoreVertical className="w-4 h-4 text-muted-foreground" />
+                  </button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="end" className="w-52 z-[60]" onClick={(e) => e.stopPropagation()}>
+                  <DropdownMenuItem onSelect={() => setReevaluatingMeal(meal)}>
+                    <Sparkles className="w-4 h-4 mr-2 text-primary" /> Réévaluer par l'IA
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => startEdit(meal.id)}>
+                    <Pencil className="w-4 h-4 mr-2" /> Éditer
+                  </DropdownMenuItem>
+                  <DropdownMenuItem onSelect={() => toggleFavorite(meal.id, !!meal.is_favorite)}>
+                    <Heart className={`w-4 h-4 mr-2 ${meal.is_favorite ? 'fill-destructive text-destructive' : ''}`} />
+                    {meal.is_favorite ? "Retirer des favoris" : "Ajouter aux favoris"}
+                  </DropdownMenuItem>
+                  <DropdownMenuSeparator />
+                  <DropdownMenuItem
+                    onSelect={() => setPendingDeleteId(meal.id)}
+                    className="text-destructive focus:text-destructive"
+                  >
+                    <Trash2 className="w-4 h-4 mr-2" /> Supprimer
+                  </DropdownMenuItem>
+                </DropdownMenuContent>
+              </DropdownMenu>
             </div>
           </div>
         </div>
         <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
-      </button>
+      </div>
 
           {/* Read-only expanded ingredient list */}
           {expandedMealId === meal.id && editingMealId !== meal.id && (
