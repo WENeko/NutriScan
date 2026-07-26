@@ -233,8 +233,8 @@ const [searchQuery, setSearchQuery] = useState("");
   };
 
 
-  const deleteMeal = async (mealId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const deleteMeal = async (mealId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       await supabase.from("meal_items").delete().eq("meal_id", mealId);
       const { error } = await supabase.from("meals").delete().eq("id", mealId);
@@ -246,8 +246,8 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  const toggleFavorite = async (mealId: string, current: boolean, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const toggleFavorite = async (mealId: string, current: boolean, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       const { error } = await supabase.from("meals").update({ is_favorite: !current }).eq("id", mealId);
       if (error) throw error;
@@ -257,8 +257,8 @@ const [searchQuery, setSearchQuery] = useState("");
     }
   };
 
-  const duplicateMeal = async (mealId: string, e: React.MouseEvent) => {
-    e.stopPropagation();
+  const duplicateMeal = async (mealId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
     try {
       const { data: items, error: itemsErr } = await supabase.from("meal_items").select("*").eq("meal_id", mealId);
       if (itemsErr) throw itemsErr;
