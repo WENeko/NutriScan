@@ -238,8 +238,8 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
     );
   }, [newResult]);
 
-  return (
-    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-black/60 p-3 animate-fade-up">
+  return createPortal(
+    <div className="fixed top-0 left-0 w-[100dvw] h-[100dvh] z-[100] flex items-end sm:items-center justify-center bg-black/60 p-3 animate-fade-up">
       <div className="w-full max-w-md bg-card rounded-2xl shadow-float max-h-[90vh] overflow-y-auto">
         <div className="sticky top-0 bg-card border-b border-border/50 px-4 py-3 flex items-center justify-between">
           <div className="flex items-center gap-2">
