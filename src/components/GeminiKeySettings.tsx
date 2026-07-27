@@ -730,8 +730,26 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
               ) : (
               <div>
+                {isCustom && (
+                  <div className="mb-3 space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">URL de base du serveur</Label>
+                    <Input
+                      value={st.serverUrl}
+                      onChange={(e) => patch(p.id, { serverUrl: e.target.value })}
+                      placeholder="https://mon-serveur.duckdns.org/v1 ou http://192.168.1.10:11434/v1"
+                      className="h-10 font-mono text-xs"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Serveur compatible OpenAI (Ollama, vLLM, LocalAI…). Terminez par <span className="font-mono">/v1</span>.
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Votre clé</Label>
+                  <Label className="text-[10px] uppercase text-muted-foreground">
+                    {isCustom ? "Clé API (optionnelle)" : "Votre clé"}
+                  </Label>
                   {entry && (
                     <Popover>
                       <PopoverTrigger asChild>
@@ -771,7 +789,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     type={st.show ? "text" : "password"}
                     value={st.key}
                     onChange={(e) => patch(p.id, { key: e.target.value })}
-                    placeholder={entry?.keyPlaceholder ?? (p.api_type === "gemini" ? "AIza…" : "sk-…")}
+                    placeholder={isCustom ? "Bearer token (laisser vide si le serveur est ouvert)" : entry?.keyPlaceholder ?? (p.api_type === "gemini" ? "AIza…" : "sk-…")}
                     className="h-10 pr-16 font-mono text-xs"
                     autoComplete="off"
                   />
@@ -794,8 +812,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 )}
 
                 <div className="flex gap-2 mt-2">
-                  <Button onClick={() => saveKey(p)} disabled={st.savingKey} className="flex-1 h-9 rounded-xl">
-                    <Save className="w-4 h-4 mr-1" /> Enregistrer la clé
+                  <Button
+                    onClick={() => (isCustom ? saveCustomServer(p) : saveKey(p))}
+                    disabled={st.savingKey || st.savingServer}
+                    className="flex-1 h-9 rounded-xl"
+                  >
+                    {st.savingServer ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                    {isCustom ? "Enregistrer le serveur" : "Enregistrer la clé"}
                   </Button>
                   {st.hasStored && (
                     <Button onClick={() => removeKey(p)} disabled={st.savingKey} variant="ghost" className="h-9">
@@ -929,6 +952,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
                     ? "Utilisez 🔄 pour rechercher automatiquement les modèles .litertlm/.task présents sur l'appareil, ou « Importer un modèle » pour en ajouter un depuis vos fichiers."
+                    : isCustom
+                    ? "Enregistrez d'abord l'URL du serveur, puis 🔄 interroge /models (ex. llama3.2, qwen2.5-coder, llava). Vous pouvez aussi saisir le nom du modèle à la main."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
