@@ -3,7 +3,7 @@
 // (Gemini ou compatible OpenAI) sélectionné par l'utilisateur, avec modèle au choix.
 import { appLogger } from './appLogger';
 import { supabase } from '@/integrations/supabase/client';
-import { isLovableAiEnabled, getActiveProviderConfig, isLocalApiType } from '@/lib/aiAccess';
+import { isLovableAiEnabled, getActiveProviderConfig, isLocalApiType, isKeyOptional, isOpenAiCompatible } from '@/lib/aiAccess';
 import { runLocalIntentChat } from '@/services/localAiBridge';
 import { fallbackModelFor } from '@/lib/providerCatalog';
 // SOURCE UNIQUE DE VÉRITÉ du prompt — partagée avec l'edge function `analyze-meal`.
