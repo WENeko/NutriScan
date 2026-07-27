@@ -29,13 +29,14 @@ import {
   Cpu, CheckCircle2, XCircle, HelpCircle, CircleDashed, Sparkles, Gift, Pencil,
   Plus, X, Server, Workflow, ArrowUp, ArrowDown, Check,
 } from "lucide-react";
-import { isLovableAiEnabled, loadAiAccess, isLocalApiType } from "@/lib/aiAccess";
+import { isLovableAiEnabled, loadAiAccess, isLocalApiType, isKeyOptional, isCustomServer, type ApiType } from "@/lib/aiAccess";
 import {
   listProviders,
   fetchProviderModels,
   saveUserProviderKey,
   deleteUserProviderKey,
   saveUserSelection,
+  saveUserProviderServer,
   type AiProvider,
 } from "@/lib/aiProviders";
 import { getCatalogEntry, popularityOf, isKeyFormatValid } from "@/lib/providerCatalog";
@@ -69,6 +70,9 @@ interface CardState {
   editValue: string;
   status: Record<string, ModelStatus>;
   verifying: boolean;
+  /** URL de base personnalisée (serveur perso / self-hosted). */
+  serverUrl: string;
+  savingServer: boolean;
 }
 
 const blankCard = (): CardState => ({
@@ -83,12 +87,14 @@ const blankCard = (): CardState => ({
   editValue: "",
   status: {},
   verifying: false,
+  serverUrl: "",
+  savingServer: false,
 });
 
 type AdminDraft = {
   id?: string;
   name: string;
-  api_type: "gemini" | "openai" | "local" | "local_intent";
+  api_type: ApiType;
   base_url: string;
   models_endpoint: string;
   is_active: boolean;
@@ -171,13 +177,19 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
       const { data: keys } = await supabase
         .from("user_provider_keys")
-        .select("provider_id, api_key")
+        .select("provider_id, api_key, base_url")
         .eq("user_id", userId);
 
       const init: Record<string, CardState> = {};
       for (const p of provs) {
-        const stored = (keys as any[] | null)?.find((k) => k.provider_id === p.id)?.api_key ?? "";
-        init[p.id] = { ...blankCard(), key: stored, hasStored: !!stored };
+        const row = (keys as any[] | null)?.find((k) => k.provider_id === p.id);
+        const stored = row?.api_key ?? "";
+        init[p.id] = {
+          ...blankCard(),
+          key: stored,
+          hasStored: !!stored,
+          serverUrl: row?.base_url ?? (isCustomServer(p.api_type) ? p.base_url : ""),
+        };
       }
       setCards(init);
     } catch (e: any) {
@@ -205,6 +217,32 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   function setModels(pid: string, list: string[], nextConfig?: RoutingConfig) {
     const base = nextConfig ?? config;
     void persistConfig({ ...base, models: { ...base.models, [pid]: list } });
+  }
+
+  /** Fournisseur enrichi de l'URL de base personnalisée saisie par l'utilisateur. */
+  function effective(p: AiProvider): AiProvider {
+    const custom = cards[p.id]?.serverUrl?.trim();
+    return custom ? { ...p, base_url: custom } : p;
+  }
+
+  /** Enregistre l'URL (et la clé facultative) d'un serveur perso / self-hosted. */
+  async function saveCustomServer(p: AiProvider) {
+    const url = (cards[p.id]?.serverUrl ?? "").trim();
+    if (!/^https?:\/\//i.test(url)) {
+      toast({ title: "URL invalide", description: "Indiquez une URL complète (http:// ou https://).", variant: "destructive" });
+      return;
+    }
+    const key = (cards[p.id]?.key ?? "").trim();
+    patch(p.id, { savingServer: true });
+    const { error } = await saveUserProviderServer(userId, p.id, url, key || null);
+    patch(p.id, { savingServer: false });
+    if (error) {
+      toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+      return;
+    }
+    patch(p.id, { hasStored: true });
+    await loadAiAccess(userId);
+    toast({ title: "Serveur enregistré", description: `${p.name} · ${url}` });
   }
 
   // ── Clés ────────────────────────────────────────────────────────────────────
@@ -243,13 +281,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   // ── Modèles (liste dynamique + gestion par fournisseur) ──────────────────────
   async function loadAvailable(p: AiProvider) {
     const k = (cards[p.id]?.key ?? "").trim();
-    if (!k) {
+    if (!k && !isKeyOptional(p.api_type)) {
       toast({ title: "Clé requise", description: "Entrez votre clé pour lister les modèles.", variant: "destructive" });
       return;
     }
     patch(p.id, { loadingModels: true });
     try {
-      const list = await fetchProviderModels(p, k);
+      const list = await fetchProviderModels(effective(p), k);
       patch(p.id, { available: list });
       if (list.length === 0) toast({ title: "Aucun modèle", description: "Le fournisseur n'a renvoyé aucun modèle." });
       else toast({ title: `${list.length} modèles disponibles`, description: p.name });
@@ -263,13 +301,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   /** Vérifie l'état des modèles ajoutés (✅ disponible / ❌ obsolète). */
   async function verifyModels(p: AiProvider) {
     const k = (cards[p.id]?.key ?? "").trim();
-    if (!k) {
+    if (!k && !isKeyOptional(p.api_type)) {
       toast({ title: "Clé requise", description: "Entrez votre clé pour vérifier les modèles.", variant: "destructive" });
       return;
     }
     patch(p.id, { verifying: true });
     try {
-      const list = await fetchProviderModels(p, k);
+      const list = await fetchProviderModels(effective(p), k);
       const status: Record<string, ModelStatus> = {};
       for (const m of getModels(p.id)) status[m] = list.includes(m) ? "ok" : "obsolete";
       patch(p.id, { available: list, status });
@@ -403,7 +441,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     if (lovableEnabled) out.push({ type: "edge_function" });
     for (const p of sorted) {
       // Les fournisseurs locaux (HTTP ou Intent natif) n'ont pas besoin de clé enregistrée.
-      if (!isLocalApiType(p.api_type as any) && !cards[p.id]?.hasStored) continue;
+      if (!isKeyOptional(p.api_type as any) && !cards[p.id]?.hasStored) continue;
       for (const m of getModels(p.id)) out.push({ type: "byok", providerId: p.id, model: m });
     }
     return out;
@@ -457,7 +495,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
     });
   }
 
-  function onDraftType(t: "gemini" | "openai" | "local" | "local_intent") {
+  function onDraftType(t: ApiType) {
     setDraft((d) =>
       d
         ? {
@@ -471,6 +509,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 ? "http://localhost:11434/v1"
                 : t === "local_intent"
                 ? "intent://google-ai-edge-gallery"
+                : t === "custom"
+                ? "https://mon-serveur.exemple.com/v1"
                 : "https://api.openai.com/v1"),
             models_endpoint: d.models_endpoint || (t === "gemini" ? "/v1beta/models" : "/models"),
           }
@@ -589,6 +629,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
           const models = getModels(p.id);
           const addOptions = st.available.filter((m) => !models.includes(m));
           const isLocal = isLocalApiType(p.api_type as any);
+          const isCustom = isCustomServer(p.api_type as any);
 
           return (
             <Card
@@ -611,6 +652,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                       ? "Local HTTP (sur l'appareil)"
                       : p.api_type === "local_intent"
                       ? "Local natif (on-device)"
+                      : isCustom
+                      ? "Serveur perso / self-hosted (compatible OpenAI)"
                       : "Compatible OpenAI"}
                     {entry && entry.label !== p.name ? ` · ${entry.label}` : ""}
                     {!p.is_active ? " · inactif" : ""}
@@ -619,6 +662,10 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 {isLocal ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
                     <CheckCircle2 className="w-3 h-3" /> Sans clé
+                  </span>
+                ) : isCustom ? (
+                  <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
+                    <Server className="w-3 h-3" /> {(cards[p.id]?.serverUrl || "").trim() ? "Configuré" : "À configurer"}
                   </span>
                 ) : st.hasStored ? (
                   <span className="inline-flex items-center gap-1 text-[10px] font-semibold text-primary bg-primary/10 rounded-full px-2 py-1">
@@ -683,8 +730,26 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 </div>
               ) : (
               <div>
+                {isCustom && (
+                  <div className="mb-3 space-y-1">
+                    <Label className="text-[10px] uppercase text-muted-foreground">URL de base du serveur</Label>
+                    <Input
+                      value={st.serverUrl}
+                      onChange={(e) => patch(p.id, { serverUrl: e.target.value })}
+                      placeholder="https://mon-serveur.duckdns.org/v1 ou http://192.168.1.10:11434/v1"
+                      className="h-10 font-mono text-xs"
+                      autoComplete="off"
+                      spellCheck={false}
+                    />
+                    <p className="text-[10px] text-muted-foreground">
+                      Serveur compatible OpenAI (Ollama, vLLM, LocalAI…). Terminez par <span className="font-mono">/v1</span>.
+                    </p>
+                  </div>
+                )}
                 <div className="flex items-center justify-between">
-                  <Label className="text-[10px] uppercase text-muted-foreground">Votre clé</Label>
+                  <Label className="text-[10px] uppercase text-muted-foreground">
+                    {isCustom ? "Clé API (optionnelle)" : "Votre clé"}
+                  </Label>
                   {entry && (
                     <Popover>
                       <PopoverTrigger asChild>
@@ -724,7 +789,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                     type={st.show ? "text" : "password"}
                     value={st.key}
                     onChange={(e) => patch(p.id, { key: e.target.value })}
-                    placeholder={entry?.keyPlaceholder ?? (p.api_type === "gemini" ? "AIza…" : "sk-…")}
+                    placeholder={isCustom ? "Bearer token (laisser vide si le serveur est ouvert)" : entry?.keyPlaceholder ?? (p.api_type === "gemini" ? "AIza…" : "sk-…")}
                     className="h-10 pr-16 font-mono text-xs"
                     autoComplete="off"
                   />
@@ -747,8 +812,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 )}
 
                 <div className="flex gap-2 mt-2">
-                  <Button onClick={() => saveKey(p)} disabled={st.savingKey} className="flex-1 h-9 rounded-xl">
-                    <Save className="w-4 h-4 mr-1" /> Enregistrer la clé
+                  <Button
+                    onClick={() => (isCustom ? saveCustomServer(p) : saveKey(p))}
+                    disabled={st.savingKey || st.savingServer}
+                    className="flex-1 h-9 rounded-xl"
+                  >
+                    {st.savingServer ? <Loader2 className="w-4 h-4 mr-1 animate-spin" /> : <Save className="w-4 h-4 mr-1" />}
+                    {isCustom ? "Enregistrer le serveur" : "Enregistrer la clé"}
                   </Button>
                   {st.hasStored && (
                     <Button onClick={() => removeKey(p)} disabled={st.savingKey} variant="ghost" className="h-9">
@@ -882,6 +952,8 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                 <p className="text-[10px] text-muted-foreground mt-1">
                   {p.api_type === "local_intent"
                     ? "Utilisez 🔄 pour rechercher automatiquement les modèles .litertlm/.task présents sur l'appareil, ou « Importer un modèle » pour en ajouter un depuis vos fichiers."
+                    : isCustom
+                    ? "Enregistrez d'abord l'URL du serveur, puis 🔄 interroge /models (ex. llama3.2, qwen2.5-coder, llava). Vous pouvez aussi saisir le nom du modèle à la main."
                     : "Rafraîchissez pour charger les modèles du fournisseur, puis ajoutez-en autant que voulu."}
                 </p>
               </div>
@@ -902,13 +974,14 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             <Label className="text-[10px] uppercase text-muted-foreground">Type d'API</Label>
             <select
               value={draft.api_type}
-              onChange={(e) => onDraftType(e.target.value as "gemini" | "openai" | "local" | "local_intent")}
+              onChange={(e) => onDraftType(e.target.value as ApiType)}
               className="h-9 w-full rounded-md border border-input bg-background px-2 text-sm"
             >
               <option value="openai">Compatible OpenAI</option>
               <option value="gemini">Google Gemini</option>
               <option value="local">Local HTTP (Ollama, LM Studio… — sans clé)</option>
               <option value="local_intent">Local natif (on-device — sans clé)</option>
+              <option value="custom">Serveur Perso / Self-hosted (Ollama, vLLM, LocalAI…)</option>
 
             </select>
           </div>

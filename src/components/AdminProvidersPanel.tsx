@@ -24,7 +24,7 @@ interface Props {
 type Draft = {
   id?: string;
   name: string;
-  api_type: "gemini" | "openai" | "local" | "local_intent";
+  api_type: import("@/lib/aiAccess").ApiType;
   base_url: string;
   models_endpoint: string;
   is_active: boolean;

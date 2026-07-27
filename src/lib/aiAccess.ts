@@ -21,7 +21,25 @@ const LS_PROVIDER = "ai_provider_config";
 //                     llama.cpp server, ou serveur local de Google AI Edge Gallery).
 //  - "local_intent" = intégration native Android on-device via plugin Capacitor
 //                     (MediaPipe/LiteRT), sans Google AI Edge Gallery externe.
-export type ApiType = "gemini" | "openai" | "local" | "local_intent";
+// "custom" = serveur personnalisé / self-hosted (Ollama, vLLM, LocalAI…) :
+//             API compatible OpenAI, URL de base saisie par l'utilisateur,
+//             clé (Bearer) FACULTATIVE.
+export type ApiType = "gemini" | "openai" | "local" | "local_intent" | "custom";
+
+/** true si le fournisseur parle le protocole OpenAI (chat/completions + /models). */
+export function isOpenAiCompatible(t: ApiType): boolean {
+  return t === "openai" || t === "local" || t === "custom";
+}
+
+/** true si le fournisseur peut fonctionner sans clé API (local ou serveur perso ouvert). */
+export function isKeyOptional(t: ApiType): boolean {
+  return t === "local" || t === "local_intent" || t === "custom";
+}
+
+/** true si le fournisseur expose une URL de base personnalisable par l'utilisateur. */
+export function isCustomServer(t: ApiType): boolean {
+  return t === "custom";
+}
 
 /** true si le type de fournisseur correspond à une IA locale (sur l'appareil, sans clé). */
 export function isLocalApiType(t: ApiType): boolean {
@@ -63,7 +81,7 @@ export async function loadAiAccess(userId: string): Promise<void> {
         .maybeSingle(),
       supabase
         .from("user_provider_keys")
-        .select("api_key")
+        .select("api_key, base_url")
         .eq("user_id", userId)
         .eq("provider_id", providerId)
         .maybeSingle(),
@@ -78,7 +96,7 @@ export async function loadAiAccess(userId: string): Promise<void> {
       providerId: (provider as any).id,
       name: (provider as any).name,
       apiType: ((provider as any).api_type as ApiType) ?? "gemini",
-      baseUrl: (provider as any).base_url,
+      baseUrl: ((keyRow as any)?.base_url as string) || (provider as any).base_url,
       modelsEndpoint: (provider as any).models_endpoint,
       model: ((profile as any)?.selected_ai_model as string) ?? null,
       apiKey: ((keyRow as any)?.api_key as string) ?? null,
@@ -117,6 +135,6 @@ export function clearAiAccessCache(): void {
 export function isAiConfigured(): boolean {
   if (isLovableAiEnabled()) return true;
   const cfg = getActiveProviderConfig();
-  return !!(cfg && (cfg.apiKey || isLocalApiType(cfg.apiType)));
+  return !!(cfg && (cfg.apiKey || isKeyOptional(cfg.apiType)));
 }
 

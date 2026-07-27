@@ -3,7 +3,7 @@
 // (Gemini ou compatible OpenAI) sélectionné par l'utilisateur, avec modèle au choix.
 import { appLogger } from './appLogger';
 import { supabase } from '@/integrations/supabase/client';
-import { isLovableAiEnabled, getActiveProviderConfig, isLocalApiType } from '@/lib/aiAccess';
+import { isLovableAiEnabled, getActiveProviderConfig, isLocalApiType, isKeyOptional, isOpenAiCompatible } from '@/lib/aiAccess';
 import { runLocalIntentChat } from '@/services/localAiBridge';
 import { fallbackModelFor } from '@/lib/providerCatalog';
 // SOURCE UNIQUE DE VÉRITÉ du prompt — partagée avec l'edge function `analyze-meal`.
@@ -132,7 +132,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   const apiType = provider?.apiType ?? "gemini";
 
   // Les modèles locaux (sur l'appareil, HTTP ou Intent natif) ne nécessitent pas de clé API.
-  if (!apiKey && !isLocalApiType(apiType)) {
+  if (!apiKey && !isKeyOptional(apiType)) {
     appLogger.error("IA", "Aucune clé API fournisseur configurée");
     throw new Error("Aucune clé API configurée. Choisissez un fournisseur et entrez votre clé dans Réglages, ou demandez l'accès à l'IA Lovable à un administrateur.");
   }
@@ -196,7 +196,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
         });
         appLogger.info("IA", `Succès (Intent natif) avec ${chosenModel}`);
         break;
-      } else if (apiType === "openai" || apiType === "local") {
+      } else if (isOpenAiCompatible(apiType)) {
         // ── API compatible OpenAI (inclut les modèles locaux HTTP) ──
         const userContent: any[] = [{ type: "text", text: promptText }];
         if (image) userContent.push({ type: "image_url", image_url: { url: image } });
@@ -265,7 +265,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
     }
     const data = await res.json();
     content = (
-      apiType === "openai" || apiType === "local"
+      isOpenAiCompatible(apiType)
         ? data?.choices?.[0]?.message?.content
         : data?.candidates?.[0]?.content?.parts?.[0]?.text
     ) || "{}";

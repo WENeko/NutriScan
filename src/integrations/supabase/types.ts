@@ -631,7 +631,8 @@ export type Database = {
       }
       user_provider_keys: {
         Row: {
-          api_key: string
+          api_key: string | null
+          base_url: string | null
           created_at: string
           id: string
           provider_id: string
@@ -639,7 +640,8 @@ export type Database = {
           user_id: string
         }
         Insert: {
-          api_key: string
+          api_key?: string | null
+          base_url?: string | null
           created_at?: string
           id?: string
           provider_id: string
@@ -647,7 +649,8 @@ export type Database = {
           user_id: string
         }
         Update: {
-          api_key?: string
+          api_key?: string | null
+          base_url?: string | null
           created_at?: string
           id?: string
           provider_id?: string

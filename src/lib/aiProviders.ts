@@ -47,7 +47,9 @@ export async function fetchProviderModels(
   provider: Pick<AiProvider, "api_type" | "base_url" | "models_endpoint">,
   apiKey: string
 ): Promise<string[]> {
-  if (!apiKey) throw new Error("Clé API requise pour lister les modèles.");
+  // Un serveur perso / self-hosted (Ollama, vLLM, LocalAI…) peut être ouvert : clé facultative.
+  const keyOptional = provider.api_type === "custom" || provider.api_type === "local";
+  if (!apiKey && !keyOptional) throw new Error("Clé API requise pour lister les modèles.");
 
   if (provider.api_type === "gemini") {
     // Endpoint canonique des modèles Gemini (robuste si la config DB est erronée).
@@ -71,12 +73,9 @@ export async function fetchProviderModels(
     ? provider.models_endpoint
     : "/models";
   const url = joinUrl(provider.base_url, endpoint);
-  const res = await fetch(url, {
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      "Content-Type": "application/json",
-    },
-  });
+  const headers: Record<string, string> = { "Content-Type": "application/json" };
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+  const res = await fetch(url, { headers });
   if (!res.ok) throw new Error(`Erreur ${res.status} lors de la récupération des modèles.`);
   const json = await res.json();
   // Certains fournisseurs (GitHub Models, Azure AI) renvoient un tableau au
@@ -95,6 +94,30 @@ export async function fetchProviderModels(
     })
     .filter(Boolean)
     .sort();
+}
+
+/** URL de base personnalisée enregistrée par l'utilisateur (serveur perso). */
+export async function getUserProviderBaseUrl(userId: string, providerId: string): Promise<string | null> {
+  const { data } = await supabase
+    .from("user_provider_keys")
+    .select("base_url")
+    .eq("user_id", userId)
+    .eq("provider_id", providerId)
+    .maybeSingle();
+  return (data as any)?.base_url ?? null;
+}
+
+/** Enregistre l'URL de base personnalisée (et éventuellement la clé) d'un serveur perso. */
+export async function saveUserProviderServer(
+  userId: string,
+  providerId: string,
+  baseUrl: string,
+  apiKey: string | null
+) {
+  return supabase.from("user_provider_keys").upsert(
+    { user_id: userId, provider_id: providerId, base_url: baseUrl || null, api_key: apiKey || null },
+    { onConflict: "user_id,provider_id" }
+  );
 }
 
 /** Clé enregistrée par l'utilisateur pour un fournisseur donné. */

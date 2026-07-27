@@ -18,7 +18,7 @@ import { toast } from "@/hooks/use-toast";
 import { appLogger } from "@/services/appLogger";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
 import type { ActiveProviderConfig, ApiType } from "@/lib/aiAccess";
-import { isLocalApiType } from "@/lib/aiAccess";
+import { isLocalApiType, isKeyOptional, isOpenAiCompatible } from "@/lib/aiAccess";
 import { fallbackModelFor } from "@/lib/providerCatalog";
 import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
@@ -109,11 +109,16 @@ async function loadRoutingContext(userId: string): Promise<RoutingContext> {
       .eq("user_id", userId)
       .maybeSingle(),
     supabase.from("ai_providers").select("id, name, api_type, base_url, models_endpoint").eq("is_active", true),
-    supabase.from("user_provider_keys").select("provider_id, api_key").eq("user_id", userId),
+    supabase.from("user_provider_keys").select("provider_id, api_key, base_url").eq("user_id", userId),
   ]);
 
   const keyMap = new Map<string, string>();
-  (keys as any[] | null)?.forEach((k) => keyMap.set(k.provider_id, k.api_key));
+  const urlMap = new Map<string, string>();
+  (keys as any[] | null)?.forEach((k) => {
+    if (k.api_key) keyMap.set(k.provider_id, k.api_key);
+    // URL de base personnalisée (serveur perso / self-hosted).
+    if (k.base_url) urlMap.set(k.provider_id, k.base_url);
+  });
 
   const providers = new Map<string, ResolvedProvider>();
   (provs as any[] | null)?.forEach((p) =>
@@ -121,7 +126,7 @@ async function loadRoutingContext(userId: string): Promise<RoutingContext> {
       id: p.id,
       name: p.name,
       apiType: (p.api_type as ApiType) ?? "gemini",
-      baseUrl: p.base_url,
+      baseUrl: urlMap.get(p.id) ?? p.base_url,
       modelsEndpoint: p.models_endpoint,
       apiKey: keyMap.get(p.id) ?? null,
     })
@@ -144,7 +149,7 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
   if (ctx.selectedProviderId) {
     const p = ctx.providers.get(ctx.selectedProviderId);
     // Un fournisseur local (HTTP ou Intent natif) n'a pas besoin de clé.
-    if (p && (p.apiKey || isLocalApiType(p.apiType))) {
+    if (p && (p.apiKey || isKeyOptional(p.apiType))) {
       steps.push({ type: "byok", providerId: ctx.selectedProviderId, model: ctx.selectedModel ?? undefined });
     }
   }
@@ -159,7 +164,7 @@ function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
-    return !!p && (!!p.apiKey || isLocalApiType(p.apiType));
+    return !!p && (!!p.apiKey || isKeyOptional(p.apiType));
   });
 }
 
@@ -178,7 +183,7 @@ async function callChatProvider(p: ResolvedProvider, model: string, system: stri
     // IA locale native (Intent Android, ex: Google AI Edge Gallery).
     return runLocalIntentChat({ system, prompt: userText, model });
   }
-  if (p.apiType === "openai" || p.apiType === "local") {
+  if (isOpenAiCompatible(p.apiType)) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;
     const res = await fetch(`${baseUrl}/chat/completions`, {
@@ -389,7 +394,7 @@ export async function listAvailableStepsForUser(userId: string, feature: Feature
     seen.add(key);
     const p = ctx.providers.get(providerId);
     if (!p) return;
-    const requiresKey = !isLocalApiType(p.apiType);
+    const requiresKey = !isKeyOptional(p.apiType);
     out.push({
       step: { type: "byok", providerId, model },
       label: `${p.name}${model ? " · " + model : ""}`,
@@ -408,7 +413,7 @@ export async function listAvailableStepsForUser(userId: string, feature: Feature
   }
   // Fournisseurs actifs avec clé configurée (sans modèle précis)
   ctx.providers.forEach((p) => {
-    if ((p.apiKey || isLocalApiType(p.apiType)) && !Array.from(seen).some((k) => k.startsWith(p.id + "::"))) {
+    if ((p.apiKey || isKeyOptional(p.apiType)) && !Array.from(seen).some((k) => k.startsWith(p.id + "::"))) {
       pushByok(p.id, undefined);
     }
   });
@@ -437,7 +442,7 @@ export async function checkStepHealth(userId: string, step: RoutingStep): Promis
     const ctx = await loadRoutingContext(userId);
     const p = step.providerId ? ctx.providers.get(step.providerId) : null;
     if (!p) return { status: "down", latencyMs: 0, message: "Fournisseur introuvable" };
-    if (!p.apiKey && !isLocalApiType(p.apiType)) {
+    if (!p.apiKey && !isKeyOptional(p.apiType)) {
       return { status: "down", latencyMs: 0, message: "Clé API manquante" };
     }
     if (isLocalApiType(p.apiType)) {
@@ -451,14 +456,29 @@ export async function checkStepHealth(userId: string, step: RoutingStep): Promis
       url = `${base}/v1beta/models?key=${encodeURIComponent(p.apiKey!)}`;
     } else {
       url = `${base}${p.modelsEndpoint || "/models"}`;
-      headers.Authorization = `Bearer ${p.apiKey}`;
+      // Serveur perso : la clé (Bearer) est facultative.
+      if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;
     }
     const controller = new AbortController();
     const to = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, { headers, signal: controller.signal });
     clearTimeout(to);
     const latency = Date.now() - start;
-    if (!res.ok) return { status: "down", latencyMs: latency, message: `HTTP ${res.status}` };
+    if (!res.ok) {
+      // Serveur perso : certains runtimes n'exposent pas /models — on tente la route de santé.
+      if (p.apiType === "custom") {
+        const root = base.replace(/\/v\d+$/, "");
+        for (const path of ["/health", "/api/tags", ""]) {
+          try {
+            const r2 = await fetch(`${root}${path}`, { headers });
+            if (r2.ok) return { status: "ok", latencyMs: Date.now() - start };
+          } catch {
+            /* on continue */
+          }
+        }
+      }
+      return { status: "down", latencyMs: latency, message: `HTTP ${res.status}` };
+    }
     return { status: latency > 3000 ? "slow" : "ok", latencyMs: latency };
   } catch (e: any) {
     return { status: "down", latencyMs: Date.now() - start, message: e?.message ?? "erreur" };
