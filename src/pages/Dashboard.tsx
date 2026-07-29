@@ -23,6 +23,10 @@ import BuildInfo from "@/components/BuildInfo";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { isLovableAiEnabled, isAiConfigured, loadAiAccess } from "@/lib/aiAccess";
 import OnboardingFlow, { isOnboardingDone } from "@/components/OnboardingFlow";
+import { syncWidgetData, guessMealIcon } from "@/services/widgetSyncService";
+import { initWidgetDeepLinks, consumePendingIntent, WIDGET_INTENT_EVENT, type WidgetIntent } from "@/services/widgetDeepLinks";
+import { toast } from "@/hooks/use-toast";
+
 
 
 interface Goals {
