@@ -353,6 +353,69 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     autoSyncHealthData(userId).then(() => fetchData());
   }, [userId]);
 
+  // ---- Widgets d'écran d'accueil : synchronisation des données partagées ----
+  useEffect(() => {
+    void syncWidgetData({
+      daily_summary: {
+        calories_consumed: Math.round(todayTotals.calories),
+        calories_target: Math.round(goals.calories),
+        protein_consumed: Math.round(todayTotals.proteins),
+        protein_target: Math.round(goals.proteins),
+        carbs_consumed: Math.round(todayTotals.carbs),
+        carbs_target: Math.round(goals.carbs),
+        fat_consumed: Math.round(todayTotals.fats),
+        fat_target: Math.round(goals.fats),
+      },
+      favorite_meals: favoriteMeals.slice(0, 4).map((m, i) => ({
+        id: m.id,
+        name: m.meal_name || "Repas",
+        calories: Math.round(Number(m.total_calories) || 0),
+        icon: guessMealIcon(m.meal_name, i),
+      })),
+    });
+  }, [todayTotals, goals, favoriteMeals]);
+
+  // ---- Widgets : deep links (caméra / galerie / quick log / dashboard) ----
+  const handleWidgetIntent = useCallback(async (intent: WidgetIntent) => {
+    if (intent.type === "dashboard") {
+      setActiveTab("dashboard");
+      return;
+    }
+    if (intent.type === "scan") {
+      setActiveTab("dashboard");
+      // Laisse le temps à MealInput de se monter avant de déclencher l'input fichier.
+      setTimeout(() => {
+        window.dispatchEvent(new CustomEvent("nutriscan:scan", { detail: { source: intent.source } }));
+      }, 350);
+      return;
+    }
+    if (intent.type === "quicklog") {
+      try {
+        const { data, error } = await supabase.functions.invoke("quick-log-favorite", {
+          body: { favorite_meal_id: intent.mealId },
+        });
+        if (error) throw error;
+        toast({ title: "Repas enregistré", description: data?.name || "Favori ajouté au journal." });
+        await fetchData();
+      } catch (e: any) {
+        toast({ title: "Échec de l'enregistrement", description: e?.message, variant: "destructive" });
+      }
+    }
+  }, [fetchData]);
+
+  useEffect(() => {
+    void initWidgetDeepLinks();
+    const pending = consumePendingIntent();
+    if (pending) void handleWidgetIntent(pending);
+    const listener = (e: Event) => {
+      const intent = (e as CustomEvent).detail as WidgetIntent;
+      if (intent) void handleWidgetIntent(intent);
+    };
+    window.addEventListener(WIDGET_INTENT_EVENT, listener);
+    return () => window.removeEventListener(WIDGET_INTENT_EVENT, listener);
+  }, [handleWidgetIntent]);
+
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
