@@ -7,7 +7,13 @@ const config: CapacitorConfig = {
   server: {
     androidScheme: 'https'
   },
-  plugins: {}
+  plugins: {
+    Preferences: {
+      // Stockage partagé lu par les widgets d'écran d'accueil
+      group: 'NutriScanWidget'
+    }
+  }
 };
+
 
 export default config;
