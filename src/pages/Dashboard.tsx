@@ -93,6 +93,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   }, [userId]);
 
 
+
   // Génère les descriptions IA manquantes pour les micros custom existants (créés
   // avant la fonctionnalité) puis persiste et rafraîchit l'état.
   const backfillCustomDescriptions = useCallback(async (defs: CustomNutrientDef[]) => {
