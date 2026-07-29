@@ -221,6 +221,22 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     init();
   }, [userId]);
 
+  // Widgets d'écran d'accueil : nutriscan://scan?source=camera|gallery
+  useEffect(() => {
+    const onScanIntent = (e: Event) => {
+      const source = (e as CustomEvent).detail?.source;
+      setMode("image");
+      setTimeout(() => {
+        if (source === "gallery") galleryInputRef.current?.click();
+        else fileInputRef.current?.click();
+      }, 100);
+    };
+    window.addEventListener("nutriscan:scan", onScanIntent);
+    return () => window.removeEventListener("nutriscan:scan", onScanIntent);
+  }, []);
+
+
+
   // Recette poussée depuis le Coach → bascule en mode texte et lance l'analyse,
   // l'utilisateur se retrouve en attente de validation comme pour une saisie texte.
   useEffect(() => {
