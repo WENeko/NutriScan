@@ -465,7 +465,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const trendPercent = Math.abs(Math.round((trendDiff / goals.calories) * 100));
   
   const proteinPerKg = weight > 0 ? todayTotals.proteins / weight : 0;
-  const proteinPerKgMax = proteinTargetPerKg;
+  // Cible g/kg dynamique : dérivée de l'objectif protéines réel et du poids actuel
+  const proteinPerKgMax = weight > 0 && goals.proteins > 0
+    ? Math.round((goals.proteins / weight) * 10) / 10
+    : proteinTargetPerKg;
 
   const showElectrolyteWarning = sportCalories >= 500 && (
     (todayMicros.sodium_mg || 0) < 1500 || (todayMicros.potassium_mg || 0) < 2000 || (todayMicros.magnesium_mg || 0) < 200
