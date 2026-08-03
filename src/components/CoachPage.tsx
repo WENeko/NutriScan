@@ -17,6 +17,7 @@ import { Leaf, Send, ChefHat, BarChart3, Loader2, Trash2, Camera, X, Cpu, FileEd
 import { executeAIFeatureWithFallback, type FeatureKey } from "@/lib/aiRouting";
 import { analyzeMeal } from "@/services/mealAnalysisService";
 import type { UserProfile } from "@/lib/micro-goals";
+import { buildCoachMealContext } from "@/lib/coachMealContext";
 
 interface Macro {
   calories: number;
@@ -113,7 +114,7 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
     [context]
   );
 
-  const buildSystem = (opts?: { availableFoods?: string[]; recipe?: boolean }) => {
+  const buildSystem = (opts?: { availableFoods?: string[]; recipe?: boolean; mealContext?: string }) => {
     const p = context.userProfile || {};
     const lines = [
       BASE_SYSTEM,
@@ -127,6 +128,9 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
     ];
     if (opts?.availableFoods?.length) {
       lines.push(`- Ingrédients disponibles décrits par l'utilisateur: ${opts.availableFoods.join(", ")}.`);
+    }
+    if (opts?.mealContext) {
+      lines.push("", opts.mealContext);
     }
     if (opts?.recipe) {
       lines.push("", RECIPE_EXPORT_RULE);
@@ -163,7 +167,11 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
     return (data as any)?.id as string | undefined;
   }
 
-  async function send(text: string, feature: FeatureKey, opts?: { availableFoods?: string[]; recipe?: boolean }) {
+  async function send(
+    text: string,
+    feature: FeatureKey,
+    opts?: { availableFoods?: string[]; recipe?: boolean },
+  ) {
     const trimmed = text.trim();
     if (!trimmed || sending) return;
     setInput("");
@@ -173,8 +181,10 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
     void persist("user", trimmed);
 
     try {
+      // Recherche intelligente : injecte les repas pertinents de l'utilisateur.
+      const mealContext = await buildCoachMealContext(userId, trimmed);
       const { result, modelUsed } = await executeAIFeatureWithFallback(feature, {
-        system: buildSystem(opts),
+        system: buildSystem({ ...opts, mealContext }),
         userText: trimmed,
       });
       const reply = String(result);
