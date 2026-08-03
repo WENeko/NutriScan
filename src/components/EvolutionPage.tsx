@@ -3,13 +3,13 @@ import { supabase } from "@/integrations/supabase/client";
 import { 
   BarChart, Bar, LineChart, Line, ComposedChart, XAxis, YAxis, CartesianGrid, 
   Tooltip, ResponsiveContainer, ReferenceLine, RadarChart, 
-  Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Cell
+  Radar, PolarGrid, PolarAngleAxis, PolarRadiusAxis, Cell, Legend
 } from "recharts";
 import { format, subDays, subMonths, startOfDay, endOfDay, differenceInYears } from "date-fns";
 import { fr } from "date-fns/locale";
 import { getMasterList, resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
-import CustomChartsManager, { type CustomChartConfig } from "@/components/CustomChartsManager";
+import CustomChartsManager, { CHART_COLORS, type CustomChartConfig } from "@/components/CustomChartsManager";
 
 interface EvolutionPageProps {
   userId: string;
