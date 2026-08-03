@@ -367,43 +367,58 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           resolvedMicros={resolvedMicros}
         />
         {customCharts.map((chart) => {
-          // Agrégation quotidienne : somme des micros sélectionnés
+          // Une série distincte par micronutriment sélectionné (pas d'addition)
           const selected = chart.micros
             .map((k) => resolvedMicros.find((r) => r.key === k))
             .filter(Boolean) as typeof resolvedMicros;
           if (selected.length === 0) return null;
-          const isLimit = selected.some((s) => s.isLimit);
-          const goalTotal = selected.reduce((sum, s) => sum + (s.goal || 0), 0);
-          const unit = selected[0].unit;
-          const data = nutritionData.map((d) => {
-            const value = chart.micros.reduce((sum, k) => sum + (Number(d[k]) || 0), 0);
-            const rounded = Math.round(value * 10) / 10;
-            return {
-              day: d.day,
-              date: d.date,
-              value: rounded,
-              baseValue: isLimit ? Math.min(rounded, goalTotal) : rounded,
-              overValue: isLimit && rounded > goalTotal ? rounded - goalTotal : 0,
-            };
-          });
-          const badgeIcon = isLimit ? "⚠️" : "🎯";
-          const badgeLabel = `${isLimit ? "Max" : "Min"}: ${Math.round(goalTotal * 10) / 10} ${unit}`;
 
-          const referenceLine = (
+          const palette = [chart.color, ...CHART_COLORS.map((c) => c.value).filter((c) => c !== chart.color)];
+          const series = selected.map((s, i) => ({
+            key: s.key,
+            label: s.label,
+            unit: s.unit,
+            goal: s.goal || 0,
+            isLimit: !!s.isLimit,
+            color: palette[i % palette.length],
+          }));
+
+          const isSingle = series.length === 1;
+          const single = series[0];
+
+          const data = nutritionData.map((d) => {
+            const row: any = { day: d.day, date: d.date };
+            series.forEach((s) => {
+              row[s.key] = Math.round((Number(d[s.key]) || 0) * 10) / 10;
+            });
+            if (isSingle) {
+              const v = row[single.key] as number;
+              row.baseValue = single.isLimit ? Math.min(v, single.goal) : v;
+              row.overValue = single.isLimit && v > single.goal ? v - single.goal : 0;
+            }
+            return row;
+          });
+
+          const referenceLines = series.map((s) => (
             <ReferenceLine
-              y={goalTotal}
-              stroke={isLimit ? "hsl(var(--destructive))" : chart.color}
+              key={`ref-${s.key}`}
+              y={s.goal}
+              stroke={s.isLimit ? "hsl(var(--destructive))" : s.color}
               strokeDasharray="4 4"
               strokeWidth={1.5}
-              label={{
-                position: "insideTopRight",
-                value: `${badgeIcon} ${badgeLabel}`,
-                fill: isLimit ? "hsl(var(--destructive))" : chart.color,
-                fontSize: 10,
-                fontWeight: 600,
-              }}
+              label={
+                isSingle
+                  ? {
+                      position: "insideTopRight",
+                      value: `${s.isLimit ? "⚠️" : "🎯"} ${s.isLimit ? "Max" : "Min"}: ${Math.round(s.goal * 10) / 10} ${s.unit}`,
+                      fill: s.isLimit ? "hsl(var(--destructive))" : s.color,
+                      fontSize: 10,
+                      fontWeight: 600,
+                    }
+                  : undefined
+              }
             />
-          );
+          ));
 
           const commonAxes = (
             <>
@@ -414,8 +429,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 contentStyle={tooltipStyle}
                 itemStyle={{ color: "#FFFFFF" }}
                 cursor={{ fill: "rgba(255,255,255,0.05)" }}
-                formatter={(v: any) => [`${v} ${unit}`, chart.title]}
+                formatter={(v: any, name: any) => {
+                  const s = series.find((x) => x.label === name || x.key === name);
+                  return [`${v} ${s?.unit ?? ""}`, s?.label ?? name];
+                }}
               />
+              {!isSingle && <Legend wrapperStyle={{ fontSize: 10 }} iconSize={8} />}
             </>
           );
 
@@ -426,49 +445,67 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chart.color }} />
                   {chart.title}
                 </h3>
-                <span
-                  className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
-                    isLimit
-                      ? "bg-destructive/15 text-destructive"
-                      : "bg-primary/15 text-primary"
-                  }`}
-                >
-                  {badgeIcon} {badgeLabel}
-                </span>
+                {isSingle && (
+                  <span
+                    className={`text-[10px] font-semibold px-2 py-0.5 rounded-full ${
+                      single.isLimit ? "bg-destructive/15 text-destructive" : "bg-primary/15 text-primary"
+                    }`}
+                  >
+                    {single.isLimit ? "⚠️" : "🎯"} {single.isLimit ? "Max" : "Min"}: {Math.round(single.goal * 10) / 10} {single.unit}
+                  </span>
+                )}
               </div>
-              <p className="text-[10px] text-muted-foreground mb-3">
-                {selected.map((s) => s.label).join(" + ")}
-              </p>
+              <div className="flex flex-wrap gap-x-2 gap-y-1 mb-3">
+                {series.map((s) => (
+                  <span key={s.key} className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    <span className="w-2 h-2 rounded-full" style={{ backgroundColor: s.color }} />
+                    {s.label} ({s.isLimit ? "max" : "min"} {Math.round(s.goal * 10) / 10} {s.unit})
+                  </span>
+                ))}
+              </div>
               <div className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   {chart.chart_type === "bar" ? (
-                    <BarChart data={data}>
+                    <BarChart data={data} barGap={2}>
                       {commonAxes}
-                      {referenceLine}
-                      <Bar dataKey="baseValue" stackId="a" radius={isLimit ? [0, 0, 0, 0] : [4, 4, 0, 0]}>
-                        {data.map((entry, index) => {
-                          let fill = chart.color;
-                          let opacity = 1;
-                          if (!isLimit && entry.value < goalTotal) opacity = 0.35;
-                          return <Cell key={`cell-${index}`} fill={fill} fillOpacity={opacity} />;
-                        })}
-                      </Bar>
-                      {isLimit && (
-                        <Bar dataKey="overValue" stackId="a" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                      {referenceLines}
+                      {isSingle ? (
+                        <>
+                          <Bar dataKey="baseValue" name={single.label} stackId="a" radius={single.isLimit ? [0, 0, 0, 0] : [4, 4, 0, 0]}>
+                            {data.map((entry, index) => (
+                              <Cell
+                                key={`cell-${index}`}
+                                fill={single.color}
+                                fillOpacity={!single.isLimit && (entry[single.key] as number) < single.goal ? 0.35 : 1}
+                              />
+                            ))}
+                          </Bar>
+                          {single.isLimit && (
+                            <Bar dataKey="overValue" name="Dépassement" stackId="a" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                          )}
+                        </>
+                      ) : (
+                        series.map((s) => (
+                          <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} />
+                        ))
                       )}
                     </BarChart>
                   ) : (
                     <LineChart data={data}>
                       {commonAxes}
-                      {referenceLine}
-                      <Line
-                        type="monotone"
-                        dataKey="value"
-                        stroke={chart.color}
-                        strokeWidth={3}
-                        dot={{ r: 3, fill: chart.color }}
-                        activeDot={{ r: 5 }}
-                      />
+                      {referenceLines}
+                      {series.map((s) => (
+                        <Line
+                          key={s.key}
+                          type="monotone"
+                          dataKey={s.key}
+                          name={s.label}
+                          stroke={s.color}
+                          strokeWidth={3}
+                          dot={{ r: 3, fill: s.color }}
+                          activeDot={{ r: 5 }}
+                        />
+                      ))}
                     </LineChart>
                   )}
                 </ResponsiveContainer>
@@ -476,6 +513,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             </section>
           );
         })}
+
       </div>
 
 
