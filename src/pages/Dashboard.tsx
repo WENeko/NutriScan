@@ -601,7 +601,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                       <span className="text-lg">💪</span>
                     </div>
                   </div>
-                  <span className="text-xs font-semibold">{proteinPerKg.toFixed(1)}/{proteinPerKgMax}</span>
+                  <span className="text-xs font-semibold">{proteinPerKg.toFixed(1)}/{proteinPerKgMax.toFixed(1)}</span>
+
                   <span className="text-[10px] text-muted-foreground">g/kg</span>
                 </div>
               </div>
