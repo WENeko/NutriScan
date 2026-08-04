@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { supabase as supabaseLovable } from "@/integrations/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, AlertCircle, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
+import { Capacitor } from "@capacitor/core";
+import { captureImageFile } from "@/lib/nativeCamera";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
@@ -222,18 +224,34 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   }, [userId]);
 
   // Widgets d'écran d'accueil : nutriscan://scan?source=camera|gallery
+  // Sur natif on ouvre directement la caméra / galerie via le plugin Camera
+  // (le clic programmatique sur un input file est bloqué par la WebView).
+  const startCapture = useCallback(async (src: "camera" | "gallery") => {
+    setMode("image");
+    if (Capacitor.isNativePlatform()) {
+      const file = await captureImageFile(src);
+      if (!file) return;
+      setImageFile(file);
+      setPreview(URL.createObjectURL(file));
+      setSource("ai");
+      await analyzeImage(file);
+      return;
+    }
+    setTimeout(() => {
+      if (src === "gallery") galleryInputRef.current?.click();
+      else fileInputRef.current?.click();
+    }, 100);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   useEffect(() => {
     const onScanIntent = (e: Event) => {
-      const source = (e as CustomEvent).detail?.source;
-      setMode("image");
-      setTimeout(() => {
-        if (source === "gallery") galleryInputRef.current?.click();
-        else fileInputRef.current?.click();
-      }, 100);
+      const src = (e as CustomEvent).detail?.source === "gallery" ? "gallery" : "camera";
+      void startCapture(src);
     };
     window.addEventListener("nutriscan:scan", onScanIntent);
     return () => window.removeEventListener("nutriscan:scan", onScanIntent);
-  }, []);
+  }, [startCapture]);
 
 
 
@@ -796,7 +814,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           {!preview && (
             <div className="flex gap-3">
               <button
-                onClick={() => fileInputRef.current?.click()}
+                onClick={() => void startCapture("camera")}
                 className="flex-1 h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
               >
                 <div className="w-12 h-12 rounded-full bg-primary flex items-center justify-center">
@@ -805,7 +823,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
                 <span className="text-sm font-semibold text-primary">Photo</span>
               </button>
               <button
-                onClick={() => galleryInputRef.current?.click()}
+                onClick={() => void startCapture("gallery")}
                 className="flex-1 h-36 rounded-2xl border-2 border-dashed border-primary/30 bg-accent/50 flex flex-col items-center justify-center gap-3 hover:border-primary/60 transition-colors active:scale-[0.98]"
               >
                 <div className="w-12 h-12 rounded-full bg-muted flex items-center justify-center">

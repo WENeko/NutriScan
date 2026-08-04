@@ -28,9 +28,21 @@ export interface WidgetFavoriteMeal {
   icon: string;
 }
 
+/** Couleurs résolues (hex) — source unique de vérité = tokens CSS de l'app. */
+export type WidgetTheme = Record<string, string>;
+
+/** Contexte permettant au widget natif d'appeler l'API en arrière-plan. */
+export interface WidgetAuth {
+  api_url: string;
+  anon_key: string;
+  access_token: string;
+}
+
 export interface WidgetPayload {
   daily_summary: WidgetDailySummary;
   favorite_meals: WidgetFavoriteMeal[];
+  theme?: WidgetTheme;
+  auth?: WidgetAuth;
   updated_at: string;
 }
 

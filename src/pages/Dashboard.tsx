@@ -26,6 +26,8 @@ import OnboardingFlow, { isOnboardingDone } from "@/components/OnboardingFlow";
 import { syncWidgetData, guessMealIcon } from "@/services/widgetSyncService";
 import { initWidgetDeepLinks, consumePendingIntent, WIDGET_INTENT_EVENT, type WidgetIntent } from "@/services/widgetDeepLinks";
 import { toast } from "@/hooks/use-toast";
+import { resolveWidgetTheme, COLORS_CHANGED_EVENT } from "@/lib/themeColors";
+import { useBackHandler } from "@/lib/backNavigation";
 
 
 
@@ -354,26 +356,48 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   }, [userId]);
 
   // ---- Widgets d'écran d'accueil : synchronisation des données partagées ----
+  // Les couleurs envoyées aux widgets proviennent des tokens CSS de l'app
+  // (source unique de vérité), y compris les personnalisations utilisateur.
+  const [colorsVersion, setColorsVersion] = useState(0);
   useEffect(() => {
-    void syncWidgetData({
-      daily_summary: {
-        calories_consumed: Math.round(todayTotals.calories),
-        calories_target: Math.round(goals.calories),
-        protein_consumed: Math.round(todayTotals.proteins),
-        protein_target: Math.round(goals.proteins),
-        carbs_consumed: Math.round(todayTotals.carbs),
-        carbs_target: Math.round(goals.carbs),
-        fat_consumed: Math.round(todayTotals.fats),
-        fat_target: Math.round(goals.fats),
-      },
-      favorite_meals: favoriteMeals.slice(0, 4).map((m, i) => ({
-        id: m.id,
-        name: m.meal_name || "Repas",
-        calories: Math.round(Number(m.total_calories) || 0),
-        icon: guessMealIcon(m.meal_name, i),
-      })),
-    });
-  }, [todayTotals, goals, favoriteMeals]);
+    const bump = () => setColorsVersion((v) => v + 1);
+    window.addEventListener(COLORS_CHANGED_EVENT, bump);
+    return () => window.removeEventListener(COLORS_CHANGED_EVENT, bump);
+  }, []);
+
+  useEffect(() => {
+    const mode = document.documentElement.classList.contains("dark") ? "dark" : "light";
+    void (async () => {
+      const { data } = await supabase.auth.getSession();
+      const token = data.session?.access_token;
+      await syncWidgetData({
+        daily_summary: {
+          calories_consumed: Math.round(todayTotals.calories),
+          calories_target: Math.round(goals.calories),
+          protein_consumed: Math.round(todayTotals.proteins),
+          protein_target: Math.round(goals.proteins),
+          carbs_consumed: Math.round(todayTotals.carbs),
+          carbs_target: Math.round(goals.carbs),
+          fat_consumed: Math.round(todayTotals.fats),
+          fat_target: Math.round(goals.fats),
+        },
+        favorite_meals: favoriteMeals.slice(0, 4).map((m, i) => ({
+          id: m.id,
+          name: m.meal_name || "Repas",
+          calories: Math.round(Number(m.total_calories) || 0),
+          icon: guessMealIcon(m.meal_name, i),
+        })),
+        theme: resolveWidgetTheme(mode),
+        auth: token
+          ? {
+              api_url: import.meta.env.VITE_SUPABASE_URL as string,
+              anon_key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
+              access_token: token,
+            }
+          : undefined,
+      });
+    })();
+  }, [todayTotals, goals, favoriteMeals, colorsVersion]);
 
   // ---- Widgets : deep links (caméra / galerie / quick log / dashboard) ----
   const handleWidgetIntent = useCallback(async (intent: WidgetIntent) => {
@@ -415,6 +439,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     return () => window.removeEventListener(WIDGET_INTENT_EVENT, listener);
   }, [handleWidgetIntent]);
 
+
+  // ---- Bouton retour : remonte la pile de navigation interne ----
+  useBackHandler(
+    useCallback(() => {
+      if (showDataSources) { setShowDataSources(false); return true; }
+      if (showFavorites) { setShowFavorites(false); return true; }
+      if (activeTab !== "dashboard") { setActiveTab("dashboard"); return true; }
+      return false;
+    }, [showDataSources, showFavorites, activeTab]),
+  );
 
   const handleLogout = async () => {
     await supabase.auth.signOut();
