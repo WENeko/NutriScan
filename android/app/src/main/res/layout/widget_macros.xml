@@ -1,36 +1,14 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:id="@+id/macro_root"
     android:layout_width="match_parent"
-    android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:background="@drawable/widget_bg"
-    android:padding="12dp">
+    android:layout_height="match_parent">
 
-    <TextView
-        android:id="@+id/macro_kcal"
+    <ImageView
+        android:id="@+id/macro_canvas"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:textColor="#FFFFFF"
-        android:textSize="15sp"
-        android:textStyle="bold"
-        android:text="0 / 0 kcal" />
-
-    <ProgressBar
-        android:id="@+id/macro_kcal_bar"
-        style="?android:attr/progressBarStyleHorizontal"
-        android:layout_width="match_parent"
-        android:layout_height="8dp"
-        android:layout_marginTop="4dp"
-        android:max="100"
-        android:progress="0" />
-
-    <TextView android:id="@+id/macro_p" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="8dp" android:textColor="#9FB8A8" android:textSize="11sp" android:text="P 0/0g" />
-    <ProgressBar android:id="@+id/macro_p_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="6dp" android:max="100" android:progress="0" />
-
-    <TextView android:id="@+id/macro_c" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="#9FB8A8" android:textSize="11sp" android:text="G 0/0g" />
-    <ProgressBar android:id="@+id/macro_c_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="6dp" android:max="100" android:progress="0" />
-
-    <TextView android:id="@+id/macro_f" android:layout_width="match_parent" android:layout_height="wrap_content" android:layout_marginTop="6dp" android:textColor="#9FB8A8" android:textSize="11sp" android:text="L 0/0g" />
-    <ProgressBar android:id="@+id/macro_f_bar" style="?android:attr/progressBarStyleHorizontal" android:layout_width="match_parent" android:layout_height="6dp" android:max="100" android:progress="0" />
-</LinearLayout>
+        android:layout_height="match_parent"
+        android:adjustViewBounds="false"
+        android:scaleType="fitCenter"
+        android:contentDescription="Aperçu des macros du jour" />
+</FrameLayout>
