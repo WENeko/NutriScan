@@ -6,8 +6,10 @@ import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import DynamicColorsProvider from "@/components/DynamicColorsProvider";
 import { authService } from "@/services/auth";
 import { loadAiAccess, clearAiAccessCache } from "@/lib/aiAccess";
+import { initBackNavigation } from "@/lib/backNavigation";
 import AuthPage from "./pages/AuthPage";
 import Dashboard from "./pages/Dashboard";
 import NotFound from "./pages/NotFound";
@@ -21,6 +23,8 @@ function AuthGuard() {
   useEffect(() => {
     // Initialiser le listener pour les deep links depuis le navigateur
     authService.initializeDeepLinkListener();
+    // Bouton retour matériel → page précédente dans la navigation de l'app
+    void initBackNavigation();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (_event, session) => {
@@ -57,18 +61,20 @@ function AuthGuard() {
 
 const App = () => (
   <ThemeProvider attribute="class" defaultTheme="system" enableSystem storageKey="nutriscan-theme" disableTransitionOnChange>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
-          <Routes>
-            <Route path="/" element={<AuthGuard />} />
-            <Route path="*" element={<NotFound />} />
-          </Routes>
-        </BrowserRouter>
-      </TooltipProvider>
-    </QueryClientProvider>
+    <DynamicColorsProvider>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
+            <Routes>
+              <Route path="/" element={<AuthGuard />} />
+              <Route path="*" element={<NotFound />} />
+            </Routes>
+          </BrowserRouter>
+        </TooltipProvider>
+      </QueryClientProvider>
+    </DynamicColorsProvider>
   </ThemeProvider>
 );
 
