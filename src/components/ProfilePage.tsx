@@ -14,6 +14,8 @@ import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import GeminiKeySettings from "@/components/GeminiKeySettings";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
 import MealCardSettings from "@/components/MealCardSettings";
+import ThemeColorsSettings from "@/components/ThemeColorsSettings";
+import { useBackHandler } from "@/lib/backNavigation";
 
 
 
@@ -527,6 +529,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   ];
 
   const goBack = () => (subPage ? setSubPage(null) : onBack());
+
+  // Bouton retour matériel : sous-page → hub, hub → dashboard.
+  useBackHandler(
+    React.useCallback(() => {
+      goBack();
+      return true;
+    }, [subPage]),
+  );
 
   return (
     <div className="min-h-screen bg-background pb-8">
@@ -1227,6 +1237,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               </div>
               <ThemeSwitcher />
             </section>
+
+            <ThemeColorsSettings />
 
             <MealCardSettings />
 
