@@ -1,4 +1,4 @@
-import React, { useRef, useState, useEffect } from "react";
+import React, { useRef, useState, useEffect, useCallback } from "react";
 import { supabase as supabaseLovable } from "@/integrations/supabase/client";
 import { createClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,8 @@ import { Textarea } from "@/components/ui/textarea";
 import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, AlertCircle, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
+import { Capacitor } from "@capacitor/core";
+import { captureImageFile } from "@/lib/nativeCamera";
 import NumericInput from "./NumericInput";
 import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input";
 import { analyzeMealWithGemini } from "@/services/geminiAiService";
