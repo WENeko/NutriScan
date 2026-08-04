@@ -440,6 +440,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   }, [handleWidgetIntent]);
 
 
+  // ---- Bouton retour : remonte la pile de navigation interne ----
+  useBackHandler(
+    useCallback(() => {
+      if (showDataSources) { setShowDataSources(false); return true; }
+      if (showFavorites) { setShowFavorites(false); return true; }
+      if (activeTab !== "dashboard") { setActiveTab("dashboard"); return true; }
+      return false;
+    }, [showDataSources, showFavorites, activeTab]),
+  );
+
   const handleLogout = async () => {
     await supabase.auth.signOut();
   };
