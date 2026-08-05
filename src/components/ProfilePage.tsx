@@ -1240,7 +1240,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
             <ThemeColorsSettings />
 
+            <AppPermissionsSettings />
+
             <MealCardSettings />
+
 
           </>
         )}
