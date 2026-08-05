@@ -13,9 +13,6 @@ const BuildInfo = () => {
       <p className="text-[10px] text-muted-foreground font-mono">
         v{__APP_VERSION__} ({__APP_VERSION_CODE__})
       </p>
-      <p className="text-[10px] text-muted-foreground font-mono">
-        Build: {__BUILD_DATE__}
-      </p>
     </div>
   );
 };
