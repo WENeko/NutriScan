@@ -15,6 +15,8 @@ import GeminiKeySettings from "@/components/GeminiKeySettings";
 import AdminUsersPanel from "@/components/AdminUsersPanel";
 import MealCardSettings from "@/components/MealCardSettings";
 import ThemeColorsSettings from "@/components/ThemeColorsSettings";
+import AppPermissionsSettings from "@/components/AppPermissionsSettings";
+
 import { useBackHandler } from "@/lib/backNavigation";
 
 
