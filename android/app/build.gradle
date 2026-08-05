@@ -1,6 +1,17 @@
 apply plugin: 'com.android.application'
 apply plugin: 'org.jetbrains.kotlin.android'
 
+// ── Versioning CalVer ────────────────────────────────────────────
+// android/version.properties est généré par `node scripts/generate-version.mjs`
+// versionName : YYYY.M.PATCH   versionCode : YYYYMMDDHH
+def versionProps = new Properties()
+def versionPropsFile = rootProject.file('version.properties')
+if (versionPropsFile.exists()) {
+    versionPropsFile.withInputStream { versionProps.load(it) }
+}
+def appVersionName = versionProps.getProperty('versionName', '2026.1.1')
+def appVersionCode = Integer.parseInt(versionProps.getProperty('versionCode', '2026010101'))
+
 android {
     namespace = "com.nutriscan.app"
     compileSdk = rootProject.ext.compileSdkVersion
@@ -8,8 +19,8 @@ android {
         applicationId "com.nutriscan.app"
         minSdkVersion 26
         targetSdkVersion rootProject.ext.targetSdkVersion
-        versionCode 1
-        versionName "1.0"
+        versionCode appVersionCode
+        versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
@@ -19,11 +30,22 @@ android {
     }
     buildTypes {
         release {
+            minifyEnabled true
+            shrinkResources true
+            proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
+            signingConfig signingConfigs.debug
+        }
+        debug {
             minifyEnabled false
-            proguardFiles getDefaultProguardFile('proguard-android.txt'), 'proguard-rules.pro'
+        }
+    }
+    packagingOptions {
+        resources {
+            excludes += ['META-INF/DEPENDENCIES', 'META-INF/LICENSE*', 'META-INF/NOTICE*']
         }
     }
 }
+
 
 repositories {
     flatDir{
