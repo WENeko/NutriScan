@@ -3,9 +3,10 @@ import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
-import { computeVersion } from "./scripts/version.mjs";
+import { readVersionFile, computeVersion } from "./scripts/version.mjs";
 
-const { versionName, versionCode } = computeVersion();
+// Source de vérité : android/version.properties (généré par scripts/generate-version.mjs)
+const { versionName, versionCode } = readVersionFile() ?? computeVersion();
 
 // https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
@@ -18,17 +19,10 @@ export default defineConfig(({ mode }) => ({
       overlay: false,
     },
   },
-  // Injection globale de la version (CalVer) et de la date du build
+  // Injection globale de la version (CalVer)
   define: {
     __APP_VERSION__: JSON.stringify(versionName),
     __APP_VERSION_CODE__: JSON.stringify(String(versionCode)),
-    __BUILD_DATE__: JSON.stringify(new Date().toLocaleString('fr-FR', {
-      day: '2-digit',
-      month: '2-digit',
-      year: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    })),
   },
 
   plugins: [
