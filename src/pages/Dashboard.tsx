@@ -369,7 +369,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     const mode = document.documentElement.classList.contains("dark") ? "dark" : "light";
     void (async () => {
       const { data } = await supabase.auth.getSession();
-      const token = data.session?.access_token;
+      const session = data.session;
+      const token = session?.access_token;
       await syncWidgetData({
         daily_summary: {
           calories_consumed: Math.round(todayTotals.calories),
@@ -393,6 +394,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               api_url: import.meta.env.VITE_SUPABASE_URL as string,
               anon_key: import.meta.env.VITE_SUPABASE_PUBLISHABLE_KEY as string,
               access_token: token,
+              refresh_token: session?.refresh_token ?? undefined,
+              expires_at: session?.expires_at ?? undefined,
             }
           : undefined,
       });
