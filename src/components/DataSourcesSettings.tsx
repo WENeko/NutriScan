@@ -27,7 +27,7 @@ const getHealthPlugin = async () => {
 };
 
 interface DataSourcesSettingsProps {
-  onBack: () => void;
+  onBack?: () => void;
 }
 
 const DATA_SOURCES = [
@@ -205,9 +205,11 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
     <div className="space-y-6 animate-fade-up">
       {/* Header */}
       <div className="flex items-center gap-3">
-        <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
-          <ArrowLeft className="w-5 h-5" />
-        </button>
+        {onBack && (
+          <button onClick={onBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
+            <ArrowLeft className="w-5 h-5" />
+          </button>
+        )}
         <div>
           <h2 className="font-display font-bold text-lg">Sources de Données</h2>
           <p className="text-xs text-muted-foreground">Connecte tes appareils de santé</p>

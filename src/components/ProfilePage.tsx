@@ -1244,6 +1244,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
             <AppPermissionsSettings />
 
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
+              <DataSourcesSettings />
+            </section>
+
             <MealCardSettings />
 
 
