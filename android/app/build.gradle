@@ -12,6 +12,16 @@ if (versionPropsFile.exists()) {
 def appVersionName = versionProps.getProperty('versionName', '2026.1.1')
 def appVersionCode = Integer.parseInt(versionProps.getProperty('versionCode', '2026010101'))
 
+// ── Signature stable ────────────────────────────────────────────
+// Un keystore versionné (android/keystore/nutriscan-release.jks) garantit que
+// tous les APK (debug ET release, locaux ou CI) portent la même signature :
+// les mises à jour s'installent par-dessus l'APK existant sans désinstaller.
+// Peut être surchargé par les variables d'env NUTRISCAN_KEYSTORE_*.
+def ksFile = rootProject.file(System.getenv('NUTRISCAN_KEYSTORE_FILE') ?: 'keystore/nutriscan-release.jks')
+def ksPass = System.getenv('NUTRISCAN_KEYSTORE_PASSWORD') ?: 'nutriscan'
+def ksAlias = System.getenv('NUTRISCAN_KEY_ALIAS') ?: 'nutriscan'
+def ksAliasPass = System.getenv('NUTRISCAN_KEY_PASSWORD') ?: 'nutriscan'
+
 android {
     namespace = "com.nutriscan.app"
     compileSdk = rootProject.ext.compileSdkVersion
