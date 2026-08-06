@@ -135,7 +135,13 @@ object WidgetDataStore {
     val key = o.optString("anon_key")
     val token = o.optString("access_token")
     if (url.isBlank() || key.isBlank() || token.isBlank()) return null
-    return Auth(url.trimEnd('/'), key, token)
+    return Auth(
+      url.trimEnd('/'),
+      key,
+      token,
+      o.optString("refresh_token", "").ifBlank { null },
+      o.optLong("expires_at", 0L),
+    )
   }
 
   fun favorites(context: Context): List<Favorite> {
