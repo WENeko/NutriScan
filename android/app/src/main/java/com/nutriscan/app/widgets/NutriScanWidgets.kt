@@ -161,8 +161,8 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
   }
 
   private fun quickLog(context: Context, mealId: String, mealName: String) {
-    val auth = WidgetDataStore.auth(context)
-    if (auth == null) {
+    val stored = WidgetDataStore.auth(context)
+    if (stored == null) {
       WidgetCommon.toast(context, "Ouvre NutriScan une fois pour activer la duplication")
       return
     }
@@ -170,25 +170,126 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
     Thread {
       var ok = false
       try {
-        val conn = (URL("${auth.apiUrl}/functions/v1/quick-log-favorite").openConnection() as HttpURLConnection).apply {
-          requestMethod = "POST"
-          connectTimeout = 10000
-          readTimeout = 15000
-          doOutput = true
-          setRequestProperty("Content-Type", "application/json")
-          setRequestProperty("apikey", auth.anonKey)
-          setRequestProperty("Authorization", "Bearer ${auth.accessToken}")
+        // 1. Jeton valide (renouvellement silencieux si expiré / bientôt expiré).
+        val auth = WidgetAuthRefresher.ensureFreshToken(app, stored)
+        if (auth == null) {
+          WidgetCommon.toast(app, "Session expirée, ouvre NutriScan une fois")
+          return@Thread
         }
-        val body = JSONObject().put("favorite_meal_id", mealId).toString()
-        OutputStreamWriter(conn.outputStream).use { it.write(body) }
-        ok = conn.responseCode in 200..299
-        conn.disconnect()
+
+        // 2. Duplication + récupération des totaux du jour (fuseau local).
+        val bounds = localDayBounds()
+        val payload = JSONObject()
+          .put("favorite_meal_id", mealId)
+          .put("day_start", bounds.first)
+          .put("day_end", bounds.second)
+
+        val (code, body) = WidgetAuthRefresher.post(
+          "${auth.apiUrl}/functions/v1/quick-log-favorite", payload.toString(), auth
+        )
+        ok = code in 200..299
+
+        // 3. Mise à jour immédiate du widget dashboard avec les nouveaux totaux.
+        if (ok && !body.isNullOrBlank()) {
+          val totals = JSONObject(body).optJSONObject("daily_totals")
+          if (totals != null) {
+            WidgetDataStore.updateConsumed(
+              app,
+              totals.optInt("calories"),
+              totals.optInt("proteins"),
+              totals.optInt("carbs"),
+              totals.optInt("fats"),
+            )
+          }
+        }
       } catch (t: Throwable) {
         ok = false
       }
       WidgetCommon.toast(app, if (ok) "$mealName dupliqué ✅" else "Échec de la duplication")
       if (ok) WidgetCommon.refreshAll(app)
     }.start()
+  }
+
+  /** Bornes ISO du jour courant dans le fuseau local de l'appareil. */
+  private fun localDayBounds(): Pair<String, String> {
+    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
+    fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
+    val cal = java.util.Calendar.getInstance()
+    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
+    cal.set(java.util.Calendar.MINUTE, 0)
+    cal.set(java.util.Calendar.SECOND, 0)
+    cal.set(java.util.Calendar.MILLISECOND, 0)
+    val start = fmt.format(cal.time)
+    cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
+    return start to fmt.format(cal.time)
+  }
+}
+
+/** Renouvellement du jeton Supabase depuis les widgets (app fermée). */
+object WidgetAuthRefresher {
+
+  /** Retourne un contexte d'auth avec un access_token valide, ou null. */
+  fun ensureFreshToken(context: Context, auth: WidgetDataStore.Auth): WidgetDataStore.Auth? {
+    val now = System.currentTimeMillis() / 1000
+    val expiresSoon = auth.expiresAt in 1..(now + 120)
+    if (!expiresSoon) return auth
+    val refreshed = refresh(auth) ?: return null
+    WidgetDataStore.updateAuth(context, refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt)
+    return refreshed
+  }
+
+  private fun refresh(auth: WidgetDataStore.Auth): WidgetDataStore.Auth? {
+    val refreshToken = auth.refreshToken ?: return null
+    return try {
+      val (code, body) = post(
+        "${auth.apiUrl}/auth/v1/token?grant_type=refresh_token",
+        JSONObject().put("refresh_token", refreshToken).toString(),
+        auth,
+        useBearer = false,
+      )
+      if (code !in 200..299 || body.isNullOrBlank()) return null
+      val o = JSONObject(body)
+      val access = o.optString("access_token")
+      if (access.isBlank()) return null
+      val expiresIn = o.optLong("expires_in", 3600)
+      val expiresAt = o.optLong("expires_at", System.currentTimeMillis() / 1000 + expiresIn)
+      auth.copy(
+        accessToken = access,
+        refreshToken = o.optString("refresh_token", refreshToken),
+        expiresAt = expiresAt,
+      )
+    } catch (t: Throwable) {
+      null
+    }
+  }
+
+  fun post(
+    url: String,
+    body: String,
+    auth: WidgetDataStore.Auth,
+    useBearer: Boolean = true,
+  ): Pair<Int, String?> {
+    val conn = (URL(url).openConnection() as HttpURLConnection).apply {
+      requestMethod = "POST"
+      connectTimeout = 10000
+      readTimeout = 20000
+      doOutput = true
+      setRequestProperty("Content-Type", "application/json")
+      setRequestProperty("apikey", auth.anonKey)
+      setRequestProperty(
+        "Authorization",
+        if (useBearer) "Bearer ${auth.accessToken}" else "Bearer ${auth.anonKey}",
+      )
+    }
+    return try {
+      OutputStreamWriter(conn.outputStream).use { it.write(body) }
+      val code = conn.responseCode
+      val stream = if (code in 200..299) conn.inputStream else conn.errorStream
+      val text = stream?.bufferedReader()?.use { it.readText() }
+      code to text
+    } finally {
+      conn.disconnect()
+    }
   }
 }
 
