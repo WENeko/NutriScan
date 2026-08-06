@@ -36,7 +36,12 @@ export interface WidgetAuth {
   api_url: string;
   anon_key: string;
   access_token: string;
+  /** Permet au natif de renouveler le jeton sans ouvrir l'application. */
+  refresh_token?: string;
+  /** Timestamp UNIX (secondes) d'expiration du jeton d'accès. */
+  expires_at?: number;
 }
+
 
 export interface WidgetPayload {
   daily_summary: WidgetDailySummary;

@@ -13,6 +13,9 @@ env:
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
 
     steps:
       - name: Checkout code
@@ -95,4 +98,27 @@ jobs:
           name: app-release-${{ steps.version.outputs.name }}
           path: android/app/build/outputs/apk/release/app-release*.apk
           retention-days: 14
+
+      - name: Prepare release files
+        run: |
+          mkdir -p release-files
+          cp android/app/build/outputs/apk/release/app-release.apk \
+             "release-files/NutriScan-${{ steps.version.outputs.name }}.apk"
+          cp android/app/build/outputs/apk/debug/app-debug.apk \
+             "release-files/NutriScan-${{ steps.version.outputs.name }}-debug.apk"
+          ls -la release-files
+
+      - name: Publish GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.name }}
+          name: NutriScan ${{ steps.version.outputs.name }}
+          body: |
+            APK release signé (mise à jour par-dessus l'installation existante, sans désinstaller).
+            Version ${{ steps.version.outputs.name }} — commit ${{ github.sha }}
+          files: release-files/*.apk
+          make_latest: true
+          draft: false
+          prerelease: false
+
 

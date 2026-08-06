@@ -43,14 +43,55 @@ object WidgetDataStore {
     val destructive: Int = Color.parseColor("#E0524F"),
   )
 
-  data class Auth(val apiUrl: String, val anonKey: String, val accessToken: String)
+  data class Auth(
+    val apiUrl: String,
+    val anonKey: String,
+    val accessToken: String,
+    val refreshToken: String? = null,
+    val expiresAt: Long = 0L,
+  )
+
+  private fun prefs(context: Context) =
+    context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
   private fun root(context: Context): JSONObject? = try {
-    val raw = context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getString(KEY, null)
+    val raw = prefs(context).getString(KEY, null)
     if (raw.isNullOrBlank()) null else JSONObject(raw)
   } catch (t: Throwable) {
     null
   }
+
+  private fun save(context: Context, root: JSONObject) {
+    try {
+      prefs(context).edit().putString(KEY, root.toString()).apply()
+    } catch (t: Throwable) {
+      /* ignore */
+    }
+  }
+
+  /** Persiste le jeton renouvelé pour que les widgets restent utilisables. */
+  fun updateAuth(context: Context, accessToken: String, refreshToken: String?, expiresAt: Long) {
+    val r = root(context) ?: return
+    val a = r.optJSONObject("auth") ?: JSONObject()
+    a.put("access_token", accessToken)
+    if (!refreshToken.isNullOrBlank()) a.put("refresh_token", refreshToken)
+    if (expiresAt > 0) a.put("expires_at", expiresAt)
+    r.put("auth", a)
+    save(context, r)
+  }
+
+  /** Met à jour les totaux consommés du jour (rafraîchissement live des widgets). */
+  fun updateConsumed(context: Context, calories: Int, proteins: Int, carbs: Int, fats: Int) {
+    val r = root(context) ?: return
+    val s = r.optJSONObject("daily_summary") ?: JSONObject()
+    s.put("calories_consumed", calories)
+    s.put("protein_consumed", proteins)
+    s.put("carbs_consumed", carbs)
+    s.put("fat_consumed", fats)
+    r.put("daily_summary", s)
+    save(context, r)
+  }
+
 
   fun dailySummary(context: Context): DailySummary {
     val o = root(context)?.optJSONObject("daily_summary") ?: return DailySummary()
@@ -94,7 +135,13 @@ object WidgetDataStore {
     val key = o.optString("anon_key")
     val token = o.optString("access_token")
     if (url.isBlank() || key.isBlank() || token.isBlank()) return null
-    return Auth(url.trimEnd('/'), key, token)
+    return Auth(
+      url.trimEnd('/'),
+      key,
+      token,
+      o.optString("refresh_token", "").ifBlank { null },
+      o.optLong("expires_at", 0L),
+    )
   }
 
   fun favorites(context: Context): List<Favorite> {

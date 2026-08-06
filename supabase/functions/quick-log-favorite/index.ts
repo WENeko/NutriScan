@@ -93,7 +93,33 @@ Deno.serve(async (req) => {
       if (itemsInsertError) return json({ error: itemsInsertError.message }, 500);
     }
 
-    return json({ success: true, meal_id: newMeal.id, name: meal.meal_name });
+    // 3. Totaux du jour (bornes fournies par le widget, fuseau local de l'appareil)
+    let dailyTotals: Record<string, number> | undefined;
+    const dayStart = typeof body?.day_start === 'string' ? body.day_start : null;
+    const dayEnd = typeof body?.day_end === 'string' ? body.day_end : null;
+    if (dayStart && dayEnd) {
+      const { data: dayMeals } = await supabase
+        .from('meals')
+        .select('total_calories, total_proteins, total_carbs, total_fats')
+        .eq('user_id', userId)
+        .gte('timestamp', dayStart)
+        .lt('timestamp', dayEnd);
+      const sum = (k: string) =>
+        Math.round((dayMeals ?? []).reduce((acc: number, m: any) => acc + (Number(m[k]) || 0), 0));
+      dailyTotals = {
+        calories: sum('total_calories'),
+        proteins: sum('total_proteins'),
+        carbs: sum('total_carbs'),
+        fats: sum('total_fats'),
+      };
+    }
+
+    return json({
+      success: true,
+      meal_id: newMeal.id,
+      name: meal.meal_name,
+      daily_totals: dailyTotals,
+    });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
   }
