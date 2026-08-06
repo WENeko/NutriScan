@@ -548,9 +548,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setShowDataSources(true)} className="p-2 rounded-xl hover:bg-muted transition-colors" title="Sources de données">
-              <Smartphone className="w-5 h-5 text-muted-foreground" />
-            </button>
             <button onClick={() => setShowProfile(true)} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <User className="w-5 h-5 text-muted-foreground" />
             </button>
