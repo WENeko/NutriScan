@@ -38,15 +38,27 @@ android {
             ignoreAssetsPattern = '!.svn:!.git:!.ds_store:!*.scc:.*:!CVS:!thumbs.db:!picasa.ini:!*~'
         }
     }
+    signingConfigs {
+        nutriscan {
+            if (ksFile.exists()) {
+                storeFile ksFile
+                storePassword ksPass
+                keyAlias ksAlias
+                keyPassword ksAliasPass
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
-            signingConfig signingConfigs.debug
+            signingConfig ksFile.exists() ? signingConfigs.nutriscan : signingConfigs.debug
         }
         debug {
             minifyEnabled false
+            // Même signature que la release → passage debug <-> release sans désinstaller.
+            signingConfig ksFile.exists() ? signingConfigs.nutriscan : signingConfigs.debug
         }
     }
     packagingOptions {
