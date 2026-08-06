@@ -16,6 +16,7 @@ import AdminUsersPanel from "@/components/AdminUsersPanel";
 import MealCardSettings from "@/components/MealCardSettings";
 import ThemeColorsSettings from "@/components/ThemeColorsSettings";
 import AppPermissionsSettings from "@/components/AppPermissionsSettings";
+import DataSourcesSettings from "@/components/DataSourcesSettings";
 
 import { useBackHandler } from "@/lib/backNavigation";
 
