@@ -348,3 +348,18 @@ class MacrosWidgetProvider : AppWidgetProvider() {
     }
   }
 }
+
+/**
+ * Redessine les widgets au démarrage du téléphone (app non lancée) à partir
+ * des dernières données persistées par WidgetDataStore.
+ */
+class WidgetBootReceiver : android.content.BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    when (intent.action) {
+      Intent.ACTION_BOOT_COMPLETED,
+      "android.intent.action.QUICKBOOT_POWERON",
+      Intent.ACTION_MY_PACKAGE_REPLACED,
+      -> WidgetCommon.refreshAll(context.applicationContext)
+    }
+  }
+}
