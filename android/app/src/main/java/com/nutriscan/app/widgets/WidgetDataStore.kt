@@ -179,7 +179,7 @@ object WidgetDataStore {
   fun favorites(context: Context): List<Favorite> {
     val arr: JSONArray = root(context)?.optJSONArray("favorite_meals") ?: return emptyList()
     val out = mutableListOf<Favorite>()
-    for (i in 0 until minOf(arr.length(), 4)) {
+    for (i in 0 until minOf(arr.length(), 6)) {
       val o = arr.optJSONObject(i) ?: continue
       out.add(
         Favorite(
