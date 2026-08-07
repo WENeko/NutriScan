@@ -61,16 +61,41 @@ object WidgetDataStore {
   private fun prefs(context: Context) =
     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-  private fun root(context: Context): JSONObject? = try {
-    val raw = prefs(context).getString(KEY, null)
-    if (raw.isNullOrBlank()) null else JSONObject(raw)
-  } catch (t: Throwable) {
-    null
+  private fun mirror(context: Context) =
+    context.getSharedPreferences(MIRROR_PREFS, Context.MODE_PRIVATE)
+
+  private fun root(context: Context): JSONObject? {
+    // 1. Source primaire : écrite par le web via Capacitor Preferences.
+    val live = try {
+      prefs(context).getString(KEY, null)
+    } catch (t: Throwable) {
+      null
+    }
+    if (!live.isNullOrBlank()) {
+      // Recopie synchrone dans le miroir persistant (survit au reboot).
+      try {
+        if (mirror(context).getString(KEY, null) != live) {
+          mirror(context).edit().putString(KEY, live).commit()
+        }
+      } catch (t: Throwable) {
+        /* ignore */
+      }
+      return try { JSONObject(live) } catch (t: Throwable) { null }
+    }
+    // 2. Repli : dernières données persistées.
+    return try {
+      val cached = mirror(context).getString(KEY, null)
+      if (cached.isNullOrBlank()) null else JSONObject(cached)
+    } catch (t: Throwable) {
+      null
+    }
   }
 
   private fun save(context: Context, root: JSONObject) {
     try {
-      prefs(context).edit().putString(KEY, root.toString()).apply()
+      val raw = root.toString()
+      prefs(context).edit().putString(KEY, raw).commit()
+      mirror(context).edit().putString(KEY, raw).commit()
     } catch (t: Throwable) {
       /* ignore */
     }
