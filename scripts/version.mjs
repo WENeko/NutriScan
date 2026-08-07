@@ -1,6 +1,6 @@
 // Source unique de vérité du versioning CalVer de l'application.
-// versionName : YYYY.M.PATCH  (ex: 2026.8.3 = 3e correctif du jour)
-// versionCode : YYYYMMDDFF    (FF = numéro de patch du jour, 01 -> 99)
+// versionName : YYYY.MM.DD.FF (ex: 2026.08.07.01 = 1er build du jour)
+// versionCode : YYYYMMDDFF    (FF = numéro de build du jour, 01 -> 99)
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,7 +25,8 @@ export function readVersionFile(path = versionFilePath()) {
   }
 }
 
-// Calcule la version suivante : même jour => patch +1, nouveau jour => patch 01.
+// Calcule la version suivante : même jour => FF +1, nouveau jour => FF 01.
+// Garantit toujours un versionCode strictement supérieur au précédent.
 export function computeVersion(now = new Date(), previous = readVersionFile()) {
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
@@ -38,9 +39,14 @@ export function computeVersion(now = new Date(), previous = readVersionFile()) {
     patch = Math.min(prevPatch + 1, 99);
   }
 
-  return {
-    versionName: `${y}.${m}.${patch}`,
-    versionCode: Number(`${today}${pad(patch)}`),
-    patch,
-  };
+  let versionCode = Number(`${today}${pad(patch)}`);
+  // Filet de sécurité (horloge décalée / date antérieure) : monotonie stricte.
+  if (previous && Number.isFinite(previous.versionCode) && versionCode <= previous.versionCode) {
+    versionCode = previous.versionCode + 1;
+  }
+
+  const code = String(versionCode);
+  const versionName = `${code.slice(0, 4)}.${code.slice(4, 6)}.${code.slice(6, 8)}.${code.slice(8)}`;
+
+  return { versionName, versionCode, patch };
 }

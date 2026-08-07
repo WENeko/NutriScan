@@ -4,4 +4,7 @@
     <string name="title_activity_main">NutriScan</string>
     <string name="package_name">com.nutriscan.app</string>
     <string name="custom_url_scheme">com.nutriscan.app</string>
+    <string name="widget_scan_description">Accès direct à la caméra ou à la galerie pour analyser un repas.</string>
+    <string name="widget_favorites_description">Enregistre un repas favori en un tap (2 à 6 favoris selon la taille).</string>
+    <string name="widget_macros_description">Jauge des calories et macros restantes du jour.</string>
 </resources>

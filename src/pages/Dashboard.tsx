@@ -382,7 +382,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
           fat_consumed: Math.round(todayTotals.fats),
           fat_target: Math.round(goals.fats),
         },
-        favorite_meals: favoriteMeals.slice(0, 4).map((m, i) => ({
+        favorite_meals: favoriteMeals.slice(0, 6).map((m, i) => ({
           id: m.id,
           name: m.meal_name || "Repas",
           calories: Math.round(Number(m.total_calories) || 0),

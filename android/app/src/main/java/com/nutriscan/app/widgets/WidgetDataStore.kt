@@ -13,6 +13,13 @@ object WidgetDataStore {
   private const val PREFS = "NutriScanWidget"
   private const val KEY = "widget_data"
 
+  /**
+   * Miroir persistant écrit avec commit() : garantit que les widgets
+   * retrouvent les dernières données même après un redémarrage du téléphone
+   * lorsque l'application n'a pas encore été relancée.
+   */
+  private const val MIRROR_PREFS = "NutriScanWidgetMirror"
+
   data class DailySummary(
     val caloriesConsumed: Int = 0,
     val caloriesTarget: Int = 0,
@@ -54,16 +61,41 @@ object WidgetDataStore {
   private fun prefs(context: Context) =
     context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
 
-  private fun root(context: Context): JSONObject? = try {
-    val raw = prefs(context).getString(KEY, null)
-    if (raw.isNullOrBlank()) null else JSONObject(raw)
-  } catch (t: Throwable) {
-    null
+  private fun mirror(context: Context) =
+    context.getSharedPreferences(MIRROR_PREFS, Context.MODE_PRIVATE)
+
+  private fun root(context: Context): JSONObject? {
+    // 1. Source primaire : écrite par le web via Capacitor Preferences.
+    val live = try {
+      prefs(context).getString(KEY, null)
+    } catch (t: Throwable) {
+      null
+    }
+    if (!live.isNullOrBlank()) {
+      // Recopie synchrone dans le miroir persistant (survit au reboot).
+      try {
+        if (mirror(context).getString(KEY, null) != live) {
+          mirror(context).edit().putString(KEY, live).commit()
+        }
+      } catch (t: Throwable) {
+        /* ignore */
+      }
+      return try { JSONObject(live) } catch (t: Throwable) { null }
+    }
+    // 2. Repli : dernières données persistées.
+    return try {
+      val cached = mirror(context).getString(KEY, null)
+      if (cached.isNullOrBlank()) null else JSONObject(cached)
+    } catch (t: Throwable) {
+      null
+    }
   }
 
   private fun save(context: Context, root: JSONObject) {
     try {
-      prefs(context).edit().putString(KEY, root.toString()).apply()
+      val raw = root.toString()
+      prefs(context).edit().putString(KEY, raw).commit()
+      mirror(context).edit().putString(KEY, raw).commit()
     } catch (t: Throwable) {
       /* ignore */
     }
@@ -147,7 +179,7 @@ object WidgetDataStore {
   fun favorites(context: Context): List<Favorite> {
     val arr: JSONArray = root(context)?.optJSONArray("favorite_meals") ?: return emptyList()
     val out = mutableListOf<Favorite>()
-    for (i in 0 until minOf(arr.length(), 4)) {
+    for (i in 0 until minOf(arr.length(), 6)) {
       val o = arr.optJSONObject(i) ?: continue
       out.add(
         Favorite(

@@ -95,41 +95,79 @@ class ScanWidgetProvider : AppWidgetProvider() {
   }
 }
 
-/** B. Widget "Favoris Rapides" (grille 2x2) — duplication en arrière-plan. */
+/** B. Widget "Favoris Rapides" — responsive (2 / 4 / 6 favoris) et duplication en arrière-plan. */
 class FavoritesWidgetProvider : AppWidgetProvider() {
+
+  private val slots = listOf(
+    Triple(R.id.fav_slot_1, R.id.fav_label_1, R.id.fav_kcal_1),
+    Triple(R.id.fav_slot_2, R.id.fav_label_2, R.id.fav_kcal_2),
+    Triple(R.id.fav_slot_3, R.id.fav_label_3, R.id.fav_kcal_3),
+    Triple(R.id.fav_slot_4, R.id.fav_label_4, R.id.fav_kcal_4),
+    Triple(R.id.fav_slot_5, R.id.fav_label_5, R.id.fav_kcal_5),
+    Triple(R.id.fav_slot_6, R.id.fav_label_6, R.id.fav_kcal_6),
+  )
+
   override fun onUpdate(context: Context, mgr: AppWidgetManager, ids: IntArray) {
+    ids.forEach { id -> render(context, mgr, id) }
+  }
+
+  /** L'utilisateur redimensionne le widget → on recalcule le nombre de favoris. */
+  override fun onAppWidgetOptionsChanged(
+    context: Context,
+    mgr: AppWidgetManager,
+    id: Int,
+    newOptions: android.os.Bundle?,
+  ) {
+    super.onAppWidgetOptionsChanged(context, mgr, id, newOptions)
+    render(context, mgr, id)
+  }
+
+  /** Nombre de favoris selon la hauteur disponible (1 ligne = 2, 2 lignes = 4, 3+ = 6). */
+  private fun visibleCount(mgr: AppWidgetManager, id: Int): Int {
+    val minHeight = try {
+      mgr.getAppWidgetOptions(id)?.getInt(AppWidgetManager.OPTION_APPWIDGET_MIN_HEIGHT, 0) ?: 0
+    } catch (t: Throwable) {
+      0
+    }
+    return when {
+      minHeight <= 0 -> 4
+      minHeight < 110 -> 2
+      minHeight < 180 -> 4
+      else -> 6
+    }
+  }
+
+  private fun render(context: Context, mgr: AppWidgetManager, id: Int) {
     val favorites = WidgetDataStore.favorites(context)
     val t = WidgetDataStore.theme(context)
-    val slots = listOf(
-      Triple(R.id.fav_slot_1, R.id.fav_label_1, R.id.fav_kcal_1),
-      Triple(R.id.fav_slot_2, R.id.fav_label_2, R.id.fav_kcal_2),
-      Triple(R.id.fav_slot_3, R.id.fav_label_3, R.id.fav_kcal_3),
-      Triple(R.id.fav_slot_4, R.id.fav_label_4, R.id.fav_kcal_4),
-    )
-    ids.forEach { id ->
-      val views = RemoteViews(context.packageName, R.layout.widget_favorites)
-      WidgetCommon.tint(views, R.id.fav_root, t.background)
-      views.setTextColor(R.id.fav_header, t.primary)
-      slots.forEachIndexed { index, (slot, label, kcal) ->
-        val fav = favorites.getOrNull(index)
-        if (fav == null) {
-          views.setViewVisibility(slot, android.view.View.INVISIBLE)
-        } else {
-          views.setViewVisibility(slot, android.view.View.VISIBLE)
-          WidgetCommon.tint(views, slot, t.surface)
-          views.setTextColor(label, t.foreground)
-          views.setTextColor(kcal, t.mutedForeground)
-          views.setTextViewText(label, "${fav.icon} ${fav.name}")
-          views.setTextViewText(kcal, "${fav.calories} kcal")
-          views.setOnClickPendingIntent(slot, quickLogIntent(context, fav, 200 + index))
-        }
+    val count = visibleCount(mgr, id)
+    val views = RemoteViews(context.packageName, R.layout.widget_favorites)
+    WidgetCommon.tint(views, R.id.fav_root, t.background)
+    views.setTextColor(R.id.fav_header, t.primary)
+
+    // Lignes affichées selon la taille choisie.
+    views.setViewVisibility(R.id.fav_row_2, if (count >= 4) android.view.View.VISIBLE else android.view.View.GONE)
+    views.setViewVisibility(R.id.fav_row_3, if (count >= 6) android.view.View.VISIBLE else android.view.View.GONE)
+
+    slots.forEachIndexed { index, (slot, label, kcal) ->
+      val fav = if (index < count) favorites.getOrNull(index) else null
+      if (fav == null) {
+        views.setViewVisibility(slot, android.view.View.INVISIBLE)
+      } else {
+        views.setViewVisibility(slot, android.view.View.VISIBLE)
+        WidgetCommon.tint(views, slot, t.surface)
+        views.setTextColor(label, t.foreground)
+        views.setTextColor(kcal, t.mutedForeground)
+        views.setTextViewText(label, "${fav.icon} ${fav.name}")
+        views.setTextViewText(kcal, "${fav.calories} kcal")
+        views.setOnClickPendingIntent(slot, quickLogIntent(context, fav, 200 + index))
       }
-      views.setOnClickPendingIntent(
-        R.id.fav_header,
-        WidgetCommon.deepLink(context, "nutriscan://dashboard", 299)
-      )
-      mgr.updateAppWidget(id, views)
     }
+    views.setOnClickPendingIntent(
+      R.id.fav_header,
+      WidgetCommon.deepLink(context, "nutriscan://dashboard", 299)
+    )
+    mgr.updateAppWidget(id, views)
   }
 
   /** Broadcast interne : duplique le repas sans ouvrir l'application. */
@@ -307,6 +345,21 @@ class MacrosWidgetProvider : AppWidgetProvider() {
         WidgetCommon.deepLink(context, "nutriscan://dashboard", 300)
       )
       mgr.updateAppWidget(id, views)
+    }
+  }
+}
+
+/**
+ * Redessine les widgets au démarrage du téléphone (app non lancée) à partir
+ * des dernières données persistées par WidgetDataStore.
+ */
+class WidgetBootReceiver : android.content.BroadcastReceiver() {
+  override fun onReceive(context: Context, intent: Intent) {
+    when (intent.action) {
+      Intent.ACTION_BOOT_COMPLETED,
+      "android.intent.action.QUICKBOOT_POWERON",
+      Intent.ACTION_MY_PACKAGE_REPLACED,
+      -> WidgetCommon.refreshAll(context.applicationContext)
     }
   }
 }
