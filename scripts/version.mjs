@@ -1,6 +1,6 @@
 // Source unique de vérité du versioning CalVer de l'application.
-// versionName : YYYY.M.PATCH  (ex: 2026.8.3 = 3e correctif du jour)
-// versionCode : YYYYMMDDFF    (FF = numéro de patch du jour, 01 -> 99)
+// versionName : YYYY.MM.DD.FF (ex: 2026.08.07.01 = 1er build du jour)
+// versionCode : YYYYMMDDFF    (FF = numéro de build du jour, 01 -> 99)
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
