@@ -3,13 +3,13 @@ apply plugin: 'org.jetbrains.kotlin.android'
 
 // ── Versioning CalVer ────────────────────────────────────────────
 // android/version.properties est généré par `node scripts/generate-version.mjs`
-// versionName : YYYY.M.PATCH   versionCode : YYYYMMDDHH
+// versionName : YYYY.MM.DD.FF   versionCode : YYYYMMDDFF
 def versionProps = new Properties()
 def versionPropsFile = rootProject.file('version.properties')
 if (versionPropsFile.exists()) {
     versionPropsFile.withInputStream { versionProps.load(it) }
 }
-def appVersionName = versionProps.getProperty('versionName', '2026.1.1')
+def appVersionName = versionProps.getProperty('versionName', '2026.01.01.01')
 def appVersionCode = Integer.parseInt(versionProps.getProperty('versionCode', '2026010101'))
 
 // ── Signature stable ────────────────────────────────────────────
