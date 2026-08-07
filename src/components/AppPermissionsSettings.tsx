@@ -107,12 +107,13 @@ const AppPermissionsSettings: React.FC = () => {
       return;
     }
     try {
-      const { App } = await import("@capacitor/app");
-      const info = await App.getInfo();
-      window.open(`package:${info.id}`, "_system");
+      // Plugin natif : ACTION_APPLICATION_DETAILS_SETTINGS (package:com.nutriscan.app)
+      const { registerPlugin } = await import("@capacitor/core");
+      const AppSettings = registerPlugin<{ openAppSettings(): Promise<void> }>("AppSettings");
+      await AppSettings.openAppSettings();
     } catch {
       toast({
-        title: "Réglages système",
+        title: "Réglages système indisponibles",
         description: "Android : Paramètres → Applications → NutriScan → Autorisations.",
       });
     }
