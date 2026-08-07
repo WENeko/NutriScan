@@ -13,6 +13,13 @@ object WidgetDataStore {
   private const val PREFS = "NutriScanWidget"
   private const val KEY = "widget_data"
 
+  /**
+   * Miroir persistant écrit avec commit() : garantit que les widgets
+   * retrouvent les dernières données même après un redémarrage du téléphone
+   * lorsque l'application n'a pas encore été relancée.
+   */
+  private const val MIRROR_PREFS = "NutriScanWidgetMirror"
+
   data class DailySummary(
     val caloriesConsumed: Int = 0,
     val caloriesTarget: Int = 0,
