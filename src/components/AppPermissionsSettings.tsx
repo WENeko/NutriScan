@@ -23,6 +23,19 @@ const STATUS_META: Record<Status, { label: string; className: string }> = {
   unavailable: { label: "Web / indisponible", className: "bg-muted text-muted-foreground" },
 };
 
+/** Plugin natif (Android) : réglages système + autorisation de notifications. */
+type AppSettingsPluginType = {
+  openAppSettings(): Promise<void>;
+  openNotificationSettings(): Promise<void>;
+  checkNotifications(): Promise<{ status: string }>;
+  requestNotifications(): Promise<{ status: string }>;
+};
+
+async function getAppSettingsPlugin(): Promise<AppSettingsPluginType> {
+  const { registerPlugin } = await import("@capacitor/core");
+  return registerPlugin<AppSettingsPluginType>("AppSettings");
+}
+
 /** Menu des autorisations de l'application (Profil → Réglages). */
 const AppPermissionsSettings: React.FC = () => {
   const { toast } = useToast();
@@ -32,6 +45,7 @@ const AppPermissionsSettings: React.FC = () => {
   const [health, setHealth] = useState<Status>(isNative ? "unknown" : "unavailable");
   const [notifications, setNotifications] = useState<Status>("unknown");
   const [loading, setLoading] = useState(false);
+
 
   const refresh = useCallback(async () => {
     setLoading(true);
