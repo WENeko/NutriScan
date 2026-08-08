@@ -66,7 +66,16 @@ const AppPermissionsSettings: React.FC = () => {
           setHealth("unknown");
         }
       }
-      if (typeof Notification !== "undefined") {
+      if (isNative) {
+        // WebView Android : l'API Notification du navigateur est absente → plugin natif.
+        try {
+          const AppSettings = await getAppSettingsPlugin();
+          const res = await AppSettings.checkNotifications();
+          setNotifications(res?.status === "granted" ? "granted" : "denied");
+        } catch {
+          setNotifications("unknown");
+        }
+      } else if (typeof Notification !== "undefined") {
         const p = Notification.permission;
         setNotifications(p === "granted" ? "granted" : p === "denied" ? "denied" : "unknown");
       } else {
