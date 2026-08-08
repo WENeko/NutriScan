@@ -112,6 +112,29 @@ const AppPermissionsSettings: React.FC = () => {
   };
 
   const requestNotifications = async () => {
+    if (isNative) {
+      try {
+        const AppSettings = await getAppSettingsPlugin();
+        const res = await AppSettings.requestNotifications();
+        const granted = res?.status === "granted";
+        setNotifications(granted ? "granted" : "denied");
+        if (!granted) {
+          // Refus définitif (Android 13+) : seul le panneau système peut réactiver.
+          toast({
+            title: "Notifications désactivées",
+            description: "Ouverture des réglages de notifications de NutriScan…",
+          });
+          try {
+            await AppSettings.openNotificationSettings();
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (e: any) {
+        toast({ title: "Notifications indisponibles", description: e?.message, variant: "destructive" });
+      }
+      return;
+    }
     if (typeof Notification === "undefined") return;
     const res = await Notification.requestPermission();
     setNotifications(res === "granted" ? "granted" : "denied");
