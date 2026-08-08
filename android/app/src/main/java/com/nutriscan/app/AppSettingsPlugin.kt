@@ -1,6 +1,5 @@
 package com.nutriscan.app
 
-import android.Manifest
 import android.content.Intent
 import android.net.Uri
 import android.os.Build
@@ -119,7 +118,4 @@ class AppSettingsPlugin : Plugin() {
     res.put("status", if (granted) "granted" else "denied")
     call.resolve(res)
   }
-
-  @Suppress("unused")
-  private fun unusedManifestReference() = Manifest.permission.INTERNET
 }
