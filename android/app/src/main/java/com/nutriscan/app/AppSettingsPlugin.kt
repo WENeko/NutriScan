@@ -34,7 +34,8 @@ class AppSettingsPlugin : Plugin() {
         context.startActivity(fallback)
         call.resolve()
       } catch (e: Throwable) {
-        call.reject(e.message ?: "Impossible d'ouvrir les réglages", e)
+        val ex = e as? Exception ?: Exception(e)
+        call.reject(ex.message ?: "Impossible d'ouvrir les réglages", ex)
       }
     }
   }
