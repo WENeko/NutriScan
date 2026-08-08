@@ -23,6 +23,19 @@ const STATUS_META: Record<Status, { label: string; className: string }> = {
   unavailable: { label: "Web / indisponible", className: "bg-muted text-muted-foreground" },
 };
 
+/** Plugin natif (Android) : réglages système + autorisation de notifications. */
+type AppSettingsPluginType = {
+  openAppSettings(): Promise<void>;
+  openNotificationSettings(): Promise<void>;
+  checkNotifications(): Promise<{ status: string }>;
+  requestNotifications(): Promise<{ status: string }>;
+};
+
+async function getAppSettingsPlugin(): Promise<AppSettingsPluginType> {
+  const { registerPlugin } = await import("@capacitor/core");
+  return registerPlugin<AppSettingsPluginType>("AppSettings");
+}
+
 /** Menu des autorisations de l'application (Profil → Réglages). */
 const AppPermissionsSettings: React.FC = () => {
   const { toast } = useToast();
@@ -32,6 +45,7 @@ const AppPermissionsSettings: React.FC = () => {
   const [health, setHealth] = useState<Status>(isNative ? "unknown" : "unavailable");
   const [notifications, setNotifications] = useState<Status>("unknown");
   const [loading, setLoading] = useState(false);
+
 
   const refresh = useCallback(async () => {
     setLoading(true);
@@ -52,7 +66,16 @@ const AppPermissionsSettings: React.FC = () => {
           setHealth("unknown");
         }
       }
-      if (typeof Notification !== "undefined") {
+      if (isNative) {
+        // WebView Android : l'API Notification du navigateur est absente → plugin natif.
+        try {
+          const AppSettings = await getAppSettingsPlugin();
+          const res = await AppSettings.checkNotifications();
+          setNotifications(res?.status === "granted" ? "granted" : "denied");
+        } catch {
+          setNotifications("unknown");
+        }
+      } else if (typeof Notification !== "undefined") {
         const p = Notification.permission;
         setNotifications(p === "granted" ? "granted" : p === "denied" ? "denied" : "unknown");
       } else {
@@ -89,6 +112,29 @@ const AppPermissionsSettings: React.FC = () => {
   };
 
   const requestNotifications = async () => {
+    if (isNative) {
+      try {
+        const AppSettings = await getAppSettingsPlugin();
+        const res = await AppSettings.requestNotifications();
+        const granted = res?.status === "granted";
+        setNotifications(granted ? "granted" : "denied");
+        if (!granted) {
+          // Refus définitif (Android 13+) : seul le panneau système peut réactiver.
+          toast({
+            title: "Notifications désactivées",
+            description: "Ouverture des réglages de notifications de NutriScan…",
+          });
+          try {
+            await AppSettings.openNotificationSettings();
+          } catch {
+            /* ignore */
+          }
+        }
+      } catch (e: any) {
+        toast({ title: "Notifications indisponibles", description: e?.message, variant: "destructive" });
+      }
+      return;
+    }
     if (typeof Notification === "undefined") return;
     const res = await Notification.requestPermission();
     setNotifications(res === "granted" ? "granted" : "denied");
