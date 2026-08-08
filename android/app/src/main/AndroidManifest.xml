@@ -92,6 +92,7 @@
             android:exported="false">
             <intent-filter>
                 <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+                <action android:name="com.nutriscan.app.widgets.QUICK_LOG" />
             </intent-filter>
             <meta-data
                 android:name="android.appwidget.provider"

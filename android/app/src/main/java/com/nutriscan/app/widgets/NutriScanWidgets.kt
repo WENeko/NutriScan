@@ -192,26 +192,32 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
       val mealId = intent.getStringExtra(WidgetCommon.EXTRA_MEAL_ID)
       val mealName = intent.getStringExtra(WidgetCommon.EXTRA_MEAL_NAME) ?: "Repas"
       if (mealId.isNullOrBlank()) return
-      quickLog(context, mealId, mealName)
+      // goAsync() maintient le processus vivant pendant l'appel réseau :
+      // sans cela le système peut tuer le receiver avant la fin de la requête.
+      val pending = goAsync()
+      quickLog(context.applicationContext, mealId, mealName) { pending.finish() }
       return
     }
     super.onReceive(context, intent)
   }
 
-  private fun quickLog(context: Context, mealId: String, mealName: String) {
-    val stored = WidgetDataStore.auth(context)
+  private fun quickLog(app: Context, mealId: String, mealName: String, done: () -> Unit) {
+    val stored = WidgetDataStore.auth(app)
     if (stored == null) {
-      WidgetCommon.toast(context, "Ouvre NutriScan une fois pour activer la duplication")
+      WidgetCommon.toast(app, "Ouvre NutriScan une fois pour activer la duplication")
+      done()
       return
     }
-    val app = context.applicationContext
+    WidgetCommon.toast(app, "Ajout de $mealName…")
     Thread {
       var ok = false
+      var detail: String? = null
       try {
         // 1. Jeton valide (renouvellement silencieux si expiré / bientôt expiré).
         val auth = WidgetAuthRefresher.ensureFreshToken(app, stored)
         if (auth == null) {
           WidgetCommon.toast(app, "Session expirée, ouvre NutriScan une fois")
+          done()
           return@Thread
         }
 
@@ -226,6 +232,7 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
           "${auth.apiUrl}/functions/v1/quick-log-favorite", payload.toString(), auth
         )
         ok = code in 200..299
+        if (!ok) detail = "HTTP $code"
 
         // 3. Mise à jour immédiate du widget dashboard avec les nouveaux totaux.
         if (ok && !body.isNullOrBlank()) {
@@ -242,11 +249,17 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
         }
       } catch (t: Throwable) {
         ok = false
+        detail = t.message ?: t.javaClass.simpleName
       }
-      WidgetCommon.toast(app, if (ok) "$mealName dupliqué ✅" else "Échec de la duplication")
+      WidgetCommon.toast(
+        app,
+        if (ok) "$mealName dupliqué ✅" else "Échec : ${detail ?: "réseau"}"
+      )
       if (ok) WidgetCommon.refreshAll(app)
+      done()
     }.start()
   }
+
 
   /** Bornes ISO du jour courant dans le fuseau local de l'appareil. */
   private fun localDayBounds(): Pair<String, String> {
