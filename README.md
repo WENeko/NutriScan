@@ -1,73 +1,34 @@
-# Welcome to your Lovable project
+# NutriScan AI (90)
 
-## Project info
+Projet : NutriVibe - Analyseur de macros par IA Agis comme un développeur Fullstack expert. Je veux créer une application web (mobile-first) qui utilise l'IA pour analyser les repas en photo. Voici la structure de la base de données dont j'ai besoin : 
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+1. Table Users : id, email, created_at. goals : un objet JSON contenant les objectifs quotidiens (calories, protéines, glucides, lipides). 
 
-## How can I edit this code?
+2. Table Meals : id, user_id (FK), timestamp. image_url : URL de la photo stockée. raw_ai_analysis : Le texte brut renvoyé par l'IA. total_calories, total_proteins, total_carbs, total_fats. is_confirmed : Booléen (pour savoir si l'utilisateur a validé les chiffres de l'IA). 
 
-There are several ways of editing your application.
+3. Table MealItems (Détails du repas) : id, meal_id (FK). name (ex: "Poulet grillé"), quantity (ex: "150g"), calories, proteins, carbs, fats. Logique de calcul attendue : L'IA doit renvoyer un JSON structuré. Pour le calcul des calories totales, utilise la formule standard : Calories = (4 \times Protéines) + (4 \times Glucides) + (9 \times Lipides) 
 
-**Use Lovable**
+Interface : Un bouton "Scanner mon repas" (Accès caméra). Une vue "Dashboard" avec des barres de progression circulaires pour les objectifs du jour. Une liste historique des repas avec possibilité de modifier les valeurs si l'IA se trompe.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+This project was built with [Lovable](https://lovable.dev).
 
-Changes made via Lovable will be committed automatically to this repo.
+**Live app**: https://calorie-capture-clever.lovable.app
 
-**Use your preferred IDE**
+## Build with Lovable
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/08e0d47b-4aba-4de9-868f-20245065ca4e).
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `stable-fix-12-avril` on GitHub and your changes sync back into Lovable, ready for your next prompt.
 
-Follow these steps:
+## Development
+
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+git clone <this-repository-url>
+cd <repository-name>
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
