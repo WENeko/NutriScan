@@ -27,7 +27,24 @@ export function readVersionFile(path = versionFilePath()) {
 
 // Calcule la version suivante : même jour => FF +1, nouveau jour => FF 01.
 // Garantit toujours un versionCode strictement supérieur au précédent.
-export function computeVersion(now = new Date(), previous = readVersionFile()) {
+// Version précédente : priorité à NUTRISCAN_PREV_VERSION_CODE (fourni par la CI
+// à partir des tags Git) car android/version.properties versionné dans le repo
+// est identique à chaque build et empêcherait FF de s'incrémenter.
+export function previousVersion() {
+  const env = Number(process.env.NUTRISCAN_PREV_VERSION_CODE);
+  const fromFile = readVersionFile();
+  if (Number.isFinite(env) && env > 0) {
+    const code = String(env);
+    const fromEnv = {
+      versionCode: env,
+      versionName: `${code.slice(0, 4)}.${code.slice(4, 6)}.${code.slice(6, 8)}.${code.slice(8)}`,
+    };
+    if (!fromFile || fromFile.versionCode < env) return fromEnv;
+  }
+  return fromFile;
+}
+
+export function computeVersion(now = new Date(), previous = previousVersion()) {
   const y = now.getFullYear();
   const m = now.getMonth() + 1;
   const d = now.getDate();
