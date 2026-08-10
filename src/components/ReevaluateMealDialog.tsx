@@ -25,6 +25,7 @@ import {
 } from "@/lib/aiRouting";
 import { buildStdNutrients } from "@/utils/nutrients-helpers";
 import { MACRO_COLORS } from "@/lib/macro-colors";
+import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 
 interface Meal {
   id: string;
@@ -116,6 +117,7 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
   async function runReevaluate() {
     if (!selected) return;
     setAnalyzing(true);
+    const releaseWakeLock = await acquireAnalysisWakeLock();
     setNewResult(null);
     setProgressStep("preparing");
     setProgressModel(selected.label);
@@ -151,6 +153,7 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
     } catch (e: any) {
       toast({ title: "Réévaluation échouée", description: e.message, variant: "destructive" });
     } finally {
+      releaseWakeLock();
       setAnalyzing(false);
     }
   }
@@ -318,6 +321,7 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
               {analyzing && (
                 <AnalysisProgressCard
                   preview={meal.image_url}
+                  mode={meal.image_url ? "photo" : "text"}
                   currentStep={progressStep}
                   modelLabel={progressModel}
                   isFallback={false}
