@@ -67,7 +67,7 @@ const AnalysisProgressCard: React.FC<Props> = ({ preview, currentStep, modelLabe
         </div>
 
         <ul className="space-y-2">
-          {STEPS.map((s, idx) => {
+          {steps.map((s, idx) => {
             const done = idx < currentIdx;
             const active = idx === currentIdx;
             return (
