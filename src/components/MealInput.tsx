@@ -19,6 +19,7 @@ import { localToUtcIso } from "@/lib/timezoneUtils";
 import { appLogger } from "@/services/appLogger";
 import AnalysisProgressCard from "./AnalysisProgressCard";
 import type { RoutingProgressEvent, RoutingProgressStep } from "@/lib/aiRouting";
+import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -283,6 +284,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
   const analyzeImage = async (file: File) => {
     setAnalyzing(true);
+    const releaseWakeLock = await acquireAnalysisWakeLock();
     setProgressStep("preparing");
     setProgressModel("");
     setProgressFallback(false);
@@ -310,6 +312,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
     } finally {
+      releaseWakeLock();
       setAnalyzing(false);
     }
   };
@@ -318,6 +321,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     const text = (overrideText ?? textInput).trim();
     if (!text) return;
     setAnalyzing(true);
+    const releaseWakeLock = await acquireAnalysisWakeLock();
     setSource("text");
     setProgressStep("preparing");
     setProgressModel("");
@@ -341,6 +345,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     } catch (error: any) {
       toast({ title: "Erreur d'analyse", description: error.message, variant: "destructive" });
     } finally {
+      releaseWakeLock();
       setAnalyzing(false);
     }
   };
@@ -855,6 +860,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           {analyzing && (
             <AnalysisProgressCard
               preview={null}
+              mode="text"
               currentStep={progressStep}
               modelLabel={progressModel || "Préparation…"}
               isFallback={progressFallback}

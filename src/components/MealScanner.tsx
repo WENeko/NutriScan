@@ -9,6 +9,7 @@ import { saveMealWithDualWrite } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
 import AnalysisProgressCard from "@/components/AnalysisProgressCard";
 import type { RoutingProgressStep } from "@/lib/aiRouting";
+import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 
 interface MealItem {
   name: string;
@@ -48,6 +49,7 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
 
   const analyzeImage = async (file: File) => {
     setAnalyzing(true);
+    const releaseWakeLock = await acquireAnalysisWakeLock();
     setProgressStep("preparing");
     setProgressModel("Préparation…");
     setProgressAttempt(1);
@@ -91,6 +93,7 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
         variant: "destructive",
       });
     } finally {
+      releaseWakeLock();
       setAnalyzing(false);
     }
   };

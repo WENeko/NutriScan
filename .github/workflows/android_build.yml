@@ -20,6 +20,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -36,7 +38,20 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Generate CalVer version (versionName YYYY.M.PATCH / versionCode YYYYMMDDHH)
+      # FF doit s'incrémenter à chaque build : le fichier android/version.properties
+      # versionné est identique à chaque run, on repart donc du plus haut tag publié.
+      - name: Compute previous versionCode from Git tags
+        run: |
+          git fetch --tags --force --quiet || true
+          PREV=$(git tag -l 'v[0-9]*' \
+            | sed 's/^v//' \
+            | tr -d '.' \
+            | grep -E '^[0-9]{10}$' \
+            | sort -n | tail -n 1)
+          echo "NUTRISCAN_PREV_VERSION_CODE=${PREV:-0}" >> "$GITHUB_ENV"
+          echo "Previous versionCode: ${PREV:-none}"
+
+      - name: Generate CalVer version (versionName YYYY.MM.DD.FF / versionCode YYYYMMDDFF)
         run: |
           node scripts/generate-version.mjs
           cat android/version.properties

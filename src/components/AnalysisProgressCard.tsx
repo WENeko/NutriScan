@@ -1,13 +1,25 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Check, Loader2, AlertTriangle } from "lucide-react";
 import type { RoutingProgressStep } from "@/lib/aiRouting";
 
-const STEPS: { key: RoutingProgressStep; label: string }[] = [
-  { key: "preparing", label: "Optimisation et envoi de la photo…" },
-  { key: "vision", label: "Identification des aliments…" },
-  { key: "nutrition", label: "Calcul des calories et micronutriments…" },
-  { key: "finalizing", label: "Création de la fiche repas…" },
-];
+type AnalysisMode = "photo" | "text";
+
+const STEP_LABELS: Record<AnalysisMode, Record<RoutingProgressStep, string>> = {
+  photo: {
+    preparing: "Optimisation et envoi de la photo…",
+    vision: "Identification des aliments…",
+    nutrition: "Calcul des calories et micronutriments…",
+    finalizing: "Création de la fiche repas…",
+  },
+  text: {
+    preparing: "Préparation de votre description…",
+    vision: "Analyse des aliments décrits…",
+    nutrition: "Calcul des calories et micronutriments…",
+    finalizing: "Création de la fiche repas…",
+  },
+};
+
+const STEP_ORDER: RoutingProgressStep[] = ["preparing", "vision", "nutrition", "finalizing"];
 
 interface Props {
   preview: string | null;
@@ -15,16 +27,29 @@ interface Props {
   modelLabel: string;
   isFallback: boolean;
   attempt: number;
+  mode?: AnalysisMode;
 }
 
-const AnalysisProgressCard: React.FC<Props> = ({ preview, currentStep, modelLabel, isFallback, attempt }) => {
-  const currentIdx = STEPS.findIndex((s) => s.key === currentStep);
+const AnalysisProgressCard: React.FC<Props> = ({ preview, currentStep, modelLabel, isFallback, attempt, mode = "photo" }) => {
+  const currentIdx = STEP_ORDER.indexOf(currentStep);
+  const steps = STEP_ORDER.map((key) => ({ key, label: STEP_LABELS[mode][key] }));
+  const startedAt = useRef(Date.now());
   const [seconds, setSeconds] = useState(0);
 
+  // Chronomètre basé sur l'horloge réelle : reste juste même si les timers
+  // sont mis en pause (écran verrouillé / app en arrière-plan).
   useEffect(() => {
-    const t = setInterval(() => setSeconds((s) => s + 1), 1000);
-    return () => clearInterval(t);
+    const tick = () => setSeconds(Math.floor((Date.now() - startedAt.current) / 1000));
+    tick();
+    const t = setInterval(tick, 1000);
+    const onVisible = () => { if (document.visibilityState === "visible") tick(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => {
+      clearInterval(t);
+      document.removeEventListener("visibilitychange", onVisible);
+    };
   }, []);
+
 
   return (
     <div className="relative rounded-2xl overflow-hidden shadow-card bg-card animate-fade-up">
@@ -42,7 +67,7 @@ const AnalysisProgressCard: React.FC<Props> = ({ preview, currentStep, modelLabe
         </div>
 
         <ul className="space-y-2">
-          {STEPS.map((s, idx) => {
+          {steps.map((s, idx) => {
             const done = idx < currentIdx;
             const active = idx === currentIdx;
             return (
