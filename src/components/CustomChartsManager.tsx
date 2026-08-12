@@ -313,6 +313,29 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
                 </div>
               </div>
 
+              {/* Points (courbe uniquement) */}
+              {draft.chart_type === "line" && (
+                <button
+                  onClick={() => setDraft({ ...draft, show_dots: !(draft.show_dots ?? true) })}
+                  className="w-full flex items-center justify-between bg-muted/40 rounded-xl px-3 py-3"
+                >
+                  <span className="text-xs font-semibold">Afficher les points</span>
+                  <span
+                    className={`w-10 h-6 rounded-full p-0.5 transition ${
+                      (draft.show_dots ?? true) ? "bg-primary" : "bg-muted-foreground/40"
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-background transition-transform ${
+                        (draft.show_dots ?? true) ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </span>
+                </button>
+              )}
+
+
+
               <div className="flex gap-2 pt-2">
                 <button
                   onClick={close}
