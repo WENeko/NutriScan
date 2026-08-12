@@ -130,32 +130,22 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
       </div>
 
       {charts.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-1">
-          {charts.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center gap-2 bg-card rounded-full pl-3 pr-1 py-1 shadow-card"
-            >
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-              <span className="text-xs font-medium">{c.title}</span>
-              <button
-                onClick={() => openEdit(c)}
-                className="p-1.5 rounded-full hover:bg-muted transition"
-                aria-label="Modifier"
-              >
-                <Pencil size={12} />
-              </button>
-              <button
-                onClick={() => remove(c.id)}
-                className="p-1.5 rounded-full hover:bg-destructive/20 text-destructive transition"
-                aria-label="Supprimer"
-              >
-                <Trash2 size={12} />
-              </button>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={charts.map((c) => c.id)} strategy={rectSortingStrategy}>
+            <div className="flex flex-wrap gap-2 px-1">
+              {charts.map((c) => (
+                <SortableChip key={c.id} chart={c} onEdit={openEdit} onRemove={remove} />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
+
 
       {open && (
         <div
