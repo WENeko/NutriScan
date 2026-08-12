@@ -52,6 +52,51 @@ const uuid = () =>
   (globalThis.crypto?.randomUUID?.() as string) ||
   `chart-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+const SortableChip: React.FC<{
+  chart: CustomChartConfig;
+  onEdit: (c: CustomChartConfig) => void;
+  onRemove: (id: string) => void;
+}> = ({ chart, onEdit, onRemove }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: chart.id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-1 bg-card rounded-full pl-1.5 pr-1 py-1 shadow-card ${
+        isDragging ? "opacity-80 ring-2 ring-primary z-50" : ""
+      }`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-1 rounded-full text-muted-foreground touch-none cursor-grab active:cursor-grabbing"
+        aria-label="Réordonner"
+      >
+        <GripVertical size={12} />
+      </button>
+      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chart.color }} />
+      <span className="text-xs font-medium px-1">{chart.title}</span>
+      <button
+        onClick={() => onEdit(chart)}
+        className="p-1.5 rounded-full hover:bg-muted transition"
+        aria-label="Modifier"
+      >
+        <Pencil size={12} />
+      </button>
+      <button
+        onClick={() => onRemove(chart.id)}
+        className="p-1.5 rounded-full hover:bg-destructive/20 text-destructive transition"
+        aria-label="Supprimer"
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  );
+};
+
+
 const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolvedMicros }) => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CustomChartConfig | null>(null);
