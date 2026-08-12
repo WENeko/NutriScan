@@ -1,7 +1,24 @@
 import React, { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { X, Plus, Trash2, Pencil, RefreshCw } from "lucide-react";
+import { X, Plus, Trash2, Pencil, RefreshCw, GripVertical } from "lucide-react";
 import type { ResolvedMicroGoal } from "@/utils/nutrition-logic";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToParentElement } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export interface CustomChartConfig {
   id: string;
@@ -9,7 +26,9 @@ export interface CustomChartConfig {
   micros: string[];
   color: string;
   chart_type: "line" | "bar";
+  show_dots?: boolean;
 }
+
 
 export const CHART_COLORS = [
   { name: "Cyan", value: "#06B6D4" },
@@ -33,10 +52,60 @@ const uuid = () =>
   (globalThis.crypto?.randomUUID?.() as string) ||
   `chart-${Date.now()}-${Math.random().toString(36).slice(2, 9)}`;
 
+const SortableChip: React.FC<{
+  chart: CustomChartConfig;
+  onEdit: (c: CustomChartConfig) => void;
+  onRemove: (id: string) => void;
+}> = ({ chart, onEdit, onRemove }) => {
+  const { attributes, listeners, setNodeRef, transform, transition, isDragging } = useSortable({
+    id: chart.id,
+  });
+  return (
+    <div
+      ref={setNodeRef}
+      style={{ transform: CSS.Transform.toString(transform), transition }}
+      className={`flex items-center gap-1 bg-card rounded-full pl-1.5 pr-1 py-1 shadow-card ${
+        isDragging ? "opacity-80 ring-2 ring-primary z-50" : ""
+      }`}
+    >
+      <button
+        {...attributes}
+        {...listeners}
+        className="p-1 rounded-full text-muted-foreground touch-none cursor-grab active:cursor-grabbing"
+        aria-label="Réordonner"
+      >
+        <GripVertical size={12} />
+      </button>
+      <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: chart.color }} />
+      <span className="text-xs font-medium px-1">{chart.title}</span>
+      <button
+        onClick={() => onEdit(chart)}
+        className="p-1.5 rounded-full hover:bg-muted transition"
+        aria-label="Modifier"
+      >
+        <Pencil size={12} />
+      </button>
+      <button
+        onClick={() => onRemove(chart.id)}
+        className="p-1.5 rounded-full hover:bg-destructive/20 text-destructive transition"
+        aria-label="Supprimer"
+      >
+        <Trash2 size={12} />
+      </button>
+    </div>
+  );
+};
+
+
 const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolvedMicros }) => {
   const [open, setOpen] = useState(false);
   const [editing, setEditing] = useState<CustomChartConfig | null>(null);
   const [saving, setSaving] = useState(false);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  );
 
   const emptyDraft = (): CustomChartConfig => ({
     id: uuid(),
@@ -44,8 +113,10 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
     micros: [],
     color: CHART_COLORS[0].value,
     chart_type: "bar",
+    show_dots: true,
   });
   const [draft, setDraft] = useState<CustomChartConfig>(emptyDraft());
+
 
   const microsByKey = useMemo(() => {
     const map: Record<string, ResolvedMicroGoal> = {};
@@ -98,6 +169,17 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
     );
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = charts.findIndex((c) => c.id === active.id);
+    const newIndex = charts.findIndex((c) => c.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    void persist(arrayMove(charts, oldIndex, newIndex));
+  };
+
+
+
   return (
     <>
       <div className="flex items-center justify-between px-1">
@@ -111,32 +193,22 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
       </div>
 
       {charts.length > 0 && (
-        <div className="flex flex-wrap gap-2 px-1">
-          {charts.map((c) => (
-            <div
-              key={c.id}
-              className="flex items-center gap-2 bg-card rounded-full pl-3 pr-1 py-1 shadow-card"
-            >
-              <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: c.color }} />
-              <span className="text-xs font-medium">{c.title}</span>
-              <button
-                onClick={() => openEdit(c)}
-                className="p-1.5 rounded-full hover:bg-muted transition"
-                aria-label="Modifier"
-              >
-                <Pencil size={12} />
-              </button>
-              <button
-                onClick={() => remove(c.id)}
-                className="p-1.5 rounded-full hover:bg-destructive/20 text-destructive transition"
-                aria-label="Supprimer"
-              >
-                <Trash2 size={12} />
-              </button>
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          modifiers={[restrictToParentElement]}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext items={charts.map((c) => c.id)} strategy={rectSortingStrategy}>
+            <div className="flex flex-wrap gap-2 px-1">
+              {charts.map((c) => (
+                <SortableChip key={c.id} chart={c} onEdit={openEdit} onRemove={remove} />
+              ))}
             </div>
-          ))}
-        </div>
+          </SortableContext>
+        </DndContext>
       )}
+
 
       {open && (
         <div
@@ -240,6 +312,29 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
                   ))}
                 </div>
               </div>
+
+              {/* Points (courbe uniquement) */}
+              {draft.chart_type === "line" && (
+                <button
+                  onClick={() => setDraft({ ...draft, show_dots: !(draft.show_dots ?? true) })}
+                  className="w-full flex items-center justify-between bg-muted/40 rounded-xl px-3 py-3"
+                >
+                  <span className="text-xs font-semibold">Afficher les points</span>
+                  <span
+                    className={`w-10 h-6 rounded-full p-0.5 transition ${
+                      (draft.show_dots ?? true) ? "bg-primary" : "bg-muted-foreground/40"
+                    }`}
+                  >
+                    <span
+                      className={`block w-5 h-5 rounded-full bg-background transition-transform ${
+                        (draft.show_dots ?? true) ? "translate-x-4" : "translate-x-0"
+                      }`}
+                    />
+                  </span>
+                </button>
+              )}
+
+
 
               <div className="flex gap-2 pt-2">
                 <button

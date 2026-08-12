@@ -502,10 +502,11 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                           name={s.label}
                           stroke={s.color}
                           strokeWidth={3}
-                          dot={{ r: 3, fill: s.color }}
+                          dot={(chart.show_dots ?? true) ? { r: 3, fill: s.color } : false}
                           activeDot={{ r: 5 }}
                         />
                       ))}
+
                     </LineChart>
                   )}
                 </ResponsiveContainer>
