@@ -102,14 +102,21 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
   const [editing, setEditing] = useState<CustomChartConfig | null>(null);
   const [saving, setSaving] = useState(false);
 
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(TouchSensor, { activationConstraint: { delay: 150, tolerance: 8 } }),
+  );
+
   const emptyDraft = (): CustomChartConfig => ({
     id: uuid(),
     title: "",
     micros: [],
     color: CHART_COLORS[0].value,
     chart_type: "bar",
+    show_dots: true,
   });
   const [draft, setDraft] = useState<CustomChartConfig>(emptyDraft());
+
 
   const microsByKey = useMemo(() => {
     const map: Record<string, ResolvedMicroGoal> = {};
