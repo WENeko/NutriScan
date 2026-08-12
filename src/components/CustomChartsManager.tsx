@@ -1,7 +1,24 @@
 import React, { useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { X, Plus, Trash2, Pencil, RefreshCw } from "lucide-react";
+import { X, Plus, Trash2, Pencil, RefreshCw, GripVertical } from "lucide-react";
 import type { ResolvedMicroGoal } from "@/utils/nutrition-logic";
+import {
+  DndContext,
+  closestCenter,
+  PointerSensor,
+  TouchSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from "@dnd-kit/core";
+import { restrictToParentElement } from "@dnd-kit/modifiers";
+import {
+  SortableContext,
+  arrayMove,
+  useSortable,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 
 export interface CustomChartConfig {
   id: string;
@@ -9,7 +26,9 @@ export interface CustomChartConfig {
   micros: string[];
   color: string;
   chart_type: "line" | "bar";
+  show_dots?: boolean;
 }
+
 
 export const CHART_COLORS = [
   { name: "Cyan", value: "#06B6D4" },
