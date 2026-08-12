@@ -169,6 +169,17 @@ const CustomChartsManager: React.FC<Props> = ({ userId, charts, onChange, resolv
     );
   };
 
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+    if (!over || active.id === over.id) return;
+    const oldIndex = charts.findIndex((c) => c.id === active.id);
+    const newIndex = charts.findIndex((c) => c.id === over.id);
+    if (oldIndex < 0 || newIndex < 0) return;
+    void persist(arrayMove(charts, oldIndex, newIndex));
+  };
+
+
+
   return (
     <>
       <div className="flex items-center justify-between px-1">
