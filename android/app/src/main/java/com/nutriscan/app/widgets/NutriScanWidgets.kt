@@ -160,7 +160,7 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
         views.setTextColor(kcal, t.mutedForeground)
         views.setTextViewText(label, "${fav.icon} ${fav.name}")
         views.setTextViewText(kcal, "${fav.calories} kcal")
-        views.setOnClickPendingIntent(slot, quickLogIntent(context, fav, 200 + index))
+        views.setOnClickPendingIntent(slot, quickLogIntent(context, fav, id, index))
       }
     }
     views.setOnClickPendingIntent(
@@ -170,111 +170,44 @@ class FavoritesWidgetProvider : AppWidgetProvider() {
     mgr.updateAppWidget(id, views)
   }
 
-  /** Broadcast interne : duplique le repas sans ouvrir l'application. */
+  /**
+   * Démarre le service au premier plan : contrairement à un broadcast, il n'est
+   * pas tué au bout de quelques secondes (cause des échecs aléatoires).
+   * `data` unique + requestCode unique => aucun PendingIntent partagé entre slots.
+   */
   private fun quickLogIntent(
     context: Context,
     fav: WidgetDataStore.Favorite,
-    requestCode: Int,
+    widgetId: Int,
+    index: Int,
   ): PendingIntent {
-    val intent = Intent(context, FavoritesWidgetProvider::class.java).apply {
+    val intent = QuickLogService.intent(context, fav.id, fav.name).apply {
       action = WidgetCommon.ACTION_QUICK_LOG
-      putExtra(WidgetCommon.EXTRA_MEAL_ID, fav.id)
-      putExtra(WidgetCommon.EXTRA_MEAL_NAME, fav.name)
+      data = Uri.parse("nutriscan://quicklog/$widgetId/$index/${fav.id}")
     }
-    return PendingIntent.getBroadcast(
-      context, requestCode, intent,
-      PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-    )
+    val requestCode = 200_000 + widgetId * 10 + index
+    val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+    return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      PendingIntent.getForegroundService(context, requestCode, intent, flags)
+    } else {
+      PendingIntent.getService(context, requestCode, intent, flags)
+    }
   }
 
   override fun onReceive(context: Context, intent: Intent) {
+    // Repli : anciens PendingIntent de type broadcast encore épinglés au launcher.
     if (intent.action == WidgetCommon.ACTION_QUICK_LOG) {
       val mealId = intent.getStringExtra(WidgetCommon.EXTRA_MEAL_ID)
       val mealName = intent.getStringExtra(WidgetCommon.EXTRA_MEAL_NAME) ?: "Repas"
-      if (mealId.isNullOrBlank()) return
-      // goAsync() maintient le processus vivant pendant l'appel réseau :
-      // sans cela le système peut tuer le receiver avant la fin de la requête.
-      val pending = goAsync()
-      quickLog(context.applicationContext, mealId, mealName) { pending.finish() }
+      if (!mealId.isNullOrBlank()) {
+        QuickLogService.start(context.applicationContext, mealId, mealName)
+      }
       return
     }
     super.onReceive(context, intent)
   }
-
-  private fun quickLog(app: Context, mealId: String, mealName: String, done: () -> Unit) {
-    val stored = WidgetDataStore.auth(app)
-    if (stored == null) {
-      WidgetCommon.toast(app, "Ouvre NutriScan une fois pour activer la duplication")
-      done()
-      return
-    }
-    WidgetCommon.toast(app, "Ajout de $mealName…")
-    Thread {
-      var ok = false
-      var detail: String? = null
-      try {
-        // 1. Jeton valide (renouvellement silencieux si expiré / bientôt expiré).
-        val auth = WidgetAuthRefresher.ensureFreshToken(app, stored)
-        if (auth == null) {
-          WidgetCommon.toast(app, "Session expirée, ouvre NutriScan une fois")
-          done()
-          return@Thread
-        }
-
-        // 2. Duplication + récupération des totaux du jour (fuseau local).
-        val bounds = localDayBounds()
-        val payload = JSONObject()
-          .put("favorite_meal_id", mealId)
-          .put("day_start", bounds.first)
-          .put("day_end", bounds.second)
-
-        val (code, body) = WidgetAuthRefresher.post(
-          "${auth.apiUrl}/functions/v1/quick-log-favorite", payload.toString(), auth
-        )
-        ok = code in 200..299
-        if (!ok) detail = "HTTP $code"
-
-        // 3. Mise à jour immédiate du widget dashboard avec les nouveaux totaux.
-        if (ok && !body.isNullOrBlank()) {
-          val totals = JSONObject(body).optJSONObject("daily_totals")
-          if (totals != null) {
-            WidgetDataStore.updateConsumed(
-              app,
-              totals.optInt("calories"),
-              totals.optInt("proteins"),
-              totals.optInt("carbs"),
-              totals.optInt("fats"),
-            )
-          }
-        }
-      } catch (t: Throwable) {
-        ok = false
-        detail = t.message ?: t.javaClass.simpleName
-      }
-      WidgetCommon.toast(
-        app,
-        if (ok) "$mealName dupliqué ✅" else "Échec : ${detail ?: "réseau"}"
-      )
-      if (ok) WidgetCommon.refreshAll(app)
-      done()
-    }.start()
-  }
-
-
-  /** Bornes ISO du jour courant dans le fuseau local de l'appareil. */
-  private fun localDayBounds(): Pair<String, String> {
-    val fmt = java.text.SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'", java.util.Locale.US)
-    fmt.timeZone = java.util.TimeZone.getTimeZone("UTC")
-    val cal = java.util.Calendar.getInstance()
-    cal.set(java.util.Calendar.HOUR_OF_DAY, 0)
-    cal.set(java.util.Calendar.MINUTE, 0)
-    cal.set(java.util.Calendar.SECOND, 0)
-    cal.set(java.util.Calendar.MILLISECOND, 0)
-    val start = fmt.format(cal.time)
-    cal.add(java.util.Calendar.DAY_OF_YEAR, 1)
-    return start to fmt.format(cal.time)
-  }
 }
+
 
 /** Renouvellement du jeton Supabase depuis les widgets (app fermée). */
 object WidgetAuthRefresher {
@@ -285,6 +218,16 @@ object WidgetAuthRefresher {
     val expiresSoon = auth.expiresAt in 1..(now + 120)
     if (!expiresSoon) return auth
     val refreshed = refresh(auth) ?: return null
+    WidgetDataStore.updateAuth(context, refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt)
+    return refreshed
+  }
+
+  /** Renouvellement forcé (jeton rejeté par le serveur) en repartant du stockage le plus récent. */
+  fun forceRefresh(context: Context, auth: WidgetDataStore.Auth): WidgetDataStore.Auth? {
+    val latest = WidgetDataStore.auth(context) ?: auth
+    // Le web a peut-être déjà écrit un jeton plus récent : on l'essaie d'abord.
+    if (latest.accessToken != auth.accessToken) return latest
+    val refreshed = refresh(latest) ?: return null
     WidgetDataStore.updateAuth(context, refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt)
     return refreshed
   }
