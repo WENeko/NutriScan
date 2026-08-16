@@ -20,6 +20,7 @@ import { appLogger } from "@/services/appLogger";
 import AnalysisProgressCard from "./AnalysisProgressCard";
 import type { RoutingProgressEvent, RoutingProgressStep } from "@/lib/aiRouting";
 import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
+import { uploadMealImage } from "@/lib/mealImageUpload";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;

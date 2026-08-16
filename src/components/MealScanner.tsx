@@ -10,6 +10,7 @@ import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
 import AnalysisProgressCard from "@/components/AnalysisProgressCard";
 import type { RoutingProgressStep } from "@/lib/aiRouting";
 import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
+import { uploadMealImage } from "@/lib/mealImageUpload";
 
 interface MealItem {
   name: string;
@@ -142,7 +143,7 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
           total_proteins: totals.proteins,
           total_carbs: totals.carbs,
           total_fats: totals.fats,
-          image_url: urlData.publicUrl,
+          image_url: up.url,
           timestamp: new Date().toISOString(),
           raw_ai_analysis: rawAnalysis || null,
           is_confirmed: true,
