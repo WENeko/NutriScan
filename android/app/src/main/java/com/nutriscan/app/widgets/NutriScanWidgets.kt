@@ -222,6 +222,16 @@ object WidgetAuthRefresher {
     return refreshed
   }
 
+  /** Renouvellement forcé (jeton rejeté par le serveur) en repartant du stockage le plus récent. */
+  fun forceRefresh(context: Context, auth: WidgetDataStore.Auth): WidgetDataStore.Auth? {
+    val latest = WidgetDataStore.auth(context) ?: auth
+    // Le web a peut-être déjà écrit un jeton plus récent : on l'essaie d'abord.
+    if (latest.accessToken != auth.accessToken) return latest
+    val refreshed = refresh(latest) ?: return null
+    WidgetDataStore.updateAuth(context, refreshed.accessToken, refreshed.refreshToken, refreshed.expiresAt)
+    return refreshed
+  }
+
   private fun refresh(auth: WidgetDataStore.Auth): WidgetDataStore.Auth? {
     val refreshToken = auth.refreshToken ?: return null
     return try {
