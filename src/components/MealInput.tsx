@@ -667,12 +667,14 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     try {
       let imageUrl: string | null = null;
       if (imageFile) {
-        const ext = imageFile.name.split(".").pop();
-        const path = `${userId}/${Date.now()}.${ext}`;
-        const { error: uploadError } = await supabaseLovable.storage.from("meal-images").upload(path, imageFile);
-        if (uploadError) throw uploadError;
-        const { data: urlData } = supabaseLovable.storage.from("meal-images").getPublicUrl(path);
-        imageUrl = urlData.publicUrl;
+        const up = await uploadMealImage(userId, imageFile);
+        imageUrl = up.url;
+        if (up.failed) {
+          toast({
+            title: "Photo non envoyée",
+            description: "Réseau instable : le repas est enregistré sans la photo.",
+          });
+        }
       }
 
       const totals = computeTotals();

@@ -119,17 +119,14 @@ const MealScanner: React.FC<ScannerProps> = ({ userId, onMealSaved }) => {
   const saveMeal = async () => {
     if (!imageFile || items.length === 0) return;
     try {
-      // Upload image vers Lovable
-      const ext = imageFile.name.split(".").pop();
-      const path = `${userId}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabaseLovable.storage
-        .from("meal-images")
-        .upload(path, imageFile);
-      if (uploadError) throw uploadError;
-
-      const { data: urlData } = supabaseLovable.storage
-        .from("meal-images")
-        .getPublicUrl(path);
+      // Upload image (tolérant aux coupures réseau)
+      const up = await uploadMealImage(userId, imageFile);
+      if (up.failed) {
+        toast({
+          title: "Photo non envoyée",
+          description: "Réseau instable : le repas est enregistré sans la photo.",
+        });
+      }
 
       const totals = computeTotals();
 
