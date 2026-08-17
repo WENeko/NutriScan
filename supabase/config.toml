@@ -1,14 +1,13 @@
 project_id = "uthgmacvrhshqirhyuhy"
 
 [functions.analyze-meal]
-verify_jwt = false
+verify_jwt = true
 
 [functions.coach-goals]
-verify_jwt = false
+verify_jwt = true
 
 [functions.describe-nutrient]
-verify_jwt = false
+verify_jwt = true
 
 [functions.coach-chat]
-verify_jwt = false
-
+verify_jwt = true
