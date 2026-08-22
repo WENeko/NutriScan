@@ -19,6 +19,7 @@
     <uses-permission android:name="android.permission.health.READ_HEALTH_DATA_HISTORY" />
     <uses-permission android:name="android.permission.health.READ_STEPS" />
     <uses-permission android:name="android.permission.health.READ_BONE_MASS"/>
+    <uses-permission android:name="android.permission.health.WRITE_NUTRITION" />
     
     <queries>
         <package android:name="com.google.android.apps.healthdata" />

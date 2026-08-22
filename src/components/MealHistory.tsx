@@ -34,6 +34,7 @@ import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input"
 import { buildStdNutrients, hydrateMealItem } from "@/utils/nutrients-helpers";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { analyzeMeal } from "@/services/mealAnalysisService";
+import { resyncMealToHealthConnect } from "@/services/nutritionWriter";
 
 
 
@@ -620,14 +621,28 @@ const [searchQuery, setSearchQuery] = useState("");
         }),
         { calories: 0, proteins: 0, carbs: 0, fats: 0 }
       );
-      await supabase.from("meals").update({
+      const { data: updatedMeal } = await supabase.from("meals").update({
         meal_name: editMealName || null,
         timestamp: editTimestamp ? localDateTimeToISO(editTimestamp) : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,
         total_carbs: Math.round(totals.carbs * 10) / 10,
         total_fats: Math.round(totals.fats * 10) / 10,
-      } as any).eq("id", editingMealId);
+      } as any).eq("id", editingMealId).select().single();
+
+      // Resynchronisation Health Connect (repas modifié) — non bloquant
+      void resyncMealToHealthConnect(
+        editingMealId,
+        {
+          meal_name: editMealName || "",
+          total_calories: Math.round(totals.calories),
+          total_proteins: Math.round(totals.proteins * 10) / 10,
+          total_carbs: Math.round(totals.carbs * 10) / 10,
+          total_fats: Math.round(totals.fats * 10) / 10,
+          timestamp: (updatedMeal as any)?.timestamp,
+        },
+        editItems as any,
+      ).catch(() => {});
 
       toast({ title: "Repas modifié !" });
       setEditingMealId(null);
