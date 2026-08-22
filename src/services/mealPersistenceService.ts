@@ -14,6 +14,7 @@ import {
   buildCustomNutrients,
   type CustomNutrientDef,
 } from "@/utils/nutrients-helpers";
+import { writeMealToHealthConnect } from "./nutritionWriter";
 
 const PERSO_ENABLED = false;
 
@@ -176,6 +177,9 @@ export const saveMealWithDualWrite = async ({ userId, mealData, items }: SaveMea
     }
   }
   appLogger.info("MealSave", "OK", { mealId: primaryMeal.id });
+
+  // Écriture vers Health Connect (Android natif) — non bloquant
+  void writeMealToHealthConnect(primaryMeal.id, mealData, items).catch(() => {});
 
   return { lovable: primaryMeal, personal: null as PersoBridgeResult | null };
 };
