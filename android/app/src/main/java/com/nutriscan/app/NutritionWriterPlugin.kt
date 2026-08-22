@@ -6,7 +6,10 @@ import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.MealType
 import androidx.health.connect.client.records.NutritionRecord
+import androidx.health.connect.client.records.metadata.Metadata
 import androidx.health.connect.client.time.TimeRangeFilter
+import androidx.health.connect.client.units.Energy
+import androidx.health.connect.client.units.Mass
 import com.getcapacitor.JSObject
 import com.getcapacitor.Plugin
 import com.getcapacitor.PluginCall
@@ -80,10 +83,28 @@ class NutritionWriterPlugin : Plugin() {
 
     private fun d(call: PluginCall, key: String): Double = call.getDouble(key) ?: 0.0
 
+    /** Mass en grammes, null si valeur nulle (champ optionnel non écrit). */
+    private fun g(call: PluginCall, key: String): Mass? {
+        val v = d(call, key)
+        return if (v > 0.0) Mass.grams(v) else null
+    }
+
+    private fun kcal(call: PluginCall, key: String): Energy? {
+        val v = d(call, key)
+        return if (v > 0.0) Energy.kilocalories(v) else null
+    }
+
+    private fun mealTypeOf(value: String?): Int = when (value?.lowercase()) {
+        "breakfast" -> MealType.MEAL_TYPE_BREAKFAST
+        "lunch" -> MealType.MEAL_TYPE_LUNCH
+        "dinner" -> MealType.MEAL_TYPE_DINNER
+        "snack" -> MealType.MEAL_TYPE_SNACK
+        else -> MealType.MEAL_TYPE_UNKNOWN
+    }
+
     /**
-     * Écrit (upsert) un repas dans Health Connect.
-     * Tous les champs nutriments sont en grammes (kcal en kilocalories),
-     * conformément au constructeur data-class NutritionRecord.
+     * Écrit un repas dans Health Connect.
+     * Les nutriments arrivent en grammes, l'énergie en kilocalories.
      */
     @PluginMethod
     fun writeMeal(call: PluginCall) {
@@ -91,7 +112,7 @@ class NutritionWriterPlugin : Plugin() {
             ?: return call.reject("startTime required")
         val c = client()
             ?: return call.resolve(JSObject().put("ok", false).put("error", "unavailable"))
-        val endIso = call.getString("endTime") ?: startIso
+        val endIso = call.getString("endTime")
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -100,34 +121,37 @@ class NutritionWriterPlugin : Plugin() {
                     return@launch
                 }
                 val start = Instant.parse(startIso)
-                val end = Instant.parse(endIso)
+                var end = if (endIso != null) Instant.parse(endIso) else start.plusSeconds(60)
+                // NutritionRecord exige startTime < endTime.
+                if (!start.isBefore(end)) end = start.plusSeconds(60)
 
                 val record = NutritionRecord(
                     startTime = start,
-                    endTime = end,
                     startZoneOffset = null,
+                    endTime = end,
                     endZoneOffset = null,
-                    kcal = d(call, "kcal"),
-                    kcalFromFat = d(call, "kcalFromFat"),
-                    proteinGrams = d(call, "proteinGrams"),
-                    totalCarbohydrateGrams = d(call, "totalCarbohydrateGrams"),
-                    totalFatGrams = d(call, "totalFatGrams"),
-                    dietaryFiberGrams = d(call, "dietaryFiberGrams"),
-                    sugarGrams = d(call, "sugarGrams"),
-                    saturatedFatGrams = d(call, "saturatedFatGrams"),
-                    sodiumGrams = d(call, "sodiumGrams"),
-                    potassiumGrams = d(call, "potassiumGrams"),
-                    magnesiumGrams = d(call, "magnesiumGrams"),
-                    calciumGrams = d(call, "calciumGrams"),
-                    ironGrams = d(call, "ironGrams"),
-                    zincGrams = d(call, "zincGrams"),
-                    vitaminCGrams = d(call, "vitaminCGrams"),
-                    vitaminDGrams = d(call, "vitaminDGrams"),
-                    folateGrams = d(call, "folateGrams"),
-                    vitaminB12Grams = d(call, "vitaminB12Grams"),
-                    vitaminEGrams = d(call, "vitaminEGrams"),
+                    metadata = Metadata.manualEntry(),
+                    energy = kcal(call, "kcal"),
+                    energyFromFat = kcal(call, "kcalFromFat"),
+                    protein = g(call, "proteinGrams"),
+                    totalCarbohydrate = g(call, "totalCarbohydrateGrams"),
+                    totalFat = g(call, "totalFatGrams"),
+                    dietaryFiber = g(call, "dietaryFiberGrams"),
+                    sugar = g(call, "sugarGrams"),
+                    saturatedFat = g(call, "saturatedFatGrams"),
+                    sodium = g(call, "sodiumGrams"),
+                    potassium = g(call, "potassiumGrams"),
+                    magnesium = g(call, "magnesiumGrams"),
+                    calcium = g(call, "calciumGrams"),
+                    iron = g(call, "ironGrams"),
+                    zinc = g(call, "zincGrams"),
+                    vitaminC = g(call, "vitaminCGrams"),
+                    vitaminD = g(call, "vitaminDGrams"),
+                    folate = g(call, "folateGrams"),
+                    vitaminB12 = g(call, "vitaminB12Grams"),
+                    vitaminE = g(call, "vitaminEGrams"),
                     name = call.getString("name"),
-                    mealType = call.getString("mealType") ?: MealType.UNKNOWN,
+                    mealType = mealTypeOf(call.getString("mealType")),
                 )
                 c.insertRecords(listOf(record))
                 call.resolve(JSObject().put("ok", true))
