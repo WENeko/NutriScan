@@ -1,6 +1,14 @@
 import React, { useCallback, useEffect, useState } from "react";
 import { Capacitor } from "@capacitor/core";
-import { ShieldCheck, Camera as CameraIcon, Images, HeartPulse, Bell, RefreshCw, ExternalLink } from "lucide-react";
+import { ShieldCheck, Camera as CameraIcon, Images, HeartPulse, Bell, RefreshCw, ExternalLink, Utensils } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import {
+  isNutritionWriterAvailable,
+  hasNutritionWritePermission,
+  requestNutritionWritePermission,
+  isNutritionSyncEnabled,
+  setNutritionSyncEnabled,
+} from "@/services/nutritionWriter";
 import { Button } from "@/components/ui/button";
 import { checkHealthPermissions, requestHealthPermissions } from "@/services/health-connect";
 import { useToast } from "@/hooks/use-toast";
@@ -44,6 +52,8 @@ const AppPermissionsSettings: React.FC = () => {
   const [photos, setPhotos] = useState<Status>(isNative ? "unknown" : "unavailable");
   const [health, setHealth] = useState<Status>(isNative ? "unknown" : "unavailable");
   const [notifications, setNotifications] = useState<Status>("unknown");
+  const [nutriWrite, setNutriWrite] = useState<Status>(isNative ? "unknown" : "unavailable");
+  const [nutriSync, setNutriSync] = useState<boolean>(isNutritionSyncEnabled());
   const [loading, setLoading] = useState(false);
 
 
@@ -64,6 +74,12 @@ const AppPermissionsSettings: React.FC = () => {
           setHealth((await checkHealthPermissions()) ? "granted" : "denied");
         } catch {
           setHealth("unknown");
+        }
+        try {
+          if (!(await isNutritionWriterAvailable())) setNutriWrite("unavailable");
+          else setNutriWrite((await hasNutritionWritePermission()) ? "granted" : "denied");
+        } catch {
+          setNutriWrite("unknown");
         }
       }
       if (isNative) {
@@ -109,6 +125,31 @@ const AppPermissionsSettings: React.FC = () => {
     } catch (e: any) {
       toast({ title: "Santé Connect indisponible", description: e?.message, variant: "destructive" });
     }
+  };
+
+  const requestNutritionWrite = async () => {
+    try {
+      const ok = await requestNutritionWritePermission();
+      setNutriWrite(ok ? "granted" : "denied");
+      if (ok) {
+        setNutritionSyncEnabled(true);
+        setNutriSync(true);
+        toast({ title: "Écriture nutrition activée", description: "Tes repas seront envoyés vers Santé Connect." });
+      } else {
+        toast({ title: "Autorisation d'écriture refusée", variant: "destructive" });
+      }
+    } catch (e: any) {
+      toast({ title: "Santé Connect indisponible", description: e?.message, variant: "destructive" });
+    }
+  };
+
+  const toggleNutriSync = async (next: boolean) => {
+    if (next && nutriWrite !== "granted") {
+      await requestNutritionWrite();
+      return;
+    }
+    setNutritionSyncEnabled(next);
+    setNutriSync(next);
   };
 
   const requestNotifications = async () => {
@@ -201,6 +242,22 @@ const AppPermissionsSettings: React.FC = () => {
             </div>
           );
         })}
+      </div>
+
+      <div className="flex items-center gap-3 p-3 mt-2 rounded-xl bg-muted/50">
+        <Utensils className="w-4 h-4 text-primary shrink-0" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-semibold truncate">Écrire la nutrition dans Santé Connect</p>
+          <p className="text-[11px] text-muted-foreground">
+            Envoie calories, macros et micronutriments de chaque repas ({STATUS_META[nutriWrite].label})
+          </p>
+        </div>
+        <Switch
+          checked={nutriSync && nutriWrite === "granted"}
+          onCheckedChange={(v) => void toggleNutriSync(v)}
+          disabled={!isNative}
+          aria-label="Activer l'écriture nutrition dans Santé Connect"
+        />
       </div>
 
       <Button variant="outline" className="w-full mt-4 rounded-xl" onClick={openSystemSettings}>
