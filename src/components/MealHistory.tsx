@@ -242,15 +242,19 @@ const [searchQuery, setSearchQuery] = useState("");
   const deleteMeal = async (mealId: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
     try {
+      const ts = meals.find((m) => m.id === mealId)?.timestamp;
       await supabase.from("meal_items").delete().eq("meal_id", mealId);
       const { error } = await supabase.from("meals").delete().eq("id", mealId);
       if (error) throw error;
+      // Retire aussi le NutritionRecord côté Santé Connect (non bloquant)
+      void deleteMealFromHealthConnect(mealId, ts).catch(() => {});
       toast({ title: "Repas supprimé" });
       onRefresh();
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
     }
   };
+
 
   const toggleFavorite = async (mealId: string, current: boolean, e?: React.MouseEvent) => {
     e?.stopPropagation();
