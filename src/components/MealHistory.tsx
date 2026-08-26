@@ -34,7 +34,7 @@ import { getLocalDateTimeString, localDateTimeToISO } from "@/lib/numeric-input"
 import { buildStdNutrients, hydrateMealItem } from "@/utils/nutrients-helpers";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { analyzeMeal } from "@/services/mealAnalysisService";
-import { resyncMealToHealthConnect } from "@/services/nutritionWriter";
+import { resyncMealToHealthConnect, deleteMealFromHealthConnect } from "@/services/nutritionWriter";
 
 
 
