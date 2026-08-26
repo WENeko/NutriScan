@@ -14,6 +14,24 @@ import { appLogger } from "./appLogger";
 import type { MealItemWithMicros } from "./mealPersistenceService";
 
 const WINDOWS_KEY = "nutriscan-hc-write-windows";
+const ENABLED_KEY = "nutriscan-hc-nutrition-sync";
+
+/** L'utilisateur a-t-il activé l'écriture nutrition vers Health Connect ? */
+export function isNutritionSyncEnabled(): boolean {
+  try {
+    return localStorage.getItem(ENABLED_KEY) === "1";
+  } catch {
+    return false;
+  }
+}
+
+export function setNutritionSyncEnabled(enabled: boolean) {
+  try {
+    localStorage.setItem(ENABLED_KEY, enabled ? "1" : "0");
+  } catch {
+    /* ignore */
+  }
+}
 
 interface WriteWindow {
   startTime: string;
