@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Sparkles, X } from "lucide-react";
 import { analyzeMeal } from "@/services/mealAnalysisService";
+import { resyncMealToHealthConnect } from "@/services/nutritionWriter";
 import AnalysisProgressCard from "./AnalysisProgressCard";
 import {
   listAvailableStepsForUser,
