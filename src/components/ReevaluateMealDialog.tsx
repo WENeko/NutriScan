@@ -14,6 +14,7 @@ import { toast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Loader2, RefreshCw, Sparkles, X } from "lucide-react";
 import { analyzeMeal } from "@/services/mealAnalysisService";
+import { resyncMealToHealthConnect } from "@/services/nutritionWriter";
 import AnalysisProgressCard from "./AnalysisProgressCard";
 import {
   listAvailableStepsForUser,
@@ -212,6 +213,19 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
           raw_ai_analysis: JSON.stringify(newResult),
         } as any)
         .eq("id", meal.id);
+      // Resync Santé Connect après réévaluation (non bloquant)
+      void resyncMealToHealthConnect(
+        meal.id,
+        {
+          meal_name: (meal as any).meal_name || "Repas",
+          total_calories: Math.round(totals.calories),
+          total_proteins: Math.round(totals.proteins * 10) / 10,
+          total_carbs: Math.round(totals.carbs * 10) / 10,
+          total_fats: Math.round(totals.fats * 10) / 10,
+          timestamp: (meal as any).timestamp,
+        },
+        items,
+      ).catch(() => {});
       toast({ title: "Repas réévalué !" });
       onApplied();
       onClose();
