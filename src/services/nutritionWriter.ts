@@ -181,7 +181,7 @@ export async function writeMealToHealthConnect(
   items: MealItemWithMicros[] | undefined | null,
 ): Promise<void> {
   const p = getPlugin();
-  if (!p) return;
+  if (!p || !isNutritionSyncEnabled()) return;
   try {
     const payload = buildPayload(mealData, items);
     const res = await p.writeMeal(payload);
@@ -215,7 +215,7 @@ export async function resyncMealToHealthConnect(
   items: MealItemWithMicros[] | undefined | null,
 ): Promise<void> {
   const p = getPlugin();
-  if (!p) return;
+  if (!p || !isNutritionSyncEnabled()) return;
   try {
     const map = readWindows();
     const old = map[mealId];
