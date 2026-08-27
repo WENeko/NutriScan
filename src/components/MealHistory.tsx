@@ -311,8 +311,22 @@ const [searchQuery, setSearchQuery] = useState("");
           } as any))
         );
       }
+      // Écriture Santé Connect du repas dupliqué (non bloquant)
+      void writeMealToHealthConnect(
+        newMeal.id,
+        {
+          meal_name: newMeal.meal_name,
+          total_calories: newMeal.total_calories,
+          total_proteins: newMeal.total_proteins,
+          total_carbs: newMeal.total_carbs,
+          total_fats: newMeal.total_fats,
+          timestamp: newMeal.timestamp,
+        },
+        (items || []).map((item: any) => hydrateMealItem(item)) as any,
+      ).catch(() => {});
       toast({ title: "Repas dupliqué !" });
       onRefresh();
+
     } catch (error: any) {
       toast({ title: "Erreur", description: error.message, variant: "destructive" });
     }
