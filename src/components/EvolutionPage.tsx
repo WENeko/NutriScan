@@ -451,7 +451,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           const isSingle = series.length === 1;
           const single = series[0];
 
-          const data = nutritionData.map((d) => {
+          const data = visibleNutritionData.map((d) => {
             const row: any = { day: d.day, date: d.date };
             series.forEach((s) => {
               row[s.key] = Math.round((Number(d[s.key]) || 0) * 10) / 10;
@@ -528,7 +528,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                   </span>
                 ))}
               </div>
-              <div className="h-48">
+              <ZoomPanArea controller={controller} className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   {chart.chart_type === "bar" ? (
                     <BarChart data={data} barGap={2}>
@@ -575,7 +575,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                     </LineChart>
                   )}
                 </ResponsiveContainer>
-              </div>
+              </ZoomPanArea>
             </section>
           );
         })}
@@ -594,13 +594,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           ].map((chart) => (
             <section key={chart.key} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
               <h3 className="font-display font-semibold text-sm mb-3" style={{ color: chart.color }}>{chart.title} ({chart.unit})</h3>
-              <div className="h-44">
+              <ZoomPanArea controller={controller} className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={bodyData}>
+                  <LineChart data={visibleBodyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
                     <YAxis 
-                      domain={getExtendedDomain(bodyData, chart.key, chart.target, chart.padding)} 
+                      domain={getExtendedDomain(visibleBodyData, chart.key, chart.target, chart.padding)} 
                       tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} 
                       width={35}
                       axisLine={false}
@@ -632,7 +632,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                     <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={3} dot={false} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
+              </ZoomPanArea>
             </section>
           ))}
         </div>
