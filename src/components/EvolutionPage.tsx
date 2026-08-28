@@ -300,57 +300,70 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             </button>
           ))}
         </div>
+        {zoomEnabled && (
+          <div className="flex items-center justify-between gap-2 max-w-lg mx-auto mt-1.5">
+            <span className="text-[10px] text-muted-foreground truncate">
+              {rangeLabel} · pincez pour zoomer, glissez pour défiler
+            </span>
+            {isZoomed && (
+              <button onClick={resetZoom} className="flex items-center gap-1 text-[10px] font-semibold text-primary shrink-0">
+                <RotateCcw className="w-3 h-3" /> Réinit.
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 1. CALORIES */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
-        <div className="h-48">
+        <ZoomPanArea controller={controller} className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart 
-              data={nutritionData} 
+              data={visibleNutritionData} 
               onMouseMove={(state) => { if (state.activeTooltipIndex !== undefined) setActiveIndex(state.activeTooltipIndex); }}
               onMouseLeave={() => setActiveIndex(null)}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={12} />
               <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
               <Tooltip 
                 contentStyle={tooltipStyle} 
                 itemStyle={{ color: "#FFFFFF" }}
                 cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
               />
-              <Bar dataKey="calories" radius={[4, 4, 0, 0]}>
-                {nutritionData.map((entry, index) => (
+              <Bar dataKey="calories" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                {visibleNutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
               <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
+        </ZoomPanArea>
       </section>
 
       {/* 2. MACRONUTRIMENTS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Macronutriments (g)</h3>
-        <div className="h-56">
+        <ZoomPanArea controller={controller} className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={nutritionData}>
+            <LineChart data={visibleNutritionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={12} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Line type="monotone" dataKey="proteinGoal" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Prot." isAnimationActive={false} />
               <Line type="monotone" dataKey="carbsGoal" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Gluc." isAnimationActive={false} />
               <Line type="monotone" dataKey="fatsGoal" stroke="#F43F5E" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Lip." isAnimationActive={false} />
-              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={false} name="Prot." />
-              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={false} name="Gluc." />
-              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={false} name="Lip." />
+              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={false} name="Prot." isAnimationActive={false} />
+              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={false} name="Gluc." isAnimationActive={false} />
+              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={false} name="Lip." isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </ZoomPanArea>
       </section>
+
 
       {/* 3. RADAR MICROS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
