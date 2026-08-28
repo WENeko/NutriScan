@@ -50,9 +50,27 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   useEffect(() => { fetchData(); }, [userId, period, customNutrients]);
 
   const fetchData = async () => {
-    const startDate = period === "7d" ? subDays(new Date(), 6) : period === "30d" ? subDays(new Date(), 29) : subMonths(new Date(), 6);
     const today = new Date();
-    const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
+    let startDate = period === "7d" ? subDays(today, 6) : subDays(today, 29);
+
+    if (period === "all") {
+      // Amplitude complète des enregistrements (repas + composition corporelle)
+      const [{ data: firstMeal }, { data: firstBody }] = await Promise.all([
+        supabase.from("meals").select("timestamp").eq("user_id", userId).order("timestamp").limit(1),
+        supabase.from("body_composition").select("recorded_at").eq("user_id", userId).order("recorded_at").limit(1),
+      ]);
+      const candidates: Date[] = [];
+      if (firstMeal?.[0]?.timestamp) candidates.push(new Date(firstMeal[0].timestamp));
+      if (firstBody?.[0]?.recorded_at) candidates.push(parseISO(firstBody[0].recorded_at));
+      const earliest = candidates.length
+        ? new Date(Math.min(...candidates.map((d) => d.getTime())))
+        : subMonths(today, 3);
+      // Toujours au moins 3 mois d'axe pour la vue par défaut
+      startDate = earliest < subMonths(today, 3) ? earliest : subMonths(today, 3);
+    }
+
+    const numDays = differenceInCalendarDays(startOfDay(today), startOfDay(startDate)) + 1;
+
 
     const { data: meals } = await supabase
       .from("meals")
