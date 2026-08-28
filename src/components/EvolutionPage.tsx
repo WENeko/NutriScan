@@ -252,9 +252,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   );
 
   const radarData = useMemo(() => {
-    const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
+    const daysWithData = visibleNutritionData.filter((d) => d.calories > 0).length || 1;
     return resolvedMicros.map((m) => {
-      const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
+      const avg = visibleNutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
+
       const goal = m.goal > 0 ? m.goal : 1;
       const pct = (avg / goal) * 100;
       return {
