@@ -235,6 +235,13 @@ export async function resyncMealToHealthConnect(
   const p = getPlugin();
   if (!p || !isNutritionSyncEnabled()) return;
   try {
+    if (!(await hasNutritionWritePermission())) {
+      const granted = await requestNutritionWritePermission();
+      if (!granted) {
+        appLogger.warn("NutritionWriter", "resync : permission refusée", { mealId });
+        return;
+      }
+    }
     const map = readWindows();
     const old = map[mealId];
     if (old) {
