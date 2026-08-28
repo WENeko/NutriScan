@@ -179,24 +179,42 @@ export async function writeMealToHealthConnect(
     timestamp?: string;
   },
   items: MealItemWithMicros[] | undefined | null,
+  context = "write",
 ): Promise<void> {
   const p = getPlugin();
-  if (!p || !isNutritionSyncEnabled()) return;
+  if (!p) {
+    appLogger.info("NutritionWriter", "ignoré : plugin absent", { mealId, context });
+    return;
+  }
+  if (!isNutritionSyncEnabled()) {
+    appLogger.info("NutritionWriter", "ignoré : sync désactivée", { mealId, context });
+    return;
+  }
   try {
+    // Health Connect révoque les permissions après une longue inactivité :
+    // on revérifie (et redemande) avant chaque écriture.
+    if (!(await hasNutritionWritePermission())) {
+      const granted = await requestNutritionWritePermission();
+      if (!granted) {
+        appLogger.warn("NutritionWriter", "permission refusée", { mealId, context });
+        return;
+      }
+    }
     const payload = buildPayload(mealData, items);
     const res = await p.writeMeal(payload);
     if (res?.ok) {
       const map = readWindows();
       map[mealId] = { startTime: payload.startTime };
       writeWindows(map);
-      appLogger.info("NutritionWriter", "écrit", { mealId, kcal: payload.kcal });
+      appLogger.info("NutritionWriter", "écrit", { mealId, context, kcal: payload.kcal, startTime: payload.startTime });
     } else {
-      appLogger.warn("NutritionWriter", "échec écriture", { mealId, error: res?.error });
+      appLogger.warn("NutritionWriter", "échec écriture", { mealId, context, error: res?.error });
     }
   } catch (e: any) {
-    appLogger.warn("NutritionWriter", "exception", { mealId, error: e?.message });
+    appLogger.warn("NutritionWriter", "exception", { mealId, context, error: e?.message });
   }
 }
+
 
 /**
  * Resynchronise un repas modifié : supprime l'ancienne fenêtre temporelle
