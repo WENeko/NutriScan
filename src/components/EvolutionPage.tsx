@@ -207,6 +207,32 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     setGoalsHistory(goalsList);
   };
 
+  // --- Zoom / pan sur l'axe temporel (30 jours & Global) ---
+  const zoomEnabled = period !== "7d";
+  const defaultVisibleCount = period === "all" ? 90 : nutritionData.length || 30;
+  const { window: zoomWindow, isZoomed, reset: resetZoom, controller } = useChartZoomPan(
+    nutritionData.length,
+    defaultVisibleCount,
+    zoomEnabled,
+  );
+
+  const visibleNutritionData = useMemo(
+    () => nutritionData.slice(zoomWindow.start, zoomWindow.start + zoomWindow.count),
+    [nutritionData, zoomWindow],
+  );
+
+  const visibleBodyData = useMemo(() => {
+    if (!visibleNutritionData.length) return bodyData;
+    const from = visibleNutritionData[0].key;
+    const to = visibleNutritionData[visibleNutritionData.length - 1].key;
+    return bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
+  }, [bodyData, visibleNutritionData]);
+
+  const rangeLabel = visibleNutritionData.length
+    ? `${visibleNutritionData[0].date} → ${visibleNutritionData[visibleNutritionData.length - 1].date}`
+    : "";
+
+
   const resolvedMicros = useMemo(
     () => resolveMicroGoals(
       {
