@@ -154,8 +154,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     setBodyData(Array.from(bodyByDay.values())
       .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
       .map(b => ({
+        key: String(b.recorded_at).slice(0, 10),
         day: format(new Date(b.recorded_at), "dd/MM"),
         date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
+
         weight: round1(b.weight_kg),
         bodyFat: round1(b.body_fat_percent),
         muscleMass: round1(b.muscle_mass_kg)
