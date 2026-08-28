@@ -105,10 +105,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       const d = subDays(today, numDays - 1 - i);
       const key = format(d, "yyyy-MM-dd");
       dayMap[key] = {
+        key,
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: format(d, "dd/MM/yyyy"),
         calories: 0, proteins: 0, carbs: 0, fats: 0
       };
+
       allMicros.forEach(n => dayMap[key][n.key] = 0);
     }
 
