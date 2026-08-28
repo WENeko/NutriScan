@@ -50,9 +50,27 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   useEffect(() => { fetchData(); }, [userId, period, customNutrients]);
 
   const fetchData = async () => {
-    const startDate = period === "7d" ? subDays(new Date(), 6) : period === "30d" ? subDays(new Date(), 29) : subMonths(new Date(), 6);
     const today = new Date();
-    const numDays = period === "7d" ? 7 : period === "30d" ? 30 : 180;
+    let startDate = period === "7d" ? subDays(today, 6) : subDays(today, 29);
+
+    if (period === "all") {
+      // Amplitude complète des enregistrements (repas + composition corporelle)
+      const [{ data: firstMeal }, { data: firstBody }] = await Promise.all([
+        supabase.from("meals").select("timestamp").eq("user_id", userId).order("timestamp").limit(1),
+        supabase.from("body_composition").select("recorded_at").eq("user_id", userId).order("recorded_at").limit(1),
+      ]);
+      const candidates: Date[] = [];
+      if (firstMeal?.[0]?.timestamp) candidates.push(new Date(firstMeal[0].timestamp));
+      if (firstBody?.[0]?.recorded_at) candidates.push(parseISO(firstBody[0].recorded_at));
+      const earliest = candidates.length
+        ? new Date(Math.min(...candidates.map((d) => d.getTime())))
+        : subMonths(today, 3);
+      // Toujours au moins 3 mois d'axe pour la vue par défaut
+      startDate = earliest < subMonths(today, 3) ? earliest : subMonths(today, 3);
+    }
+
+    const numDays = differenceInCalendarDays(startOfDay(today), startOfDay(startDate)) + 1;
+
 
     const { data: meals } = await supabase
       .from("meals")
@@ -87,10 +105,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       const d = subDays(today, numDays - 1 - i);
       const key = format(d, "yyyy-MM-dd");
       dayMap[key] = {
+        key,
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: format(d, "dd/MM/yyyy"),
         calories: 0, proteins: 0, carbs: 0, fats: 0
       };
+
       allMicros.forEach(n => dayMap[key][n.key] = 0);
     }
 
@@ -134,8 +154,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     setBodyData(Array.from(bodyByDay.values())
       .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
       .map(b => ({
+        key: String(b.recorded_at).slice(0, 10),
         day: format(new Date(b.recorded_at), "dd/MM"),
         date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
+
         weight: round1(b.weight_kg),
         bodyFat: round1(b.body_fat_percent),
         muscleMass: round1(b.muscle_mass_kg)
@@ -185,6 +207,32 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     setGoalsHistory(goalsList);
   };
 
+  // --- Zoom / pan sur l'axe temporel (30 jours & Global) ---
+  const zoomEnabled = period !== "7d";
+  const defaultVisibleCount = period === "all" ? 90 : nutritionData.length || 30;
+  const { window: zoomWindow, isZoomed, reset: resetZoom, controller } = useChartZoomPan(
+    nutritionData.length,
+    defaultVisibleCount,
+    zoomEnabled,
+  );
+
+  const visibleNutritionData = useMemo(
+    () => nutritionData.slice(zoomWindow.start, zoomWindow.start + zoomWindow.count),
+    [nutritionData, zoomWindow],
+  );
+
+  const visibleBodyData = useMemo(() => {
+    if (!visibleNutritionData.length) return bodyData;
+    const from = visibleNutritionData[0].key;
+    const to = visibleNutritionData[visibleNutritionData.length - 1].key;
+    return bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
+  }, [bodyData, visibleNutritionData]);
+
+  const rangeLabel = visibleNutritionData.length
+    ? `${visibleNutritionData[0].date} → ${visibleNutritionData[visibleNutritionData.length - 1].date}`
+    : "";
+
+
   const resolvedMicros = useMemo(
     () => resolveMicroGoals(
       {
@@ -204,9 +252,10 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   );
 
   const radarData = useMemo(() => {
-    const daysWithData = nutritionData.filter((d) => d.calories > 0).length || 1;
+    const daysWithData = visibleNutritionData.filter((d) => d.calories > 0).length || 1;
     return resolvedMicros.map((m) => {
-      const avg = nutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
+      const avg = visibleNutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
+
       const goal = m.goal > 0 ? m.goal : 1;
       const pct = (avg / goal) * 100;
       return {
@@ -251,57 +300,70 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             </button>
           ))}
         </div>
+        {zoomEnabled && (
+          <div className="flex items-center justify-between gap-2 max-w-lg mx-auto mt-1.5">
+            <span className="text-[10px] text-muted-foreground truncate">
+              {rangeLabel} · pincez pour zoomer, glissez pour défiler
+            </span>
+            {isZoomed && (
+              <button onClick={resetZoom} className="flex items-center gap-1 text-[10px] font-semibold text-primary shrink-0">
+                <RotateCcw className="w-3 h-3" /> Réinit.
+              </button>
+            )}
+          </div>
+        )}
       </div>
 
       {/* 1. CALORIES */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
-        <div className="h-48">
+        <ZoomPanArea controller={controller} className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart 
-              data={nutritionData} 
+              data={visibleNutritionData} 
               onMouseMove={(state) => { if (state.activeTooltipIndex !== undefined) setActiveIndex(state.activeTooltipIndex); }}
               onMouseLeave={() => setActiveIndex(null)}
             >
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={12} />
               <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
               <Tooltip 
                 contentStyle={tooltipStyle} 
                 itemStyle={{ color: "#FFFFFF" }}
                 cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
               />
-              <Bar dataKey="calories" radius={[4, 4, 0, 0]}>
-                {nutritionData.map((entry, index) => (
+              <Bar dataKey="calories" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+                {visibleNutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
               <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
-        </div>
+        </ZoomPanArea>
       </section>
 
       {/* 2. MACRONUTRIMENTS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-3">Macronutriments (g)</h3>
-        <div className="h-56">
+        <ZoomPanArea controller={controller} className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={nutritionData}>
+            <LineChart data={visibleNutritionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10 }} />
+              <XAxis dataKey="day" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={12} />
               <YAxis tick={{ fontSize: 10 }} />
               <Tooltip contentStyle={tooltipStyle} />
               <Line type="monotone" dataKey="proteinGoal" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Prot." isAnimationActive={false} />
               <Line type="monotone" dataKey="carbsGoal" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Gluc." isAnimationActive={false} />
               <Line type="monotone" dataKey="fatsGoal" stroke="#F43F5E" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Lip." isAnimationActive={false} />
-              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={false} name="Prot." />
-              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={false} name="Gluc." />
-              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={false} name="Lip." />
+              <Line type="monotone" dataKey="proteins" stroke="#3B82F6" strokeWidth={3} dot={false} name="Prot." isAnimationActive={false} />
+              <Line type="monotone" dataKey="carbs" stroke="#F59E0B" strokeWidth={3} dot={false} name="Gluc." isAnimationActive={false} />
+              <Line type="monotone" dataKey="fats" stroke="#F43F5E" strokeWidth={3} dot={false} name="Lip." isAnimationActive={false} />
             </LineChart>
           </ResponsiveContainer>
-        </div>
+        </ZoomPanArea>
       </section>
+
 
       {/* 3. RADAR MICROS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
@@ -389,7 +451,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           const isSingle = series.length === 1;
           const single = series[0];
 
-          const data = nutritionData.map((d) => {
+          const data = visibleNutritionData.map((d) => {
             const row: any = { day: d.day, date: d.date };
             series.forEach((s) => {
               row[s.key] = Math.round((Number(d[s.key]) || 0) * 10) / 10;
@@ -426,7 +488,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           const commonAxes = (
             <>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={12} />
               <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
@@ -466,7 +528,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                   </span>
                 ))}
               </div>
-              <div className="h-48">
+              <ZoomPanArea controller={controller} className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   {chart.chart_type === "bar" ? (
                     <BarChart data={data} barGap={2}>
@@ -513,7 +575,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                     </LineChart>
                   )}
                 </ResponsiveContainer>
-              </div>
+              </ZoomPanArea>
             </section>
           );
         })}
@@ -532,13 +594,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           ].map((chart) => (
             <section key={chart.key} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
               <h3 className="font-display font-semibold text-sm mb-3" style={{ color: chart.color }}>{chart.title} ({chart.unit})</h3>
-              <div className="h-44">
+              <ZoomPanArea controller={controller} className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={bodyData}>
+                  <LineChart data={visibleBodyData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
                     <YAxis 
-                      domain={getExtendedDomain(bodyData, chart.key, chart.target, chart.padding)} 
+                      domain={getExtendedDomain(visibleBodyData, chart.key, chart.target, chart.padding)} 
                       tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} 
                       width={35}
                       axisLine={false}
@@ -570,7 +632,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                     <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={3} dot={false} connectNulls />
                   </LineChart>
                 </ResponsiveContainer>
-              </div>
+              </ZoomPanArea>
             </section>
           ))}
         </div>

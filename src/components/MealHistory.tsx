@@ -311,8 +311,8 @@ const [searchQuery, setSearchQuery] = useState("");
           } as any))
         );
       }
-      // Écriture Santé Connect du repas dupliqué (non bloquant)
-      void writeMealToHealthConnect(
+      // Écriture Santé Connect du repas dupliqué (attendue pour remonter les erreurs)
+      await writeMealToHealthConnect(
         newMeal.id,
         {
           meal_name: newMeal.meal_name,
@@ -320,11 +320,13 @@ const [searchQuery, setSearchQuery] = useState("");
           total_proteins: newMeal.total_proteins,
           total_carbs: newMeal.total_carbs,
           total_fats: newMeal.total_fats,
-          timestamp: newMeal.timestamp,
+          timestamp: newMeal.timestamp || new Date().toISOString(),
         },
         (items || []).map((item: any) => hydrateMealItem(item)) as any,
+        "duplicate",
       ).catch(() => {});
       toast({ title: "Repas dupliqué !" });
+
       onRefresh();
 
     } catch (error: any) {
