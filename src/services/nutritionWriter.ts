@@ -185,15 +185,15 @@ export async function writeMealToHealthConnect(
   },
   items: MealItemWithMicros[] | undefined | null,
   context = "write",
-): Promise<void> {
+): Promise<boolean> {
   const p = getPlugin();
   if (!p) {
     appLogger.info("NutritionWriter", "ignoré : plugin absent", { mealId, context });
-    return;
+    return false;
   }
   if (!isNutritionSyncEnabled()) {
     appLogger.info("NutritionWriter", "ignoré : sync désactivée", { mealId, context });
-    return;
+    return false;
   }
   try {
     // Health Connect révoque les permissions après une longue inactivité :
@@ -202,7 +202,7 @@ export async function writeMealToHealthConnect(
       const granted = await requestNutritionWritePermission();
       if (!granted) {
         appLogger.warn("NutritionWriter", "permission refusée", { mealId, context });
-        return;
+        return false;
       }
     }
     const payload = buildPayload(mealData, items);
@@ -212,11 +212,14 @@ export async function writeMealToHealthConnect(
       map[mealId] = { startTime: payload.startTime };
       writeWindows(map);
       appLogger.info("NutritionWriter", "écrit", { mealId, context, kcal: payload.kcal, startTime: payload.startTime });
+      return true;
     } else {
       appLogger.warn("NutritionWriter", "échec écriture", { mealId, context, error: res?.error });
+      return false;
     }
   } catch (e: any) {
     appLogger.warn("NutritionWriter", "exception", { mealId, context, error: e?.message });
+    return false;
   }
 }
 

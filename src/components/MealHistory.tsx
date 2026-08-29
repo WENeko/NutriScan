@@ -296,7 +296,7 @@ const [searchQuery, setSearchQuery] = useState("");
         .select().single();
       if (mealErr) throw mealErr;
       if (items && items.length > 0) {
-        await supabase.from("meal_items").insert(
+        const { error: duplicatedItemsError } = await supabase.from("meal_items").insert(
           items.map((item: any) => ({
             meal_id: newMeal.id,
             name: item.name,
@@ -312,9 +312,9 @@ const [searchQuery, setSearchQuery] = useState("");
             nutrients_custom: item.nutrients_custom ?? {},
           } as any))
         );
+        if (duplicatedItemsError) throw duplicatedItemsError;
       }
-      // Écriture Santé Connect du repas dupliqué (attendue pour remonter les erreurs)
-      await writeMealToHealthConnect(
+      const healthConnectWritten = await writeMealToHealthConnect(
         newMeal.id,
         {
           meal_name: newMeal.meal_name,
@@ -326,8 +326,16 @@ const [searchQuery, setSearchQuery] = useState("");
         },
         (items || []).map((item: any) => hydrateMealItem(item)) as any,
         "duplicate",
-      ).catch(() => {});
-      toast({ title: "Repas dupliqué !" });
+      );
+      toast({
+        title: healthConnectWritten
+          ? "Repas dupliqué et synchronisé"
+          : "Repas dupliqué",
+        description: healthConnectWritten
+          ? undefined
+          : "La synchronisation avec Santé Connect n’a pas abouti. Consultez les autorisations de l’application.",
+        variant: healthConnectWritten ? "default" : "destructive",
+      });
 
       onRefresh();
 
