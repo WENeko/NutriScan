@@ -134,9 +134,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at")
       .order("created_at");
+    // Point d'ancrage : dernier enregistrement AVANT la fenêtre, pour que la
+    // courbe puisse être tracée jusqu'au premier point visible (sinon un seul
+    // point dans la fenêtre = graphique vide).
+    const { data: bodyBefore } = await supabase
+      .from("body_composition")
+      .select("*")
+      .eq("user_id", userId)
+      .lt("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .order("recorded_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1);
     // Déduplication par jour : priorité à health_connect, sinon la dernière entrée créée
     const bodyByDay = new Map<string, any>();
-    (bodyComp || []).forEach((b: any) => {
+    [...(bodyBefore || []), ...(bodyComp || [])].forEach((b: any) => {
+
       const key = b.recorded_at;
       const existing = bodyByDay.get(key);
       if (!existing) { bodyByDay.set(key, b); return; }
