@@ -237,8 +237,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     if (!visibleNutritionData.length) return bodyData;
     const from = visibleNutritionData[0].key;
     const to = visibleNutritionData[visibleNutritionData.length - 1].key;
-    return bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
+    const inRange = bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
+    // Conserve le dernier point antérieur à la fenêtre pour amorcer la courbe
+    const anchor = [...bodyData].reverse().find((b) => b.key && b.key < from);
+    return anchor ? [anchor, ...inRange] : inRange;
   }, [bodyData, visibleNutritionData]);
+
 
   const rangeLabel = visibleNutritionData.length
     ? `${visibleNutritionData[0].date} → ${visibleNutritionData[visibleNutritionData.length - 1].date}`
