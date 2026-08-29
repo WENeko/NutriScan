@@ -274,6 +274,7 @@ const [searchQuery, setSearchQuery] = useState("");
       if (itemsErr) throw itemsErr;
       const originalMeal = meals.find((m) => m.id === mealId);
       if (!originalMeal) return;
+      const duplicatedAt = new Date().toISOString();
       const { data: newMeal, error: mealErr } = await supabase
         .from("meals")
         .insert({
@@ -284,6 +285,7 @@ const [searchQuery, setSearchQuery] = useState("");
           total_proteins: originalMeal.total_proteins,
           total_carbs: originalMeal.total_carbs,
           total_fats: originalMeal.total_fats,
+          timestamp: duplicatedAt,
           is_confirmed: true,
           is_favorite: originalMeal.is_favorite || false,
           parent_meal_id: (originalMeal as any).parent_meal_id ?? mealId,
@@ -320,7 +322,7 @@ const [searchQuery, setSearchQuery] = useState("");
           total_proteins: newMeal.total_proteins,
           total_carbs: newMeal.total_carbs,
           total_fats: newMeal.total_fats,
-          timestamp: newMeal.timestamp || new Date().toISOString(),
+          timestamp: duplicatedAt,
         },
         (items || []).map((item: any) => hydrateMealItem(item)) as any,
         "duplicate",

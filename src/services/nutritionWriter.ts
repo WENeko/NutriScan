@@ -83,9 +83,14 @@ function buildPayload(
   },
   items: MealItemWithMicros[] | undefined | null,
 ) {
-  const startIso = mealData.timestamp || new Date().toISOString();
-  const end = new Date(startIso);
-  end.setMinutes(end.getMinutes() + 1);
+  // Health Connect refuse les intervalles qui se terminent dans le futur.
+  // Une duplication est horodatée à l'instant même : l'ancien intervalle
+  // [timestamp, timestamp + 1 min] était donc systématiquement rejeté.
+  // Le timestamp du repas représente désormais la fin de l'intervalle.
+  const mealTime = new Date(mealData.timestamp || new Date().toISOString());
+  const end = new Date(Math.min(mealTime.getTime(), Date.now()));
+  const start = new Date(end.getTime() - 60_000);
+  const startIso = start.toISOString();
   const s = sumItems(items);
   return {
     startTime: startIso,
@@ -110,7 +115,7 @@ function buildPayload(
     vitaminB12Grams: s.vitamin_b12_mcg / 1_000_000,
     vitaminEGrams: s.vitamin_e_mg / 1000,
     name: mealData.meal_name || "Repas NutriScan",
-    mealType: deriveMealType(startIso),
+    mealType: deriveMealType(mealTime.toISOString()),
   };
 }
 
