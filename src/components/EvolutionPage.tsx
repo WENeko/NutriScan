@@ -134,9 +134,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
       .order("recorded_at")
       .order("created_at");
+    // Point d'ancrage : dernier enregistrement AVANT la fenêtre, pour que la
+    // courbe puisse être tracée jusqu'au premier point visible (sinon un seul
+    // point dans la fenêtre = graphique vide).
+    const { data: bodyBefore } = await supabase
+      .from("body_composition")
+      .select("*")
+      .eq("user_id", userId)
+      .lt("recorded_at", format(startDate, "yyyy-MM-dd"))
+      .order("recorded_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(1);
     // Déduplication par jour : priorité à health_connect, sinon la dernière entrée créée
     const bodyByDay = new Map<string, any>();
-    (bodyComp || []).forEach((b: any) => {
+    [...(bodyBefore || []), ...(bodyComp || [])].forEach((b: any) => {
+
       const key = b.recorded_at;
       const existing = bodyByDay.get(key);
       if (!existing) { bodyByDay.set(key, b); return; }
@@ -225,8 +237,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     if (!visibleNutritionData.length) return bodyData;
     const from = visibleNutritionData[0].key;
     const to = visibleNutritionData[visibleNutritionData.length - 1].key;
-    return bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
+    const inRange = bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
+    // Conserve le dernier point antérieur à la fenêtre pour amorcer la courbe
+    const anchor = [...bodyData].reverse().find((b) => b.key && b.key < from);
+    return anchor ? [anchor, ...inRange] : inRange;
   }, [bodyData, visibleNutritionData]);
+
 
   const rangeLabel = visibleNutritionData.length
     ? `${visibleNutritionData[0].date} → ${visibleNutritionData[visibleNutritionData.length - 1].date}`
