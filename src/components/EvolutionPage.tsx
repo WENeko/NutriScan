@@ -137,17 +137,24 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     // Point d'ancrage : dernier enregistrement AVANT la fenêtre, pour que la
     // courbe puisse être tracée jusqu'au premier point visible (sinon un seul
     // point dans la fenêtre = graphique vide).
-    const { data: bodyBefore } = await supabase
-      .from("body_composition")
-      .select("*")
-      .eq("user_id", userId)
-      .lt("recorded_at", format(startDate, "yyyy-MM-dd"))
-      .order("recorded_at", { ascending: false })
-      .order("created_at", { ascending: false })
-      .limit(1);
+    // Une ancre distincte est nécessaire par mesure : le relevé précédent de
+    // poids peut ne contenir ni masse grasse ni masse musculaire (et inversement).
+    const previousBodyQueries = ["weight_kg", "body_fat_percent", "muscle_mass_kg"].map((column) =>
+      supabase
+        .from("body_composition")
+        .select("*")
+        .eq("user_id", userId)
+        .lt("recorded_at", format(startDate, "yyyy-MM-dd"))
+        .not(column, "is", null)
+        .order("recorded_at", { ascending: false })
+        .order("created_at", { ascending: false })
+        .limit(1),
+    );
+    const previousBodyResults = await Promise.all(previousBodyQueries);
+    const bodyBefore = previousBodyResults.flatMap(({ data }) => data || []);
     // Déduplication par jour : priorité à health_connect, sinon la dernière entrée créée
     const bodyByDay = new Map<string, any>();
-    [...(bodyBefore || []), ...(bodyComp || [])].forEach((b: any) => {
+    [...bodyBefore, ...(bodyComp || [])].forEach((b: any) => {
 
       const key = b.recorded_at;
       const existing = bodyByDay.get(key);
@@ -233,15 +240,16 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     [nutritionData, zoomWindow],
   );
 
-  const visibleBodyData = useMemo(() => {
-    if (!visibleNutritionData.length) return bodyData;
+  const getVisibleBodySeries = (metricKey: string) => {
+    const hasValue = (entry: any) => entry[metricKey] !== null && Number.isFinite(Number(entry[metricKey]));
+    if (!visibleNutritionData.length) return bodyData.filter(hasValue);
     const from = visibleNutritionData[0].key;
     const to = visibleNutritionData[visibleNutritionData.length - 1].key;
-    const inRange = bodyData.filter((b) => !b.key || (b.key >= from && b.key <= to));
-    // Conserve le dernier point antérieur à la fenêtre pour amorcer la courbe
-    const anchor = [...bodyData].reverse().find((b) => b.key && b.key < from);
+    const inRange = bodyData.filter((b) => hasValue(b) && (!b.key || (b.key >= from && b.key <= to)));
+    // Conserve le dernier point antérieur qui possède réellement cette mesure.
+    const anchor = [...bodyData].reverse().find((b) => hasValue(b) && b.key && b.key < from);
     return anchor ? [anchor, ...inRange] : inRange;
-  }, [bodyData, visibleNutritionData]);
+  };
 
 
   const rangeLabel = visibleNutritionData.length
@@ -607,16 +615,18 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             { title: "Poids", key: "weight", unit: "kg", color: "hsl(var(--primary))", target: targetWeight, padding: 2 },
             { title: "Masse Grasse", key: "bodyFat", unit: "%", color: "#F43F5E", target: targetBodyFat, padding: 1 },
             { title: "Masse Musculaire", key: "muscleMass", unit: "kg", color: "#3B82F6", target: targetMuscleMass, padding: 1 }
-          ].map((chart) => (
+          ].map((chart) => {
+            const chartData = getVisibleBodySeries(chart.key);
+            return (
             <section key={chart.key} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
               <h3 className="font-display font-semibold text-sm mb-3" style={{ color: chart.color }}>{chart.title} ({chart.unit})</h3>
               <ZoomPanArea controller={controller} className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={visibleBodyData}>
+                  <LineChart data={chartData}>
                     <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
                     <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
                     <YAxis 
-                      domain={getExtendedDomain(visibleBodyData, chart.key, chart.target, chart.padding)} 
+                      domain={getExtendedDomain(chartData, chart.key, chart.target, chart.padding)} 
                       tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} 
                       width={35}
                       axisLine={false}
@@ -645,12 +655,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                         label={{ position: 'insideTopRight', value: 'Cible', fill: chart.color, fontSize: 9, opacity: 0.8 }}
                       />
                     )}
-                    <Line type="monotone" dataKey={chart.key} stroke={chart.color} strokeWidth={3} dot={false} connectNulls />
+                    <Line
+                      type="monotone"
+                      dataKey={chart.key}
+                      stroke={chart.color}
+                      strokeWidth={3}
+                      dot={chartData.length === 1 ? { r: 3, fill: chart.color } : false}
+                      connectNulls
+                      isAnimationActive={false}
+                    />
                   </LineChart>
                 </ResponsiveContainer>
               </ZoomPanArea>
             </section>
-          ))}
+            );
+          })}
         </div>
       )}
     </div>
