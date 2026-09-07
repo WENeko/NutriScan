@@ -219,14 +219,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       })));
 
     // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
-    const { data: goalsHist } = await supabase
-      .from("goals_history")
-      .select("*")
-      .eq("user_id", userId)
-      .lte("recorded_at", format(today, "yyyy-MM-dd"))
-      .order("recorded_at");
+    const goalsHist: any[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("goals_history")
+        .select("*")
+        .eq("user_id", userId)
+        .lte("recorded_at", format(today, "yyyy-MM-dd"))
+        .order("recorded_at")
+        .range(offset, offset + PAGE - 1);
+      const rows = page || [];
+      goalsHist.push(...rows);
+      if (rows.length < PAGE) break;
+    }
 
-    const goalsList = (goalsHist || []).map((g: any) => ({
+    const goalsList = goalsHist.map((g: any) => ({
       recorded_at: g.recorded_at,
       calories: Number(g.calories),
       proteins: Number(g.proteins),
