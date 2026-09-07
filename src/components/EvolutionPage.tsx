@@ -72,33 +72,54 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     const numDays = differenceInCalendarDays(startOfDay(today), startOfDay(startDate)) + 1;
 
 
-    const { data: meals } = await supabase
-      .from("meals")
-      .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
-      .eq("user_id", userId)
-      .gte("timestamp", startOfDay(startDate).toISOString())
-      .lte("timestamp", endOfDay(today).toISOString());
+    // Pagination : PostgREST plafonne à 1000 lignes par requête. Sans cela, la
+    // vue "Global" perd des repas et affiche des totaux trop faibles.
+    const PAGE = 1000;
+    const meals: any[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("meals")
+        .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
+        .eq("user_id", userId)
+        .gte("timestamp", startOfDay(startDate).toISOString())
+        .lte("timestamp", endOfDay(today).toISOString())
+        .order("timestamp")
+        .range(offset, offset + PAGE - 1);
+      const rows = page || [];
+      meals.push(...rows);
+      if (rows.length < PAGE) break;
+    }
 
-    const mealIds = (meals || []).map((m: any) => m.id);
+    const mealIds = meals.map((m: any) => m.id);
     const microsByMeal: Record<string, Record<string, number>> = {};
 
     if (mealIds.length > 0) {
       // Source unique de vérité : JSONB nutrients_std + nutrients_custom
-      const { data: items } = await supabase
-        .from("meal_items")
-        .select("meal_id, nutrients_std, nutrients_custom")
-        .in("meal_id", mealIds);
-      if (items) {
-        (items as any[]).forEach((item) => {
-          if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
-          const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
-          for (const [k, v] of Object.entries(merged)) {
-            const n = Number(v) || 0;
-            microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + n;
-          }
-        });
+      const CHUNK = 200;
+      const items: any[] = [];
+      for (let i = 0; i < mealIds.length; i += CHUNK) {
+        const idsChunk = mealIds.slice(i, i + CHUNK);
+        for (let offset = 0; ; offset += PAGE) {
+          const { data: page } = await supabase
+            .from("meal_items")
+            .select("meal_id, nutrients_std, nutrients_custom")
+            .in("meal_id", idsChunk)
+            .range(offset, offset + PAGE - 1);
+          const rows = page || [];
+          items.push(...rows);
+          if (rows.length < PAGE) break;
+        }
       }
+      items.forEach((item) => {
+        if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
+        const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
+        for (const [k, v] of Object.entries(merged)) {
+          const n = Number(v) || 0;
+          microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + n;
+        }
+      });
     }
+
 
     const dayMap: Record<string, any> = {};
     for (let i = 0; i < numDays; i++) {
@@ -114,26 +135,41 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       allMicros.forEach(n => dayMap[key][n.key] = 0);
     }
 
-    (meals || []).forEach((m: any) => {
+    meals.forEach((m: any) => {
       const key = format(new Date(m.timestamp), "yyyy-MM-dd");
       if (dayMap[key]) {
-        dayMap[key].calories += Math.round(Number(m.total_calories));
-        dayMap[key].proteins += Math.round(Number(m.total_proteins));
-        dayMap[key].carbs += Math.round(Number(m.total_carbs));
-        dayMap[key].fats += Math.round(Number(m.total_fats));
+        dayMap[key].calories += Number(m.total_calories) || 0;
+        dayMap[key].proteins += Number(m.total_proteins) || 0;
+        dayMap[key].carbs += Number(m.total_carbs) || 0;
+        dayMap[key].fats += Number(m.total_fats) || 0;
         const micros = microsByMeal[m.id];
         if (micros) Object.keys(micros).forEach((k) => {
           dayMap[key][k] = (dayMap[key][k] || 0) + micros[k];
         });
       }
     });
-    const { data: bodyComp } = await supabase
-      .from("body_composition")
-      .select("*")
-      .eq("user_id", userId)
-      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
-      .order("recorded_at")
-      .order("created_at");
+    // Arrondi une seule fois, après agrégation de la journée
+    Object.values(dayMap).forEach((d: any) => {
+      d.calories = Math.round(d.calories);
+      d.proteins = Math.round(d.proteins);
+      d.carbs = Math.round(d.carbs);
+      d.fats = Math.round(d.fats);
+    });
+
+    const bodyComp: any[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("body_composition")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+        .order("recorded_at")
+        .order("created_at")
+        .range(offset, offset + PAGE - 1);
+      const rows = page || [];
+      bodyComp.push(...rows);
+      if (rows.length < PAGE) break;
+    }
     // Point d'ancrage : dernier enregistrement AVANT la fenêtre, pour que la
     // courbe puisse être tracée jusqu'au premier point visible (sinon un seul
     // point dans la fenêtre = graphique vide).
@@ -183,14 +219,21 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       })));
 
     // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
-    const { data: goalsHist } = await supabase
-      .from("goals_history")
-      .select("*")
-      .eq("user_id", userId)
-      .lte("recorded_at", format(today, "yyyy-MM-dd"))
-      .order("recorded_at");
+    const goalsHist: any[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("goals_history")
+        .select("*")
+        .eq("user_id", userId)
+        .lte("recorded_at", format(today, "yyyy-MM-dd"))
+        .order("recorded_at")
+        .range(offset, offset + PAGE - 1);
+      const rows = page || [];
+      goalsHist.push(...rows);
+      if (rows.length < PAGE) break;
+    }
 
-    const goalsList = (goalsHist || []).map((g: any) => ({
+    const goalsList = goalsHist.map((g: any) => ({
       recorded_at: g.recorded_at,
       calories: Number(g.calories),
       proteins: Number(g.proteins),
