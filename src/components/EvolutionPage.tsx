@@ -135,19 +135,27 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       allMicros.forEach(n => dayMap[key][n.key] = 0);
     }
 
-    (meals || []).forEach((m: any) => {
+    meals.forEach((m: any) => {
       const key = format(new Date(m.timestamp), "yyyy-MM-dd");
       if (dayMap[key]) {
-        dayMap[key].calories += Math.round(Number(m.total_calories));
-        dayMap[key].proteins += Math.round(Number(m.total_proteins));
-        dayMap[key].carbs += Math.round(Number(m.total_carbs));
-        dayMap[key].fats += Math.round(Number(m.total_fats));
+        dayMap[key].calories += Number(m.total_calories) || 0;
+        dayMap[key].proteins += Number(m.total_proteins) || 0;
+        dayMap[key].carbs += Number(m.total_carbs) || 0;
+        dayMap[key].fats += Number(m.total_fats) || 0;
         const micros = microsByMeal[m.id];
         if (micros) Object.keys(micros).forEach((k) => {
           dayMap[key][k] = (dayMap[key][k] || 0) + micros[k];
         });
       }
     });
+    // Arrondi une seule fois, après agrégation de la journée
+    Object.values(dayMap).forEach((d: any) => {
+      d.calories = Math.round(d.calories);
+      d.proteins = Math.round(d.proteins);
+      d.carbs = Math.round(d.carbs);
+      d.fats = Math.round(d.fats);
+    });
+
     const { data: bodyComp } = await supabase
       .from("body_composition")
       .select("*")
