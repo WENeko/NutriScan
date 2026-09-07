@@ -156,13 +156,20 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       d.fats = Math.round(d.fats);
     });
 
-    const { data: bodyComp } = await supabase
-      .from("body_composition")
-      .select("*")
-      .eq("user_id", userId)
-      .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
-      .order("recorded_at")
-      .order("created_at");
+    const bodyComp: any[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("body_composition")
+        .select("*")
+        .eq("user_id", userId)
+        .gte("recorded_at", format(startDate, "yyyy-MM-dd"))
+        .order("recorded_at")
+        .order("created_at")
+        .range(offset, offset + PAGE - 1);
+      const rows = page || [];
+      bodyComp.push(...rows);
+      if (rows.length < PAGE) break;
+    }
     // Point d'ancrage : dernier enregistrement AVANT la fenêtre, pour que la
     // courbe puisse être tracée jusqu'au premier point visible (sinon un seul
     // point dans la fenêtre = graphique vide).
