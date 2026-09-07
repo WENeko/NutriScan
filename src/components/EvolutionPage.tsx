@@ -72,33 +72,54 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     const numDays = differenceInCalendarDays(startOfDay(today), startOfDay(startDate)) + 1;
 
 
-    const { data: meals } = await supabase
-      .from("meals")
-      .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
-      .eq("user_id", userId)
-      .gte("timestamp", startOfDay(startDate).toISOString())
-      .lte("timestamp", endOfDay(today).toISOString());
+    // Pagination : PostgREST plafonne à 1000 lignes par requête. Sans cela, la
+    // vue "Global" perd des repas et affiche des totaux trop faibles.
+    const PAGE = 1000;
+    const meals: any[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("meals")
+        .select("id, timestamp, total_calories, total_proteins, total_carbs, total_fats")
+        .eq("user_id", userId)
+        .gte("timestamp", startOfDay(startDate).toISOString())
+        .lte("timestamp", endOfDay(today).toISOString())
+        .order("timestamp")
+        .range(offset, offset + PAGE - 1);
+      const rows = page || [];
+      meals.push(...rows);
+      if (rows.length < PAGE) break;
+    }
 
-    const mealIds = (meals || []).map((m: any) => m.id);
+    const mealIds = meals.map((m: any) => m.id);
     const microsByMeal: Record<string, Record<string, number>> = {};
 
     if (mealIds.length > 0) {
       // Source unique de vérité : JSONB nutrients_std + nutrients_custom
-      const { data: items } = await supabase
-        .from("meal_items")
-        .select("meal_id, nutrients_std, nutrients_custom")
-        .in("meal_id", mealIds);
-      if (items) {
-        (items as any[]).forEach((item) => {
-          if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
-          const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
-          for (const [k, v] of Object.entries(merged)) {
-            const n = Number(v) || 0;
-            microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + n;
-          }
-        });
+      const CHUNK = 200;
+      const items: any[] = [];
+      for (let i = 0; i < mealIds.length; i += CHUNK) {
+        const idsChunk = mealIds.slice(i, i + CHUNK);
+        for (let offset = 0; ; offset += PAGE) {
+          const { data: page } = await supabase
+            .from("meal_items")
+            .select("meal_id, nutrients_std, nutrients_custom")
+            .in("meal_id", idsChunk)
+            .range(offset, offset + PAGE - 1);
+          const rows = page || [];
+          items.push(...rows);
+          if (rows.length < PAGE) break;
+        }
       }
+      items.forEach((item) => {
+        if (!microsByMeal[item.meal_id]) microsByMeal[item.meal_id] = {};
+        const merged = { ...(item.nutrients_std || {}), ...(item.nutrients_custom || {}) };
+        for (const [k, v] of Object.entries(merged)) {
+          const n = Number(v) || 0;
+          microsByMeal[item.meal_id][k] = (microsByMeal[item.meal_id][k] || 0) + n;
+        }
+      });
     }
+
 
     const dayMap: Record<string, any> = {};
     for (let i = 0; i < numDays; i++) {
