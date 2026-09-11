@@ -70,7 +70,17 @@ serve(async (req) => {
     const endpoint = models_endpoint && /models\s*$/.test(models_endpoint) ? models_endpoint : "/models";
     const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
     if (key) headers.Authorization = `Bearer ${key}`;
-    const res = await fetch(joinUrl(base_url, endpoint), { headers });
+
+    // GitHub Models : l'ancien hôte Azure est hors service et le catalogue vit
+    // sur une URL dédiée (hors préfixe /inference).
+    const host = parsed.hostname.toLowerCase();
+    const isGitHubModels = host === "models.github.ai" || host === "models.inference.ai.azure.com";
+    const targetUrl = isGitHubModels
+      ? "https://models.github.ai/catalog/models"
+      : joinUrl(base_url, endpoint);
+    if (isGitHubModels) headers["X-GitHub-Api-Version"] = "2022-11-28";
+
+    const res = await fetch(targetUrl, { headers });
     const text = await res.text();
     if (!res.ok) {
       console.error(`Provider models failed [${res.status}]: ${text.slice(0, 500)}`);
