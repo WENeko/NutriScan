@@ -84,6 +84,18 @@ serve(async (req) => {
     const text = await res.text();
     if (!res.ok) {
       console.error(`Provider models failed [${res.status}]: ${text.slice(0, 500)}`);
+      // GitHub Models est en cours de retrait définitif : le catalogue répond 410
+      // pendant les « brownouts », puis disparaîtra. Message clair pour l'utilisateur.
+      if (isGitHubModels && (res.status === 410 || /retirement/i.test(text))) {
+        return json(
+          {
+            error:
+              "GitHub Models est en cours de fermeture définitive par GitHub : la liste des modèles est indisponible. Utilisez un autre fournisseur (Groq, OpenRouter, Google AI Studio…).",
+            details: text.slice(0, 300),
+          },
+          res.status
+        );
+      }
       return json({ error: `Erreur ${res.status} du fournisseur`, details: text.slice(0, 500) }, res.status);
     }
     let data: unknown;
