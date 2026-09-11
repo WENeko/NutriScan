@@ -21,6 +21,25 @@ export interface AiProvider {
   display_order: number;
 }
 
+/** Vrai si l'URL pointe vers l'appareil ou un réseau privé (non joignable côté serveur). */
+function isLocalHost(baseUrl: string): boolean {
+  let host = "";
+  try {
+    host = new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    host = baseUrl.replace(/^https?:\/\//, "").split("/")[0].split(":")[0].toLowerCase();
+  }
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host.endsWith(".local") ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}
+
 /** Concatène base_url + endpoint en évitant les doubles slashs. */
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
