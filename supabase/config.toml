@@ -11,3 +11,6 @@ verify_jwt = true
 
 [functions.coach-chat]
 verify_jwt = true
+
+[functions.list-provider-models]
+verify_jwt = true

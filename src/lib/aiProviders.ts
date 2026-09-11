@@ -21,6 +21,25 @@ export interface AiProvider {
   display_order: number;
 }
 
+/** Vrai si l'URL pointe vers l'appareil ou un réseau privé (non joignable côté serveur). */
+function isLocalHost(baseUrl: string): boolean {
+  let host = "";
+  try {
+    host = new URL(baseUrl).hostname.toLowerCase();
+  } catch {
+    host = baseUrl.replace(/^https?:\/\//, "").split("/")[0].split(":")[0].toLowerCase();
+  }
+  return (
+    host === "localhost" ||
+    host === "127.0.0.1" ||
+    host === "0.0.0.0" ||
+    host.endsWith(".local") ||
+    /^10\./.test(host) ||
+    /^192\.168\./.test(host) ||
+    /^172\.(1[6-9]|2\d|3[01])\./.test(host)
+  );
+}
+
 /** Concatène base_url + endpoint en évitant les doubles slashs. */
 function joinUrl(base: string, path: string): string {
   return `${base.replace(/\/+$/, "")}/${path.replace(/^\/+/, "")}`;
@@ -50,6 +69,37 @@ export async function fetchProviderModels(
   // Un serveur perso / self-hosted (Ollama, vLLM, LocalAI…) peut être ouvert : clé facultative.
   const keyOptional = provider.api_type === "custom" || provider.api_type === "local";
   if (!apiKey && !keyOptional) throw new Error("Clé API requise pour lister les modèles.");
+
+  // La plupart des fournisseurs (GitHub Models, NVIDIA NIM, Azure AI…) n'envoient
+  // aucun en-tête CORS : un appel direct depuis le navigateur échoue avec
+  // "Failed to fetch". On relaie donc via une Edge Function, sauf pour un
+  // serveur local/réseau privé qui n'est joignable que depuis l'appareil.
+  if (!isLocalHost(provider.base_url)) {
+    const { data, error } = await supabase.functions.invoke("list-provider-models", {
+      body: {
+        api_type: provider.api_type,
+        base_url: provider.base_url,
+        models_endpoint: provider.models_endpoint,
+        api_key: apiKey,
+      },
+    });
+    if (error) {
+      let details = error.message;
+      const ctx = (error as any)?.context;
+      if (ctx?.text) {
+        try {
+          const body = JSON.parse(await ctx.text());
+          details = body?.details || body?.error || details;
+        } catch {
+          /* corps non JSON : on garde le message d'origine */
+        }
+      }
+      throw new Error(details);
+    }
+    if ((data as any)?.error) throw new Error((data as any).error);
+    return ((data as any)?.models ?? []) as string[];
+  }
+
 
   if (provider.api_type === "gemini") {
     // Endpoint canonique des modèles Gemini (robuste si la config DB est erronée).

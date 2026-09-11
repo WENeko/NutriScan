@@ -103,6 +103,25 @@ const CATALOG_BY_HOST: Record<string, ProviderCatalogEntry> = {
       ],
     },
   },
+  "models.github.ai": {
+    key: "github",
+    label: "GitHub Models",
+    icon: "🐙",
+    apiType: "openai",
+    popularity: 4,
+    keyRegex: /^(gh[ps]_[0-9A-Za-z]{30,}|github_pat_[0-9A-Za-z_]{30,})$/,
+    keyPlaceholder: "ghp_… ou github_pat_…",
+    modelPlaceholder: "openai/gpt-4o-mini",
+    guide: {
+      url: "https://github.com/settings/tokens",
+      free: true,
+      steps: [
+        "Ouvrez les paramètres de jetons GitHub (lien ci-dessous).",
+        "Générez un « Fine-grained token » avec la permission « Models ».",
+        "Copiez le jeton (il commence par ghp_ ou github_pat_).",
+      ],
+    },
+  },
   "models.inference.ai.azure.com": {
     key: "github",
     label: "GitHub Models",
