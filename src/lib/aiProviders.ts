@@ -51,6 +51,37 @@ export async function fetchProviderModels(
   const keyOptional = provider.api_type === "custom" || provider.api_type === "local";
   if (!apiKey && !keyOptional) throw new Error("Clé API requise pour lister les modèles.");
 
+  // La plupart des fournisseurs (GitHub Models, NVIDIA NIM, Azure AI…) n'envoient
+  // aucun en-tête CORS : un appel direct depuis le navigateur échoue avec
+  // "Failed to fetch". On relaie donc via une Edge Function, sauf pour un
+  // serveur local/réseau privé qui n'est joignable que depuis l'appareil.
+  if (!isLocalHost(provider.base_url)) {
+    const { data, error } = await supabase.functions.invoke("list-provider-models", {
+      body: {
+        api_type: provider.api_type,
+        base_url: provider.base_url,
+        models_endpoint: provider.models_endpoint,
+        api_key: apiKey,
+      },
+    });
+    if (error) {
+      let details = error.message;
+      const ctx = (error as any)?.context;
+      if (ctx?.text) {
+        try {
+          const body = JSON.parse(await ctx.text());
+          details = body?.details || body?.error || details;
+        } catch {
+          /* corps non JSON : on garde le message d'origine */
+        }
+      }
+      throw new Error(details);
+    }
+    if ((data as any)?.error) throw new Error((data as any).error);
+    return ((data as any)?.models ?? []) as string[];
+  }
+
+
   if (provider.api_type === "gemini") {
     // Endpoint canonique des modèles Gemini (robuste si la config DB est erronée).
     const endpoint = /\/models\b/.test(provider.models_endpoint) ? provider.models_endpoint : "/v1beta/models";
