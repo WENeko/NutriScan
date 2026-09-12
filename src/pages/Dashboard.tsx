@@ -786,10 +786,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               </section>
             )}
 
-            {/* All history */}
+            {/* All history — today's meals are shown in "Repas du jour" above, so exclude them here to avoid redundancy */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
+              <MealHistory meals={allMeals.filter((m) => !isToday(new Date(m.timestamp)))} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
             </section>
           </>
         )}
