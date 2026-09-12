@@ -57,7 +57,7 @@ export async function fetchLatestRelease(): Promise<UpdateInfo | null> {
       cache: "no-store",
     });
     if (!res.ok) {
-      appLogger.warn(`[update] GitHub a répondu ${res.status}`);
+      appLogger.warn("update", `GitHub a répondu ${res.status}`);
       return null;
     }
     const data = await res.json();
@@ -80,7 +80,7 @@ export async function fetchLatestRelease(): Promise<UpdateInfo | null> {
       sizeBytes: apk?.size ?? null,
     };
   } catch (e) {
-    appLogger.warn(`[update] Vérification impossible: ${e instanceof Error ? e.message : e}`);
+    appLogger.warn("update", `Vérification impossible: ${e instanceof Error ? e.message : e}`);
     return null;
   }
 }
