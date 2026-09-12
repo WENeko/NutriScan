@@ -15,6 +15,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(NutriScanWidgetsPlugin.class);
     registerPlugin(AppSettingsPlugin.class);
     registerPlugin(NutritionWriterPlugin.class);
+    registerPlugin(ApkUpdaterPlugin.class);
 
     super.onCreate(savedInstanceState);
   }
