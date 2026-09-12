@@ -18,7 +18,7 @@ import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { autoSyncHealthData } from "@/services/health-connect";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
-import { startOfDay, startOfWeek, endOfWeek, format } from "date-fns";
+import { startOfDay, startOfWeek, endOfWeek, format, isToday } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { isLovableAiEnabled, isAiConfigured, loadAiAccess } from "@/lib/aiAccess";
@@ -786,10 +786,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               </section>
             )}
 
-            {/* All history */}
+            {/* All history — today's meals are shown in "Repas du jour" above, so exclude them here to avoid redundancy */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-              <MealHistory meals={allMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
+              <MealHistory meals={allMeals.filter((m) => !isToday(new Date(m.timestamp)))} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
             </section>
           </>
         )}
