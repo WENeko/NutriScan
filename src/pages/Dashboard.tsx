@@ -20,6 +20,7 @@ import { autoSyncHealthData } from "@/services/health-connect";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format, isToday } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
+import UpdateDialog from "@/components/UpdateDialog";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { isLovableAiEnabled, isAiConfigured, loadAiAccess } from "@/lib/aiAccess";
 import OnboardingFlow, { isOnboardingDone } from "@/components/OnboardingFlow";
@@ -527,6 +528,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   return (
     <TooltipProvider>
+    <UpdateDialog />
     {showOnboarding && (
       <OnboardingFlow
         userId={userId}
