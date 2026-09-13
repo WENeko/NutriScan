@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { App as CapApp } from "@capacitor/app";
 import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserProfile } from "@/lib/micro-goals";
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
@@ -355,6 +356,33 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     if (!userId) return;
     autoSyncHealthData(userId).then(() => fetchData());
   }, [userId]);
+
+  // Recharge les repas dès que l'app revient au premier plan (ex. après un
+  // ajout depuis le widget "Favoris rapides" alors que l'app était en arrière-plan).
+  useEffect(() => {
+    if (!userId) return;
+    let last = Date.now();
+    const onVisible = () => {
+      // Évite les doubles chargements (visibilitychange + resume peuvent se suivre).
+      if (document.visibilityState === "visible" && Date.now() - last > 2000) {
+        last = Date.now();
+        fetchData();
+      }
+    };
+    const onResume = () => {
+      if (Date.now() - last > 2000) {
+        last = Date.now();
+        fetchData();
+      }
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    let handle: { remove: () => void } | undefined;
+    CapApp.addListener("resume", onResume).then((h) => { handle = h; });
+    return () => {
+      document.removeEventListener("visibilitychange", onVisible);
+      handle?.remove();
+    };
+  }, [userId, fetchData]);
 
   // ---- Widgets d'écran d'accueil : synchronisation des données partagées ----
   // Les couleurs envoyées aux widgets proviennent des tokens CSS de l'app
