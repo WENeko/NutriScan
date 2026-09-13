@@ -45,7 +45,7 @@ class ApkUpdaterPlugin : Plugin() {
       }
       call.resolve()
     } catch (t: Throwable) {
-      call.reject(t.message ?: "Impossible d'ouvrir les réglages", t)
+      call.reject(t.message ?: "Impossible d'ouvrir les réglages", null as String?)
     }
   }
 
@@ -134,7 +134,7 @@ class ApkUpdaterPlugin : Plugin() {
 
         call.resolve(JSObject().put("installed", true).put("path", target.absolutePath))
       } catch (t: Throwable) {
-        call.reject(t.message ?: "Échec de la mise à jour", t)
+        call.reject(t.message ?: "Échec de la mise à jour", null as String?)
       }
     }.start()
   }
