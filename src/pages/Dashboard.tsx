@@ -528,6 +528,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
   return (
     <TooltipProvider>
+    <UpdateDialog />
     {showOnboarding && (
       <OnboardingFlow
         userId={userId}
