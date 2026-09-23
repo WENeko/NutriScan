@@ -22,11 +22,18 @@ import { isLocalApiType, isKeyOptional, isOpenAiCompatible } from "@/lib/aiAcces
 import { fallbackModelFor } from "@/lib/providerCatalog";
 import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import { HYBRID_LABEL, analyzeMealHybrid, isHybridAvailable } from "@/services/hybridAnalysisService";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
 export interface RoutingStep {
-  type: "byok" | "edge_function";
+  /**
+   * - "edge_function" → IA par défaut de l'application
+   * - "byok"          → clé / serveur perso de l'utilisateur
+   * - "hybrid"        → pipeline hybride ultra-rapide (Laya + base locale + micro-LLM),
+   *                     disponible uniquement pour l'analyse photo et texte.
+   */
+  type: "byok" | "edge_function" | "hybrid";
   providerId?: string;
   model?: string;
 }
@@ -64,7 +71,11 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
   const base = emptyRoutingConfig();
   if (!raw || typeof raw !== "object") return base;
   const pick = (k: FeatureKey): RoutingStep[] =>
-    Array.isArray(raw[k]) ? (raw[k] as RoutingStep[]).filter((s) => s && (s.type === "byok" || s.type === "edge_function")) : [];
+    Array.isArray(raw[k])
+      ? (raw[k] as RoutingStep[]).filter(
+          (s) => s && (s.type === "byok" || s.type === "edge_function" || s.type === "hybrid"),
+        )
+      : [];
   const models: Record<string, string[]> = {};
   if (raw.models && typeof raw.models === "object") {
     for (const [pid, list] of Object.entries(raw.models)) {
@@ -163,6 +174,8 @@ function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   // Filtre les steps non exécutables (edge sans droit, byok sans clé sauf local).
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
+    // Le mode hybride ne concerne que l'analyse (photo / texte).
+    if (s.type === "hybrid") return feature === "photo" || feature === "text";
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
     return !!p && (!!p.apiKey || isKeyOptional(p.apiType));
   });
@@ -237,6 +250,7 @@ export interface FeatureResult {
 
 function labelForStep(ctx: RoutingContext, step: RoutingStep): string {
   if (step.type === "edge_function") return EDGE_LABEL;
+  if (step.type === "hybrid") return HYBRID_LABEL;
   const p = step.providerId ? ctx.providers.get(step.providerId) : null;
   const model = step.model || ctx.selectedModel || "modèle";
   return p ? `${p.name} · ${model}` : model;
@@ -288,7 +302,27 @@ export async function executeAIFeatureWithFallback(
         const ap = payload as AnalysisPayload;
         let data: any;
         onProgress?.({ step: "vision", modelLabel: label, attempt: i + 1, isFallback });
-        if (step.type === "edge_function") {
+        if (step.type === "hybrid") {
+          // Pipeline hybride : détection Laya (photo) ou parseur déterministe (texte),
+          // puis résolution nutritionnelle locale et complétion par micro-LLM.
+          data = await analyzeMealHybrid({
+            image: ap.image,
+            text: ap.text,
+            custom_foods: ap.custom_foods,
+            custom_nutrients: ap.custom_nutrients as any,
+            local_time: ap.local_time,
+            onStage: (evt) =>
+              onProgress?.({
+                step: evt.stage === "detection" ? "vision" : evt.stage === "done" ? "finalizing" : "nutrition",
+                modelLabel: label,
+                attempt: i + 1,
+                isFallback,
+              }),
+          });
+          if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+            throw new Error("Pipeline hybride sans résultat");
+          }
+        } else if (step.type === "edge_function") {
           const { data: d, error } = await supabase.functions.invoke("analyze-meal", {
             body: { image: ap.image, text: ap.text, custom_foods: ap.custom_foods, custom_nutrients: ap.custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time: ap.local_time },
           });
@@ -385,6 +419,10 @@ export async function listAvailableStepsForUser(userId: string, feature: Feature
       hasKey: true,
     });
   }
+  // Mode hybride : proposé pour l'analyse photo / texte quand il est exécutable.
+  if ((feature === "photo" || feature === "text") && (await isHybridAvailable(feature))) {
+    out.push({ step: { type: "hybrid" }, label: HYBRID_LABEL, requiresKey: false, hasKey: true });
+  }
   // Steps définis dans le routage expert
   const routingSteps = ctx.routing.enabled ? ctx.routing[feature] : [];
   const seen = new Set<string>();
@@ -438,6 +476,12 @@ export async function checkStepHealth(userId: string, step: RoutingStep): Promis
         return { status: "down", latencyMs: latency, message: error.message };
       }
       return { status: latency > 3000 ? "slow" : "ok", latencyMs: latency };
+    }
+    if (step.type === "hybrid") {
+      const ok = await isHybridAvailable("photo");
+      return ok
+        ? { status: "ok", latencyMs: Date.now() - start }
+        : { status: "down", latencyMs: 0, message: "Aucun modèle de détection installé" };
     }
     const ctx = await loadRoutingContext(userId);
     const p = step.providerId ? ctx.providers.get(step.providerId) : null;
