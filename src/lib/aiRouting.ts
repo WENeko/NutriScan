@@ -419,6 +419,10 @@ export async function listAvailableStepsForUser(userId: string, feature: Feature
       hasKey: true,
     });
   }
+  // Mode hybride : proposé pour l'analyse photo / texte quand il est exécutable.
+  if ((feature === "photo" || feature === "text") && (await isHybridAvailable(feature))) {
+    out.push({ step: { type: "hybrid" }, label: HYBRID_LABEL, requiresKey: false, hasKey: true });
+  }
   // Steps définis dans le routage expert
   const routingSteps = ctx.routing.enabled ? ctx.routing[feature] : [];
   const seen = new Set<string>();
@@ -472,6 +476,12 @@ export async function checkStepHealth(userId: string, step: RoutingStep): Promis
         return { status: "down", latencyMs: latency, message: error.message };
       }
       return { status: latency > 3000 ? "slow" : "ok", latencyMs: latency };
+    }
+    if (step.type === "hybrid") {
+      const ok = await isHybridAvailable("photo");
+      return ok
+        ? { status: "ok", latencyMs: Date.now() - start }
+        : { status: "down", latencyMs: 0, message: "Aucun modèle de détection installé" };
     }
     const ctx = await loadRoutingContext(userId);
     const p = step.providerId ? ctx.providers.get(step.providerId) : null;
