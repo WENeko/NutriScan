@@ -250,6 +250,7 @@ export interface FeatureResult {
 
 function labelForStep(ctx: RoutingContext, step: RoutingStep): string {
   if (step.type === "edge_function") return EDGE_LABEL;
+  if (step.type === "hybrid") return HYBRID_LABEL;
   const p = step.providerId ? ctx.providers.get(step.providerId) : null;
   const model = step.model || ctx.selectedModel || "modèle";
   return p ? `${p.name} · ${model}` : model;
@@ -301,7 +302,27 @@ export async function executeAIFeatureWithFallback(
         const ap = payload as AnalysisPayload;
         let data: any;
         onProgress?.({ step: "vision", modelLabel: label, attempt: i + 1, isFallback });
-        if (step.type === "edge_function") {
+        if (step.type === "hybrid") {
+          // Pipeline hybride : détection Laya (photo) ou parseur déterministe (texte),
+          // puis résolution nutritionnelle locale et complétion par micro-LLM.
+          data = await analyzeMealHybrid({
+            image: ap.image,
+            text: ap.text,
+            custom_foods: ap.custom_foods,
+            custom_nutrients: ap.custom_nutrients as any,
+            local_time: ap.local_time,
+            onStage: (evt) =>
+              onProgress?.({
+                step: evt.stage === "detection" ? "vision" : evt.stage === "done" ? "finalizing" : "nutrition",
+                modelLabel: label,
+                attempt: i + 1,
+                isFallback,
+              }),
+          });
+          if (!data || !Array.isArray(data.items) || data.items.length === 0) {
+            throw new Error("Pipeline hybride sans résultat");
+          }
+        } else if (step.type === "edge_function") {
           const { data: d, error } = await supabase.functions.invoke("analyze-meal", {
             body: { image: ap.image, text: ap.text, custom_foods: ap.custom_foods, custom_nutrients: ap.custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time: ap.local_time },
           });
