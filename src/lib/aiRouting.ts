@@ -71,7 +71,11 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
   const base = emptyRoutingConfig();
   if (!raw || typeof raw !== "object") return base;
   const pick = (k: FeatureKey): RoutingStep[] =>
-    Array.isArray(raw[k]) ? (raw[k] as RoutingStep[]).filter((s) => s && (s.type === "byok" || s.type === "edge_function")) : [];
+    Array.isArray(raw[k])
+      ? (raw[k] as RoutingStep[]).filter(
+          (s) => s && (s.type === "byok" || s.type === "edge_function" || s.type === "hybrid"),
+        )
+      : [];
   const models: Record<string, string[]> = {};
   if (raw.models && typeof raw.models === "object") {
     for (const [pid, list] of Object.entries(raw.models)) {
@@ -170,6 +174,8 @@ function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   // Filtre les steps non exécutables (edge sans droit, byok sans clé sauf local).
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
+    // Le mode hybride ne concerne que l'analyse (photo / texte).
+    if (s.type === "hybrid") return feature === "photo" || feature === "text";
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
     return !!p && (!!p.apiKey || isKeyOptional(p.apiType));
   });
