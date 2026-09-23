@@ -22,11 +22,18 @@ import { isLocalApiType, isKeyOptional, isOpenAiCompatible } from "@/lib/aiAcces
 import { fallbackModelFor } from "@/lib/providerCatalog";
 import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import { HYBRID_LABEL, analyzeMealHybrid, isHybridAvailable } from "@/services/hybridAnalysisService";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
 export interface RoutingStep {
-  type: "byok" | "edge_function";
+  /**
+   * - "edge_function" → IA par défaut de l'application
+   * - "byok"          → clé / serveur perso de l'utilisateur
+   * - "hybrid"        → pipeline hybride ultra-rapide (Laya + base locale + micro-LLM),
+   *                     disponible uniquement pour l'analyse photo et texte.
+   */
+  type: "byok" | "edge_function" | "hybrid";
   providerId?: string;
   model?: string;
 }
