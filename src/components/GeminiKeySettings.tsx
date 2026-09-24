@@ -51,6 +51,7 @@ import {
 } from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { importLocalIntentModel, listLocalIntentModels } from "@/services/localAiBridge";
+import { HYBRID_LABEL } from "@/services/hybridAnalysisService";
 
 interface Props {
   userId: string;
@@ -439,6 +440,9 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   function candidates(): RoutingStep[] {
     const out: RoutingStep[] = [];
     if (lovableEnabled) out.push({ type: "edge_function" });
+    // Pipeline hybride : proposé dès que la saisie texte est possible (toujours),
+    // l'analyse photo exigeant en plus un modèle de détection local installé.
+    out.push({ type: "hybrid" });
     for (const p of sorted) {
       // Les fournisseurs locaux (HTTP ou Intent natif) n'ont pas besoin de clé enregistrée.
       if (!isKeyOptional(p.api_type as any) && !cards[p.id]?.hasStored) continue;
@@ -449,13 +453,14 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
   function labelForStep(s: RoutingStep): string {
     if (s.type === "edge_function") return EDGE_LABEL;
+    if (s.type === "hybrid") return HYBRID_LABEL;
     const p = providerById(s.providerId);
     return `${p?.name ?? "Fournisseur"} · ${s.model || "modèle par défaut"}`;
   }
 
-  /** Un step est valide si edge, ou si son fournisseur + modèle existent encore. */
+  /** Un step est valide si edge/hybride, ou si son fournisseur + modèle existent encore. */
   function stepIsValid(s: RoutingStep): boolean {
-    if (s.type === "edge_function") return true;
+    if (s.type === "edge_function" || s.type === "hybrid") return true;
     if (!s.providerId) return false;
     if (!providers.some((p) => p.id === s.providerId)) return false;
     return getModels(s.providerId).includes(s.model || "");
@@ -463,7 +468,9 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
   const sameStep = (a: RoutingStep, b: RoutingStep) =>
     a.type === b.type &&
-    (a.type === "edge_function" || (a.providerId === b.providerId && a.model === b.model));
+    (a.type === "edge_function" ||
+      a.type === "hybrid" ||
+      (a.providerId === b.providerId && a.model === b.model));
 
   function isSelected(feature: FeatureKey, s: RoutingStep): boolean {
     return config[feature].some((x) => sameStep(x, s));
@@ -1057,7 +1064,9 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   <div className="text-sm font-semibold mb-2">{FEATURE_LABELS[feature]}</div>
 
                   <div className="space-y-1.5 mb-2">
-                    {allCandidates.map((cand) => (
+                    {allCandidates
+                      .filter((cand) => cand.type !== "hybrid" || feature === "photo" || feature === "text")
+                      .map((cand) => (
                       <label key={labelForStep(cand) + feature} className="flex items-center gap-2 cursor-pointer text-xs">
                         <Checkbox
                           checked={isSelected(feature, cand)}

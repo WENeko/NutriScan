@@ -94,6 +94,8 @@ dependencies {
     // - .task     : ancien moteur MediaPipe LLM Inference, conservé en fallback
     implementation 'com.google.ai.edge.litertlm:litertlm-android:0.14.0'
     implementation 'com.google.mediapipe:tasks-genai:0.10.29'
+    // Étage 1 du pipeline hybride : classifieur d'images local (modèle de décision).
+    implementation 'com.google.mediapipe:tasks-vision:0.10.29'
 }
 
 apply from: 'capacitor.build.gradle'
