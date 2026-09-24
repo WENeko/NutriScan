@@ -15,8 +15,9 @@
  * sans adaptation par MealInput, MealScanner et le moteur de routage.
  */
 
-import { appLogger } from "@/lib/appLogger";
+import { appLogger } from "@/services/appLogger";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
+import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { detectFoodsWithLaya, isLayaAvailable, getSelectedLayaModel } from "./hybrid/layaVision";
 import { parseMealText, extractSuggestedTimestamp } from "./hybrid/mealTextParser";
 import { resolveFoodItems, type FoodQuery, type ResolutionSource, type ResolvedFoodItem } from "./hybrid/nutritionResolver";
