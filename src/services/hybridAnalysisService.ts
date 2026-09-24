@@ -38,7 +38,7 @@ export interface HybridAnalysisInput {
   image?: string | null;
   text?: string | null;
   custom_foods?: any[];
-  custom_nutrients?: { key: string; label: string; unit: string }[];
+  custom_nutrients?: CustomNutrientDef[];
   local_time?: string;
   /** Autorise l'appel réseau à Open Food Facts (activé par défaut). */
   allowNetwork?: boolean;
