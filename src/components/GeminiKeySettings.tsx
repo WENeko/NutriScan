@@ -51,6 +51,7 @@ import {
 } from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { importLocalIntentModel, listLocalIntentModels } from "@/services/localAiBridge";
+import { HYBRID_LABEL } from "@/services/hybridAnalysisService";
 
 interface Props {
   userId: string;
