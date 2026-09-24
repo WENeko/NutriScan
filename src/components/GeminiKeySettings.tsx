@@ -1064,7 +1064,9 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
                   <div className="text-sm font-semibold mb-2">{FEATURE_LABELS[feature]}</div>
 
                   <div className="space-y-1.5 mb-2">
-                    {allCandidates.map((cand) => (
+                    {allCandidates
+                      .filter((cand) => cand.type !== "hybrid" || feature === "photo" || feature === "text")
+                      .map((cand) => (
                       <label key={labelForStep(cand) + feature} className="flex items-center gap-2 cursor-pointer text-xs">
                         <Checkbox
                           checked={isSelected(feature, cand)}
