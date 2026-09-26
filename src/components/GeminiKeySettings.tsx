@@ -52,6 +52,7 @@ import {
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { importLocalIntentModel, listLocalIntentModels } from "@/services/localAiBridge";
 import { HYBRID_LABEL } from "@/services/hybridAnalysisService";
+import LayaModelSettings from "@/components/LayaModelSettings";
 
 interface Props {
   userId: string;
@@ -1041,6 +1042,9 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
           <Plus className="w-4 h-4 mr-1" /> Ajouter un fournisseur
         </Button>
       )}
+
+      {/* Modèle de détection visuelle locale (étage 1 du pipeline hybride) */}
+      {!loading && <LayaModelSettings />}
 
       {/* 3. Cascade de priorité par fonctionnalité */}
       {!loading && (
