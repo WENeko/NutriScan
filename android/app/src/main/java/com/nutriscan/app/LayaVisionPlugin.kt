@@ -225,7 +225,7 @@ class LayaVisionPlugin : Plugin() {
         }
 
         throw IllegalStateException(
-            "Aucun modèle de détection trouvé. Importez un classifieur .tflite dans les réglages d'IA."
+            "Aucun modèle de détection trouvé. Importez un modèle .onnx ou .tflite dans les réglages d'IA."
         )
     }
 
@@ -272,23 +272,26 @@ class LayaVisionPlugin : Plugin() {
         try {
             val started = System.currentTimeMillis()
             val modelFile = resolveModelFile(call.getString("model"))
-            val classifier = classifierFor(modelFile, maxResults)
-
             val bitmap = decodeImage(image)
             val softwareBitmap =
                 if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false)
                 else bitmap
-            val mpImage = BitmapImageBuilder(softwareBitmap).build()
-            val result = classifier.classify(mpImage)
 
             val predictions = JSArray()
-            result.classificationResult().classifications().forEach { classification ->
-                classification.categories().forEach { category ->
-                    val entry = JSObject()
-                    val label = category.displayName()?.takeIf { it.isNotBlank() } ?: category.categoryName()
-                    entry.put("label", label ?: "inconnu")
-                    entry.put("confidence", category.score().toDouble())
-                    predictions.put(entry)
+            if (modelFile.extension.lowercase() == "onnx") {
+                classifyOnnx(modelFile, softwareBitmap, maxResults, predictions)
+            } else {
+                val classifier = classifierFor(modelFile, maxResults)
+                val mpImage = BitmapImageBuilder(softwareBitmap).build()
+                val result = classifier.classify(mpImage)
+                result.classificationResult().classifications().forEach { classification ->
+                    classification.categories().forEach { category ->
+                        val entry = JSObject()
+                        val label = category.displayName()?.takeIf { it.isNotBlank() } ?: category.categoryName()
+                        entry.put("label", label ?: "inconnu")
+                        entry.put("confidence", category.score().toDouble())
+                        predictions.put(entry)
+                    }
                 }
             }
 
@@ -299,6 +302,95 @@ class LayaVisionPlugin : Plugin() {
             call.resolve(res)
         } catch (t: Throwable) {
             call.reject(t.message ?: "Détection impossible.", null as String?)
+        }
+    }
+
+    // ── Inférence ONNX (Laya-Vision : ModernBERT + têtes classes/masses) ─────
+
+    private fun ortSessionFor(file: File): OrtSession {
+        ortSessions[file.absolutePath]?.let { return it }
+        val session = ortEnv.createSession(file.absolutePath, OrtSession.SessionOptions())
+        ortSessions[file.absolutePath] = session
+        return session
+    }
+
+    /** Bitmap → tenseur float32 [1,3,224,224] normalisé ImageNet (ordre CHW). */
+    private fun bitmapToFloatBuffer(bitmap: Bitmap): FloatBuffer {
+        val size = onnxInputSize
+        val scaled = Bitmap.createScaledBitmap(bitmap, size, size, true)
+        val pixels = IntArray(size * size)
+        scaled.getPixels(pixels, 0, size, 0, 0, size, size)
+        val buf = FloatBuffer.allocate(3 * size * size)
+        for (c in 0 until 3) {
+            for (i in pixels.indices) {
+                val p = pixels[i]
+                val channel = when (c) {
+                    0 -> (p shr 16) and 0xFF
+                    1 -> (p shr 8) and 0xFF
+                    else -> p and 0xFF
+                }
+                buf.put((channel / 255f - imagenetMean[c]) / imagenetStd[c])
+            }
+        }
+        buf.rewind()
+        return buf
+    }
+
+    private fun softmax(logits: FloatArray): FloatArray {
+        val max = logits.maxOrNull() ?: 0f
+        var sum = 0f
+        val out = FloatArray(logits.size)
+        for (i in logits.indices) {
+            out[i] = exp(logits[i] - max)
+            sum += out[i]
+        }
+        if (sum > 0f) for (i in out.indices) out[i] /= sum
+        return out
+    }
+
+    /**
+     * Exécute le modèle Laya-Vision ONNX : sorties `classes` [1,N] (logits) et
+     * `masses` [1,N] (grammes estimés par classe). Renvoie le top-K avec, pour
+     * chaque détection, l'indice de classe, la confiance softmax et la masse.
+     */
+    private fun classifyOnnx(modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray) {
+        val session = ortSessionFor(modelFile)
+        val size = onnxInputSize
+        val inputName = session.inputNames.firstOrNull() ?: "image"
+        val shape = longArrayOf(1, 3, size.toLong(), size.toLong())
+        OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap), shape).use { input ->
+            session.run(mapOf(inputName to input)).use { results ->
+                var logits: FloatArray? = null
+                var masses: FloatArray? = null
+                for (entry in results) {
+                    val name = entry.key.lowercase()
+                    val value = (entry.value as? OnnxTensor)?.floatBuffer ?: continue
+                    val arr = FloatArray(value.remaining())
+                    value.get(arr)
+                    when {
+                        name.contains("mass") -> masses = arr
+                        name.contains("class") || logits == null -> logits = arr
+                    }
+                }
+                val classLogits = logits
+                    ?: throw IllegalStateException("Sortie de classes introuvable dans le modèle ONNX.")
+                val probs = softmax(classLogits)
+
+                val top = probs.indices
+                    .sortedByDescending { probs[it] }
+                    .take(maxResults)
+                for (idx in top) {
+                    val entry = JSObject()
+                    entry.put("label", "class_$idx")
+                    entry.put("classIndex", idx)
+                    entry.put("confidence", probs[idx].toDouble())
+                    val mass = masses?.getOrNull(idx)
+                    if (mass != null && mass.isFinite() && mass > 0f) {
+                        entry.put("massG", mass.toDouble())
+                    }
+                    predictions.put(entry)
+                }
+            }
         }
     }
 
