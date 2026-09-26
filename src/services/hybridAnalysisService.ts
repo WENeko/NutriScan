@@ -123,7 +123,9 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
     detectionModel = detection.model || getSelectedLayaModel() || undefined;
     queries = detection.detections.map((d) => ({
       name: d.name,
-      weightG: 100,
+      // La tête de pesée du modèle Laya-Vision fournit la masse estimée ;
+      // à défaut (classifieur .tflite simple), portion de référence de 100 g.
+      weightG: d.weightG ?? 100,
       detectionConfidence: d.confidence,
     }));
     // La saisie texte éventuelle complète la photo (« avec 30 g de parmesan »).
