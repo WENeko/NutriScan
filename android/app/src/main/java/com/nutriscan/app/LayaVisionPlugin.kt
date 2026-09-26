@@ -23,7 +23,12 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.imageclassifier.ImageClassifier
+import ai.onnxruntime.OrtEnvironment
+import ai.onnxruntime.OrtSession
+import ai.onnxruntime.OnnxTensor
 import java.io.File
+import java.nio.FloatBuffer
+import kotlin.math.exp
 
 /**
  * Plugin Capacitor « LayaVision » — étage 1 du pipeline hybride.
@@ -50,7 +55,16 @@ class LayaVisionPlugin : Plugin() {
     // Le chargement d'un modèle est coûteux : une instance par chemin est conservée.
     private val classifiers = HashMap<String, ImageClassifier>()
 
-    private val modelExtensions = listOf(".tflite", ".task")
+    // Sessions ONNX Runtime (modèle Laya-Vision entraîné sur mesure, INT8).
+    private val ortEnv: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
+    private val ortSessions = HashMap<String, OrtSession>()
+
+    private val modelExtensions = listOf(".tflite", ".task", ".onnx")
+
+    // Prétraitement du modèle Laya-Vision : 224×224, normalisation ImageNet.
+    private val onnxInputSize = 224
+    private val imagenetMean = floatArrayOf(0.485f, 0.456f, 0.406f)
+    private val imagenetStd = floatArrayOf(0.229f, 0.224f, 0.225f)
 
     private fun modelsDir(): File = File(context.filesDir, "laya").apply { mkdirs() }
 
