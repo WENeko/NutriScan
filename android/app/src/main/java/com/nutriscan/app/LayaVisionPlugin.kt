@@ -403,6 +403,14 @@ class LayaVisionPlugin : Plugin() {
             }
         }
         classifiers.clear()
+        ortSessions.values.forEach {
+            try {
+                it.close()
+            } catch (t: Throwable) {
+                // Ignoré.
+            }
+        }
+        ortSessions.clear()
         super.handleOnDestroy()
     }
 }
