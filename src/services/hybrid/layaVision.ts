@@ -20,15 +20,21 @@ import { Capacitor, registerPlugin } from "@capacitor/core";
 import { appLogger } from "@/services/appLogger";
 
 export interface LayaPrediction {
-  /** Libellé brut renvoyé par le modèle (ex: "grilled_chicken_breast"). */
+  /** Libellé brut renvoyé par le modèle (ex: "grilled_chicken_breast" ou "class_42"). */
   label: string;
   /** Confiance 0→1. */
   confidence: number;
+  /** Indice de classe (modèle ONNX Laya-Vision, 500 sorties). */
+  classIndex?: number;
+  /** Masse estimée en grammes par la tête de régression (modèle ONNX). */
+  massG?: number;
 }
 
 export interface LayaDetection extends LayaPrediction {
   /** Libellé lisible, normalisé (ex: "grilled chicken breast"). */
   name: string;
+  /** Poids estimé en grammes, si la tête de pesée du modèle l'a fourni. */
+  weightG?: number;
 }
 
 export interface LayaClassifyResult {
