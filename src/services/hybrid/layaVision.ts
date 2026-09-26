@@ -18,6 +18,7 @@
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { appLogger } from "@/services/appLogger";
+import { labelForClassIndex } from "./food101Labels";
 
 export interface LayaPrediction {
   /** Libellé brut renvoyé par le modèle (ex: "grilled_chicken_breast" ou "class_42"). */
@@ -120,6 +121,13 @@ export function humanizeLabel(label: string): string {
     .toLowerCase();
 }
 
+/** Résout le nom lisible d'une prédiction : libellé direct, ou table Food-101 via l'indice. */
+function resolveName(p: LayaPrediction): string {
+  if (p.label && !/^class_\d+$/i.test(p.label)) return humanizeLabel(p.label);
+  if (typeof p.classIndex === "number") return humanizeLabel(labelForClassIndex(p.classIndex));
+  return humanizeLabel(p.label || "aliment inconnu");
+}
+
 /**
  * Lance la détection sur une image (data URL ou base64 brut).
  * Ne conserve que les prédictions au-dessus du seuil de confiance.
@@ -140,11 +148,18 @@ export async function detectFoodsWithLaya(
 
   const detections: LayaDetection[] = raw
     .filter((p) => p && p.label && Number.isFinite(Number(p.confidence)))
-    .map((p) => ({
-      label: p.label,
-      confidence: Math.max(0, Math.min(1, Number(p.confidence))),
-      name: humanizeLabel(p.label),
-    }))
+    .map((p) => {
+      const mass = Number(p.massG);
+      const weightG = Number.isFinite(mass) && mass > 0 ? Math.round(mass) : undefined;
+      return {
+        label: p.label,
+        confidence: Math.max(0, Math.min(1, Number(p.confidence))),
+        classIndex: typeof p.classIndex === "number" ? p.classIndex : undefined,
+        massG: weightG,
+        weightG,
+        name: resolveName(p),
+      };
+    })
     .filter((p) => p.confidence >= minConfidence)
     .sort((a, b) => b.confidence - a.confidence);
 
