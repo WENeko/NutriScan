@@ -749,6 +749,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   };
 
   const resetState = () => {
+    setHybridPipeline(null);
     setPreview(null);
     setItems([]);
     setImageFile(null);

@@ -13,5 +13,7 @@
 
 ## En attente / à valider sur appareil
 
+- [x] UI hybride : étapes dédiées + badges sources
+- [x] Sync Health Connect : réconciliation BDD (widget, modifs, suppressions)
 - [ ] Test runtime sur Android : import d'un modèle de classification `.tflite` et mesure des latences
 - [ ] Vérifier FileProvider + `file_paths.xml` pour le programme de mise à jour APK
