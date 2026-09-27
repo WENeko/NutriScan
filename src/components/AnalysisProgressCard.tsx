@@ -19,6 +19,21 @@ const STEP_LABELS: Record<AnalysisMode, Record<RoutingProgressStep, string>> = {
   },
 };
 
+const HYBRID_LABELS: Record<AnalysisMode, Record<RoutingProgressStep, string>> = {
+  photo: {
+    preparing: "Préparation de la photo…",
+    vision: "Détection locale (Laya-Vision) et pesée…",
+    nutrition: "Résolution : bibliothèque → CIQUAL → Open Food Facts…",
+    finalizing: "Complétion micro-LLM et fiche repas…",
+  },
+  text: {
+    preparing: "Préparation de votre description…",
+    vision: "Lecture locale des aliments et quantités…",
+    nutrition: "Résolution : bibliothèque → CIQUAL → Open Food Facts…",
+    finalizing: "Complétion micro-LLM et fiche repas…",
+  },
+};
+
 const STEP_ORDER: RoutingProgressStep[] = ["preparing", "vision", "nutrition", "finalizing"];
 
 interface Props {
@@ -32,7 +47,9 @@ interface Props {
 
 const AnalysisProgressCard: React.FC<Props> = ({ preview, currentStep, modelLabel, isFallback, attempt, mode = "photo" }) => {
   const currentIdx = STEP_ORDER.indexOf(currentStep);
-  const steps = STEP_ORDER.map((key) => ({ key, label: STEP_LABELS[mode][key] }));
+  const isHybrid = /hybride/i.test(modelLabel);
+  const labels = isHybrid ? HYBRID_LABELS : STEP_LABELS;
+  const steps = STEP_ORDER.map((key) => ({ key, label: labels[mode][key] }));
   const startedAt = useRef(Date.now());
   const [seconds, setSeconds] = useState(0);
 
@@ -62,7 +79,9 @@ const AnalysisProgressCard: React.FC<Props> = ({ preview, currentStep, modelLabe
       )}
       <div className="relative p-4 space-y-3">
         <div className="flex items-center justify-between">
-          <h3 className="font-display font-semibold text-sm">Analyse du repas</h3>
+          <h3 className="font-display font-semibold text-sm">
+            {isHybrid ? "Analyse hybride locale" : "Analyse du repas"}
+          </h3>
           <span className="text-[10px] text-muted-foreground tabular-nums">{seconds}s</span>
         </div>
 
