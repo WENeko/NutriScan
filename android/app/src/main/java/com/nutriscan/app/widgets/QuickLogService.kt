@@ -101,6 +101,7 @@ class QuickLogService : Service() {
         val (code, body) = WidgetAuthRefresher.post(url, payload, auth)
         if (code in 200..299) {
           applyTotals(app, body)
+          runCatching { writeToHealthConnect(app, body) }
           return null
         }
         lastError = "HTTP $code"
@@ -115,6 +116,62 @@ class QuickLogService : Service() {
       Thread.sleep(1200L * (attempt + 1))
     }
     return lastError ?: "réseau"
+  }
+
+  /**
+   * Écrit le repas dupliqué dans Health Connect immédiatement (l'app peut être
+   * fermée). La fenêtre écrite est mémorisée pour que l'app la reconnaisse
+   * lors de la réconciliation et ne crée pas de doublon.
+   */
+  private fun writeToHealthConnect(app: Context, body: String?) {
+    if (body.isNullOrBlank()) return
+    // Respecte le réglage de l'app (stocké dans le localStorage WebView, reflété ici).
+    val json = JSONObject(body)
+    val mealId = json.optString("meal_id").takeIf { it.isNotBlank() } ?: return
+    val meal = json.optJSONObject("meal") ?: return
+    if (androidx.health.connect.client.HealthConnectClient.getSdkStatus(app) !=
+      androidx.health.connect.client.HealthConnectClient.SDK_AVAILABLE) return
+    val client = androidx.health.connect.client.HealthConnectClient.getOrCreate(app)
+    val perm = androidx.health.connect.client.permission.HealthPermission
+      .getWritePermission(androidx.health.connect.client.records.NutritionRecord::class)
+    kotlinx.coroutines.runBlocking {
+      if (!client.permissionController.getGrantedPermissions().contains(perm)) return@runBlocking
+      val end = java.time.Instant.now()
+      val start = end.minusSeconds(60)
+      fun g(k: String, div: Double = 1.0): androidx.health.connect.client.units.Mass? {
+        val v = meal.optDouble(k, 0.0) / div
+        return if (v > 0.0) androidx.health.connect.client.units.Mass.grams(v) else null
+      }
+      val kcal = meal.optDouble("calories", 0.0)
+      val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
+      val type = when {
+        hour < 11 -> androidx.health.connect.client.records.MealType.MEAL_TYPE_BREAKFAST
+        hour < 16 -> androidx.health.connect.client.records.MealType.MEAL_TYPE_LUNCH
+        hour < 18 -> androidx.health.connect.client.records.MealType.MEAL_TYPE_SNACK
+        else -> androidx.health.connect.client.records.MealType.MEAL_TYPE_DINNER
+      }
+      val record = androidx.health.connect.client.records.NutritionRecord(
+        startTime = start, startZoneOffset = null,
+        endTime = end, endZoneOffset = null,
+        metadata = androidx.health.connect.client.records.metadata.Metadata.manualEntry(),
+        energy = if (kcal > 0) androidx.health.connect.client.units.Energy.kilocalories(kcal) else null,
+        protein = g("proteins"),
+        totalCarbohydrate = g("carbs"),
+        totalFat = g("fats"),
+        dietaryFiber = g("fiber"),
+        sugar = g("sugar"),
+        saturatedFat = g("saturated_fat"),
+        sodium = g("sodium_mg", 1000.0),
+        name = json.optString("name", "Repas NutriScan"),
+        mealType = type,
+      )
+      client.insertRecords(listOf(record))
+      val prefs = app.getSharedPreferences("NutriScanWidget", Context.MODE_PRIVATE)
+      val map = runCatching { JSONObject(prefs.getString("hc_written_windows", "{}") ?: "{}") }
+        .getOrDefault(JSONObject())
+      map.put(mealId, JSONObject().put("startTime", start.toString()))
+      prefs.edit().putString("hc_written_windows", map.toString()).apply()
+    }
   }
 
   private fun applyTotals(app: Context, body: String?) {

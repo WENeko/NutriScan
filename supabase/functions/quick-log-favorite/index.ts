@@ -114,11 +114,24 @@ Deno.serve(async (req) => {
       };
     }
 
+    // Somme des micros pour l'écriture Health Connect native par le widget.
+    const microSum = (k: string) =>
+      (items ?? []).reduce((a: number, it: any) => a + (Number(it?.nutrients_std?.[k]) || 0), 0);
     return json({
       success: true,
       meal_id: newMeal.id,
       name: meal.meal_name,
       daily_totals: dailyTotals,
+      meal: {
+        calories: Number(meal.total_calories) || 0,
+        proteins: Number(meal.total_proteins) || 0,
+        carbs: Number(meal.total_carbs) || 0,
+        fats: Number(meal.total_fats) || 0,
+        fiber: microSum('fiber'),
+        sugar: microSum('sugar'),
+        saturated_fat: microSum('saturated_fat'),
+        sodium_mg: microSum('sodium_mg'),
+      },
     });
   } catch (e) {
     return json({ error: (e as Error).message }, 500);
