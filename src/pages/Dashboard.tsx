@@ -18,6 +18,7 @@ import HealthDetails from "@/components/HealthDetails";
 import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { autoSyncHealthData } from "@/services/health-connect";
+import { startHealthConnectAutoSync } from "@/services/healthConnectReconciler";
 import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
 import { startOfDay, startOfWeek, endOfWeek, format, isToday } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
@@ -355,6 +356,13 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   useEffect(() => {
     if (!userId) return;
     autoSyncHealthData(userId).then(() => fetchData());
+  }, [userId]);
+
+  // Miroir BDD → Health Connect : tout ajout / modification / suppression de
+  // repas (app, widget, autre appareil) est répercuté automatiquement.
+  useEffect(() => {
+    if (!userId) return;
+    return startHealthConnectAutoSync(userId);
   }, [userId]);
 
   // Recharge les repas dès que l'app revient au premier plan (ex. après un
