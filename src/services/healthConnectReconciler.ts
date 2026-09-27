@@ -13,7 +13,7 @@ import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import { supabase } from "@/integrations/supabase/client";
 import { appLogger } from "./appLogger";
-import { isNutritionSyncEnabled } from "./nutritionWriter";
+import { isNutritionSyncEnabled, syncNutritionFlagToNative } from "./nutritionWriter";
 
 const WINDOWS_KEY = "nutriscan-hc-write-windows";
 const LOOKBACK_DAYS = 30;
@@ -212,6 +212,7 @@ function schedule(delay = 1500) {
 
 /** Démarre l'écoute temps réel + ouverture/reprise. Retourne un nettoyeur. */
 export function startHealthConnectAutoSync(userId: string): () => void {
+  syncNutritionFlagToNative();
   schedule(500);
   const channel = supabase
     .channel(`hc-sync-${userId}`)

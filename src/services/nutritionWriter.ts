@@ -28,9 +28,26 @@ export function isNutritionSyncEnabled(): boolean {
 export function setNutritionSyncEnabled(enabled: boolean) {
   try {
     localStorage.setItem(ENABLED_KEY, enabled ? "1" : "0");
+    void mirrorFlagToNative(enabled);
   } catch {
     /* ignore */
   }
+}
+
+/** Le widget (service natif) lit ce drapeau pour écrire dans Health Connect. */
+async function mirrorFlagToNative(enabled: boolean) {
+  try {
+    const { Capacitor } = await import("@capacitor/core");
+    if (!Capacitor.isNativePlatform()) return;
+    const { Preferences } = await import("@capacitor/preferences");
+    await Preferences.configure({ group: "NutriScanWidget" });
+    await Preferences.set({ key: "hc_nutrition_sync", value: enabled ? "1" : "0" });
+  } catch { /* ignore */ }
+}
+
+/** Resynchronise le drapeau natif au démarrage. */
+export function syncNutritionFlagToNative() {
+  void mirrorFlagToNative(isNutritionSyncEnabled());
 }
 
 interface WriteWindow {

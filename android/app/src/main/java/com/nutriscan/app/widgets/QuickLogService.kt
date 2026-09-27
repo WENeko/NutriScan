@@ -126,6 +126,8 @@ class QuickLogService : Service() {
   private fun writeToHealthConnect(app: Context, body: String?) {
     if (body.isNullOrBlank()) return
     // Respecte le réglage de l'app (stocké dans le localStorage WebView, reflété ici).
+    val shared = app.getSharedPreferences("NutriScanWidget", Context.MODE_PRIVATE)
+    if (shared.getString("hc_nutrition_sync", "0") != "1") return
     val json = JSONObject(body)
     val mealId = json.optString("meal_id").takeIf { it.isNotBlank() } ?: return
     val meal = json.optJSONObject("meal") ?: return
