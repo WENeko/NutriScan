@@ -196,6 +196,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const [rawAnalysis, setRawAnalysis] = useState("");
   const [modelUsed, setModelUsed] = useState<string | null>(null);
   const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
+  const [hybridPipeline, setHybridPipeline] = useState<any | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
@@ -355,6 +356,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
   const handleAIResponse = (data: any, customFoods: any[]) => {
     setRawAnalysis(JSON.stringify(data));
+    setHybridPipeline(data?.pipeline ?? null);
     if (data?._model_used) setModelUsed(data._model_used);
     if (data?._confidence_score != null) setConfidenceScore(Number(data._confidence_score));
     // Gérer différents formats de nom de repas
@@ -747,6 +749,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   };
 
   const resetState = () => {
+    setHybridPipeline(null);
     setPreview(null);
     setItems([]);
     setImageFile(null);
@@ -1084,6 +1087,18 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
               <span>L: {Math.round(totals.fats)}g</span>
             </div>
             <AiBadges model={modelUsed} confidence={confidenceScore} />
+            {hybridPipeline && (
+              <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
+                <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
+                  ⚡ Local · {hybridPipeline.totalMs} ms
+                </span>
+                {Object.entries(hybridPipeline.sources || {}).map(([src, n]) => (
+                  <span key={src} className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
+                    {({ library: "Bibliothèque", reference: "CIQUAL", openfoodfacts: "Open Food Facts", micro_llm: "Micro-LLM", unresolved: "Non résolu" } as Record<string, string>)[src] ?? src} ×{String(n)}
+                  </span>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="flex gap-2">
