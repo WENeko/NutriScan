@@ -367,6 +367,7 @@ export type Database = {
           ai_coach_prompt: string | null
           bmr: number | null
           bmr_method: string | null
+          calorie_cycling: Json
           created_at: string
           custom_charts: Json
           custom_nutrients: Json
@@ -410,6 +411,7 @@ export type Database = {
           ai_coach_prompt?: string | null
           bmr?: number | null
           bmr_method?: string | null
+          calorie_cycling?: Json
           created_at?: string
           custom_charts?: Json
           custom_nutrients?: Json
@@ -453,6 +455,7 @@ export type Database = {
           ai_coach_prompt?: string | null
           bmr?: number | null
           bmr_method?: string | null
+          calorie_cycling?: Json
           created_at?: string
           custom_charts?: Json
           custom_nutrients?: Json

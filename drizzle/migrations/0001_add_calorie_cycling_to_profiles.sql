@@ -1,0 +1,1 @@
+ALTER TABLE public.profiles ADD COLUMN calorie_cycling jsonb NOT NULL DEFAULT '{"enabled": false, "multipliers": [1,1,1,1,1,1,1]}'::jsonb;
