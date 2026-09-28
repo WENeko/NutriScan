@@ -23,6 +23,8 @@ import { useBackHandler } from "@/lib/backNavigation";
 
 
 import MicroGoalsEditor from "@/components/MicroGoalsEditor";
+import CyclingEditor from "@/components/CyclingEditor";
+import { DEFAULT_CYCLING, normalizeMultipliers, type CalorieCycling } from "@/utils/goals-calc";
 import { validateCustomNutrient, type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import type { MicroOverrides } from "@/utils/nutrition-logic";
 import {
@@ -148,6 +150,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
   // Goals mode (scientific / manual / ai_coach)
   const [goalsMode, setGoalsMode] = useState<GoalsMode>("scientific");
+  const [calorieCycling, setCalorieCycling] = useState<CalorieCycling>(DEFAULT_CYCLING);
   const [manualUnit, setManualUnit] = useState<"g" | "g_per_kg" | "percent">("g");
   const [aiPrompt, setAiPrompt] = useState<string>("");
   const [aiLoading, setAiLoading] = useState(false);
@@ -275,6 +278,15 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       setExpertMode(!!d.expert_mode);
       if (d.micro_overrides && typeof d.micro_overrides === "object") {
         setMicroOverrides(d.micro_overrides as MicroOverrides);
+      }
+      if (d.calorie_cycling && typeof d.calorie_cycling === "object") {
+        const cc = d.calorie_cycling as any;
+        setCalorieCycling({
+          enabled: !!cc.enabled,
+          multipliers: Array.isArray(cc.multipliers) && cc.multipliers.length === 7
+            ? normalizeMultipliers(cc.multipliers.map(Number))
+            : [...DEFAULT_CYCLING.multipliers],
+        });
       }
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
@@ -438,6 +450,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           phase_adjust_mode: phaseAdjustMode,
           phase_adjust_value: phaseAdjustValue,
           ai_coach_prompt: goalsMode === "ai_coach" ? aiPrompt : null,
+          calorie_cycling: calorieCycling as any,
           goals: { ...targets, goalType } as any,
         } as any)
         .eq("user_id", userId);
@@ -1144,6 +1157,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 </div>
               </div>
             </section>
+
+            <CyclingEditor
+              userId={userId}
+              baseCalories={targets.calories}
+              weighinDay={weighinDay}
+              value={calorieCycling}
+              onChange={setCalorieCycling}
+            />
 
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "70ms" }}>
               <div className="flex items-center justify-between gap-3">
