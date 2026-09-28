@@ -106,3 +106,65 @@ export function calculateScientificGoals(input: GoalsInput): GoalsOutput {
 
   return { calories, proteins, carbs, fats, bmr, tdee };
 }
+
+// ============================================================
+// CYCLAGE CALORIQUE HEBDOMADAIRE
+// ============================================================
+
+/** Profil de cyclage stocké dans profiles.calorie_cycling.
+ *  multipliers : 7 coefficients indexés ISO (0 = Lundi … 6 = Dimanche),
+ *  normalisés à moyenne 1.0 pour conserver la moyenne hebdomadaire. */
+export interface CalorieCycling {
+  enabled: boolean;
+  multipliers: number[];
+}
+
+export const DEFAULT_CYCLING: CalorieCycling = {
+  enabled: false,
+  multipliers: [1, 1, 1, 1, 1, 1, 1],
+};
+
+/** Convertit le jour JS (0 = Dimanche) vers l'index ISO (0 = Lundi … 6 = Dimanche). */
+export function getIsoDayIndex(date: Date): number {
+  return (date.getDay() + 6) % 7;
+}
+
+/** Ramène la moyenne des coefficients à 1.0 (somme des 7 jours = 7 × objectif de base). */
+export function normalizeMultipliers(m: number[]): number[] {
+  if (m.length !== 7) return [...DEFAULT_CYCLING.multipliers];
+  const mean = m.reduce((s, v) => s + v, 0) / 7;
+  if (mean <= 0) return [...DEFAULT_CYCLING.multipliers];
+  return m.map((v) => Math.round((v / mean) * 1000) / 1000);
+}
+
+/** Applique le cyclage calorique aux objectifs de base pour une date donnée.
+ *  - Protéines : fixes (g/kg), jamais cyclées.
+ *  - Delta calorique absorbé à 80 % par les glucides, 20 % par les lipides.
+ *  - Plancher de sécurité : lipides ≥ 0.5 g/kg si poids connu, sinon ≥ 20 g. */
+export function applyCycling(
+  baseGoals: { calories: number; proteins: number; carbs: number; fats: number },
+  cycling: CalorieCycling | null | undefined,
+  date: Date,
+  weightKg?: number,
+): { calories: number; proteins: number; carbs: number; fats: number } {
+  if (!cycling?.enabled || !Array.isArray(cycling.multipliers) || cycling.multipliers.length !== 7) {
+    return baseGoals;
+  }
+  const mult = cycling.multipliers[getIsoDayIndex(date)] ?? 1;
+  const targetCalories = Math.round(baseGoals.calories * mult);
+  const deltaKcal = targetCalories - baseGoals.calories;
+
+  const deltaCarbs = (deltaKcal * 0.8) / 4;
+  const deltaFats = (deltaKcal * 0.2) / 9;
+
+  const fatFloor = weightKg && weightKg > 0 ? Math.round(weightKg * 0.5) : 20;
+  const fats = Math.max(Math.round(baseGoals.fats + deltaFats), fatFloor);
+  const carbs = Math.max(Math.round(baseGoals.carbs + deltaCarbs), 0);
+
+  return {
+    calories: targetCalories,
+    proteins: baseGoals.proteins,
+    carbs,
+    fats,
+  };
+}
