@@ -1,38 +1,46 @@
-# Enrichir le prompt local on-device
+# Cyclage calorique hebdomadaire
 
 ## Objectif
-Réintégrer dans le prompt local (modèles `.litertlm`/`.task` exécutés sur l'appareil) les consignes retirées lors de la compaction, en restant sous la fenêtre de contexte de 4096 tokens (partagée entre l'entrée ET la réponse JSON). Le prompt cloud reste inchangé.
+Permettre à l'utilisateur de répartir son budget calorique différemment selon les jours de la semaine (ex. jours d'entraînement plus hauts, jours de repos plus bas), tout en gardant la moyenne hebdomadaire identique à son objectif calculé. Simple : un interrupteur, un réglage par jour, tout le reste est automatique.
 
-## Contexte / contrainte
-- `maxNumTokens` = 4096 (entrée + sortie).
-- Le system prompt local actuel fait ~281 tokens. La réponse JSON (repas multi-items avec ~16 micronutriments chacun) peut consommer 1 500–2 500 tokens.
-- Budget réaliste pour enrichir le system prompt local : viser ~450–600 tokens max (contre 281 aujourd'hui), afin de garder une marge confortable pour la réponse. On réintègre donc l'essentiel, en formulation compacte, sans recopier tout le prompt cloud verbatim.
+## Principe
+- L'objectif de base (calculé ou manuel) reste la **moyenne hebdomadaire**.
+- L'utilisateur ajuste chaque jour avec un curseur ou des presets ; l'app **re-normalise automatiquement** pour que la somme des 7 jours = 7 × objectif de base. Pas de calcul mental.
+- Les macros (protéines/glucides/lipides) suivent la même proportion que le jour de base, sauf les protéines qui restent fixes (g/kg) — c'est la pratique standard du cyclage.
 
 ## Modifications
 
-### `supabase/functions/_shared/mealAnalysisPrompt.ts` → `buildLocalSystemContent()`
-Réintégrer, en formulation compacte (pas de longues listes verbeuses) :
+### 1. Base de données — `profiles`
+Nouvelle colonne `calorie_cycling` jsonb (défaut `{enabled: false, multipliers: [1,1,1,1,1,1,1]}`) :
+- `enabled` : cyclage actif ou non
+- `multipliers` : 7 coefficients (lundi→dimanche), normalisés à moyenne 1.0
 
-1. **Détection d'unités — exemples clés** : ajouter une poignée d'exemples courts pour ancrer la règle, ex. `"3 oeufs"->unit_count=3,unit_label="oeuf"; "2 tranches jambon"->2,"tranche"; "200g riz"->poids brut`. Ajouter une mini-liste d'aliments comptables condensée : `oeufs, tranches, portions fromage, biscuits, crepes, saucisses, nuggets, fruits entiers, tomates cerises`.
+Migration avec GRANTs inutile (colonne sur table existante, policies déjà en place).
 
-2. **Graisses cachées chiffrées** : remplacer « si frit estime plutôt haut » par la consigne précise `si aspect brillant/frit, ajoute +5 a +10g de lipides`.
+### 2. Logique — `src/utils/goals-calc.ts`
+- `applyCycling(baseGoals, cycling, dayOfWeek)` : retourne les objectifs du jour (calories × coefficient du jour, protéines inchangées, glucides/lipides ajustés proportionnellement au reste calorique).
+- `normalizeMultipliers(m)` : ramène la moyenne à 1.0.
 
-3. **Indices visuels (image)** : ajouter `sur photo, utilise couverts et assiette pour estimer les portions; si ambigu choisis l'option la plus calorique`.
+### 3. Réglages — nouveau `CyclingEditor.tsx` (dans la section Objectifs du profil)
+- Interrupteur « Cyclage calorique ».
+- 7 lignes (Lun→Dim) avec slider −30 % → +30 % et valeur en kcal affichée en direct.
+- Presets en un tap : « Training/Repos » (jours de sport +20 %), « 5/2 léger », « Réinitialiser ».
+- Bandeau de contrôle : « Moyenne hebdo : 2 450 kcal ✓ » toujours exacte grâce à la normalisation.
+- Le jour de pesée configuré est mis en évidence visuellement.
 
-Garder : format JSON compact, tous les nutriments obligatoires (0 si inconnu), `suggested_timestamp` ISO, `total_summary`.
+### 4. Application au quotidien
+- Dashboard, anneau de progression, widget Android et budget hebdo utilisent l'objectif **du jour** via `applyCycling`.
+- `goals_history` continue d'enregistrer l'objectif réellement appliqué chaque jour (traçabilité déjà en place).
+- Coach IA : le contexte repas inclut l'objectif du jour cyclé.
 
-### Bornage du texte utilisateur — `buildLocalUserPromptText()`
-- Relever la troncature de la description utilisateur de **500 → ~900 caractères** (marge disponible avec 4096 tokens), pour ne plus couper les descriptions de repas longs.
-- Relever le contexte références perso de 240 → ~400 caractères.
-
-### Références perso — `buildLocalCustomFoodsContext()`
-- Passer de **2 → 3** aliments correspondants max, et la troncature du bloc compact de 220 → ~400 caractères.
+### 5. Widget Android
+- `WidgetDataStore` reçoit l'objectif du jour déjà calculé côté JS (aucune logique native à dupliquer).
 
 ## Vérification
-- Estimer le nombre de tokens du nouveau system prompt local via un petit script `bun`/node (approx. 4 chars/token) pour confirmer qu'il reste ≤ ~600 tokens.
-- Confirmer que le budget total (system + user + réponse) reste sous 4096 avec une marge (viser system+user ≤ ~1200 tokens).
-- Vérifier que le typecheck passe.
+- Activer le cyclage, modifier un jour → la moyenne hebdo reste exactement égale à l'objectif de base.
+- Changer de jour dans l'historique → l'anneau affiche l'objectif du jour correspondant.
+- Cyclage désactivé → comportement identique à aujourd'hui (aucune régression).
 
 ## Hors périmètre
-- Aucun changement au prompt cloud (`buildSystemContent` / `buildUserPromptText`).
-- Aucun changement au moteur natif Kotlin (`maxNumTokens` reste à 4096).
+- Pas de cyclage automatique basé sur les séances sport détectées (évolution future possible).
+- Pas de cyclage des micronutriments.
