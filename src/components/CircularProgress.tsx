@@ -8,6 +8,7 @@ interface CircularProgressProps {
   color: string;
   label: string;
   unit?: string;
+  children?: React.ReactNode;
 }
 
 const CircularProgress: React.FC<CircularProgressProps> = ({
@@ -18,18 +19,26 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
   color,
   label,
   unit = "g",
+  children,
 }) => {
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
-  const percentage = Math.min(value / max, 1);
-  const strokeDashoffset = circumference * (1 - percentage);
+  const ratio = Number.isFinite(value) && Number.isFinite(max) && max > 0
+    ? Math.max(0, value / max)
+    : 0;
+  const baseProgress = Math.min(ratio, 1);
+  // À chaque nouveau tour, le surplus repart du haut sans masquer l'anneau de base.
+  const surplusTurns = Math.max(0, ratio - 1);
+  const surplusProgress = surplusTurns > 0
+    ? (surplusTurns % 1 === 0 ? 1 : surplusTurns % 1)
+    : 0;
 
-  const showInner = label || unit;
+  const showInner = !children && (label || unit);
 
   return (
     <div className="flex flex-col items-center gap-1">
-      <div className="relative" style={{ width: size, height: size }}>
-        <svg width={size} height={size} className="-rotate-90">
+      <div className="relative" style={{ width: size, height: size }} role="img" aria-label={`${label || "Progression"} : ${Math.round(value)} sur ${Math.round(max)}${unit ? ` ${unit}` : ""}${surplusTurns > 0 ? `, surplus de ${Math.round(value - max)}` : ""}`}>
+        <svg width={size} height={size} className="-rotate-90" aria-hidden="true">
           <circle
             cx={size / 2}
             cy={size / 2}
@@ -46,11 +55,26 @@ const CircularProgress: React.FC<CircularProgressProps> = ({
             stroke={color}
             strokeWidth={strokeWidth}
             strokeDasharray={circumference}
-            strokeDashoffset={strokeDashoffset}
+            strokeDashoffset={circumference * (1 - baseProgress)}
             strokeLinecap="round"
-            className="transition-all duration-700 ease-out"
+            className="transition-all duration-700 ease-out motion-reduce:transition-none"
           />
+          {surplusProgress > 0 && (
+            <circle
+              cx={size / 2}
+              cy={size / 2}
+              r={radius}
+              fill="none"
+              stroke="hsl(var(--progress-surplus))"
+              strokeWidth={strokeWidth}
+              strokeDasharray={circumference}
+              strokeDashoffset={circumference * (1 - surplusProgress)}
+              strokeLinecap="round"
+              className="transition-all duration-700 ease-out motion-reduce:transition-none"
+            />
+          )}
         </svg>
+        {children && <div className="absolute inset-0 flex flex-col items-center justify-center">{children}</div>}
         {showInner && (
           <div className="absolute inset-0 flex flex-col items-center justify-center">
             <span className="text-lg font-display font-bold text-foreground leading-none">

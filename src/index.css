@@ -65,6 +65,7 @@
     --macro-fat: var(--nutri-pink);
     --macro-fat-light: var(--nutri-pink-light);
     --macro-calorie: var(--primary);
+    --progress-surplus: var(--destructive);
 
     --nutri-gradient: linear-gradient(135deg, hsl(160 60% 40%), hsl(160 50% 50%));
     --shadow-card: 0 4px 24px -4px hsl(160 30% 20% / 0.08);
