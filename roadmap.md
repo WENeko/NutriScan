@@ -1,5 +1,10 @@
 # Roadmap NutriScan
 
+## Demande en cours — Laya-Vision et indicateurs
+
+- [ ] Vérifier si le modèle ONNX est effectivement prêt sur téléphone.
+- [ ] Afficher les tours supplémentaires des anneaux en couleur de surplus et les chiffres réels au-delà de l'objectif.
+
 ## Mode Hybride ultra-rapide (Laya + Base locale + Micro-LLM)
 
 - [x] Pipeline de détection Laya (plugin natif Android `LayaVision` + pont JS)
