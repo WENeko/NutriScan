@@ -15,6 +15,7 @@ import { supabase } from "@/integrations/supabase/client";
 
 const LS_LOVABLE = "lovable_ai_enabled";
 const LS_PROVIDER = "ai_provider_config";
+const LS_ANY_READY = "ai_any_ready";
 
 // Deux modes d'IA locale (sur l'appareil), aucune clé requise :
 //  - "local"        = endpoint HTTP compatible OpenAI (ex: Ollama, LM Studio,
@@ -61,9 +62,20 @@ export async function loadAiAccess(userId: string): Promise<void> {
   try {
     const { data: profile } = await supabase
       .from("profiles")
-      .select("lovable_ai_enabled, selected_ai_provider_id, selected_ai_model")
+      .select("lovable_ai_enabled, selected_ai_provider_id, selected_ai_model, routing_config")
       .eq("user_id", userId)
       .maybeSingle();
+
+    // Une IA est utilisable dès qu'une clé perso existe (quel que soit le
+    // fournisseur « sélectionné ») ou que le mode hybride local est activé.
+    const { data: anyKeys } = await supabase
+      .from("user_provider_keys")
+      .select("provider_id")
+      .eq("user_id", userId)
+      .not("api_key", "is", null)
+      .limit(1);
+    const hybridOn = !!(profile as any)?.routing_config?.hybrid;
+    localStorage.setItem(LS_ANY_READY, (anyKeys && anyKeys.length > 0) || hybridOn ? "true" : "false");
 
     localStorage.setItem(LS_LOVABLE, (profile as any)?.lovable_ai_enabled ? "true" : "false");
 
@@ -126,6 +138,7 @@ export function getActiveProviderConfig(): ActiveProviderConfig | null {
 export function clearAiAccessCache(): void {
   localStorage.removeItem(LS_LOVABLE);
   localStorage.removeItem(LS_PROVIDER);
+  localStorage.removeItem(LS_ANY_READY);
 }
 
 /**
@@ -134,6 +147,7 @@ export function clearAiAccessCache(): void {
  */
 export function isAiConfigured(): boolean {
   if (isLovableAiEnabled()) return true;
+  if (localStorage.getItem(LS_ANY_READY) === "true") return true;
   const cfg = getActiveProviderConfig();
   return !!(cfg && (cfg.apiKey || isKeyOptional(cfg.apiType)));
 }

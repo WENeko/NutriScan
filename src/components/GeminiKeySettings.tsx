@@ -214,6 +214,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       .update({ routing_config: next as any })
       .eq("user_id", userId);
     if (error) toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+    else void loadAiAccess(userId);
   }
 
   function setModels(pid: string, list: string[], nextConfig?: RoutingConfig) {
@@ -605,6 +606,17 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
           Configurez au moins un fournisseur, ajoutez un modèle, puis activez la personnalisation.
         </p>
       )}
+
+      {/* Interrupteur « Mode hybride » (indépendant de la personnalisation) */}
+      <div className="flex items-center justify-between bg-accent rounded-xl p-3">
+        <div className="pr-3">
+          <div className="text-sm font-semibold">Mode hybride ultra-rapide</div>
+          <div className="text-[11px] text-muted-foreground">
+            Analyse d'abord sur l'appareil (base locale + modèle photo), puis bascule sur vos autres modèles si besoin.
+          </div>
+        </div>
+        <Switch checked={!!config.hybrid} onCheckedChange={(v) => void persistConfig({ ...config, hybrid: v })} />
+      </div>
 
       {/* 1. Interrupteur « Personnaliser les modèles » (avant les cartes) */}
       <div className="flex items-center justify-between bg-accent rounded-xl p-3">
