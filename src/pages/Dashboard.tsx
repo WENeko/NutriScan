@@ -624,7 +624,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {/* Remaining focus card */}
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <div className="flex items-center justify-center mb-4">
-                <div className="relative">
                   <CircularProgress
                     value={todayTotals.calories}
                     max={goals.calories}
@@ -632,52 +631,37 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                     strokeWidth={10}
                     color="hsl(var(--primary))"
                     label=""
-                    unit=""
-                  />
-                  <div className="absolute inset-0 flex flex-col items-center justify-center">
-                    <span className="text-2xl font-display font-bold text-foreground leading-none">
-                      {Math.round(remaining.calories)}
-                    </span>
-                    <span className="text-[10px] text-muted-foreground">kcal restantes</span>
-                    <span className="text-[10px] text-muted-foreground/60 mt-0.5">
-                      {Math.round(todayTotals.calories)} consommées
-                    </span>
-                  </div>
-                </div>
+                     unit=""
+                   >
+                     <span className={`text-2xl font-display font-bold leading-none ${todayTotals.calories > goals.calories ? "text-destructive" : "text-foreground"}`}>
+                       {todayTotals.calories > goals.calories ? `+${Math.round(todayTotals.calories - goals.calories)}` : Math.round(remaining.calories)}
+                     </span>
+                     <span className="text-[10px] text-muted-foreground">kcal {todayTotals.calories > goals.calories ? "en surplus" : "restantes"}</span>
+                     <span className="text-[10px] text-muted-foreground/60 mt-0.5">
+                       {Math.round(todayTotals.calories)} consommées
+                     </span>
+                   </CircularProgress>
               </div>
 
               {/* Macro remaining bars + protein/kg donut */}
               <div className="flex justify-around mb-4">
                 {[
-                  { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, remaining: remaining.proteins, color: MACRO_COLORS.protein },
-                  { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, remaining: remaining.carbs, color: MACRO_COLORS.carb },
-                  { label: "Lipides", value: todayTotals.fats, max: goals.fats, remaining: remaining.fats, color: MACRO_COLORS.fat },
+                   { label: "Protéines", value: todayTotals.proteins, max: goals.proteins, color: MACRO_COLORS.protein },
+                   { label: "Glucides", value: todayTotals.carbs, max: goals.carbs, color: MACRO_COLORS.carb },
+                   { label: "Lipides", value: todayTotals.fats, max: goals.fats, color: MACRO_COLORS.fat },
                 ].map((m) => (
-                  <div key={m.label} className="flex flex-col items-center gap-1">
+                   <div key={m.label} className="flex flex-col items-center gap-1 min-w-0">
                     <CircularProgress value={m.value} max={m.max} size={64} strokeWidth={5} color={m.color} label="" unit="" />
-                    <span className="text-xs font-semibold">{Math.round(m.remaining)}g</span>
+                     <span className="text-xs font-semibold">{Math.round(m.value)}g</span>
+                     {m.value > m.max && <span className="text-[10px] font-semibold text-destructive">+{Math.round(m.value - m.max)}g</span>}
                     <span className="text-[10px] text-muted-foreground">{m.label}</span>
                   </div>
                 ))}
                 {/* Protein per kg donut */}
                 <div className="flex flex-col items-center gap-1">
-                  <div className="relative" style={{ width: 64, height: 64 }}>
-                    <svg width={64} height={64} className="-rotate-90">
-                      <circle cx={32} cy={32} r={27} fill="none" stroke="hsl(var(--muted))" strokeWidth={5} />
-                      <circle
-                        cx={32} cy={32} r={27} fill="none"
-                        stroke="hsl(var(--secondary))"
-                        strokeWidth={5}
-                        strokeDasharray={2 * Math.PI * 27}
-                        strokeDashoffset={2 * Math.PI * 27 * (1 - Math.min(proteinPerKg / proteinPerKgMax, 1))}
-                        strokeLinecap="round"
-                        className="transition-all duration-700 ease-out"
-                      />
-                    </svg>
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <span className="text-lg">💪</span>
-                    </div>
-                  </div>
+                   <CircularProgress value={proteinPerKg} max={proteinPerKgMax} size={64} strokeWidth={5} color="hsl(var(--secondary))" label="" unit="">
+                     <span className="text-lg">💪</span>
+                   </CircularProgress>
                   <span className="text-xs font-semibold">{proteinPerKg.toFixed(1)}/{proteinPerKgMax.toFixed(1)}</span>
 
                   <span className="text-[10px] text-muted-foreground">g/kg</span>
