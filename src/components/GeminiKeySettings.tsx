@@ -214,6 +214,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       .update({ routing_config: next as any })
       .eq("user_id", userId);
     if (error) toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+    else void loadAiAccess(userId);
   }
 
   function setModels(pid: string, list: string[], nextConfig?: RoutingConfig) {
