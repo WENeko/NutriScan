@@ -47,6 +47,8 @@ export interface RoutingConfig {
   /** Modèles gérés par fournisseur (clé = providerId). Persistés ici pour éviter
    *  de re-saisir la clé API à chaque modèle d'un même fournisseur. */
   models: Record<string, string[]>;
+  /** Mode hybride local activé en priorité 1 pour l'analyse photo / texte. */
+  hybrid: boolean;
 }
 
 export const EDGE_LABEL = "Edge Function Lovable";
@@ -65,6 +67,7 @@ export const emptyRoutingConfig = (): RoutingConfig => ({
   coach: [],
   recipe: [],
   models: {},
+  hybrid: false,
 });
 
 export function normalizeRoutingConfig(raw: any): RoutingConfig {
@@ -89,6 +92,7 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
     coach: pick("coach"),
     recipe: pick("recipe"),
     models,
+    hybrid: !!raw.hybrid,
   };
 }
 
@@ -164,6 +168,13 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
       steps.push({ type: "byok", providerId: ctx.selectedProviderId, model: ctx.selectedModel ?? undefined });
     }
   }
+  // Aucun fournisseur « sélectionné » mais des clés enregistrées : on les utilise.
+  if (!steps.some((s) => s.type === "byok")) {
+    for (const p of ctx.providers.values()) {
+      if (!p.apiKey) continue;
+      steps.push({ type: "byok", providerId: p.id, model: ctx.routing.models[p.id]?.[0] });
+    }
+  }
   return steps;
 }
 
@@ -171,6 +182,10 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
 function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   let steps = ctx.routing.enabled ? ctx.routing[feature] : [];
   if (!steps || steps.length === 0) steps = defaultSteps(ctx);
+  // Interrupteur « Mode hybride » : priorité 1 pour l'analyse, repli sur la suite.
+  if (ctx.routing.hybrid && (feature === "photo" || feature === "text")) {
+    steps = [{ type: "hybrid" }, ...steps.filter((s) => s.type !== "hybrid")];
+  }
   // Filtre les steps non exécutables (edge sans droit, byok sans clé sauf local).
   return steps.filter((s) => {
     if (s.type === "edge_function") return ctx.lovableEnabled;
