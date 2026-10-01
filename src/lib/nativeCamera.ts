@@ -1,13 +1,22 @@
 import { Capacitor } from "@capacitor/core";
+import {
+  readCurrentAngle,
+  setCaptureAngle,
+  startAngleTracking,
+  stopAngleTracking,
+} from "@/services/hybrid/captureAngle";
 
 /**
  * Capture / sélection d'image.
  * Sur mobile natif, le clic programmatique sur un <input type="file"> est bloqué
  * par la WebView (pas de geste utilisateur) : on passe donc par le plugin
  * natif Camera, ce qui rend les widgets « Caméra » et « Galerie » fonctionnels.
+ * Pour la caméra, l'angle d'inclinaison du téléphone est mémorisé.
  */
 export async function captureImageFile(source: "camera" | "gallery"): Promise<File | null> {
   if (!Capacitor.isNativePlatform()) return null;
+  setCaptureAngle(null);
+  if (source === "camera") startAngleTracking();
   try {
     const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
     const photo = await Camera.getPhoto({
@@ -17,6 +26,7 @@ export async function captureImageFile(source: "camera" | "gallery"): Promise<Fi
       resultType: CameraResultType.Base64,
       source: source === "gallery" ? CameraSource.Photos : CameraSource.Camera,
     });
+    if (source === "camera") setCaptureAngle(readCurrentAngle());
     if (!photo?.base64String) return null;
     const mime = photo.format === "png" ? "image/png" : "image/jpeg";
     const bytes = Uint8Array.from(atob(photo.base64String), (c) => c.charCodeAt(0));
@@ -24,5 +34,7 @@ export async function captureImageFile(source: "camera" | "gallery"): Promise<Fi
   } catch (e) {
     console.warn("[camera] capture annulée ou indisponible", e);
     return null;
+  } finally {
+    stopAngleTracking();
   }
 }

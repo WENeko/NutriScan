@@ -18,7 +18,9 @@
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { appLogger } from "@/services/appLogger";
-import { labelForClassIndex } from "./food101Labels";
+import { FOOD101_LABELS } from "./food101Labels";
+import { ISIA500_LABELS } from "./isia500Labels";
+import { consumeCaptureAngle } from "./captureAngle";
 
 export interface LayaPrediction {
   /** Libellé brut renvoyé par le modèle (ex: "grilled_chicken_breast" ou "class_42"). */
@@ -49,10 +51,11 @@ interface LayaVisionNativePlugin {
   listModels(): Promise<{ models: string[] }>;
   importModel(): Promise<{ model: string; path?: string; size?: number }>;
   deleteModel(opts: { model: string }): Promise<{ deleted?: boolean; stillInDownloads?: boolean }>;
-  classify(opts: { image: string; model?: string; maxResults?: number }): Promise<{
+  classify(opts: { image: string; model?: string; maxResults?: number; angle?: number }): Promise<{
     predictions?: LayaPrediction[];
     latencyMs?: number;
     model?: string;
+    angleUsed?: boolean;
   }>;
 }
 
@@ -131,10 +134,56 @@ export function humanizeLabel(label: string): string {
     .toLowerCase();
 }
 
-/** Résout le nom lisible d'une prédiction : libellé direct, ou table Food-101 via l'indice. */
-function resolveName(p: LayaPrediction): string {
+const LS_LABELS_PREFIX = "nutriscan-laya-labels:";
+
+/** Enregistre la liste ordonnée des classes exportée avec le checkpoint. */
+export function setLayaLabels(model: string, labels: string[] | null): void {
+  try {
+    if (labels?.length) localStorage.setItem(LS_LABELS_PREFIX + model, JSON.stringify(labels));
+    else localStorage.removeItem(LS_LABELS_PREFIX + model);
+  } catch {
+    /* ignoré */
+  }
+}
+
+export function getLayaLabels(model: string | null): string[] | null {
+  if (!model) return null;
+  try {
+    const raw = localStorage.getItem(LS_LABELS_PREFIX + model);
+    const arr = raw ? JSON.parse(raw) : null;
+    return Array.isArray(arr) && arr.length ? arr.map(String) : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Lit un fichier de classes : JSON tableau, JSON {idx: nom}/{nom: idx}, ou texte (1 par ligne). */
+export function parseLabelsFile(text: string): string[] {
+  const t = text.trim();
+  try {
+    const j = JSON.parse(t);
+    const obj = Array.isArray(j) ? j : j.classes ?? j.idx_to_class ?? j.class_to_idx ?? j;
+    if (Array.isArray(obj)) return obj.map(String);
+    const entries = Object.entries(obj as Record<string, unknown>);
+    if (entries.every(([k]) => /^\d+$/.test(k)))
+      return entries.sort((a, b) => +a[0] - +b[0]).map(([, v]) => String(v));
+    return entries.sort((a, b) => Number(a[1]) - Number(b[1])).map(([k]) => k);
+  } catch {
+    return t.split(/\r?\n/).map((l) => l.replace(/^\s*\d+[\s,;:\t]+/, "").trim()).filter(Boolean);
+  }
+}
+
+/** Résout le nom lisible : libellé direct, classes importées, ou table embarquée. */
+function resolveName(p: LayaPrediction, model: string | null): string {
   if (p.label && !/^class_\d+$/i.test(p.label)) return humanizeLabel(p.label);
-  if (typeof p.classIndex === "number") return humanizeLabel(labelForClassIndex(p.classIndex));
+  const i = p.classIndex;
+  if (typeof i === "number") {
+    const custom = getLayaLabels(model);
+    if (custom?.[i]) return humanizeLabel(custom[i]);
+    const table = /isia|500/i.test(model ?? "") ? ISIA500_LABELS : FOOD101_LABELS;
+    if (table[i]) return humanizeLabel(table[i]);
+    return `aliment ${i}`;
+  }
   return humanizeLabel(p.label || "aliment inconnu");
 }
 
@@ -144,7 +193,7 @@ function resolveName(p: LayaPrediction): string {
  */
 export async function detectFoodsWithLaya(
   image: string,
-  opts: { minConfidence?: number; maxResults?: number } = {},
+  opts: { minConfidence?: number; maxResults?: number; angle?: number | null } = {},
 ): Promise<LayaClassifyResult> {
   const plugin = getPlugin();
   if (!plugin) throw new Error("Détection Laya disponible uniquement dans l'app Android native.");
@@ -153,7 +202,15 @@ export async function detectFoodsWithLaya(
   const maxResults = opts.maxResults ?? 5;
   const model = getSelectedLayaModel() ?? undefined;
 
-  const res = await plugin.classify({ image, model, maxResults });
+  // Angle de prise de vue (capteur) : transmis si connu ; le plugin ne l'utilise
+  // que si le modèle ONNX possède une 2e entrée (« angle »).
+  const angle = opts.angle !== undefined ? opts.angle : consumeCaptureAngle();
+  const res = await plugin.classify({
+    image,
+    model,
+    maxResults,
+    ...(typeof angle === "number" ? { angle } : {}),
+  });
   const raw = Array.isArray(res?.predictions) ? res.predictions : [];
 
   const detections: LayaDetection[] = raw
@@ -167,7 +224,7 @@ export async function detectFoodsWithLaya(
         classIndex: typeof p.classIndex === "number" ? p.classIndex : undefined,
         massG: weightG,
         weightG,
-        name: resolveName(p),
+        name: resolveName(p, res?.model || model || null),
       };
     })
     .filter((p) => p.confidence >= minConfidence)
@@ -176,6 +233,8 @@ export async function detectFoodsWithLaya(
   appLogger.info("LayaVision", `Détection en ${res?.latencyMs ?? 0} ms`, {
     count: detections.length,
     top: detections[0]?.name,
+    angle,
+    angleUsed: !!res?.angleUsed,
   });
 
   return {

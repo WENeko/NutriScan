@@ -299,8 +299,11 @@ class LayaVisionPlugin : Plugin() {
                 else bitmap
 
             val predictions = JSArray()
+            var angleUsed = false
+            // Angle caméra/table en degrés (90 = dessus), mesuré par les capteurs.
+            val angle = call.getDouble("angle")
             if (modelFile.extension.lowercase() == "onnx") {
-                classifyOnnx(modelFile, softwareBitmap, maxResults, predictions)
+                angleUsed = classifyOnnx(modelFile, softwareBitmap, maxResults, predictions, angle)
             } else {
                 val classifier = classifierFor(modelFile, maxResults)
                 val mpImage = BitmapImageBuilder(softwareBitmap).build()
@@ -320,6 +323,7 @@ class LayaVisionPlugin : Plugin() {
             res.put("predictions", predictions)
             res.put("latencyMs", System.currentTimeMillis() - started)
             res.put("model", modelFile.name)
+            res.put("angleUsed", angleUsed)
             call.resolve(res)
         } catch (t: Throwable) {
             call.reject(t.message ?: "Détection impossible.", null as String?)
@@ -387,13 +391,26 @@ class LayaVisionPlugin : Plugin() {
      * `masses` [1,N] (grammes estimés par classe). Renvoie le top-K avec, pour
      * chaque détection, l'indice de classe, la confiance softmax et la masse.
      */
-    private fun classifyOnnx(modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray) {
+    private fun classifyOnnx(
+        modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray, angleDeg: Double?
+    ): Boolean {
         val session = ortSessionFor(modelFile)
         val size = onnxInputSize
-        val inputName = session.inputNames.firstOrNull() ?: "image"
+        val names = session.inputNames.toList()
+        val imageName = names.firstOrNull { it.lowercase().contains("image") || it.lowercase().contains("pixel") }
+            ?: names.firstOrNull() ?: "image"
+        // Modèle bi-entrées : 2e entrée « angle » [1,1] en degrés (défaut 90 = vue du dessus).
+        val angleName = names.firstOrNull { it != imageName }
         val shape = longArrayOf(1, 3, size.toLong(), size.toLong())
-        OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap), shape).use { input ->
-            session.run(mapOf(inputName to input)).use { results ->
+        val inputs = HashMap<String, OnnxTensor>()
+        inputs[imageName] = OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap), shape)
+        if (angleName != null) {
+            val buf = java.nio.ByteBuffer.allocateDirect(4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
+            buf.put((angleDeg ?: 90.0).toFloat()).rewind()
+            inputs[angleName] = OnnxTensor.createTensor(ortEnv, buf, longArrayOf(1, 1))
+        }
+        try {
+            session.run(inputs).use { results ->
                 var logits: FloatArray? = null
                 var masses: FloatArray? = null
                 for (entry in results) {
@@ -427,7 +444,10 @@ class LayaVisionPlugin : Plugin() {
                     predictions.put(entry)
                 }
             }
+        } finally {
+            inputs.values.forEach { try { it.close() } catch (_: Throwable) {} }
         }
+        return angleName != null && angleDeg != null
     }
 
     override fun handleOnDestroy() {

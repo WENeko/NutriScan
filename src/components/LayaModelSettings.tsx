@@ -1,9 +1,9 @@
-import React, { useCallback, useEffect, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Capacitor } from "@capacitor/core";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { ScanEye, RefreshCw, Upload, Check, Loader2, Trash2 } from "lucide-react";
+import { ScanEye, RefreshCw, Upload, Check, Loader2, Trash2, Tags } from "lucide-react";
 import {
   isLayaAvailable,
   listLayaModels,
@@ -11,6 +11,9 @@ import {
   deleteLayaModel,
   getSelectedLayaModel,
   setSelectedLayaModel,
+  getLayaLabels,
+  setLayaLabels,
+  parseLabelsFile,
 } from "@/services/hybrid/layaVision";
 
 /**
@@ -25,6 +28,26 @@ const LayaModelSettings: React.FC = () => {
   const [available, setAvailable] = useState(false);
   const [scanning, setScanning] = useState(false);
   const [importing, setImporting] = useState(false);
+  const labelsInput = useRef<HTMLInputElement>(null);
+  const [labelsCount, setLabelsCount] = useState(0);
+
+  useEffect(() => {
+    setLabelsCount(getLayaLabels(selected)?.length ?? 0);
+  }, [selected]);
+
+  const handleLabelsFile = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    e.target.value = "";
+    if (!file || !selected) return;
+    const labels = parseLabelsFile(await file.text());
+    if (labels.length < 2) {
+      toast({ title: "Fichier de classes illisible", variant: "destructive" });
+      return;
+    }
+    setLayaLabels(selected, labels);
+    setLabelsCount(labels.length);
+    toast({ title: "Noms des plats associés", description: `${labels.length} classes pour ${selected}` });
+  };
 
   const scan = useCallback(async () => {
     if (!isNative) return;
@@ -142,6 +165,21 @@ const LayaModelSettings: React.FC = () => {
                   </Button>
                 </div>
               ))}
+            </div>
+          )}
+
+          {selected && (
+            <div className="space-y-1">
+              <input ref={labelsInput} type="file" accept=".json,.txt,application/json,text/plain" className="hidden" onChange={handleLabelsFile} />
+              <Button onClick={() => labelsInput.current?.click()} variant="outline" size="sm" className="w-full h-9 rounded-xl">
+                <Tags className="w-4 h-4 mr-1" />
+                Importer la liste des classes (.json)
+              </Button>
+              <p className="text-[10px] text-muted-foreground">
+                {labelsCount > 0
+                  ? `${labelsCount} noms de plats exacts associés à ce modèle.`
+                  : "Sans fichier, la liste ISIA Food-500 / Food-101 intégrée est utilisée (ordre alphabétique)."}
+              </p>
             </div>
           )}
 
