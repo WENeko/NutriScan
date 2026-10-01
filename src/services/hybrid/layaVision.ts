@@ -48,6 +48,7 @@ interface LayaVisionNativePlugin {
   isAvailable(): Promise<{ available: boolean }>;
   listModels(): Promise<{ models: string[] }>;
   importModel(): Promise<{ model: string; path?: string; size?: number }>;
+  deleteModel(opts: { model: string }): Promise<{ deleted?: boolean; stillInDownloads?: boolean }>;
   classify(opts: { image: string; model?: string; maxResults?: number }): Promise<{
     predictions?: LayaPrediction[];
     latencyMs?: number;
@@ -93,6 +94,15 @@ export async function importLayaModel(): Promise<{ model: string; path?: string;
   const res = await plugin.importModel();
   if (res?.model) setSelectedLayaModel(res.model);
   return res;
+}
+
+/** Supprime un modèle importé du stockage privé de l'app. */
+export async function deleteLayaModel(model: string): Promise<{ deleted: boolean; stillInDownloads: boolean }> {
+  const plugin = getPlugin();
+  if (!plugin) throw new Error("Suppression disponible uniquement dans l'app Android native.");
+  const res = await plugin.deleteModel({ model });
+  if (getSelectedLayaModel() === model) setSelectedLayaModel(null);
+  return { deleted: !!res?.deleted, stillInDownloads: !!res?.stillInDownloads };
 }
 
 export function getSelectedLayaModel(): string | null {
