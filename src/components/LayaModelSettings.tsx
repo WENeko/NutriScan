@@ -3,11 +3,12 @@ import { Capacitor } from "@capacitor/core";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { toast } from "@/hooks/use-toast";
-import { ScanEye, RefreshCw, Upload, Check, Loader2 } from "lucide-react";
+import { ScanEye, RefreshCw, Upload, Check, Loader2, Trash2 } from "lucide-react";
 import {
   isLayaAvailable,
   listLayaModels,
   importLayaModel,
+  deleteLayaModel,
   getSelectedLayaModel,
   setSelectedLayaModel,
 } from "@/services/hybrid/layaVision";
@@ -67,6 +68,23 @@ const LayaModelSettings: React.FC = () => {
     setSelected(name);
   };
 
+  const handleDelete = async (name: string) => {
+    if (!window.confirm(`Supprimer le modèle « ${name} » ?`)) return;
+    try {
+      const res = await deleteLayaModel(name);
+      if (selected === name) setSelected(null);
+      toast({
+        title: "Modèle supprimé",
+        description: res.stillInDownloads
+          ? "Une copie reste dans vos Téléchargements : supprimez-la aussi pour qu'il disparaisse de la liste."
+          : name,
+      });
+      await scan();
+    } catch (e: any) {
+      toast({ title: "Suppression impossible", description: e?.message, variant: "destructive" });
+    }
+  };
+
   return (
     <Card className="bg-card rounded-2xl p-4 shadow-card space-y-3">
       <div className="flex items-center gap-2">
@@ -103,16 +121,26 @@ const LayaModelSettings: React.FC = () => {
           ) : (
             <div className="space-y-1.5">
               {models.map((m) => (
-                <button
-                  key={m}
-                  onClick={() => handleSelect(m)}
-                  className={`w-full flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-left transition-colors ${
-                    selected === m ? "bg-accent border border-primary/40" : "bg-muted/40 hover:bg-muted"
-                  }`}
-                >
-                  <span className="flex-1 truncate font-mono">{m}</span>
-                  {selected === m && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                </button>
+                <div key={m} className="flex items-center gap-1.5">
+                  <button
+                    onClick={() => handleSelect(m)}
+                    className={`flex-1 min-w-0 flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-left transition-colors ${
+                      selected === m ? "bg-accent border border-primary/40" : "bg-muted/40 hover:bg-muted"
+                    }`}
+                  >
+                    <span className="flex-1 truncate font-mono">{m}</span>
+                    {selected === m && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
+                  </button>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-8 w-8 shrink-0 text-destructive"
+                    aria-label={`Supprimer ${m}`}
+                    onClick={() => handleDelete(m)}
+                  >
+                    <Trash2 className="w-4 h-4" />
+                  </Button>
+                </div>
               ))}
             </div>
           )}

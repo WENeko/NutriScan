@@ -135,6 +135,27 @@ class LayaVisionPlugin : Plugin() {
         call.resolve(res)
     }
 
+    /** Supprime un modèle importé du stockage privé (le fichier de Téléchargements n'est pas touché). */
+    @PluginMethod
+    fun deleteModel(call: PluginCall) {
+        val name = call.getString("model")
+        if (name.isNullOrBlank() || name.contains("/") || name.contains("..")) {
+            call.reject("Nom de modèle invalide.", null as String?)
+            return
+        }
+        val file = File(modelsDir(), name)
+        // Libère les sessions/classifieurs ouverts sur ce fichier.
+        ortSessions.remove(file.absolutePath)?.let { try { it.close() } catch (_: Throwable) {} }
+        classifiers.keys.filter { it.startsWith(file.absolutePath + "#") }.forEach { k ->
+            classifiers.remove(k)?.let { try { it.close() } catch (_: Throwable) {} }
+        }
+        val deleted = file.isFile && file.delete()
+        val res = JSObject()
+        res.put("deleted", deleted)
+        res.put("stillInDownloads", downloadModels().any { it.first == name })
+        call.resolve(res)
+    }
+
     // ── Import via le sélecteur de fichiers ──────────────────────────────────
 
     @PluginMethod
@@ -320,7 +341,10 @@ class LayaVisionPlugin : Plugin() {
         val scaled = Bitmap.createScaledBitmap(bitmap, size, size, true)
         val pixels = IntArray(size * size)
         scaled.getPixels(pixels, 0, size, 0, 0, size, size)
-        val buf = FloatBuffer.allocate(3 * size * size)
+        // Buffer DIRECT obligatoire pour JNI (sinon crash natif d'ONNX Runtime).
+        val buf = java.nio.ByteBuffer.allocateDirect(3 * size * size * 4)
+            .order(java.nio.ByteOrder.nativeOrder())
+            .asFloatBuffer()
         for (c in 0 until 3) {
             for (i in pixels.indices) {
                 val p = pixels[i]
@@ -334,6 +358,16 @@ class LayaVisionPlugin : Plugin() {
         }
         buf.rewind()
         return buf
+    }
+
+    /** Aplatit la valeur d'un tenseur de sortie (float[][] / float[]) en FloatArray. */
+    private fun flattenOutput(value: Any?): FloatArray? = when (value) {
+        is FloatArray -> value
+        is Array<*> -> {
+            val parts = value.mapNotNull { flattenOutput(it) }
+            if (parts.isEmpty()) null else parts.reduce { a, b -> a + b }
+        }
+        else -> null
     }
 
     private fun softmax(logits: FloatArray): FloatArray {
@@ -364,9 +398,11 @@ class LayaVisionPlugin : Plugin() {
                 var masses: FloatArray? = null
                 for (entry in results) {
                     val name = entry.key.lowercase()
-                    val value = (entry.value as? OnnxTensor)?.floatBuffer ?: continue
-                    val arr = FloatArray(value.remaining())
-                    value.get(arr)
+                    val arr = try {
+                        flattenOutput((entry.value as? OnnxTensor)?.value)
+                    } catch (t: Throwable) {
+                        null
+                    } ?: continue
                     when {
                         name.contains("mass") -> masses = arr
                         name.contains("class") || logits == null -> logits = arr
