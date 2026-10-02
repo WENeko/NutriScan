@@ -170,7 +170,7 @@ const LayaModelSettings: React.FC = () => {
 
           {selected && (
             <div className="space-y-1">
-              <input ref={labelsInput} type="file" accept=".json,.txt,application/json,text/plain" className="hidden" onChange={handleLabelsFile} />
+              <input ref={labelsInput} type="file" className="hidden" onChange={handleLabelsFile} />
               <Button onClick={() => labelsInput.current?.click()} variant="outline" size="sm" className="w-full h-9 rounded-xl">
                 <Tags className="w-4 h-4 mr-1" />
                 Importer la liste des classes (.json)
