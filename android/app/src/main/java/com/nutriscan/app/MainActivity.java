@@ -17,6 +17,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(NutritionWriterPlugin.class);
     registerPlugin(ApkUpdaterPlugin.class);
     registerPlugin(LayaVisionPlugin.class);
+    registerPlugin(Camera2Plugin.class);
 
     super.onCreate(savedInstanceState);
   }
