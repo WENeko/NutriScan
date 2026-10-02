@@ -303,7 +303,7 @@ class LayaVisionPlugin : Plugin() {
             // Angle caméra/table en degrés (90 = dessus), mesuré par les capteurs.
             val angle = call.getDouble("angle")
             if (modelFile.extension.lowercase() == "onnx") {
-                angleUsed = classifyOnnx(modelFile, softwareBitmap, maxResults, predictions, angle)
+                angleUsed = classifyOnnx(modelFile, softwareBitmap, maxResults, predictions, angle, call.getDouble("distance"))
             } else {
                 val classifier = classifierFor(modelFile, maxResults)
                 val mpImage = BitmapImageBuilder(softwareBitmap).build()
@@ -392,7 +392,7 @@ class LayaVisionPlugin : Plugin() {
      * chaque détection, l'indice de classe, la confiance softmax et la masse.
      */
     private fun classifyOnnx(
-        modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray, angleDeg: Double?
+        modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray, angleDeg: Double?, distanceM: Double? = null
     ): Boolean {
         val session = ortSessionFor(modelFile)
         val size = onnxInputSize
@@ -400,7 +400,8 @@ class LayaVisionPlugin : Plugin() {
         val imageName = names.firstOrNull { it.lowercase().contains("image") || it.lowercase().contains("pixel") }
             ?: names.firstOrNull() ?: "image"
         // Modèle bi-entrées : 2e entrée « angle » [1,1] en degrés (défaut 90 = vue du dessus).
-        val angleName = names.firstOrNull { it != imageName }
+        val distanceName = names.firstOrNull { it != imageName && it.lowercase().contains("dist") }
+        val angleName = names.firstOrNull { it != imageName && it != distanceName }
         val shape = longArrayOf(1, 3, size.toLong(), size.toLong())
         val inputs = HashMap<String, OnnxTensor>()
         inputs[imageName] = OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap), shape)
@@ -408,6 +409,12 @@ class LayaVisionPlugin : Plugin() {
             val buf = java.nio.ByteBuffer.allocateDirect(4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
             buf.put((angleDeg ?: 90.0).toFloat()).rewind()
             inputs[angleName] = OnnxTensor.createTensor(ortEnv, buf, longArrayOf(1, 1))
+        }
+        // Futur modèle tri-entrées : distance de mise au point en mètres (0 = inconnue).
+        if (distanceName != null) {
+            val buf = java.nio.ByteBuffer.allocateDirect(4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
+            buf.put((distanceM ?: 0.0).toFloat()).rewind()
+            inputs[distanceName] = OnnxTensor.createTensor(ortEnv, buf, longArrayOf(1, 1))
         }
         try {
             session.run(inputs).use { results ->

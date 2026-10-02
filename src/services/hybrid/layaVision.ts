@@ -21,6 +21,7 @@ import { appLogger } from "@/services/appLogger";
 import { FOOD101_LABELS } from "./food101Labels";
 import { ISIA500_LABELS } from "./isia500Labels";
 import { consumeCaptureAngle } from "./captureAngle";
+import { consumeCaptureScale } from "./captureScale";
 
 export interface LayaPrediction {
   /** Libellé brut renvoyé par le modèle (ex: "grilled_chicken_breast" ou "class_42"). */
@@ -51,7 +52,7 @@ interface LayaVisionNativePlugin {
   listModels(): Promise<{ models: string[] }>;
   importModel(): Promise<{ model: string; path?: string; size?: number }>;
   deleteModel(opts: { model: string }): Promise<{ deleted?: boolean; stillInDownloads?: boolean }>;
-  classify(opts: { image: string; model?: string; maxResults?: number; angle?: number }): Promise<{
+  classify(opts: { image: string; model?: string; maxResults?: number; angle?: number; distance?: number }): Promise<{
     predictions?: LayaPrediction[];
     latencyMs?: number;
     model?: string;
@@ -180,7 +181,7 @@ function resolveName(p: LayaPrediction, model: string | null): string {
   if (typeof i === "number") {
     const custom = getLayaLabels(model);
     if (custom?.[i]) return humanizeLabel(custom[i]);
-    const table = /isia|500/i.test(model ?? "") ? ISIA500_LABELS : FOOD101_LABELS;
+    const table = /isia|500|moe|bi_?input/i.test(model ?? "") || i >= FOOD101_LABELS.length ? ISIA500_LABELS : FOOD101_LABELS;
     if (table[i]) return humanizeLabel(table[i]);
     return `aliment ${i}`;
   }
@@ -205,11 +206,13 @@ export async function detectFoodsWithLaya(
   // Angle de prise de vue (capteur) : transmis si connu ; le plugin ne l'utilise
   // que si le modèle ONNX possède une 2e entrée (« angle »).
   const angle = opts.angle !== undefined ? opts.angle : consumeCaptureAngle();
+  const scale = consumeCaptureScale();
   const res = await plugin.classify({
     image,
     model,
     maxResults,
     ...(typeof angle === "number" ? { angle } : {}),
+    ...(scale?.distanceM ? { distance: scale.distanceM } : {}),
   });
   const raw = Array.isArray(res?.predictions) ? res.predictions : [];
 
@@ -235,6 +238,7 @@ export async function detectFoodsWithLaya(
     top: detections[0]?.name,
     angle,
     angleUsed: !!res?.angleUsed,
+    scale,
   });
 
   return {
