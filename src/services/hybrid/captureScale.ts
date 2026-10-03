@@ -12,7 +12,10 @@ export interface CaptureScale {
   distanceM: number | null;
   focalMm: number | null;
   focal35Mm: number | null;
-  source: "exif" | "xmp" | "camera-exif" | "none";
+  source: "camera2" | "exif" | "xmp" | "camera-exif" | "manual" | "none";
+  /** Camera2 : qualité de l'unité de LENS_FOCUS_DISTANCE. */
+  calibration?: "calibrated" | "approximate" | "uncalibrated";
+  focusDiopters?: number | null;
 }
 
 let last: CaptureScale | null = null;
