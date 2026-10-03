@@ -62,7 +62,7 @@ class LayaVisionPlugin : Plugin() {
     private val modelExtensions = listOf(".tflite", ".task", ".onnx")
 
     // Prétraitement du modèle Laya-Vision : 224×224, normalisation ImageNet.
-    private val onnxInputSize = 224
+    private val defaultOnnxInputSize = 518
     private val imagenetMean = floatArrayOf(0.485f, 0.456f, 0.406f)
     private val imagenetStd = floatArrayOf(0.229f, 0.224f, 0.225f)
 
@@ -278,7 +278,13 @@ class LayaVisionPlugin : Plugin() {
     private fun decodeImage(image: String): Bitmap {
         val base64 = image.substringAfter("base64,", image)
         val bytes = Base64.decode(base64, Base64.DEFAULT)
-        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size)
+        // Décodage sous-échantillonné : un JPEG 12 MP plein format (~48 Mo) peut tuer l'app.
+        val bounds = BitmapFactory.Options().apply { inJustDecodeBounds = true }
+        BitmapFactory.decodeByteArray(bytes, 0, bytes.size, bounds)
+        var sample = 1
+        while (minOf(bounds.outWidth, bounds.outHeight) / (sample * 2) >= 1036) sample *= 2
+        val opts = BitmapFactory.Options().apply { inSampleSize = sample; inPreferredConfig = Bitmap.Config.ARGB_8888 }
+        return BitmapFactory.decodeByteArray(bytes, 0, bytes.size, opts)
             ?: throw IllegalArgumentException("Image illisible.")
     }
 
@@ -340,9 +346,11 @@ class LayaVisionPlugin : Plugin() {
     }
 
     /** Bitmap → tenseur float32 [1,3,224,224] normalisé ImageNet (ordre CHW). */
-    private fun bitmapToFloatBuffer(bitmap: Bitmap): FloatBuffer {
-        val size = onnxInputSize
-        val scaled = Bitmap.createScaledBitmap(bitmap, size, size, true)
+    private fun bitmapToFloatBuffer(bitmap: Bitmap, size: Int): FloatBuffer {
+        // Recadrage carré centré (pas de déformation) puis redimensionnement.
+        val side = minOf(bitmap.width, bitmap.height)
+        val square = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
+        val scaled = Bitmap.createScaledBitmap(square, size, size, true)
         val pixels = IntArray(size * size)
         scaled.getPixels(pixels, 0, size, 0, 0, size, size)
         // Buffer DIRECT obligatoire pour JNI (sinon crash natif d'ONNX Runtime).
@@ -395,19 +403,23 @@ class LayaVisionPlugin : Plugin() {
         modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray, angleDeg: Double?, distanceM: Double? = null
     ): Boolean {
         val session = ortSessionFor(modelFile)
-        val size = onnxInputSize
         val names = session.inputNames.toList()
         val imageName = names.firstOrNull { it.lowercase().contains("image") || it.lowercase().contains("pixel") }
             ?: names.firstOrNull() ?: "image"
+        // Taille d'entrée lue dans le modèle (518 pour DINOv2 actuel).
+        val size = try {
+            val dims = (session.inputInfo[imageName]?.info as? ai.onnxruntime.TensorInfo)?.shape
+            dims?.lastOrNull()?.takeIf { it > 0 }?.toInt() ?: defaultOnnxInputSize
+        } catch (_: Throwable) { defaultOnnxInputSize }
         // Modèle bi-entrées : 2e entrée « angle » [1,1] en degrés (défaut 90 = vue du dessus).
         val distanceName = names.firstOrNull { it != imageName && it.lowercase().contains("dist") }
         val angleName = names.firstOrNull { it != imageName && it != distanceName }
         val shape = longArrayOf(1, 3, size.toLong(), size.toLong())
         val inputs = HashMap<String, OnnxTensor>()
-        inputs[imageName] = OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap), shape)
+        inputs[imageName] = OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap, size), shape)
         if (angleName != null) {
             val buf = java.nio.ByteBuffer.allocateDirect(4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
-            buf.put((angleDeg ?: 90.0).toFloat()).rewind()
+            buf.put((angleDeg ?: 90.0).coerceIn(45.0, 90.0).toFloat()).rewind()
             inputs[angleName] = OnnxTensor.createTensor(ortEnv, buf, longArrayOf(1, 1))
         }
         // Futur modèle tri-entrées : distance de mise au point en mètres (0 = inconnue).
@@ -420,6 +432,7 @@ class LayaVisionPlugin : Plugin() {
             session.run(inputs).use { results ->
                 var logits: FloatArray? = null
                 var masses: FloatArray? = null
+                var sigmas: FloatArray? = null
                 for (entry in results) {
                     val name = entry.key.lowercase()
                     val arr = try {
@@ -428,6 +441,7 @@ class LayaVisionPlugin : Plugin() {
                         null
                     } ?: continue
                     when {
+                        name.contains("uncert") || name.contains("sigma") || name.contains("std") -> sigmas = arr
                         name.contains("mass") -> masses = arr
                         name.contains("class") || logits == null -> logits = arr
                     }
@@ -448,6 +462,8 @@ class LayaVisionPlugin : Plugin() {
                     if (mass != null && mass.isFinite() && mass > 0f) {
                         entry.put("massG", mass.toDouble())
                     }
+                    val sd = sigmas?.getOrNull(idx)
+                    if (sd != null && sd.isFinite() && sd >= 0f) entry.put("massSigmaG", sd.toDouble())
                     predictions.put(entry)
                 }
             }

@@ -43,6 +43,7 @@ class Camera2CaptureActivity : Activity() {
     private var jpeg: ByteArray? = null
     private var meta: CaptureResult? = null
     private var capturing = false
+    private var finished = false
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -97,13 +98,19 @@ class Camera2CaptureActivity : Activity() {
         val map = c.get(CameraCharacteristics.SCALER_STREAM_CONFIGURATION_MAP) ?: return fail("no-config")
         // JPEG ≤ ~12 MP pour limiter la mémoire ; preview 1280-1920 px.
         val jpegSize = map.getOutputSizes(ImageFormat.JPEG)
-            .filter { it.width * it.height <= 12_500_000 }
+            .filter { it.width * it.height <= 5_000_000 }
             .maxByOrNull { it.width * it.height } ?: map.getOutputSizes(ImageFormat.JPEG).first()
         val ratio = jpegSize.width.toFloat() / jpegSize.height
         val prev = map.getOutputSizes(SurfaceTexture::class.java)
             .filter { it.width <= 1920 && kotlin.math.abs(it.width.toFloat() / it.height - ratio) < 0.05f }
             .maxByOrNull { it.width * it.height } ?: map.getOutputSizes(SurfaceTexture::class.java).first()
 
+        // Aperçu au bon ratio (sinon image étirée/aplatie) : en portrait le capteur est tourné.
+        runOnUiThread {
+            val sw = resources.displayMetrics.widthPixels
+            val h = (sw.toFloat() * prev.width / prev.height).toInt()
+            texture.layoutParams = FrameLayout.LayoutParams(sw, h, Gravity.CENTER)
+        }
         reader = ImageReader.newInstance(jpegSize.width, jpegSize.height, ImageFormat.JPEG, 2).apply {
             setOnImageAvailableListener({ r ->
                 r.acquireNextImage()?.use { img ->
@@ -164,8 +171,10 @@ class Camera2CaptureActivity : Activity() {
 
     @Synchronized
     private fun maybeFinish() {
+        if (finished) return
         val bytes = jpeg ?: return
         val m = meta ?: return
+        finished = true
         val file = File(cacheDir, "cam2_${System.currentTimeMillis()}.jpg").apply { writeBytes(bytes) }
         val diopters = m.get(CaptureResult.LENS_FOCUS_DISTANCE)
         val calib = when (chars?.get(CameraCharacteristics.LENS_INFO_FOCUS_DISTANCE_CALIBRATION)) {
