@@ -1,4 +1,4 @@
-import { Capacitor } from "@capacitor/core";
+import { Capacitor, registerPlugin } from "@capacitor/core";
 import {
   readCurrentAngle,
   setCaptureAngle,
@@ -18,6 +18,11 @@ export async function captureImageFile(source: "camera" | "gallery"): Promise<Fi
   setCaptureScale(null);
   if (source === "camera") startAngleTracking();
   try {
+    // Caméra en direct : Camera2 natif (distance de mise au point matérielle).
+    if (source === "camera" && Capacitor.getPlatform() === "android") {
+      const f = await captureWithCamera2();
+      if (f !== undefined) return f;
+    }
     const { Camera, CameraResultType, CameraSource } = await import("@capacitor/camera");
     const photo = await Camera.getPhoto({
       quality: 85,
@@ -40,4 +45,38 @@ export async function captureImageFile(source: "camera" | "gallery"): Promise<Fi
   } finally {
     stopAngleTracking();
   }
+}
+
+interface Camera2Result {
+  base64: string;
+  distanceM?: number;
+  focusDiopters?: number;
+  focalMm?: number;
+  calibration?: "calibrated" | "approximate" | "uncalibrated";
+}
+
+/** null = annulé ; undefined = plugin indisponible (repli sur @capacitor/camera). */
+async function captureWithCamera2(): Promise<File | null | undefined> {
+  const plugin = registerPlugin<{ capture(): Promise<Camera2Result> }>("Camera2");
+  let r: Camera2Result;
+  try {
+    r = await plugin.capture();
+  } catch (e) {
+    const msg = String((e as Error)?.message ?? e);
+    if (msg.includes("cancelled") || msg.includes("permission")) return null;
+    console.warn("[camera2] indisponible, repli caméra système", e);
+    return undefined;
+  }
+  setCaptureAngle(readCurrentAngle());
+  const bytes = Uint8Array.from(atob(r.base64), (c) => c.charCodeAt(0));
+  const d = r.distanceM && r.distanceM > 0.03 && r.distanceM < 10 ? r.distanceM : null;
+  setCaptureScale({
+    distanceM: d,
+    focalMm: r.focalMm ?? null,
+    focal35Mm: null,
+    focusDiopters: r.focusDiopters ?? null,
+    calibration: r.calibration,
+    source: d ? "camera2" : "none",
+  });
+  return new File([bytes], "meal.jpg", { type: "image/jpeg" });
 }
