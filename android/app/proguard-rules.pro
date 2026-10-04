@@ -37,6 +37,13 @@
 -dontwarn com.google.mediapipe.**
 -dontwarn com.google.ai.edge.**
 
+# ONNX Runtime : le code natif retrouve ses classes Java par leur nom (JNI).
+# Sans ces règles, R8 les renomme en release et le moteur natif plante
+# (fermeture brutale de l'app pendant l'analyse photo).
+-keep class ai.onnxruntime.** { *; }
+-keepclassmembers class ai.onnxruntime.** { *; }
+-dontwarn ai.onnxruntime.**
+
 # Health Connect
 -keep class androidx.health.connect.** { *; }
 -dontwarn androidx.health.connect.**
