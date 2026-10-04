@@ -23,12 +23,7 @@ import com.google.mediapipe.framework.image.BitmapImageBuilder
 import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.imageclassifier.ImageClassifier
-import ai.onnxruntime.OrtEnvironment
-import ai.onnxruntime.OrtSession
-import ai.onnxruntime.OnnxTensor
 import java.io.File
-import java.nio.FloatBuffer
-import kotlin.math.exp
 
 /**
  * Plugin Capacitor « LayaVision » — étage 1 du pipeline hybride.
@@ -55,16 +50,9 @@ class LayaVisionPlugin : Plugin() {
     // Le chargement d'un modèle est coûteux : une instance par chemin est conservée.
     private val classifiers = HashMap<String, ImageClassifier>()
 
-    // Sessions ONNX Runtime (modèle Laya-Vision entraîné sur mesure, INT8).
-    private val ortEnv: OrtEnvironment by lazy { OrtEnvironment.getEnvironment() }
-    private val ortSessions = HashMap<String, OrtSession>()
 
     private val modelExtensions = listOf(".tflite", ".task", ".onnx")
 
-    // Prétraitement du modèle Laya-Vision : 224×224, normalisation ImageNet.
-    private val defaultOnnxInputSize = 518
-    private val imagenetMean = floatArrayOf(0.485f, 0.456f, 0.406f)
-    private val imagenetStd = floatArrayOf(0.229f, 0.224f, 0.225f)
 
     private fun modelsDir(): File = File(context.filesDir, "laya").apply { mkdirs() }
 
@@ -145,7 +133,6 @@ class LayaVisionPlugin : Plugin() {
         }
         val file = File(modelsDir(), name)
         // Libère les sessions/classifieurs ouverts sur ce fichier.
-        ortSessions.remove(file.absolutePath)?.let { try { it.close() } catch (_: Throwable) {} }
         classifiers.keys.filter { it.startsWith(file.absolutePath + "#") }.forEach { k ->
             classifiers.remove(k)?.let { try { it.close() } catch (_: Throwable) {} }
         }
@@ -299,18 +286,18 @@ class LayaVisionPlugin : Plugin() {
         try {
             val started = System.currentTimeMillis()
             val modelFile = resolveModelFile(call.getString("model"))
-            val bitmap = decodeImage(image)
-            val softwareBitmap =
-                if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false)
-                else bitmap
-
             val predictions = JSArray()
             var angleUsed = false
             // Angle caméra/table en degrés (90 = dessus), mesuré par les capteurs.
             val angle = call.getDouble("angle")
             if (modelFile.extension.lowercase() == "onnx") {
-                angleUsed = classifyOnnx(modelFile, softwareBitmap, maxResults, predictions, angle, call.getDouble("distance"))
+                val bytes = Base64.decode(image.substringAfter("base64,", image), Base64.DEFAULT)
+                angleUsed = classifyOnnxRemote(modelFile, bytes, maxResults, predictions, angle, call.getDouble("distance"))
             } else {
+                val bitmap = decodeImage(image)
+                val softwareBitmap =
+                    if (bitmap.config == Bitmap.Config.HARDWARE) bitmap.copy(Bitmap.Config.ARGB_8888, false)
+                    else bitmap
                 val classifier = classifierFor(modelFile, maxResults)
                 val mpImage = BitmapImageBuilder(softwareBitmap).build()
                 val result = classifier.classify(mpImage)
@@ -336,141 +323,69 @@ class LayaVisionPlugin : Plugin() {
         }
     }
 
-    // ── Inférence ONNX (Laya-Vision : ModernBERT + têtes classes/masses) ─────
-
-    private fun ortSessionFor(file: File): OrtSession {
-        ortSessions[file.absolutePath]?.let { return it }
-        val session = ortEnv.createSession(file.absolutePath, OrtSession.SessionOptions())
-        ortSessions[file.absolutePath] = session
-        return session
-    }
-
-    /** Bitmap → tenseur float32 [1,3,224,224] normalisé ImageNet (ordre CHW). */
-    private fun bitmapToFloatBuffer(bitmap: Bitmap, size: Int): FloatBuffer {
-        // Recadrage carré centré (pas de déformation) puis redimensionnement.
-        val side = minOf(bitmap.width, bitmap.height)
-        val square = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
-        val scaled = Bitmap.createScaledBitmap(square, size, size, true)
-        val pixels = IntArray(size * size)
-        scaled.getPixels(pixels, 0, size, 0, 0, size, size)
-        // Buffer DIRECT obligatoire pour JNI (sinon crash natif d'ONNX Runtime).
-        val buf = java.nio.ByteBuffer.allocateDirect(3 * size * size * 4)
-            .order(java.nio.ByteOrder.nativeOrder())
-            .asFloatBuffer()
-        for (c in 0 until 3) {
-            for (i in pixels.indices) {
-                val p = pixels[i]
-                val channel = when (c) {
-                    0 -> (p shr 16) and 0xFF
-                    1 -> (p shr 8) and 0xFF
-                    else -> p and 0xFF
-                }
-                buf.put((channel / 255f - imagenetMean[c]) / imagenetStd[c])
-            }
-        }
-        buf.rewind()
-        return buf
-    }
-
-    /** Aplatit la valeur d'un tenseur de sortie (float[][] / float[]) en FloatArray. */
-    private fun flattenOutput(value: Any?): FloatArray? = when (value) {
-        is FloatArray -> value
-        is Array<*> -> {
-            val parts = value.mapNotNull { flattenOutput(it) }
-            if (parts.isEmpty()) null else parts.reduce { a, b -> a + b }
-        }
-        else -> null
-    }
-
-    private fun softmax(logits: FloatArray): FloatArray {
-        val max = logits.maxOrNull() ?: 0f
-        var sum = 0f
-        val out = FloatArray(logits.size)
-        for (i in logits.indices) {
-            out[i] = exp(logits[i] - max)
-            sum += out[i]
-        }
-        if (sum > 0f) for (i in out.indices) out[i] /= sum
-        return out
-    }
+    // ── Inférence ONNX isolée (processus :laya) ─────────────────────────────
 
     /**
-     * Exécute le modèle Laya-Vision ONNX : sorties `classes` [1,N] (logits) et
-     * `masses` [1,N] (grammes estimés par classe). Renvoie le top-K avec, pour
-     * chaque détection, l'indice de classe, la confiance softmax et la masse.
+     * Exécute le modèle ONNX dans LayaOnnxService (processus séparé). Si le
+     * processus d'inférence meurt (crash natif / mémoire), on rejette proprement
+     * au lieu de fermer toute l'application.
      */
-    private fun classifyOnnx(
-        modelFile: File, bitmap: Bitmap, maxResults: Int, predictions: JSArray, angleDeg: Double?, distanceM: Double? = null
+    private fun classifyOnnxRemote(
+        modelFile: File, imageBytes: ByteArray, maxResults: Int, predictions: JSArray, angle: Double?, distance: Double?
     ): Boolean {
-        val session = ortSessionFor(modelFile)
-        val names = session.inputNames.toList()
-        val imageName = names.firstOrNull { it.lowercase().contains("image") || it.lowercase().contains("pixel") }
-            ?: names.firstOrNull() ?: "image"
-        // Taille d'entrée lue dans le modèle (518 pour DINOv2 actuel).
-        val size = try {
-            val dims = (session.inputInfo[imageName]?.info as? ai.onnxruntime.TensorInfo)?.shape
-            dims?.lastOrNull()?.takeIf { it > 0 }?.toInt() ?: defaultOnnxInputSize
-        } catch (_: Throwable) { defaultOnnxInputSize }
-        // Modèle bi-entrées : 2e entrée « angle » [1,1] en degrés (défaut 90 = vue du dessus).
-        val distanceName = names.firstOrNull { it != imageName && it.lowercase().contains("dist") }
-        val angleName = names.firstOrNull { it != imageName && it != distanceName }
-        val shape = longArrayOf(1, 3, size.toLong(), size.toLong())
-        val inputs = HashMap<String, OnnxTensor>()
-        inputs[imageName] = OnnxTensor.createTensor(ortEnv, bitmapToFloatBuffer(bitmap, size), shape)
-        if (angleName != null) {
-            val buf = java.nio.ByteBuffer.allocateDirect(4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
-            buf.put((angleDeg ?: 90.0).coerceIn(45.0, 90.0).toFloat()).rewind()
-            inputs[angleName] = OnnxTensor.createTensor(ortEnv, buf, longArrayOf(1, 1))
-        }
-        // Futur modèle tri-entrées : distance de mise au point en mètres (0 = inconnue).
-        if (distanceName != null) {
-            val buf = java.nio.ByteBuffer.allocateDirect(4).order(java.nio.ByteOrder.nativeOrder()).asFloatBuffer()
-            buf.put((distanceM ?: 0.0).toFloat()).rewind()
-            inputs[distanceName] = OnnxTensor.createTensor(ortEnv, buf, longArrayOf(1, 1))
-        }
-        try {
-            session.run(inputs).use { results ->
-                var logits: FloatArray? = null
-                var masses: FloatArray? = null
-                var sigmas: FloatArray? = null
-                for (entry in results) {
-                    val name = entry.key.lowercase()
-                    val arr = try {
-                        flattenOutput((entry.value as? OnnxTensor)?.value)
-                    } catch (t: Throwable) {
-                        null
-                    } ?: continue
-                    when {
-                        name.contains("uncert") || name.contains("sigma") || name.contains("std") -> sigmas = arr
-                        name.contains("mass") -> masses = arr
-                        name.contains("class") || logits == null -> logits = arr
+        val imgFile = File(context.cacheDir, "laya_in_${System.nanoTime()}.jpg").apply { writeBytes(imageBytes) }
+        val latch = java.util.concurrent.CountDownLatch(1)
+        var json: String? = null
+        var error: String? = null
+        val replyThread = android.os.HandlerThread("laya-reply").also { it.start() }
+        val reply = android.os.Messenger(object : android.os.Handler(replyThread.looper) {
+            override fun handleMessage(msg: android.os.Message) {
+                json = msg.data.getString("json")
+                error = msg.data.getString("error")
+                latch.countDown()
+            }
+        })
+        val conn = object : android.content.ServiceConnection {
+            override fun onServiceConnected(name: android.content.ComponentName?, binder: android.os.IBinder?) {
+                try {
+                    binder?.linkToDeath({
+                        if (error == null && json == null) error = "Le moteur local s'est arrêté (mémoire insuffisante ou modèle incompatible)."
+                        latch.countDown()
+                    }, 0)
+                    val msg = android.os.Message.obtain(null, LayaOnnxService.MSG_CLASSIFY)
+                    msg.replyTo = reply
+                    msg.data = android.os.Bundle().apply {
+                        putString("modelPath", modelFile.absolutePath)
+                        putString("imagePath", imgFile.absolutePath)
+                        putInt("maxResults", maxResults)
+                        angle?.let { putDouble("angle", it) }
+                        distance?.let { putDouble("distance", it) }
                     }
-                }
-                val classLogits = logits
-                    ?: throw IllegalStateException("Sortie de classes introuvable dans le modèle ONNX.")
-                val probs = softmax(classLogits)
-
-                val top = probs.indices
-                    .sortedByDescending { probs[it] }
-                    .take(maxResults)
-                for (idx in top) {
-                    val entry = JSObject()
-                    entry.put("label", "class_$idx")
-                    entry.put("classIndex", idx)
-                    entry.put("confidence", probs[idx].toDouble())
-                    val mass = masses?.getOrNull(idx)
-                    if (mass != null && mass.isFinite() && mass > 0f) {
-                        entry.put("massG", mass.toDouble())
-                    }
-                    val sd = sigmas?.getOrNull(idx)
-                    if (sd != null && sd.isFinite() && sd >= 0f) entry.put("massSigmaG", sd.toDouble())
-                    predictions.put(entry)
+                    android.os.Messenger(binder).send(msg)
+                } catch (t: Throwable) {
+                    error = t.message ?: "Moteur local injoignable."
+                    latch.countDown()
                 }
             }
-        } finally {
-            inputs.values.forEach { try { it.close() } catch (_: Throwable) {} }
+            override fun onServiceDisconnected(name: android.content.ComponentName?) {
+                if (error == null && json == null) error = "Le moteur local s'est arrêté (mémoire insuffisante ou modèle incompatible)."
+                latch.countDown()
+            }
         }
-        return angleName != null && angleDeg != null
+        val intent = Intent(context, LayaOnnxService::class.java)
+        try {
+            if (!context.bindService(intent, conn, Context.BIND_AUTO_CREATE)) throw IllegalStateException("Moteur local indisponible.")
+            if (!latch.await(90, java.util.concurrent.TimeUnit.SECONDS)) throw IllegalStateException("Analyse locale trop longue.")
+        } finally {
+            try { context.unbindService(conn) } catch (_: Throwable) {}
+            replyThread.quitSafely()
+            imgFile.delete()
+        }
+        error?.let { throw IllegalStateException(it) }
+        val obj = org.json.JSONObject(json ?: throw IllegalStateException("Réponse vide du moteur local."))
+        val arr = obj.optJSONArray("predictions") ?: org.json.JSONArray()
+        for (i in 0 until arr.length()) predictions.put(JSObject(arr.getJSONObject(i).toString()))
+        return obj.optBoolean("angleUsed", false)
     }
 
     override fun handleOnDestroy() {
@@ -482,14 +397,6 @@ class LayaVisionPlugin : Plugin() {
             }
         }
         classifiers.clear()
-        ortSessions.values.forEach {
-            try {
-                it.close()
-            } catch (t: Throwable) {
-                // Ignoré.
-            }
-        }
-        ortSessions.clear()
         super.handleOnDestroy()
     }
 }
