@@ -24,8 +24,6 @@ import com.google.mediapipe.tasks.core.BaseOptions
 import com.google.mediapipe.tasks.vision.core.RunningMode
 import com.google.mediapipe.tasks.vision.imageclassifier.ImageClassifier
 import java.io.File
-import java.nio.FloatBuffer
-import kotlin.math.exp
 
 /**
  * Plugin Capacitor « LayaVision » — étage 1 du pipeline hybride.
@@ -55,10 +53,6 @@ class LayaVisionPlugin : Plugin() {
 
     private val modelExtensions = listOf(".tflite", ".task", ".onnx")
 
-    // Prétraitement du modèle Laya-Vision : 224×224, normalisation ImageNet.
-    private val defaultOnnxInputSize = 518
-    private val imagenetMean = floatArrayOf(0.485f, 0.456f, 0.406f)
-    private val imagenetStd = floatArrayOf(0.229f, 0.224f, 0.225f)
 
     private fun modelsDir(): File = File(context.filesDir, "laya").apply { mkdirs() }
 
@@ -403,14 +397,6 @@ class LayaVisionPlugin : Plugin() {
             }
         }
         classifiers.clear()
-        ortSessions.values.forEach {
-            try {
-                it.close()
-            } catch (t: Throwable) {
-                // Ignoré.
-            }
-        }
-        ortSessions.clear()
         super.handleOnDestroy()
     }
 }
