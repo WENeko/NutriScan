@@ -216,6 +216,20 @@ export async function detectFoodsWithLaya(
   });
   const raw = Array.isArray(res?.predictions) ? res.predictions : [];
 
+  // Diagnostic : Top-N brut (classe, confiance, tête de pesée, incertitude 1σ).
+  appLogger.info("LayaVision", "Sortie brute du modèle (Top-" + raw.length + ")", {
+    seuil: minConfidence,
+    angle,
+    predictions: raw.map((p: any, rank: number) => ({
+      rang: rank + 1,
+      classIndex: p?.classIndex,
+      nom: resolveName(p, res?.model || model || null),
+      confiance: `${(Number(p?.confidence) * 100).toFixed(1)} %`,
+      masseG: Number.isFinite(Number(p?.massG)) ? Math.round(Number(p.massG) * 10) / 10 : null,
+      incertitudeG: Number.isFinite(Number(p?.massSigmaG)) ? Math.round(Number(p.massSigmaG) * 10) / 10 : null,
+    })),
+  });
+
   const detections: LayaDetection[] = raw
     .filter((p) => p && p.label && Number.isFinite(Number(p.confidence)))
     .map((p) => {

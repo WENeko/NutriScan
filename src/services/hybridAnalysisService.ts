@@ -117,7 +117,8 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
 
   if (mode === "photo") {
     const detection = await detectFoodsWithLaya(input.image as string, {
-      minConfidence: 0.25,
+      // Seuil abaissé (diagnostic) en mode hybride uniquement.
+      minConfidence: 0.05,
       maxResults: 5,
     });
     detectionModel = detection.model || getSelectedLayaModel() || undefined;
