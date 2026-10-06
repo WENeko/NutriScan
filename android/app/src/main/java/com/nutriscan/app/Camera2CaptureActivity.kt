@@ -186,8 +186,10 @@ class Camera2CaptureActivity : Activity() {
         val out = Intent().putExtra("path", file.absolutePath).putExtra("calibration", calib)
         if (diopters != null && diopters > 0f) {
             out.putExtra("focusDiopters", diopters.toDouble())
-            // Dioptries → mètres uniquement si l'unité est réellement métrique.
-            if (calib != "uncalibrated") out.putExtra("distanceM", 1.0 / diopters)
+            // Dioptries → mètres. La plupart des téléphones déclarent « uncalibrated »
+            // mais renvoient une valeur proche de 1/m : on la transmet quand même,
+            // le champ `calibration` indique la fiabilité (corrigeable via le badge).
+            out.putExtra("distanceM", 1.0 / diopters)
         }
         m.get(CaptureResult.LENS_FOCAL_LENGTH)?.let { out.putExtra("focalMm", it.toDouble()) }
         sensor?.let { out.putExtra("sensorWidthMm", it.width.toDouble()); out.putExtra("sensorHeightMm", it.height.toDouble()) }

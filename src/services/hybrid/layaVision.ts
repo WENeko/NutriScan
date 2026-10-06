@@ -234,7 +234,9 @@ export async function detectFoodsWithLaya(
     .filter((p) => p && p.label && Number.isFinite(Number(p.confidence)))
     .map((p) => {
       const mass = Number(p.massG);
-      const weightG = Number.isFinite(mass) && mass > 0 ? Math.round(mass) : undefined;
+      // ≤ 2 g = bornage minimum de la tête de pesée (hors distribution) :
+      // on considère la masse inconnue → portion par défaut plutôt que 1 g.
+      const weightG = Number.isFinite(mass) && mass > 2 ? Math.round(mass) : undefined;
       return {
         label: p.label,
         confidence: Math.max(0, Math.min(1, Number(p.confidence))),

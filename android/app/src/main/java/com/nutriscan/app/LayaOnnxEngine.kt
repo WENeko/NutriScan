@@ -59,11 +59,32 @@ object LayaOnnxEngine {
             ?: throw IllegalArgumentException("Image illisible.")
     }
 
-    private fun toTensorBuffer(bitmap: Bitmap, size: Int): FloatBuffer {
+    /** Distance de référence des vues Nutrition5k (caméra au-dessus du plateau). */
+    private const val REF_DISTANCE_M = 0.40
+
+    /**
+     * Normalisation optique : ramène l'objet à la taille apparente qu'il aurait
+     * à ~40 cm. Photo trop proche → contenu réduit et entouré d'un fond neutre ;
+     * trop loin → recadrage central. Sans distance : simple carré central.
+     */
+    private fun toTensorBuffer(bitmap: Bitmap, size: Int, distanceM: Double?): FloatBuffer {
         val side = minOf(bitmap.width, bitmap.height)
-        val square = Bitmap.createBitmap(bitmap, (bitmap.width - side) / 2, (bitmap.height - side) / 2, side, side)
-        val scaled = Bitmap.createScaledBitmap(square, size, size, true)
-        if (square !== bitmap && square !== scaled) square.recycle()
+        val s = distanceM?.takeIf { it.isFinite() && it > 0.03 }?.let { (it / REF_DISTANCE_M).coerceIn(0.25, 3.0) } ?: 1.0
+        val cropSide = if (s > 1.0) (side / s).toInt().coerceAtLeast(16) else side
+        val square = Bitmap.createBitmap(bitmap, (bitmap.width - cropSide) / 2, (bitmap.height - cropSide) / 2, cropSide, cropSide)
+        val inner = if (s < 1.0) (size * s).toInt().coerceAtLeast(16) else size
+        val scaledInner = Bitmap.createScaledBitmap(square, inner, inner, true)
+        if (square !== bitmap && square !== scaledInner) square.recycle()
+        val scaled = if (inner == size) scaledInner else {
+            val canvasBmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+            val canvas = android.graphics.Canvas(canvasBmp)
+            // Fond = moyenne ImageNet (≈ 0 après normalisation).
+            canvas.drawColor(android.graphics.Color.rgb(124, 116, 104))
+            val off = ((size - inner) / 2).toFloat()
+            canvas.drawBitmap(scaledInner, off, off, null)
+            scaledInner.recycle()
+            canvasBmp
+        }
         val pixels = IntArray(size * size)
         scaled.getPixels(pixels, 0, size, 0, 0, size, size)
         if (scaled !== bitmap) scaled.recycle()
@@ -109,7 +130,9 @@ object LayaOnnxEngine {
         val bitmap = decode(imageBytes, size)
         val inputs = HashMap<String, OnnxTensor>()
         try {
-            inputs[imageName] = OnnxTensor.createTensor(env, toTensorBuffer(bitmap, size), longArrayOf(1, 3, size.toLong(), size.toLong()))
+            // Si le modèle reçoit déjà la distance en entrée, pas de double correction.
+            val normDistance = if (distanceName == null) distanceM else null
+            inputs[imageName] = OnnxTensor.createTensor(env, toTensorBuffer(bitmap, size, normDistance), longArrayOf(1, 3, size.toLong(), size.toLong()))
             bitmap.recycle()
             if (angleName != null) {
                 inputs[angleName] = OnnxTensor.createTensor(env, scalar((angleDeg ?: 90.0).coerceIn(45.0, 90.0).toFloat()), longArrayOf(1, 1))
