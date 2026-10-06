@@ -46,9 +46,10 @@ class LayaOnnxService : Service() {
                         modelFile = File(modelPath),
                         imageBytes = bytes,
                         maxResults = data.getInt("maxResults", 5),
-                        angle = angle,
-                        distance = distance
+                        angleDeg = angle,
+                        distanceM = distance
                     )
+
                     out.putString("json", res.toString())
                 } catch (t: Throwable) {
                     out.putString("error", t.message ?: t.javaClass.simpleName)
