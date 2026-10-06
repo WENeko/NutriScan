@@ -98,9 +98,7 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
     );
   }
   const started = Date.now();
-  // Journalisation granulaire et PERSISTÉE (localStorage) : si l'inférence native
-  // fait planter l'app, ces marqueurs survivent au crash et sont exportables via
-  // le bouton "Exporter les logs" au redémarrage → on sait exactement où ça casse.
+  
   appLogger.info("LocalAiBridge", "generate() → appel natif START", {
     model: req.model ?? null,
     hasImage: !!req.image,
@@ -108,10 +106,12 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
     systemChars: req.system?.length ?? 0,
     promptChars: req.prompt?.length ?? 0,
   });
+
   const previousDiagnostics = await readLocalDiagnostics(plugin);
   if (previousDiagnostics?.trace) {
     appLogger.debug("LocalAiBridge", "diagnostics natifs avant appel", previousDiagnostics);
   }
+
   let res: { text: string };
   try {
     res = await plugin.generate({
@@ -121,26 +121,38 @@ export async function runLocalIntentChat(req: LocalIntentRequest): Promise<strin
       model: req.model ?? undefined,
     });
   } catch (e: any) {
-    const message = e?.message ?? String(e);
+    const baseMessage = e?.message ?? String(e);
     const diagnostics = await readLocalDiagnostics(plugin);
-    appLogger.error("LocalAiBridge", "generate() → échec natif", {
-      message,
+    
+    // Reconstruction granulaire de l'erreur pour ne rien perdre
+    const details: string[] = [baseMessage];
+    if (e?.code) details.push(`Code: ${e.code}`);
+    if (e?.cause) details.push(`Cause: ${typeof e.cause === "object" ? JSON.stringify(e.cause) : e.cause}`);
+    if (diagnostics?.trace) details.push(`Trace: ${diagnostics.trace}`);
+
+    const fullDiagnosticMessage = details.join(" | ");
+
+    appLogger.error("LocalAiBridge", `generate() → échec natif : ${fullDiagnosticMessage}`, {
+      message: baseMessage,
       code: e?.code,
       elapsedMs: Date.now() - started,
       diagnostics,
+      stack: e?.stack,
     });
-    appLogger.error("LocalAiBridge", `generate() → échec natif : ${message}`, {
-      code: e?.code,
-      elapsedMs: Date.now() - started,
-      diagnostics,
-    });
-    throw e;
+
+    // On lève une erreur enrichie contenant la raison exacte
+    const enrichedError = new Error(fullDiagnosticMessage);
+    (enrichedError as any).code = e?.code;
+    (enrichedError as any).diagnostics = diagnostics;
+    throw enrichedError;
   }
+
   const text = res?.text ?? "";
   appLogger.info("LocalAiBridge", "generate() → réponse native OK", {
     textChars: text.length,
     elapsedMs: Date.now() - started,
   });
+
   if (!text || !String(text).trim()) {
     throw new Error("L'IA locale native n'a renvoyé aucune réponse.");
   }
