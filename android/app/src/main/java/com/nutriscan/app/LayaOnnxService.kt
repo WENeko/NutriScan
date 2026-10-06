@@ -10,12 +10,6 @@ import android.os.Message
 import android.os.Messenger
 import java.io.File
 
-/**
- * Service exécuté dans un processus séparé (`android:process=":laya"`).
- * Reçoit { modelPath, imagePath, maxResults, angle?, distance? } et répond
- * { json } ou { error }. Si ONNX Runtime plante (code natif, mémoire),
- * seul ce processus meurt : l'app reste ouverte et bascule sur le repli.
- */
 class LayaOnnxService : Service() {
     companion object { const val MSG_CLASSIFY = 1 }
 
@@ -32,15 +26,28 @@ class LayaOnnxService : Service() {
                 val data = msg.data
                 val out = Bundle()
                 try {
-                    val imageFile = File(data.getString("imagePath") ?: throw IllegalArgumentException("image manquante"))
+                    val imagePath = data.getString("imagePath") ?: throw IllegalArgumentException("image manquante")
+                    val modelPath = data.getString("modelPath") ?: throw IllegalArgumentException("modèle manquant")
+                    
+                    val imageFile = File(imagePath)
                     val bytes = imageFile.readBytes()
                     imageFile.delete()
+
+                    // Extraction sécurisée des types Float/Double
+                    val angle = if (data.containsKey("angle")) {
+                        data.getFloat("angle").takeIf { it != 0f }?.toDouble() ?: data.getDouble("angle")
+                    } else null
+
+                    val distance = if (data.containsKey("distance")) {
+                        data.getFloat("distance").takeIf { it != 0f }?.toDouble() ?: data.getDouble("distance")
+                    } else null
+
                     val res = LayaOnnxEngine.classify(
-                        File(data.getString("modelPath") ?: throw IllegalArgumentException("modèle manquant")),
-                        bytes,
-                        data.getInt("maxResults", 5),
-                        if (data.containsKey("angle")) data.getDouble("angle") else null,
-                        if (data.containsKey("distance")) data.getDouble("distance") else null,
+                        modelFile = File(modelPath),
+                        imageBytes = bytes,
+                        maxResults = data.getInt("maxResults", 5),
+                        angle = angle,
+                        distance = distance
                     )
                     out.putString("json", res.toString())
                 } catch (t: Throwable) {
