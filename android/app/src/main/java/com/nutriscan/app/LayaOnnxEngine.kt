@@ -3,6 +3,7 @@ package com.nutriscan.app
 import ai.onnxruntime.OnnxTensor
 import ai.onnxruntime.OrtEnvironment
 import ai.onnxruntime.OrtSession
+import ai.onnxruntime.TensorInfo
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import org.json.JSONArray
@@ -16,8 +17,7 @@ import kotlin.math.exp
 /**
  * Inférence ONNX Laya-Vision (DINOv2 MoE : entrées image+angle, sorties
  * classes / masses / uncertainties). Exécuté UNIQUEMENT dans le processus
- * isolé `:laya` (LayaOnnxService) : un crash natif ou un manque de mémoire
- * d'ONNX Runtime ne tue plus l'application principale.
+ * isolé `:laya` (LayaOnnxService).
  */
 object LayaOnnxEngine {
     private const val DEFAULT_SIZE = 518
@@ -32,17 +32,17 @@ object LayaOnnxEngine {
     private fun sessionFor(file: File): OrtSession {
         val key = "${file.absolutePath}#${file.lastModified()}#${file.length()}"
         session?.let { if (sessionKey == key) return it }
-        // Un seul modèle en mémoire à la fois (DINOv2 FP32 ≈ 90 Mo + activations).
+
         try { session?.close() } catch (_: Throwable) {}
         session = null
+
+        // Configuration SessionOptions stable pour Android CPU
         val opts = OrtSession.SessionOptions().apply {
-            // Réglages économes en mémoire : pas d'arène CPU ni de pré-allocation.
             setIntraOpNumThreads(Runtime.getRuntime().availableProcessors().coerceIn(1, 4))
             setInterOpNumThreads(1)
-            setMemoryPatternOptimization(false)
-            setCPUArenaAllocator(false)
             setOptimizationLevel(OrtSession.SessionOptions.OptLevel.BASIC_OPT)
         }
+
         val s = env.createSession(file.absolutePath, opts)
         session = s
         sessionKey = key
@@ -59,14 +59,8 @@ object LayaOnnxEngine {
             ?: throw IllegalArgumentException("Image illisible.")
     }
 
-    /** Distance de référence des vues Nutrition5k (caméra au-dessus du plateau). */
     private const val REF_DISTANCE_M = 0.40
 
-    /**
-     * Normalisation optique : ramène l'objet à la taille apparente qu'il aurait
-     * à ~40 cm. Photo trop proche → contenu réduit et entouré d'un fond neutre ;
-     * trop loin → recadrage central. Sans distance : simple carré central.
-     */
     private fun toTensorBuffer(bitmap: Bitmap, size: Int, distanceM: Double?): FloatBuffer {
         val side = minOf(bitmap.width, bitmap.height)
         val s = distanceM?.takeIf { it.isFinite() && it > 0.03 }?.let { (it / REF_DISTANCE_M).coerceIn(0.25, 3.0) } ?: 1.0
@@ -75,19 +69,21 @@ object LayaOnnxEngine {
         val inner = if (s < 1.0) (size * s).toInt().coerceAtLeast(16) else size
         val scaledInner = Bitmap.createScaledBitmap(square, inner, inner, true)
         if (square !== bitmap && square !== scaledInner) square.recycle()
+
         val scaled = if (inner == size) scaledInner else {
             val canvasBmp = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
             val canvas = android.graphics.Canvas(canvasBmp)
-            // Fond = moyenne ImageNet (≈ 0 après normalisation).
             canvas.drawColor(android.graphics.Color.rgb(124, 116, 104))
             val off = ((size - inner) / 2).toFloat()
             canvas.drawBitmap(scaledInner, off, off, null)
             scaledInner.recycle()
             canvasBmp
         }
+
         val pixels = IntArray(size * size)
         scaled.getPixels(pixels, 0, size, 0, 0, size, size)
         if (scaled !== bitmap) scaled.recycle()
+
         val buf = ByteBuffer.allocateDirect(3 * size * size * 4).order(ByteOrder.nativeOrder()).asFloatBuffer()
         for (c in 0 until 3) {
             val shift = when (c) { 0 -> 16; 1 -> 8; else -> 0 }
@@ -114,37 +110,65 @@ object LayaOnnxEngine {
         return out
     }
 
-    /** Renvoie { predictions: [...], angleUsed }. */
     fun classify(modelFile: File, imageBytes: ByteArray, maxResults: Int, angleDeg: Double?, distanceM: Double?): JSONObject {
         val s = sessionFor(modelFile)
         val names = s.inputNames.toList()
-        val imageName = names.firstOrNull { it.lowercase().contains("image") || it.lowercase().contains("pixel") }
-            ?: names.firstOrNull() ?: "image"
+
+        // Identification stricte du nom du tenseur d'entrée
+        val imageName = names.firstOrNull { 
+            val n = it.lowercase()
+            n.contains("image") || n.contains("pixel") || n.contains("input") || n == "x"
+        } ?: names.firstOrNull() ?: "image"
+
+        // Extraction sécurisée de la dimension spatiale (ignore les canaux <= 3)
         val size = try {
-            (s.inputInfo[imageName]?.info as? ai.onnxruntime.TensorInfo)?.shape
-                ?.lastOrNull()?.takeIf { it > 0 }?.toInt() ?: DEFAULT_SIZE
+            val shape = (s.inputInfo[imageName]?.info as? TensorInfo)?.shape
+            shape?.filter { it > 3 }?.lastOrNull()?.toInt() ?: DEFAULT_SIZE
         } catch (_: Throwable) { DEFAULT_SIZE }
+
         val distanceName = names.firstOrNull { it != imageName && it.lowercase().contains("dist") }
-        val angleName = names.firstOrNull { it != imageName && it != distanceName }
+        val angleName = names.firstOrNull { it != imageName && it != distanceName && it.lowercase().contains("angle") }
 
         val bitmap = decode(imageBytes, size)
         val inputs = HashMap<String, OnnxTensor>()
+
         try {
-            // Si le modèle reçoit déjà la distance en entrée, pas de double correction.
             val normDistance = if (distanceName == null) distanceM else null
-            inputs[imageName] = OnnxTensor.createTensor(env, toTensorBuffer(bitmap, size, normDistance), longArrayOf(1, 3, size.toLong(), size.toLong()))
+            inputs[imageName] = OnnxTensor.createTensor(
+                env, 
+                toTensorBuffer(bitmap, size, normDistance), 
+                longArrayOf(1, 3, size.toLong(), size.toLong())
+            )
             bitmap.recycle()
+
+            // Gestion dynamique de la forme du tenseur Angle ([1, 1] ou [1])
             if (angleName != null) {
-                inputs[angleName] = OnnxTensor.createTensor(env, scalar((angleDeg ?: 90.0).coerceIn(45.0, 90.0).toFloat()), longArrayOf(1, 1))
+                val angleShape = try {
+                    val rank = (s.inputInfo[angleName]?.info as? TensorInfo)?.shape?.size ?: 2
+                    if (rank == 1) longArrayOf(1) else longArrayOf(1, 1)
+                } catch (_: Throwable) { longArrayOf(1, 1) }
+
+                inputs[angleName] = OnnxTensor.createTensor(
+                    env, 
+                    scalar((angleDeg ?: 90.0).coerceIn(45.0, 90.0).toFloat()), 
+                    angleShape
+                )
             }
+
             if (distanceName != null) {
-                inputs[distanceName] = OnnxTensor.createTensor(env, scalar((distanceM ?: 0.0).toFloat()), longArrayOf(1, 1))
+                inputs[distanceName] = OnnxTensor.createTensor(
+                    env, 
+                    scalar((distanceM ?: 0.0).toFloat()), 
+                    longArrayOf(1, 1)
+                )
             }
+
             val predictions = JSONArray()
             s.run(inputs).use { results ->
                 var logits: FloatArray? = null
                 var masses: FloatArray? = null
                 var sigmas: FloatArray? = null
+
                 for (entry in results) {
                     val n = entry.key.lowercase()
                     val arr = try { flatten((entry.value as? OnnxTensor)?.value) } catch (_: Throwable) { null } ?: continue
@@ -154,6 +178,7 @@ object LayaOnnxEngine {
                         n.contains("class") || logits == null -> logits = arr
                     }
                 }
+
                 val probs = softmax(logits ?: throw IllegalStateException("Sortie de classes introuvable dans le modèle ONNX."))
                 for (idx in probs.indices.sortedByDescending { probs[it] }.take(maxResults)) {
                     val e = JSONObject()
