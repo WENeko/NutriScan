@@ -42,7 +42,7 @@ export interface HybridAnalysisInput {
   local_time?: string;
   /** Autorise l'appel réseau à Open Food Facts (activé par défaut). */
   allowNetwork?: boolean;
-  /** Autorise le micro-LLM local de complétion (activé par défaut). */
+  /** Autorise le micro-LLM local de complétion (désactivé par défaut : modes séparés). */
   allowMicroLlm?: boolean;
   onStage?: (event: HybridProgressEvent) => void;
 }
@@ -171,7 +171,9 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
     customNutrients,
     fromImage: mode === "photo",
     allowNetwork: input.allowNetwork !== false,
-    allowMicroLlm: input.allowMicroLlm !== false,
+    // Séparation stricte : le mode hybride n'appelle JAMAIS l'IA locale (LLM)
+    // sauf demande explicite. Le mode local reste une étape distincte du routage.
+    allowMicroLlm: input.allowMicroLlm === true,
   });
   const resolutionMs = Date.now() - resolutionStart;
 
