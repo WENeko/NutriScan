@@ -1,3 +1,4 @@
+import { scaleForDistance } from "@/services/portionScaling";
 import React, { useRef, useState, useEffect, useCallback } from "react";
 import { supabase as supabaseLovable } from "@/integrations/supabase/client";
 import { createClient } from "@supabase/supabase-js";
