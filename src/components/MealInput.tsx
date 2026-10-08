@@ -306,19 +306,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     setCaptureScale(sc);
     if (!oldD || !distanceM || oldD === distanceM) return;
     const factor = (distanceM / oldD) ** 2;
-    const skip = new Set(["name", "quantity", "protDensity", "carbsDensity", "fatsDensity", "isCustom", "unitCount", "unitWeightG", "unitLabel"]);
-    setItems((prev) => prev.map((it: any) => {
-      const w = parseFloat(String(it.quantity).replace(",", "."));
-      if (!Number.isFinite(w) || w <= 0) return it;
-      const next: any = { ...it, quantity: `${Math.max(1, Math.round(w * factor))}g` };
-      for (const [k, v] of Object.entries(it)) {
-        if (!skip.has(k) && typeof v === "number") next[k] = v * factor;
-      }
-      if (it.customExtras) {
-        next.customExtras = Object.fromEntries(Object.entries(it.customExtras).map(([k, v]) => [k, (v as number) * factor]));
-      }
-      delete next.unitCount; delete next.unitWeightG; delete next.unitLabel;
-      return next;
+    setItems((prev) => prev.map((it) => {
+      const r = scaleForDistance(it, factor);
+      if (!r) return it;
+      return scaleItemToWeight(it, r.newWeight, r.unitWeightG ? { unitCount: r.unitCount, unitWeightG: r.unitWeightG } : {});
     }));
     toast({ title: "Quantités ajustées", description: `Distance ${Math.round(distanceM * 100)} cm (×${factor.toFixed(2)})` });
   };
@@ -498,7 +489,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
     });
-    setItems((prev) => [...prev, ...mappedItems]);
+    setItems(mappedItems);
   };
 
   const handleBarcodeProduct = (product: any) => {

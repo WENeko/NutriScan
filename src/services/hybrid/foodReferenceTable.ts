@@ -23,6 +23,8 @@ export interface FoodReference {
   unitWeightG?: number;
   /** Libellé de l'unité (ex: "oeuf", "tranche"). */
   unitLabel?: string;
+  /** Nature de l'unité : "calibrated" (poids imposé, défaut) ou "variable" (taille libre). */
+  unitKind?: "calibrated" | "variable";
   /** Valeurs pour 100 g. */
   per100: {
     calories: number;
@@ -39,7 +41,7 @@ function ref(
   aliases: string[],
   macros: [number, number, number, number],
   micros: Partial<Record<string, number>> = {},
-  unit?: { unitWeightG: number; unitLabel: string },
+  unit?: { unitWeightG: number; unitLabel: string; unitKind?: "calibrated" | "variable" },
 ): FoodReference {
   return {
     id,
@@ -85,7 +87,7 @@ export const FOOD_REFERENCE_TABLE: FoodReference[] = [
   ref("crevette", "Crevette cuite", ["crevette", "crevettes", "shrimp", "gambas"],
     [99, 24, 0, 0.3],
     { sodium_mg: 111, potassium_mg: 259, magnesium_mg: 39, calcium_mg: 70, iron_mg: 0.5, zinc_mg: 1.6, vitamin_b12_mcg: 1.1, vitamin_e_mg: 1.1 },
-    { unitWeightG: 8, unitLabel: "crevette" }),
+    { unitWeightG: 8, unitLabel: "crevette", unitKind: "variable" }),
 
   // ── Œufs & produits laitiers ───────────────────────────────────────────────
   ref("oeuf", "Œuf", ["oeuf", "oeufs", "egg", "eggs"],
