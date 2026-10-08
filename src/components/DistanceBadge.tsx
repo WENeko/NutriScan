@@ -59,7 +59,7 @@ export default function DistanceBadge({ scale, onChange, disabled }: Props) {
             ))}
           </div>
           <div className="flex items-center gap-2">
-            <NumericInput value={value} onChange={(v: string) => setValue(v)} placeholder="cm" />
+            <NumericInput value={value} onChange={(_n, raw) => setValue(raw)} placeholder="cm" />
             <span className="text-sm text-muted-foreground">cm</span>
           </div>
           <div className="flex gap-2">
