@@ -293,17 +293,34 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     await analyzeImage(file);
   };
 
-  // Correction manuelle de la distance : relance l'analyse avec la nouvelle échelle.
+  // Correction manuelle de la distance : met à l'échelle les quantités existantes
+  // (surface apparente ∝ distance²), sans relancer d'analyse ni ajouter d'aliments.
   const handleDistanceChange = async (distanceM: number | null) => {
+    const oldD = captureScale?.distanceM ?? null;
     const sc: CaptureScale = {
       ...(captureScale ?? { focalMm: null, focal35Mm: null }),
       distanceM,
       source: distanceM ? "manual" : "none",
     } as CaptureScale;
     setCaptureScaleState(sc);
-    if (!imageFile) return;
     setCaptureScale(sc);
-    await analyzeImage(imageFile);
+    if (!oldD || !distanceM || oldD === distanceM) return;
+    const factor = (distanceM / oldD) ** 2;
+    const skip = new Set(["name", "quantity", "protDensity", "carbsDensity", "fatsDensity", "isCustom", "unitCount", "unitWeightG", "unitLabel"]);
+    setItems((prev) => prev.map((it: any) => {
+      const w = parseFloat(String(it.quantity).replace(",", "."));
+      if (!Number.isFinite(w) || w <= 0) return it;
+      const next: any = { ...it, quantity: `${Math.max(1, Math.round(w * factor))}g` };
+      for (const [k, v] of Object.entries(it)) {
+        if (!skip.has(k) && typeof v === "number") next[k] = v * factor;
+      }
+      if (it.customExtras) {
+        next.customExtras = Object.fromEntries(Object.entries(it.customExtras).map(([k, v]) => [k, (v as number) * factor]));
+      }
+      delete next.unitCount; delete next.unitWeightG; delete next.unitLabel;
+      return next;
+    }));
+    toast({ title: "Quantités ajustées", description: `Distance ${Math.round(distanceM * 100)} cm (×${factor.toFixed(2)})` });
   };
 
   const analyzeImage = async (file: File) => {
