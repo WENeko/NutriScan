@@ -21,6 +21,8 @@ import AnalysisProgressCard from "./AnalysisProgressCard";
 import type { RoutingProgressEvent, RoutingProgressStep } from "@/lib/aiRouting";
 import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 import { uploadMealImage } from "@/lib/mealImageUpload";
+import DistanceBadge from "./DistanceBadge";
+import { parseImageScale, peekCaptureScale, setCaptureScale, type CaptureScale } from "@/services/hybrid/captureScale";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -198,6 +200,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const [confidenceScore, setConfidenceScore] = useState<number | null>(null);
   const [hybridPipeline, setHybridPipeline] = useState<any | null>(null);
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [captureScale, setCaptureScaleState] = useState<CaptureScale | null>(null);
   const [editingIdx, setEditingIdx] = useState<number | null>(null);
   const [textInput, setTextInput] = useState("");
   const [mealName, setMealName] = useState("");
@@ -234,6 +237,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     if (Capacitor.isNativePlatform()) {
       const file = await captureImageFile(src);
       if (!file) return;
+      setCaptureScaleState(peekCaptureScale());
       setImageFile(file);
       setPreview(URL.createObjectURL(file));
       setSource("ai");
@@ -278,10 +282,28 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    try {
+      const sc = parseImageScale(await file.arrayBuffer());
+      setCaptureScale(sc);
+      setCaptureScaleState(sc);
+    } catch { setCaptureScaleState(null); }
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
     setSource("ai");
     await analyzeImage(file);
+  };
+
+  // Correction manuelle de la distance : relance l'analyse avec la nouvelle échelle.
+  const handleDistanceChange = async (distanceM: number | null) => {
+    const sc: CaptureScale = {
+      ...(captureScale ?? { focalMm: null, focal35Mm: null }),
+      distanceM,
+      source: distanceM ? "manual" : "none",
+    } as CaptureScale;
+    setCaptureScaleState(sc);
+    if (!imageFile) return;
+    setCaptureScale(sc);
+    await analyzeImage(imageFile);
   };
 
   const analyzeImage = async (file: File) => {
@@ -753,6 +775,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     setPreview(null);
     setItems([]);
     setImageFile(null);
+    setCaptureScaleState(null);
     setTextInput("");
     setRawAnalysis("");
     setModelUsed(null);
@@ -847,6 +870,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           {preview && !analyzing && (
             <div className="relative rounded-2xl overflow-hidden shadow-card">
               <img src={preview} alt="Repas" className="w-full h-44 object-cover" />
+              <DistanceBadge scale={captureScale} onChange={handleDistanceChange} />
             </div>
           )}
           {preview && analyzing && (
@@ -918,8 +942,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           </div>
 
           {mode === "image" && preview && (
-            <div className="rounded-2xl overflow-hidden shadow-card">
+            <div className="relative rounded-2xl overflow-hidden shadow-card">
               <img src={preview} alt="Repas" className="w-full h-44 object-cover" />
+              <DistanceBadge scale={captureScale} onChange={handleDistanceChange} disabled={analyzing} />
             </div>
           )}
 

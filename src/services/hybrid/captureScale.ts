@@ -97,3 +97,6 @@ export function scaleFromCameraExif(exif: Record<string, unknown> | undefined): 
     source: d ? "camera-exif" : "none",
   };
 }
+
+/** Lecture sans effacement (pour l'affichage du badge). */
+export function peekCaptureScale(): CaptureScale | null { return last; }
