@@ -15,6 +15,7 @@ import android.os.Bundle
 import android.os.Handler
 import android.os.HandlerThread
 import android.view.Gravity
+import android.view.OrientationEventListener
 import android.view.Surface
 import android.view.TextureView
 import android.widget.Button
@@ -44,6 +45,9 @@ class Camera2CaptureActivity : Activity() {
     private var meta: CaptureResult? = null
     private var capturing = false
     private var finished = false
+    /** Orientation physique du téléphone (activité verrouillée en portrait). */
+    private var deviceRotation = 0
+    private var orientationListener: OrientationEventListener? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -62,6 +66,12 @@ class Camera2CaptureActivity : Activity() {
         }
         root.addView(cancel, FrameLayout.LayoutParams(160, 160, Gravity.TOP or Gravity.START).apply { topMargin = 80; leftMargin = 40 })
         setContentView(root)
+        orientationListener = object : OrientationEventListener(this) {
+            override fun onOrientationChanged(o: Int) {
+                if (o == ORIENTATION_UNKNOWN) return
+                deviceRotation = ((o + 45) / 90 * 90) % 360
+            }
+        }.also { if (it.canDetectOrientation()) it.enable() }
 
         if (checkSelfPermission(Manifest.permission.CAMERA) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(arrayOf(Manifest.permission.CAMERA), 1)
@@ -149,13 +159,15 @@ class Camera2CaptureActivity : Activity() {
         val s = session ?: return
         if (capturing) return
         capturing = true
-        val rotation = when (windowManager.defaultDisplay.rotation) {
-            Surface.ROTATION_90 -> 90; Surface.ROTATION_180 -> 180; Surface.ROTATION_270 -> 270; else -> 0
-        }
+        // Écran verrouillé en portrait : on utilise l'orientation physique réelle,
+        // sinon une photo prise téléphone à l'horizontale reste couchée.
+        val facingFront = chars?.get(CameraCharacteristics.LENS_FACING) == CameraCharacteristics.LENS_FACING_FRONT
+        val jpegOrientation = if (facingFront) (sensorOrientation - deviceRotation + 360) % 360
+            else (sensorOrientation + deviceRotation) % 360
         val req = d.createCaptureRequest(CameraDevice.TEMPLATE_STILL_CAPTURE).apply {
             addTarget(reader!!.surface)
             set(CaptureRequest.CONTROL_AF_MODE, CaptureRequest.CONTROL_AF_MODE_CONTINUOUS_PICTURE)
-            set(CaptureRequest.JPEG_ORIENTATION, (sensorOrientation - rotation + 360) % 360)
+            set(CaptureRequest.JPEG_ORIENTATION, jpegOrientation)
             set(CaptureRequest.JPEG_QUALITY, 90.toByte())
         }
         s.capture(req.build(), object : CameraCaptureSession.CaptureCallback() {
@@ -201,6 +213,7 @@ class Camera2CaptureActivity : Activity() {
     }
 
     override fun onDestroy() {
+        orientationListener?.disable()
         try { session?.close(); device?.close(); reader?.close() } catch (_: Exception) {}
         thread?.quitSafely()
         super.onDestroy()
