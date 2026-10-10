@@ -235,7 +235,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   // (le clic programmatique sur un input file est bloqué par la WebView).
   const startCapture = useCallback(async (src: "camera" | "gallery") => {
     setMode("image");
-    if (Capacitor.isNativePlatform()) {
+    // Galerie : sélecteur de fichiers du système → octets d'origine intacts
+    // (le plugin Camera ré-encode l'image et perd la distance des métadonnées).
+    if (Capacitor.isNativePlatform() && src === "camera") {
       const file = await captureImageFile(src);
       if (!file) return;
       setCaptureScaleState(peekCaptureScale());
