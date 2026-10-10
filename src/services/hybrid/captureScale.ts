@@ -44,6 +44,7 @@ export function parseImageScale(buf: ArrayBuffer): CaptureScale {
     if (marker === 0xda) break;
     off = start + len - 2;
   }
+  scanXmpAnywhere(buf, out);
   return out;
 }
 
@@ -60,22 +61,47 @@ function readExif(v: DataView, tiff: number, out: CaptureScale) {
     let exifIfd = 0;
     ifd(tiff + u32(tiff + 4), (tag, e) => { if (tag === 0x8769) exifIfd = tiff + u32(e + 8); });
     if (!exifIfd) return;
+    let range = 0;
     ifd(exifIfd, (tag, e) => {
       if (tag === 0x9206) {
-        const d = rational(tiff + u32(e + 8));
+        const num = u32(tiff + u32(e + 8));
+        // 0xFFFFFFFF = infini, 0 = inconnu (norme EXIF).
+        const d = num === 0xffffffff ? null : rational(tiff + u32(e + 8));
         if (valid(d)) { out.distanceM = d; out.source = "exif"; }
       } else if (tag === 0x920a) out.focalMm = rational(tiff + u32(e + 8));
       else if (tag === 0xa405) out.focal35Mm = u16(e + 8) || null;
+      else if (tag === 0xa40c) range = u16(e + 8);
     });
+    // Repli : SubjectDistanceRange (1 = macro, 2 = vue rapprochée) → valeur approximative.
+    if (!out.distanceM && (range === 1 || range === 2)) {
+      out.distanceM = range === 1 ? 0.2 : 0.4;
+      out.source = "exif";
+      out.calibration = "approximate";
+    }
   } catch { /* EXIF corrompu : ignoré */ }
 }
+
+const XMP_KEYS = /(?:FocusDistance|SubjectDistance|focus_distance|FocalDistance|ApproximateFocusDistance|DepthNear)\s*(?:=\s*"|>)\s*([\d.]+)(?:\s*\/\s*([\d.]+))?/i;
 
 function readXmp(bytes: Uint8Array, out: CaptureScale) {
   if (out.distanceM) return;
   const xml = new TextDecoder().decode(bytes);
-  const m = xml.match(/(?:FocusDistance|SubjectDistance|focus_distance)\s*[=>]\s*"?([\d.]+)/i);
-  const d = m ? parseFloat(m[1]) : null;
+  const m = xml.match(XMP_KEYS);
+  if (!m) return;
+  let d = parseFloat(m[1]);
+  if (m[2]) d = d / parseFloat(m[2]); // forme rationnelle "42/100"
   if (valid(d)) { out.distanceM = d; out.source = "xmp"; }
+}
+
+/** Dernier recours : XMP hors segment APP1 standard (XMP étendu, fichiers retouchés). */
+function scanXmpAnywhere(buf: ArrayBuffer, out: CaptureScale) {
+  if (out.distanceM) return;
+  const bytes = new Uint8Array(buf, 0, Math.min(buf.byteLength, 512 * 1024));
+  const txt = new TextDecoder("latin1").decode(bytes);
+  const i = txt.indexOf("<x:xmpmeta");
+  if (i < 0) return;
+  const j = txt.indexOf("</x:xmpmeta>", i);
+  readXmp(bytes.subarray(i, j > i ? j : Math.min(bytes.length, i + 65536)), out);
 }
 
 /** Depuis l'objet `exif` renvoyé par le plugin Camera (prise de vue en direct). */
