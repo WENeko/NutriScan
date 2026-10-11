@@ -530,6 +530,63 @@ const [searchQuery, setSearchQuery] = useState("");
     );
   };
 
+  // Correction de la distance de prise de vue sur un repas enregistré :
+  // met à l'échelle les quantités existantes (surface apparente ∝ distance²)
+  // via la source unique de vérité portionScaling, sans relancer d'analyse.
+  const handleEditDistanceChange = (distanceM: number | null) => {
+    const oldD = editDistance;
+    setEditDistance(distanceM);
+    if (!oldD || !distanceM || oldD === distanceM) return;
+    const factor = (distanceM / oldD) ** 2;
+    const newWeights: string[] = [];
+    setEditItems((prev) =>
+      prev.map((item, i) => {
+        const r = scaleForDistance(
+          {
+            name: item.name,
+            quantity: item.quantity || "100",
+            unitCount: item.unitCount ?? undefined,
+            unitWeightG: item.unitWeightG ?? undefined,
+            isCustom: item.isCustom,
+          },
+          factor,
+        );
+        if (!r) { newWeights[i] = editWeightInputs[i]; return item; }
+        const density = editDensities[i];
+        const w = r.newWeight;
+        newWeights[i] = String(w);
+        if (!density) return { ...item, quantity: `${w}g` };
+        return {
+          ...item,
+          quantity: `${w}g`,
+          unitCount: r.unitCount ?? item.unitCount,
+          unitWeightG: r.unitWeightG ?? item.unitWeightG,
+          proteins: Math.round(density.protD * w * 10) / 10,
+          carbs: Math.round(density.carbsD * w * 10) / 10,
+          fats: Math.round(density.fatsD * w * 10) / 10,
+          calories: Math.round(density.protD * w * 4 + density.carbsD * w * 4 + density.fatsD * w * 9),
+          fiber: Math.round(density.fiberD * w * 10) / 10,
+          sugar: Math.round(density.sugarD * w * 10) / 10,
+          saturated_fat: Math.round(density.satFatD * w * 10) / 10,
+          omega3_mg: Math.round(density.omega3D * w * 10) / 10,
+          sodium_mg: Math.round(density.sodiumD * w * 10) / 10,
+          potassium_mg: Math.round(density.potassiumD * w * 10) / 10,
+          magnesium_mg: Math.round(density.magnesiumD * w * 10) / 10,
+          calcium_mg: Math.round(density.calciumD * w * 10) / 10,
+          vitamin_b_mg: Math.round(density.vitBD * w * 10) / 10,
+          vitamin_c_mg: Math.round(density.vitCD * w * 10) / 10,
+          vitamin_d_mcg: Math.round(density.vitDD * w * 10) / 10,
+          vitamin_e_mg: Math.round(density.vitED * w * 10) / 10,
+          nutrients_custom: Object.fromEntries(
+            Object.entries(editCustomPerGram[i] || {}).map(([k, perG]) => [k, Math.round(perG * w * 1000) / 1000])
+          ),
+        } as any;
+      })
+    );
+    setEditWeightInputs((prev) => prev.map((v, i) => newWeights[i] ?? v));
+    toast({ title: "Quantités ajustées", description: `Distance ${Math.round(distanceM * 100)} cm (×${factor.toFixed(2)})` });
+  };
+
   // Add ingredient via AI text (uses the cascading AI routing engine, same as MealInput)
   const addIngredientText = async () => {
     if (!addTextInput.trim()) return;
