@@ -358,6 +358,7 @@ const [searchQuery, setSearchQuery] = useState("");
       const meal = meals.find((m) => m.id === mealId);
       setEditMealName(meal?.meal_name || "");
       setEditTimestamp(meal ? getLocalDateTimeString(new Date(meal.timestamp)) : getLocalDateTimeString());
+      setEditDistance((meal as any)?.capture_distance_m ?? null);
 
       // Check which items are from custom foods library
       const { data: customFoods } = await supabase
