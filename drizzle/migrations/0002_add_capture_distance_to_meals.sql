@@ -1,0 +1,1 @@
+ALTER TABLE public.meals ADD COLUMN IF NOT EXISTS capture_distance_m numeric;

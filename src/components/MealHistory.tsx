@@ -27,6 +27,8 @@ import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import NumericInput from "./NumericInput";
+import DistanceBadge from "./DistanceBadge";
+import { scaleForDistance } from "@/services/portionScaling";
 import MealMicros from "./MealMicros";
 import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
@@ -76,6 +78,7 @@ interface Meal {
   is_favorite?: boolean;
   model_used?: string | null;
   confidence_score?: number | null;
+  capture_distance_m?: number | null;
 }
 
 /** Couleur de la pastille de confiance selon le score (0-100). */
@@ -140,6 +143,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
+  const [editDistance, setEditDistance] = useState<number | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
   // Expand (read-only) ingredient list state
   const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
@@ -354,6 +358,7 @@ const [searchQuery, setSearchQuery] = useState("");
       const meal = meals.find((m) => m.id === mealId);
       setEditMealName(meal?.meal_name || "");
       setEditTimestamp(meal ? getLocalDateTimeString(new Date(meal.timestamp)) : getLocalDateTimeString());
+      setEditDistance((meal as any)?.capture_distance_m ?? null);
 
       // Check which items are from custom foods library
       const { data: customFoods } = await supabase
@@ -525,6 +530,63 @@ const [searchQuery, setSearchQuery] = useState("");
     );
   };
 
+  // Correction de la distance de prise de vue sur un repas enregistré :
+  // met à l'échelle les quantités existantes (surface apparente ∝ distance²)
+  // via la source unique de vérité portionScaling, sans relancer d'analyse.
+  const handleEditDistanceChange = (distanceM: number | null) => {
+    const oldD = editDistance;
+    setEditDistance(distanceM);
+    if (!oldD || !distanceM || oldD === distanceM) return;
+    const factor = (distanceM / oldD) ** 2;
+    const newWeights: string[] = [];
+    setEditItems((prev) =>
+      prev.map((item, i) => {
+        const r = scaleForDistance(
+          {
+            name: item.name,
+            quantity: item.quantity || "100",
+            unitCount: item.unitCount ?? undefined,
+            unitWeightG: item.unitWeightG ?? undefined,
+            isCustom: item.isCustom,
+          },
+          factor,
+        );
+        if (!r) { newWeights[i] = editWeightInputs[i]; return item; }
+        const density = editDensities[i];
+        const w = r.newWeight;
+        newWeights[i] = String(w);
+        if (!density) return { ...item, quantity: `${w}g` };
+        return {
+          ...item,
+          quantity: `${w}g`,
+          unitCount: r.unitCount ?? item.unitCount,
+          unitWeightG: r.unitWeightG ?? item.unitWeightG,
+          proteins: Math.round(density.protD * w * 10) / 10,
+          carbs: Math.round(density.carbsD * w * 10) / 10,
+          fats: Math.round(density.fatsD * w * 10) / 10,
+          calories: Math.round(density.protD * w * 4 + density.carbsD * w * 4 + density.fatsD * w * 9),
+          fiber: Math.round(density.fiberD * w * 10) / 10,
+          sugar: Math.round(density.sugarD * w * 10) / 10,
+          saturated_fat: Math.round(density.satFatD * w * 10) / 10,
+          omega3_mg: Math.round(density.omega3D * w * 10) / 10,
+          sodium_mg: Math.round(density.sodiumD * w * 10) / 10,
+          potassium_mg: Math.round(density.potassiumD * w * 10) / 10,
+          magnesium_mg: Math.round(density.magnesiumD * w * 10) / 10,
+          calcium_mg: Math.round(density.calciumD * w * 10) / 10,
+          vitamin_b_mg: Math.round(density.vitBD * w * 10) / 10,
+          vitamin_c_mg: Math.round(density.vitCD * w * 10) / 10,
+          vitamin_d_mcg: Math.round(density.vitDD * w * 10) / 10,
+          vitamin_e_mg: Math.round(density.vitED * w * 10) / 10,
+          nutrients_custom: Object.fromEntries(
+            Object.entries(editCustomPerGram[i] || {}).map(([k, perG]) => [k, Math.round(perG * w * 1000) / 1000])
+          ),
+        } as any;
+      })
+    );
+    setEditWeightInputs((prev) => prev.map((v, i) => newWeights[i] ?? v));
+    toast({ title: "Quantités ajustées", description: `Distance ${Math.round(distanceM * 100)} cm (×${factor.toFixed(2)})` });
+  };
+
   // Add ingredient via AI text (uses the cascading AI routing engine, same as MealInput)
   const addIngredientText = async () => {
     if (!addTextInput.trim()) return;
@@ -653,6 +715,7 @@ const [searchQuery, setSearchQuery] = useState("");
       );
       const { data: updatedMeal } = await supabase.from("meals").update({
         meal_name: editMealName || null,
+        capture_distance_m: editDistance,
         timestamp: editTimestamp ? localDateTimeToISO(editTimestamp) : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,
@@ -882,6 +945,16 @@ const [searchQuery, setSearchQuery] = useState("");
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Date/Heure</label>
                 <Input type="datetime-local" value={editTimestamp} onChange={(e) => setEditTimestamp(e.target.value)} className="h-8 text-xs rounded-lg" />
+              </div>
+              {/* Distance de prise de vue (recalcule les quantités) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">Distance de prise de vue</label>
+                <div className="relative h-8">
+                  <DistanceBadge
+                    scale={{ distanceM: editDistance, focalMm: null, focal35Mm: null, source: editDistance ? "manual" : "none" }}
+                    onChange={handleEditDistanceChange}
+                  />
+                </div>
               </div>
               {/* Edit items */}
               <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>

@@ -65,6 +65,8 @@ interface SaveMealParams {
     source?: string;
     model_used?: string | null;
     confidence_score?: number | null;
+    /** Distance de prise de vue (mètres), si connue — permet le recalcul ultérieur. */
+    capture_distance_m?: number | null;
   };
   items: MealItemWithMicros[];
 }
@@ -85,6 +87,7 @@ function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
     source: m.source ?? "ai",
     model_used: m.model_used ?? null,
     confidence_score: m.confidence_score ?? null,
+    capture_distance_m: m.capture_distance_m ?? null,
   };
 }
 

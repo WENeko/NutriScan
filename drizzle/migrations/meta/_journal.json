@@ -15,6 +15,13 @@
       "when": 1790565221682,
       "tag": "0001_add_calorie_cycling_to_profiles",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791751388826,
+      "tag": "0002_add_capture_distance_to_meals",
+      "breakpoints": true
     }
   ]
 }

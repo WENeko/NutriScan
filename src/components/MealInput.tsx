@@ -737,6 +737,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           source: source,
           model_used: modelUsed,
           confidence_score: confidenceScore,
+          capture_distance_m: captureScale?.distanceM ?? null,
         },
         items: items.map(item => ({
           food_name: item.name,
