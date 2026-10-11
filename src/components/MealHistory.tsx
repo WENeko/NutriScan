@@ -715,6 +715,7 @@ const [searchQuery, setSearchQuery] = useState("");
       );
       const { data: updatedMeal } = await supabase.from("meals").update({
         meal_name: editMealName || null,
+        capture_distance_m: editDistance,
         timestamp: editTimestamp ? localDateTimeToISO(editTimestamp) : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,
@@ -944,6 +945,16 @@ const [searchQuery, setSearchQuery] = useState("");
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Date/Heure</label>
                 <Input type="datetime-local" value={editTimestamp} onChange={(e) => setEditTimestamp(e.target.value)} className="h-8 text-xs rounded-lg" />
+              </div>
+              {/* Distance de prise de vue (recalcule les quantités) */}
+              <div className="space-y-1">
+                <label className="text-[10px] font-semibold text-muted-foreground">Distance de prise de vue</label>
+                <div className="relative h-8">
+                  <DistanceBadge
+                    scale={{ distanceM: editDistance, focalMm: null, focal35Mm: null, source: editDistance ? "manual" : "none" }}
+                    onChange={handleEditDistanceChange}
+                  />
+                </div>
               </div>
               {/* Edit items */}
               <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>
