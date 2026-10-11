@@ -267,6 +267,7 @@ export type Database = {
       }
       meals: {
         Row: {
+          capture_distance_m: number | null
           confidence_score: number | null
           created_at: string
           id: string
@@ -288,6 +289,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          capture_distance_m?: number | null
           confidence_score?: number | null
           created_at?: string
           id?: string
@@ -309,6 +311,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          capture_distance_m?: number | null
           confidence_score?: number | null
           created_at?: string
           id?: string
