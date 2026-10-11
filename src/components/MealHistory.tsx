@@ -27,6 +27,8 @@ import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import NumericInput from "./NumericInput";
+import DistanceBadge from "./DistanceBadge";
+import { scaleForDistance } from "@/services/portionScaling";
 import MealMicros from "./MealMicros";
 import { type MicroGoals } from "@/lib/micro-goals";
 import BarcodeScanner from "./BarcodeScanner";
@@ -76,6 +78,7 @@ interface Meal {
   is_favorite?: boolean;
   model_used?: string | null;
   confidence_score?: number | null;
+  capture_distance_m?: number | null;
 }
 
 /** Couleur de la pastille de confiance selon le score (0-100). */
@@ -140,6 +143,7 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
+  const [editDistance, setEditDistance] = useState<number | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
   // Expand (read-only) ingredient list state
   const [expandedMealId, setExpandedMealId] = useState<string | null>(null);
