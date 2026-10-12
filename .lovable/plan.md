@@ -35,3 +35,12 @@ Photo ─▶ LocalVlmPlugin (process principal, simple proxy)
 - Compilation et test réels uniquement sur téléphone (recompilation APK requise ; build CI plus long, ~+10 min).
 - Prévoir ≥ 6–8 Go de RAM ; latence attendue plusieurs secondes, à mesurer.
 - Compatibilité exacte du GGUF MiniCPM-V 4.6 avec la version de llama.cpp figée à vérifier au premier essai.
+
+## Complétion des micronutriments manquants
+Après le résolveur actuel (bibliothèque → CIQUAL → OFF), pour chaque aliment, seules les cases micronutriments encore vides passent dans une cascade :
+1. **USDA FoodData Central** (domaine public, très complet en micros) via une fonction backend avec clé gratuite ; correspondance par nom traduit + catégorie.
+2. **Fichier canadien des éléments nutritifs (CNF)** (licence ouverte Canada), même logique.
+3. **Passe IA ciblée** : un seul appel par repas, ne recevant que la liste des aliments, leurs grammes et les clés manquantes ; elle ne peut remplir que ces cases (jamais calories/macros ni valeurs déjà résolues). Valeurs bornées (plafonds physiologiques par 100 g) et marquées « estimé IA ».
+- Chaque valeur garde sa source (badge par nutriment : CIQUAL, OFF, USDA, CNF, IA).
+- La passe IA est un réglage explicite (activé par défaut ou non, à votre choix) et utilise l'IA cloud par défaut, ou le VLM local si sélectionné — sans jamais réactiver le mode local LiteRT.
+- Tests : une valeur CIQUAL n'est jamais écrasée ; l'IA ne touche que les clés manquantes ; valeur aberrante rejetée.
