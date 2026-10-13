@@ -24,6 +24,7 @@ def ksAliasPass = System.getenv('NUTRISCAN_KEY_PASSWORD') ?: 'nutriscan'
 
 android {
     namespace = "com.nutriscan.app"
+    ndkVersion = "27.0.12077973"
     compileSdk = rootProject.ext.compileSdkVersion
     defaultConfig {
         applicationId "com.nutriscan.app"
