@@ -20,6 +20,8 @@ import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { detectFoodsWithLaya, isLayaAvailable, getSelectedLayaModel } from "./hybrid/layaVision";
 import { parseMealText, extractSuggestedTimestamp } from "./hybrid/mealTextParser";
+import { detectFoodsWithVlm, getHybridDetector, isVlmAvailable } from "./hybrid/localVlm";
+import { completeMissingMicros } from "./hybrid/microCompletion";
 import { resolveFoodItems, type FoodQuery, type ResolutionSource, type ResolvedFoodItem } from "./hybrid/nutritionResolver";
 
 export const HYBRID_LABEL = "Hybride ultra-rapide (local)";
@@ -75,7 +77,7 @@ const STD_KEYS = NUTRIENTS_STD_LIST.map((n) => n.key);
 export async function isHybridAvailable(feature: "photo" | "text" = "photo"): Promise<boolean> {
   if (feature === "text") return true;
   try {
-    return await isLayaAvailable();
+    return getHybridDetector() === "vlm" ? await isVlmAvailable() : await isLayaAvailable();
   } catch {
     return false;
   }
@@ -115,7 +117,17 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
   let queries: FoodQuery[] = [];
   let detectionModel: string | undefined;
 
-  if (mode === "photo") {
+  if (mode === "photo" && getHybridDetector() === "vlm") {
+    // Détecteur VLM local (MiniCPM-V…) : perception uniquement (noms + grammes).
+    const vlm = await detectFoodsWithVlm(input.image as string);
+    detectionModel = vlm.model;
+    queries = vlm.detections.map((d) => ({
+      name: d.name,
+      weightG: d.weightG ?? 100,
+      ...(d.count && d.weightG ? { unitCount: d.count, unitWeightG: Math.round(d.weightG / d.count) } : {}),
+      detectionConfidence: d.weightG ? 0.8 : 0.6,
+    }));
+  } else if (mode === "photo") {
     const detection = await detectFoodsWithLaya(input.image as string, {
       // Seuil abaissé (diagnostic) en mode hybride uniquement.
       minConfidence: 0.05,
@@ -166,7 +178,7 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
 
   // ── Étages 2 et 3 : résolution nutritionnelle et complétion ────────────────
   const resolutionStart = Date.now();
-  const items = await resolveFoodItems(queries, {
+  const resolved = await resolveFoodItems(queries, {
     customFoods: input.custom_foods,
     customNutrients,
     fromImage: mode === "photo",
@@ -175,6 +187,10 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
     // sauf demande explicite. Le mode local reste une étape distincte du routage.
     allowMicroLlm: input.allowMicroLlm === true,
   });
+  // Micros restés vides : USDA → CNF → passe IA ciblée (jamais calories/macros).
+  const items = (input.allowNetwork !== false
+    ? await completeMissingMicros(resolved, customNutrients)
+    : resolved) as ResolvedFoodItem[];
   const resolutionMs = Date.now() - resolutionStart;
 
   if (items.length === 0) throw new Error("Aucune donnée nutritionnelle résolue.");

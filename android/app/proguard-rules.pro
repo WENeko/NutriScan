@@ -51,3 +51,6 @@
 # Kotlin / coroutines
 -dontwarn kotlinx.coroutines.**
 -dontwarn kotlin.**
+
+# VLM local (llama.cpp) : méthodes JNI retrouvées par nom.
+-keep class com.nutriscan.app.vlm.** { *; }

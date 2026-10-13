@@ -130,7 +130,10 @@ class LocalVlmPlugin : Plugin() {
             }
             try {
                 img.writeBytes(Base64.decode(image.substringAfter("base64,", image), Base64.DEFAULT))
-                if (!context.bindService(Intent(context, LocalVlmService::class.java), conn, Context.BIND_AUTO_CREATE))
+                val svc = Intent(context, LocalVlmService::class.java)
+                // Démarré (pas seulement lié) : les modèles restent chargés entre deux analyses.
+                context.startService(svc)
+                if (!context.bindService(svc, conn, Context.BIND_AUTO_CREATE))
                     throw IllegalStateException("Moteur VLM indisponible.")
                 // Premier appel : chargement de ~2 Go → délai large.
                 if (!latch.await(180, TimeUnit.SECONDS)) throw IllegalStateException("Analyse VLM trop longue.")
