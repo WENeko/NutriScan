@@ -1,0 +1,189 @@
+// Complétion des micronutriments manquants : USDA FoodData Central → Fichier
+// canadien des éléments nutritifs (CNF) → passe IA ciblée sur les seules cases vides.
+// Ne renvoie JAMAIS de calories/macros.
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3";
+
+const Body = z.object({
+  items: z.array(z.object({
+    index: z.number().int().min(0).max(50),
+    name: z.string().min(1).max(120),
+    weight_g: z.number().positive().max(5000),
+    missing: z.array(z.string().max(60)).max(60),
+  })).max(20),
+  nutrients: z.array(z.object({
+    key: z.string().max(60), label: z.string().max(80), unit: z.string().max(10), custom: z.boolean().optional(),
+  })).max(80),
+  allow_ai: z.boolean().optional(),
+});
+
+const json = (b: unknown, status = 200) =>
+  new Response(JSON.stringify(b), { status, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+
+// USDA : numéro de nutriment → clé NutriScan (facteur de conversion).
+const USDA_MAP: Record<string, { key: string; factor: number }> = {
+  "291": { key: "fiber", factor: 1 }, "269": { key: "sugar", factor: 1 }, "606": { key: "saturated_fat", factor: 1 },
+  "307": { key: "sodium_mg", factor: 1 }, "306": { key: "potassium_mg", factor: 1 }, "304": { key: "magnesium_mg", factor: 1 },
+  "301": { key: "calcium_mg", factor: 1 }, "303": { key: "iron_mg", factor: 1 }, "309": { key: "zinc_mg", factor: 1 },
+  "401": { key: "vitamin_c_mg", factor: 1 }, "328": { key: "vitamin_d_mcg", factor: 1 }, "417": { key: "vitamin_b9_mcg", factor: 1 },
+  "418": { key: "vitamin_b12_mcg", factor: 1 }, "323": { key: "vitamin_e_mg", factor: 1 },
+};
+const USDA_OMEGA3 = ["851", "629", "621", "631"]; // ALA, EPA, DHA, DPA (g) → mg
+
+// CNF : libellé anglais → clé NutriScan.
+const CNF_MAP: [RegExp, string][] = [
+  [/^fibre, total dietary/i, "fiber"], [/^sugars, total/i, "sugar"], [/^fatty acids, saturated, total/i, "saturated_fat"],
+  [/^sodium/i, "sodium_mg"], [/^potassium/i, "potassium_mg"], [/^magnesium/i, "magnesium_mg"], [/^calcium/i, "calcium_mg"],
+  [/^iron/i, "iron_mg"], [/^zinc/i, "zinc_mg"], [/^vitamin c/i, "vitamin_c_mg"], [/^vitamin d \(/i, "vitamin_d_mcg"],
+  [/^folate, total|^total folate/i, "vitamin_b9_mcg"], [/^vitamin b-?12/i, "vitamin_b12_mcg"], [/^alpha-tocopherol/i, "vitamin_e_mg"],
+];
+
+async function fetchJson(url: string, ms = 6000, init?: RequestInit): Promise<any> {
+  const c = new AbortController();
+  const t = setTimeout(() => c.abort(), ms);
+  try {
+    const r = await fetch(url, { ...init, signal: c.signal });
+    return r.ok ? await r.json() : null;
+  } catch { return null; } finally { clearTimeout(t); }
+}
+
+async function aiChat(apiKey: string, system: string, user: string): Promise<string> {
+  const d = await fetchJson("https://ai.gateway.lovable.dev/v1/chat/completions", 25000, {
+    method: "POST",
+    headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+    body: JSON.stringify({
+      model: "google/gemini-3-flash-preview",
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      response_format: { type: "json_object" },
+    }),
+  });
+  return d?.choices?.[0]?.message?.content ?? "";
+}
+
+function parseObj(s: string): any {
+  const m = String(s).match(/\{[\s\S]*\}/);
+  try { return m ? JSON.parse(m[0]) : null; } catch { return null; }
+}
+
+/** Traduit les noms en requêtes anglaises (noms uniquement, aucune valeur nutritionnelle). */
+async function translate(apiKey: string, names: string[]): Promise<string[]> {
+  const raw = await aiChat(apiKey,
+    "Translate food names to short generic English USDA search terms (e.g. 'poulet rôti' -> 'chicken, roasted'). JSON only.",
+    `{"names":${JSON.stringify(names)}} -> {"en":["..."]} same order.`);
+  const en = parseObj(raw)?.en;
+  return Array.isArray(en) && en.length === names.length ? en.map(String) : names;
+}
+
+async function usdaPer100(query: string, key: string): Promise<Record<string, number> | null> {
+  const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}` +
+    `&dataType=Foundation,SR%20Legacy&pageSize=1&api_key=${key}`;
+  const food = (await fetchJson(url))?.foods?.[0];
+  if (!food?.foodNutrients) return null;
+  const out: Record<string, number> = {};
+  let omega = 0, hasOmega = false;
+  for (const n of food.foodNutrients) {
+    const num = String(n.nutrientNumber ?? "");
+    const v = Number(n.value);
+    if (!Number.isFinite(v)) continue;
+    if (USDA_MAP[num]) out[USDA_MAP[num].key] = v * USDA_MAP[num].factor;
+    if (USDA_OMEGA3.includes(num)) { omega += v; hasOmega = true; }
+  }
+  if (hasOmega) out.omega3_mg = omega * 1000;
+  return Object.keys(out).length ? out : null;
+}
+
+let cnfFoods: { code: number; desc: string }[] | null = null;
+async function cnfPer100(query: string): Promise<Record<string, number> | null> {
+  if (!cnfFoods) {
+    const list = await fetchJson("https://food-nutrition.canada.ca/api/canadian-nutrient-file/food/?lang=en&type=json", 10000);
+    cnfFoods = Array.isArray(list) ? list.map((f: any) => ({ code: f.food_code, desc: String(f.food_description ?? "").toLowerCase() })) : [];
+  }
+  const words = query.toLowerCase().split(/[\s,]+/).filter((w) => w.length > 2);
+  if (!words.length || !cnfFoods.length) return null;
+  let best: { code: number; score: number } | null = null;
+  for (const f of cnfFoods) {
+    const score = words.filter((w) => f.desc.includes(w)).length / words.length - f.desc.length / 1000;
+    if (score > 0.6 && (!best || score > best.score)) best = { code: f.code, score };
+  }
+  if (!best) return null;
+  const rows = await fetchJson(`https://food-nutrition.canada.ca/api/canadian-nutrient-file/nutrientamount/?id=${best.code}&lang=en&type=json`);
+  if (!Array.isArray(rows)) return null;
+  const out: Record<string, number> = {};
+  for (const r of rows) {
+    const name = String(r.nutrient_web_name ?? r.nutrient_name ?? "");
+    const v = Number(r.nutrient_value);
+    if (!Number.isFinite(v)) continue;
+    const hit = CNF_MAP.find(([re]) => re.test(name));
+    if (hit && out[hit[1]] == null) out[hit[1]] = v;
+  }
+  return Object.keys(out).length ? out : null;
+}
+
+Deno.serve(async (req) => {
+  if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
+  try {
+    const auth = req.headers.get("Authorization") ?? "";
+    if (!auth.startsWith("Bearer ")) return json({ error: "Non autorisé" }, 401);
+    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } } });
+    const { data: claims, error: authErr } = await sb.auth.getClaims(auth.slice(7));
+    if (authErr || !claims?.claims?.sub) return json({ error: "Non autorisé" }, 401);
+
+    const parsed = Body.safeParse(await req.json());
+    if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
+    const { items, nutrients, allow_ai } = parsed.data;
+    const apiKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
+    const usdaKey = Deno.env.get("FDC_API_KEY") || "DEMO_KEY";
+    const std = new Set(nutrients.filter((n) => !n.custom).map((n) => n.key));
+
+    const english = apiKey ? await translate(apiKey, items.map((i) => i.name)) : items.map((i) => i.name);
+
+    const results = await Promise.all(items.map(async (it, i) => {
+      const values: Record<string, number> = {};
+      const sources: Record<string, string> = {};
+      let remaining = it.missing.filter((k) => !["calories", "proteins", "carbs", "fats"].includes(k));
+      const apply = (per100: Record<string, number> | null, src: string) => {
+        if (!per100) return;
+        for (const k of remaining) {
+          if (std.has(k) && per100[k] != null) {
+            values[k] = Math.round(per100[k] * it.weight_g / 100 * 10) / 10;
+            sources[k] = src;
+          }
+        }
+        remaining = remaining.filter((k) => values[k] == null);
+      };
+      if (remaining.some((k) => std.has(k))) apply(await usdaPer100(english[i], usdaKey), "usda");
+      if (remaining.some((k) => std.has(k))) apply(await cnfPer100(english[i]), "cnf");
+      return { index: it.index, name: it.name, values, sources, remaining };
+    }));
+
+    // Passe IA ciblée : un seul appel pour tout le repas, uniquement les cases restantes.
+    const todo = results.filter((r) => r.remaining.length > 0);
+    if (allow_ai && apiKey && todo.length) {
+      const defs = new Map(nutrients.map((n) => [n.key, n]));
+      const ask = todo.map((r) => ({
+        index: r.index, food: r.name, grams: items.find((x) => x.index === r.index)!.weight_g,
+        keys: r.remaining.map((k) => `${k} (${defs.get(k)?.unit ?? ""}, ${defs.get(k)?.label ?? k})`),
+      }));
+      const raw = await aiChat(apiKey,
+        "Tu es une table de composition nutritionnelle (références CIQUAL/USDA). Donne uniquement les valeurs demandées, " +
+        "pour la portion indiquée, en nombres. Si une valeur est réellement inconnue, omets la clé. Aucune calorie ni macro. JSON uniquement.",
+        `${JSON.stringify(ask)}\nRéponds : {"items":[{"index":0,"values":{"cle":nombre}}]}`);
+      const ai = parseObj(raw)?.items;
+      if (Array.isArray(ai)) {
+        for (const a of ai) {
+          const r = todo.find((t) => t.index === Number(a?.index));
+          if (!r || !a?.values) continue;
+          for (const k of r.remaining) {
+            const v = Number(a.values[k]);
+            if (Number.isFinite(v) && v >= 0) { r.values[k] = v; r.sources[k] = "ai"; }
+          }
+        }
+      }
+    }
+
+    return json({ items: results.map(({ index, values, sources }) => ({ index, values, sources })) });
+  } catch (e) {
+    return json({ error: e instanceof Error ? e.message : "Erreur inconnue" }, 500);
+  }
+});
