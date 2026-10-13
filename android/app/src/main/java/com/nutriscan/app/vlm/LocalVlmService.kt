@@ -31,6 +31,7 @@ class LocalVlmService : Service() {
     private val unloadTask = Runnable {
         try { NutriVlmNative.unload() } catch (_: Throwable) {}
         loadedKey = null
+        stopSelf()
     }
 
     override fun onCreate() {

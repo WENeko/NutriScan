@@ -32,6 +32,15 @@ android {
         versionCode appVersionCode
         versionName appVersionName
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
+        // VLM local (llama.cpp) : arm64 uniquement.
+        ndk { abiFilters 'arm64-v8a' }
+        externalNativeBuild {
+            cmake {
+                arguments "-DLLAMA_CPP_TAG=${project.findProperty('nutrivlm.llamaTag') ?: 'master'}", "-DANDROID_STL=c++_shared"
+                cppFlags "-std=c++17"
+                targets "nutrivlm"
+            }
+        }
         aaptOptions {
              // Files and dirs to omit from the packaged assets dir, modified to accommodate modern web apps.
              // Default: https://android.googlesource.com/platform/frameworks/base/+/282e181b58cf72b6ca770dc7ca5f91f135444502/tools/aapt/AaptAssets.cpp#61
@@ -59,6 +68,12 @@ android {
             minifyEnabled false
             // Même signature que la release → passage debug <-> release sans désinstaller.
             signingConfig ksFile.exists() ? signingConfigs.nutriscan : signingConfigs.debug
+        }
+    }
+    externalNativeBuild {
+        cmake {
+            path file('src/main/cpp/CMakeLists.txt')
+            version '3.22.1'
         }
     }
     packagingOptions {

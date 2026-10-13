@@ -49,6 +49,12 @@
             android:exported="false"
             android:process=":laya" />
 
+        <!-- VLM local (llama.cpp) isolé : crash/OOM natif sans fermer l'app. -->
+        <service
+            android:name=".vlm.LocalVlmService"
+            android:exported="false"
+            android:process=":vlm" />
+
         <activity
             android:name=".Camera2CaptureActivity"
             android:exported="false"

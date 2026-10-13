@@ -4,3 +4,5 @@
 - Keep `-keep class ai.onnxruntime.**` in ProGuard rules — ONNX Runtime's native code looks up Java classes by name via JNI and crashes in minified release builds otherwise.
 - The hybrid pipeline (Laya + resolver) never calls the on-device LLM unless explicitly opted in — local LLM and hybrid are separate routing steps so one can't stall or pollute the other.
 - Distance-based portion rescaling goes only through `src/services/portionScaling.ts` (calibrated/variable/bulk), whatever the analysis mode — one source of truth so modes can't diverge.
+- On-device VLM inference (llama.cpp/mtmd, GGUF + mmproj) runs only in `LocalVlmService` (separate `:vlm` process) via `LocalVlmPlugin`; the VLM only detects foods/grams, nutrients always come from the resolver.
+- Missing micronutrients are filled after the resolver by `src/services/hybrid/microCompletion.ts` (USDA → CNF → targeted cloud AI); it may only fill empty keys, never calories/macros or already-resolved values, and records a per-nutrient source.

@@ -18,6 +18,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(ApkUpdaterPlugin.class);
     registerPlugin(LayaVisionPlugin.class);
     registerPlugin(Camera2Plugin.class);
+    registerPlugin(com.nutriscan.app.vlm.LocalVlmPlugin.class);
 
     super.onCreate(savedInstanceState);
   }

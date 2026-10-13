@@ -110,6 +110,11 @@ jobs:
           distribution: temurin
           java-version: 21
 
+      # VLM local : NDK + CMake pour compiler llama.cpp (cache des sources récupérées).
+      - name: Install NDK and CMake
+        run: |
+          yes | "$ANDROID_HOME/cmdline-tools/latest/bin/sdkmanager" "ndk;27.0.12077973" "cmake;3.22.1" > /dev/null
+
       - name: Make gradlew executable
         run: chmod +x android/gradlew
 
