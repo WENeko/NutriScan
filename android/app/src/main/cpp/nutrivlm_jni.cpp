@@ -115,8 +115,9 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   llama_memory_clear(llama_get_memory(g_ctx), true);
 
   mtmd_input_chunks *chunks = mtmd_input_chunks_init();
-  mtmd_input_text text;
+  mtmd_input_text text{};
   text.text = prompt.c_str();
+  text.text_len = prompt.size();
   text.add_special = true;
   text.parse_special = true;
   const mtmd_bitmap *bitmaps[1] = {bmp};
