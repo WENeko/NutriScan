@@ -28,4 +28,10 @@ FetchContent_MakeAvailable(llama_cpp)
 
 add_library(nutrivlm SHARED nutrivlm_jni.cpp)
 target_compile_options(nutrivlm PRIVATE -O3)
+# mtmd.h vit dans tools/mtmd (pas dans include/ public)
+target_include_directories(nutrivlm PRIVATE
+  ${llama_cpp_SOURCE_DIR}/tools/mtmd
+  ${llama_cpp_SOURCE_DIR}/include
+  ${llama_cpp_SOURCE_DIR}/ggml/include
+)
 target_link_libraries(nutrivlm PRIVATE llama mtmd android log)
