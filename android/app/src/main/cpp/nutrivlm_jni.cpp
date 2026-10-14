@@ -66,14 +66,20 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstrin
 
   llama_model_params mp = llama_model_default_params();
   mp.n_gpu_layers = 0;
+  // Poids mappés depuis le stockage (pages évinçables par le noyau), jamais verrouillés en RAM.
+  mp.use_mmap = true;
+  mp.use_mlock = false;
   g_model = llama_model_load_from_file(modelPath.c_str(), mp);
   if (!g_model) { g_last_error = "Modèle GGUF illisible ou incompatible : " + modelPath; release_all(); return JNI_FALSE; }
 
   llama_context_params cp = llama_context_default_params();
-  cp.n_ctx = nCtx > 0 ? nCtx : 4096;
-  cp.n_batch = 512;
+  cp.n_ctx = nCtx > 0 ? nCtx : 1024;
+  cp.n_batch = 256;
+  cp.n_ubatch = 256;
   cp.n_threads = nThreads > 0 ? nThreads : 4;
   cp.n_threads_batch = cp.n_threads;
+  // Cache K quantifié Q8_0 (V reste F16 : la quantification V exige flash-attention).
+  cp.type_k = GGML_TYPE_Q8_0;
   g_ctx = llama_init_from_model(g_model, cp);
   if (!g_ctx) { g_last_error = "Contexte d'inférence impossible (mémoire ?)"; release_all(); return JNI_FALSE; }
 
@@ -118,7 +124,7 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   if (rc != 0) { mtmd_input_chunks_free(chunks); g_last_error = "Tokenisation multimodale impossible"; return nullptr; }
 
   llama_pos n_past = 0;
-  if (mtmd_helper_eval_chunks(g_mtmd, g_ctx, chunks, 0, 0, 512, true, &n_past) != 0) {
+  if (mtmd_helper_eval_chunks(g_mtmd, g_ctx, chunks, 0, 0, 256, true, &n_past) != 0) {
     mtmd_input_chunks_free(chunks);
     g_last_error = "Évaluation de l'image impossible (mémoire ?)";
     return nullptr;
