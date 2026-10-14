@@ -5,5 +5,6 @@
 - [x] Correction manuelle de la distance par l'utilisateur
 - [x] Normalisation optique (recadrage vers ~40 cm Nutrition5k) avant inférence ONNX
 - [x] Distance Camera2 transmise même sur capteur « uncalibrated » ; masse ≤ 2 g traitée comme inconnue
-- [ ] MiniCPM-V 4.6 natif (llama.cpp, process :vlm) comme détecteur du mode hybride
-- [ ] Complétion micronutriments : sources supplémentaires (USDA FoodData Central, Fichier canadien CNF) puis passe IA ciblée sur les seules cases vides
+- [x] MiniCPM-V 4.6 natif (llama.cpp, process :vlm) comme détecteur du mode hybride
+- [x] Complétion micronutriments : sources supplémentaires (USDA FoodData Central, Fichier canadien CNF) puis passe IA ciblée sur les seules cases vides
+- [ ] Badge de source par micronutriment dans le détail du repas
