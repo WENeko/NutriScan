@@ -67,8 +67,7 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstrin
   llama_model_params mp = llama_model_default_params();
   mp.n_gpu_layers = 0;
   // Poids mappés depuis le stockage (pages évinçables par le noyau), jamais verrouillés en RAM.
-  mp.use_mmap = true;
-  mp.use_mlock = false;
+  mp.load_mode = LLAMA_LOAD_MODE_MMAP;
   g_model = llama_model_load_from_file(modelPath.c_str(), mp);
   if (!g_model) { g_last_error = "Modèle GGUF illisible ou incompatible : " + modelPath; release_all(); return JNI_FALSE; }
 
@@ -105,7 +104,9 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   std::vector<unsigned char> bytes(len);
   env->GetByteArrayRegion(jimage, 0, len, reinterpret_cast<jbyte *>(bytes.data()));
 
-  mtmd_bitmap *bmp = mtmd_helper_bitmap_init_from_buf(g_mtmd, bytes.data(), bytes.size());
+  mtmd_helper_bitmap_wrapper wrapper = mtmd_helper_bitmap_init_from_buf(
+      g_mtmd, bytes.data(), bytes.size(), false, mtmd_helper_init_opt_default());
+  mtmd_bitmap *bmp = wrapper.bitmap;
   if (!bmp) { g_last_error = "Image illisible"; return nullptr; }
 
   const std::string user = std::string(mtmd_default_marker()) + "\n" + jstr(env, juser);
