@@ -28,7 +28,7 @@ class LocalVlmService : Service() {
         private const val TAG = "NutriVlm"
         private const val IDLE_UNLOAD_MS = 5 * 60 * 1000L
         private const val DEGRADED_UNLOAD_MS = 20 * 1000L
-        private const val MAX_SIDE = 672
+        private const val MAX_SIDE = 448
         private const val MAX_SIDE_DEGRADED = 448
         private const val MB = 1024L * 1024L
         private const val FULL_MIN_AVAIL = 1800 * MB
@@ -187,13 +187,7 @@ class LocalVlmService : Service() {
      * Résolution adaptée au profil du téléphone : part de la RAM totale, puis apprend
      * de la latence réelle (descend si > 90 s, remonte si < 30 s). Jamais sous 448 px.
      */
-    private fun adaptiveSide(): Int {
-        val saved = prefs().getInt("side", 0)
-        // Si l'ancien palier à 896 px était mémorisé, on le rabat sur le nouveau max à 672 px
-        if (saved in 1..MAX_SIDE) return saved
-        return MAX_SIDE // Démarrage par défaut sur 672 px
-    }
-
+    private fun adaptiveSide(): Int = MAX_SIDE
 
     private fun learn(side: Int, inferMs: Long) {
         val steps = listOf(MAX_SIDE_DEGRADED, 672, MAX_SIDE)
