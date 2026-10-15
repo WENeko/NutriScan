@@ -132,6 +132,7 @@ class LocalVlmService : Service() {
                         d.getString("prompt") ?: "",
                         maxTokens,
                     ) ?: throw IllegalStateException(NutriVlmNative.lastError().ifBlank { "Analyse impossible" })
+                    prefs().edit().putBoolean("gpuPending", false).apply()
                     if (!degraded) learn(side, System.currentTimeMillis() - tInf)
                     out.putString("text", text)
                     out.putLong("loadMs", loadMs)
