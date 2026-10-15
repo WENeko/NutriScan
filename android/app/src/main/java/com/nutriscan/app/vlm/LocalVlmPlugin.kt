@@ -135,10 +135,13 @@ class LocalVlmPlugin : Plugin() {
                 context.startService(svc)
                 if (!context.bindService(svc, conn, Context.BIND_AUTO_CREATE))
                     throw IllegalStateException("Moteur VLM indisponible.")
-                // Délai adaptatif : basé sur la dernière latence mesurée sur CE téléphone (×2, 120–360 s).
-                val last = context.getSharedPreferences("vlm_profile", Context.MODE_PRIVATE).getLong("lastLatencyMs", 0L)
-                val timeoutS = if (last <= 0L) 300L else (last * 2 / 1000).coerceIn(120L, 360L)
-                if (!latch.await(timeoutS, TimeUnit.SECONDS)) throw IllegalStateException("Analyse VLM trop longue (> $timeoutS s).")
+                // Avec 1 seule tuile à 448 px, 90 s suffisent largement même sur CPU
+                val timeoutS = 90L
+                if (!latch.await(timeoutS, TimeUnit.SECONDS)) {
+                    // Arrêt forcé du service d'arrière-plan pour ne pas engorger la tentative suivante
+                    context.stopService(Intent(context, LocalVlmService::class.java))
+                    throw IllegalStateException("Analyse VLM trop longue (> $timeoutS s).")
+                }
                 val r = reply
                 if (r == null || r.getString("error") != null) throw IllegalStateException(r?.getString("error") ?: error ?: dead)
                 call.resolve(JSObject()
