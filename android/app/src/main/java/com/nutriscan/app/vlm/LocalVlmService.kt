@@ -98,8 +98,7 @@ class LocalVlmService : Service() {
                     degraded = tier == MemTier.DEGRADED
                     out.putString("memoryTier", if (degraded) "degraded" else "full")
 
-                    val cores = Runtime.getRuntime().availableProcessors()
-                    val threads = if (degraded) 2 else cores.coerceIn(2, 6)
+                    val threads = if (degraded) 2 else performanceCores()
                     val nCtx = if (degraded) 768 else 1024
                     val key = "$model|$mmproj|$nCtx"
                     var loadMs = 0L
@@ -113,16 +112,22 @@ class LocalVlmService : Service() {
                         loadedThreads = threads
                         loadMs = System.currentTimeMillis() - t0
                     }
+                    val side = if (degraded) MAX_SIDE_DEGRADED else adaptiveSide()
                     val maxTokens = d.getInt("maxTokens", 384).coerceAtMost(if (degraded) 256 else 384)
+                    val tInf = System.currentTimeMillis()
                     val text = NutriVlmNative.analyze(
-                        downscale(raw, if (degraded) MAX_SIDE_DEGRADED else MAX_SIDE),
+                        downscale(raw, side),
                         d.getString("system") ?: "",
                         d.getString("prompt") ?: "",
                         maxTokens,
                     ) ?: throw IllegalStateException(NutriVlmNative.lastError().ifBlank { "Analyse impossible" })
+                    if (!degraded) learn(side, System.currentTimeMillis() - tInf)
                     out.putString("text", text)
                     out.putLong("loadMs", loadMs)
+                    out.putInt("imageSide", side)
+                    out.putInt("threads", threads)
                     out.putLong("latencyMs", System.currentTimeMillis() - started)
+                    prefs().edit().putLong("lastLatencyMs", System.currentTimeMillis() - started).apply()
                 } catch (t: Throwable) {
                     out.putString("error", t.message ?: t.javaClass.simpleName)
                 }
@@ -147,6 +152,43 @@ class LocalVlmService : Service() {
     override fun onLowMemory() {
         super.onLowMemory()
         handler.post { unloadModels() }
+    }
+
+    private fun prefs() = getSharedPreferences("vlm_profile", Context.MODE_PRIVATE)
+
+    /** Cœurs « performance » uniquement (fréquence max ≥ 80 % du plus rapide) : les petits cœurs ralentissent llama.cpp. */
+    private fun performanceCores(): Int {
+        val n = Runtime.getRuntime().availableProcessors()
+        val freqs = (0 until n).mapNotNull {
+            try { File("/sys/devices/system/cpu/cpu$it/cpufreq/cpuinfo_max_freq").readText().trim().toLong() } catch (_: Throwable) { null }
+        }
+        if (freqs.isEmpty()) return (n / 2).coerceIn(2, 4)
+        val top = freqs.max()
+        return freqs.count { it >= top * 0.8 }.coerceIn(2, 6)
+    }
+
+    /**
+     * Résolution adaptée au profil du téléphone : part de la RAM totale, puis apprend
+     * de la latence réelle (descend si > 90 s, remonte si < 30 s). Jamais sous 448 px.
+     */
+    private fun adaptiveSide(): Int {
+        val saved = prefs().getInt("side", 0)
+        if (saved > 0) return saved
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val total = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem
+        return when { total >= 10_000 * MB -> MAX_SIDE; total >= 6_000 * MB -> 672; else -> MAX_SIDE_DEGRADED }
+    }
+
+    private fun learn(side: Int, inferMs: Long) {
+        val steps = listOf(MAX_SIDE_DEGRADED, 672, MAX_SIDE)
+        val i = steps.indexOf(side).takeIf { it >= 0 } ?: return
+        val next = when {
+            inferMs > 90_000 && i > 0 -> steps[i - 1]
+            inferMs < 30_000 && i < steps.lastIndex -> steps[i + 1]
+            else -> side
+        }
+        prefs().edit().putInt("side", next).apply()
+        Log.i(TAG, "Profil VLM : ${side}px en ${inferMs} ms → prochain ${next}px")
     }
 
     /** Réduit la photo avant l'encodeur visuel : moins de RAM et de tokens visuels. */
