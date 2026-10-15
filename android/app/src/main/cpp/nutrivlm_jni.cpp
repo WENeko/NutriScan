@@ -140,11 +140,24 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
 
   std::string out;
   char piece[256];
-  for (int i = 0; i < (maxTokens > 0 ? maxTokens : 384); ++i) {
+  // Arrêt anticipé : dès que la structure JSON racine est refermée, on coupe.
+  int depth = 0;
+  bool started = false, in_str = false, esc = false, done = false;
+  for (int i = 0; i < (maxTokens > 0 ? maxTokens : 384) && !done; ++i) {
     llama_token id = llama_sampler_sample(smpl, g_ctx, -1);
     if (llama_vocab_is_eog(vocab, id)) break;
     int n = llama_token_to_piece(vocab, id, piece, sizeof(piece), 0, true);
-    if (n > 0) out.append(piece, n);
+    if (n > 0) {
+      out.append(piece, n);
+      for (int k = 0; k < n; ++k) {
+        char c = piece[k];
+        if (in_str) { if (esc) esc = false; else if (c == '\\') esc = true; else if (c == '"') in_str = false; continue; }
+        if (c == '"') in_str = true;
+        else if (c == '{' || c == '[') { depth++; started = true; }
+        else if ((c == '}' || c == ']') && depth > 0) { if (--depth == 0 && started) { done = true; break; } }
+      }
+    }
+    if (done) break;
     llama_batch b = llama_batch_get_one(&id, 1);
     if (llama_decode(g_ctx, b) != 0) break;
   }
