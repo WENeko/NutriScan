@@ -100,11 +100,21 @@ class LocalVlmService : Service() {
 
                     val threads = if (degraded) 2 else performanceCores()
                     val nCtx = if (degraded) 768 else 1024
-                    val key = "$model|$mmproj|$nCtx"
+                    // GPU Vulkan sauf si une tentative précédente a fait planter le processus.
+                    val p = prefs()
+                    if (p.getBoolean("gpuPending", false)) {
+                        Log.w(TAG, "Plantage GPU précédent détecté : Vulkan désactivé sur cet appareil")
+                        p.edit().putBoolean("gpuBroken", true).putBoolean("gpuPending", false).commit()
+                    }
+                    val useGpu = !p.getBoolean("gpuBroken", false)
+                    val key = "$model|$mmproj|$nCtx|$useGpu"
                     var loadMs = 0L
                     if (loadedKey != key || loadedThreads != threads) {
                         val t0 = System.currentTimeMillis()
-                        if (!NutriVlmNative.loadModels(model, mmproj, threads, nCtx)) {
+                        if (useGpu) p.edit().putBoolean("gpuPending", true).commit()
+                        val ok = NutriVlmNative.loadModels(model, mmproj, threads, nCtx, useGpu)
+                        if (!ok) {
+                            p.edit().putBoolean("gpuPending", false).commit()
                             loadedKey = null
                             throw IllegalStateException(NutriVlmNative.lastError().ifBlank { "Chargement impossible" })
                         }
@@ -112,6 +122,7 @@ class LocalVlmService : Service() {
                         loadedThreads = threads
                         loadMs = System.currentTimeMillis() - t0
                     }
+                    out.putString("backend", NutriVlmNative.backend())
                     val side = if (degraded) MAX_SIDE_DEGRADED else adaptiveSide()
                     val maxTokens = d.getInt("maxTokens", 384).coerceAtMost(if (degraded) 256 else 384)
                     val tInf = System.currentTimeMillis()
@@ -121,6 +132,7 @@ class LocalVlmService : Service() {
                         d.getString("prompt") ?: "",
                         maxTokens,
                     ) ?: throw IllegalStateException(NutriVlmNative.lastError().ifBlank { "Analyse impossible" })
+                    prefs().edit().putBoolean("gpuPending", false).apply()
                     if (!degraded) learn(side, System.currentTimeMillis() - tInf)
                     out.putString("text", text)
                     out.putLong("loadMs", loadMs)

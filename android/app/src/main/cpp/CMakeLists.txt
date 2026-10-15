@@ -6,6 +6,34 @@ if(NOT DEFINED LLAMA_CPP_TAG)
 endif()
 
 include(FetchContent)
+
+# ---- Vulkan (GPU) ----------------------------------------------------------
+# Le NDK fournit libvulkan.so et glslc, mais pas les en-têtes C++ (vulkan.hpp)
+# exigés par ggml-vulkan : on les récupère depuis Khronos.
+FetchContent_Declare(
+  vulkan_headers
+  GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
+  GIT_TAG v1.3.290
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(vulkan_headers)
+set(Vulkan_INCLUDE_DIR "${vulkan_headers_SOURCE_DIR}/include" CACHE PATH "" FORCE)
+find_library(NDK_VULKAN_LIB vulkan)
+set(Vulkan_LIBRARY "${NDK_VULKAN_LIB}" CACHE FILEPATH "" FORCE)
+
+if(CMAKE_HOST_SYSTEM_NAME STREQUAL "Darwin")
+  set(_NDK_HOST "darwin-x86_64")
+elseif(CMAKE_HOST_SYSTEM_NAME STREQUAL "Windows")
+  set(_NDK_HOST "windows-x86_64")
+else()
+  set(_NDK_HOST "linux-x86_64")
+endif()
+find_program(Vulkan_GLSLC_EXECUTABLE glslc
+  HINTS "${ANDROID_NDK}/shader-tools/${_NDK_HOST}" NO_CMAKE_FIND_ROOT_PATH)
+
+set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+
+# ---- llama.cpp -------------------------------------------------------------
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_EXAMPLES OFF CACHE BOOL "" FORCE)
 set(LLAMA_BUILD_SERVER OFF CACHE BOOL "" FORCE)
@@ -26,7 +54,6 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(llama_cpp)
 
-# Sécurité : force la compilation du module multimodal s'il n'a pas été inclus automatiquement
 if(NOT TARGET mtmd)
   add_subdirectory(${llama_cpp_SOURCE_DIR}/tools/mtmd ${CMAKE_CURRENT_BINARY_DIR}/mtmd)
 endif()
