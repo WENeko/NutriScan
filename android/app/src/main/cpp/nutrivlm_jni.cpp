@@ -10,6 +10,7 @@
 #include "llama.h"
 #include "mtmd.h"
 #include "mtmd-helper.h"
+#include "ggml-backend.h"
 
 #define TAG "NutriVlm"
 #define LOGI(...) __android_log_print(ANDROID_LOG_INFO, TAG, __VA_ARGS__)
@@ -54,22 +55,17 @@ std::string build_prompt(const std::string &system, const std::string &user) {
 }
 }  // namespace
 
-extern "C" JNIEXPORT jboolean JNICALL
-Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstring jmodel, jstring jmmproj,
-                                                      jint nThreads, jint nCtx) {
-  std::lock_guard<std::mutex> lock(g_mutex);
+bool g_on_gpu = false;
+
+static bool load_impl(const std::string &modelPath, const std::string &mmprojPath, int nThreads, int nCtx, bool gpu) {
   release_all();
-  llama_backend_init();
-
-  const std::string modelPath = jstr(env, jmodel);
-  const std::string mmprojPath = jstr(env, jmmproj);
-
   llama_model_params mp = llama_model_default_params();
-  mp.n_gpu_layers = 0;
+  // GPU (Vulkan) : toutes les couches déchargées ; CPU : aucune.
+  mp.n_gpu_layers = gpu ? 99 : 0;
   // Poids mappés depuis le stockage (pages évinçables par le noyau), jamais verrouillés en RAM.
   mp.load_mode = LLAMA_LOAD_MODE_MMAP;
   g_model = llama_model_load_from_file(modelPath.c_str(), mp);
-  if (!g_model) { g_last_error = "Modèle GGUF illisible ou incompatible : " + modelPath; release_all(); return JNI_FALSE; }
+  if (!g_model) { g_last_error = "Modèle GGUF illisible ou incompatible : " + modelPath; release_all(); return false; }
 
   llama_context_params cp = llama_context_default_params();
   cp.n_ctx = nCtx > 0 ? nCtx : 1024;
@@ -77,21 +73,44 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstrin
   cp.n_ubatch = 256;
   cp.n_threads = nThreads > 0 ? nThreads : 4;
   cp.n_threads_batch = cp.n_threads;
-  // Cache K quantifié Q8_0 (V reste F16 : la quantification V exige flash-attention).
   cp.type_k = GGML_TYPE_Q8_0;
   g_ctx = llama_init_from_model(g_model, cp);
-  if (!g_ctx) { g_last_error = "Contexte d'inférence impossible (mémoire ?)"; release_all(); return JNI_FALSE; }
+  if (!g_ctx) { g_last_error = "Contexte d'inférence impossible (mémoire ?)"; release_all(); return false; }
 
   mtmd_context_params mpp = mtmd_context_params_default();
-  mpp.use_gpu = false;
+  mpp.use_gpu = gpu;
   mpp.n_threads = cp.n_threads;
   mpp.print_timings = false;
   g_mtmd = mtmd_init_from_file(mmprojPath.c_str(), g_model, mpp);
-  if (!g_mtmd) { g_last_error = "Projecteur visuel (mmproj) illisible ou incompatible : " + mmprojPath; release_all(); return JNI_FALSE; }
+  if (!g_mtmd) { g_last_error = "Projecteur visuel (mmproj) illisible ou incompatible : " + mmprojPath; release_all(); return false; }
 
-  LOGI("Modèles chargés (ctx=%d, threads=%d)", cp.n_ctx, cp.n_threads);
+  LOGI("Modèles chargés (%s, ctx=%d, threads=%d)", gpu ? "Vulkan" : "CPU", cp.n_ctx, cp.n_threads);
+  return true;
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstring jmodel, jstring jmmproj,
+                                                      jint nThreads, jint nCtx, jboolean useGpu) {
+  std::lock_guard<std::mutex> lock(g_mutex);
+  llama_backend_init();
+  const std::string modelPath = jstr(env, jmodel);
+  const std::string mmprojPath = jstr(env, jmmproj);
+
+  // Le GPU n'est tenté que si un périphérique Vulkan est réellement présent.
+  bool gpu = useGpu && ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_GPU) != nullptr;
+  if (gpu && load_impl(modelPath, mmprojPath, nThreads, nCtx, true)) {
+    g_on_gpu = true; g_last_error.clear(); return JNI_TRUE;
+  }
+  if (gpu) LOGE("Échec Vulkan (%s) : repli CPU", g_last_error.c_str());
+  g_on_gpu = false;
+  if (!load_impl(modelPath, mmprojPath, nThreads, nCtx, false)) return JNI_FALSE;
   g_last_error.clear();
   return JNI_TRUE;
+}
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nutriscan_app_vlm_NutriVlmNative_backend(JNIEnv *env, jclass) {
+  return env->NewStringUTF(g_on_gpu && g_model ? "vulkan" : "cpu");
 }
 
 extern "C" JNIEXPORT jstring JNICALL
