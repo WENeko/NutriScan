@@ -9,7 +9,7 @@ include(FetchContent)
 
 # ---- Vulkan (GPU) ----------------------------------------------------------
 # Le NDK fournit libvulkan.so et glslc, mais pas les en-têtes C++ (vulkan.hpp)
-# exigés par ggml-vulkan : on les récupère depuis Khronos.
+# ni SPIRV-Headers exigés par ggml-vulkan : on les récupère depuis Khronos.
 FetchContent_Declare(
   vulkan_headers
   GIT_REPOSITORY https://github.com/KhronosGroup/Vulkan-Headers.git
@@ -18,6 +18,36 @@ FetchContent_Declare(
 )
 FetchContent_MakeAvailable(vulkan_headers)
 set(Vulkan_INCLUDE_DIR "${vulkan_headers_SOURCE_DIR}/include" CACHE PATH "" FORCE)
+
+FetchContent_Declare(
+  spirv_headers
+  GIT_REPOSITORY https://github.com/KhronosGroup/SPIRV-Headers.git
+  GIT_TAG vulkan-sdk-1.3.290.0
+  GIT_SHALLOW TRUE
+)
+FetchContent_MakeAvailable(spirv_headers)
+
+# ggml-vulkan/CMakeLists.txt appelle find_package(SPIRV-Headers CONFIG REQUIRED).
+# On fournit le fichier de configuration pour valider l'étape CMake.
+set(_spirv_config_dir "${CMAKE_CURRENT_BINARY_DIR}/generated/spirv-config")
+file(MAKE_DIRECTORY "${_spirv_config_dir}")
+file(WRITE "${_spirv_config_dir}/SPIRV-HeadersConfig.cmake" "
+set(SPIRV-Headers_FOUND TRUE)
+if(NOT TARGET SPIRV-Headers::SPIRV-Headers)
+  add_library(SPIRV-Headers::SPIRV-Headers INTERFACE IMPORTED)
+  set_target_properties(SPIRV-Headers::SPIRV-Headers PROPERTIES
+    INTERFACE_INCLUDE_DIRECTORIES \"${spirv_headers_SOURCE_DIR}/include\"
+  )
+endif()
+")
+list(PREPEND CMAKE_PREFIX_PATH "${_spirv_config_dir}")
+set(SPIRV-Headers_DIR "${_spirv_config_dir}" CACHE PATH "" FORCE)
+
+include_directories(
+  "${vulkan_headers_SOURCE_DIR}/include"
+  "${spirv_headers_SOURCE_DIR}/include"
+)
+
 find_library(NDK_VULKAN_LIB vulkan)
 set(Vulkan_LIBRARY "${NDK_VULKAN_LIB}" CACHE FILEPATH "" FORCE)
 
@@ -32,6 +62,7 @@ find_program(Vulkan_GLSLC_EXECUTABLE glslc
   HINTS "${ANDROID_NDK}/shader-tools/${_NDK_HOST}" NO_CMAKE_FIND_ROOT_PATH)
 
 set(GGML_VULKAN ON CACHE BOOL "" FORCE)
+
 
 # ---- llama.cpp -------------------------------------------------------------
 set(LLAMA_BUILD_TESTS OFF CACHE BOOL "" FORCE)
