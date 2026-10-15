@@ -161,8 +161,11 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   char piece[256];
   // Arrêt anticipé : dès que la structure JSON racine est refermée, on coupe.
   int depth = 0;
-  bool started = false, in_str = false, esc = false, done = false;
-  for (int i = 0; i < (maxTokens > 0 ? maxTokens : 384) && !done; ++i) {
+  // Arrêt anticipé robuste : ne coupe que sur la vraie fermeture d'un tableau contenant au moins un objet ([{...}])
+  int depth = 0;
+  int max_depth = 0;
+  bool in_str = false, esc = false, done = false;
+  for (int i = 0; i < (maxTokens > 0 ? maxTokens : 192) && !done; ++i) {
     llama_token id = llama_sampler_sample(smpl, g_ctx, -1);
     if (llama_vocab_is_eog(vocab, id)) break;
     int n = llama_token_to_piece(vocab, id, piece, sizeof(piece), 0, true);
@@ -172,14 +175,19 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
         char c = piece[k];
         if (in_str) { if (esc) esc = false; else if (c == '\\') esc = true; else if (c == '"') in_str = false; continue; }
         if (c == '"') in_str = true;
-        else if (c == '{' || c == '[') { depth++; started = true; }
-        else if ((c == '}' || c == ']') && depth > 0) { if (--depth == 0 && started) { done = true; break; } }
+        else if (c == '{' || c == '[') { depth++; if (depth > max_depth) max_depth = depth; }
+        else if ((c == '}' || c == ']') && depth > 0) {
+          depth--;
+          // On ne valide la fermeture que si un vrai objet JSON complet a été ouvert (max_depth >= 2)
+          if (depth == 0 && max_depth >= 2) { done = true; break; }
+        }
       }
     }
     if (done) break;
     llama_batch b = llama_batch_get_one(&id, 1);
     if (llama_decode(g_ctx, b) != 0) break;
   }
+  
   llama_sampler_free(smpl);
   return env->NewStringUTF(out.c_str());
 }
