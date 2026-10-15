@@ -102,10 +102,9 @@ export async function detectFoodsWithVlm(image: string): Promise<{ detections: V
   const p = plugin();
   if (!p) throw new Error("VLM local disponible uniquement dans l'app Android native.");
   const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT, prompt: VLM_USER_PROMPT, maxTokens: 384 });
-  const detections = parseVlmOutput(res?.text ?? "");
-  appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms)`, {
-    raw: (res?.text ?? "").slice(0, 500),
-    detections,
-  });
+  const rawText = (res?.text ?? "").trim();
+  const detections = parseVlmOutput(rawText);
+  appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms) — Réponse brute : "${rawText || '<VIDE>'}"`);
+
   return { detections, latencyMs: Number(res?.latencyMs) || 0, model: res?.model || "vlm" };
 }
