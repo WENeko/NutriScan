@@ -120,10 +120,16 @@ export function parseVlmOutput(raw: string): VlmDetection[] {
 export async function detectFoodsWithVlm(image: string): Promise<{ detections: VlmDetection[]; latencyMs: number; model: string }> {
   const p = plugin();
   if (!p) throw new Error("VLM local disponible uniquement dans l'app Android native.");
-  const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT, prompt: VLM_USER_PROMPT, maxTokens: 384 });
-  const rawText = (res?.text ?? "").trim();
-  const detections = parseVlmOutput(rawText);
-  appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms) — Réponse brute : "${rawText || '<VIDE>'}"`);
-
-  return { detections, latencyMs: Number(res?.latencyMs) || 0, model: res?.model || "vlm" };
+  try {
+    const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT, prompt: VLM_USER_PROMPT, maxTokens: 192 });
+    const rawText = (res?.text ?? "").trim();
+    const detections = parseVlmOutput(rawText);
+    appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms) — Réponse brute : "${rawText || '<VIDE>'}"`);
+    return { detections, latencyMs: Number(res?.latencyMs) || 0, model: res?.model || "vlm" };
+  } catch (err: any) {
+    const msg = err?.message || String(err);
+    appLogger.error("LocalVlm", `Échec appel VLM : ${msg}`);
+    throw err;
+  }
 }
+
