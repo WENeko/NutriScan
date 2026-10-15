@@ -159,8 +159,7 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
 
   std::string out;
   char piece[256];
-  // Arrêt anticipé : dès que la structure JSON racine est refermée, on coupe.
-  int depth = 0;
+
   // Arrêt anticipé robuste : ne coupe que sur la vraie fermeture d'un tableau contenant au moins un objet ([{...}])
   int depth = 0;
   int max_depth = 0;
