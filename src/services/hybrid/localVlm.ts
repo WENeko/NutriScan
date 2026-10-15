@@ -59,17 +59,17 @@ export async function deleteVlmFile(name: string) {
 
 // ── Prompt & parsing ─────────────────────────────────────────────────────────
 export const VLM_SYSTEM_PROMPT =
-  "Tu es un détecteur d'aliments. Tu identifies chaque aliment visible dans l'assiette et estimes sa masse. " +
-  "Tu ne donnes JAMAIS de calories ni de nutriments. Réponds UNIQUEMENT par un tableau JSON valide.";
+  "Tu es un détecteur d'aliments. Identifie chaque aliment visible et estime sa masse en grammes. " +
+  "Ne donne aucun commentaire ni calories. Commence DIRECTEMENT ta réponse par le crochet '['.";
+
 export const VLM_USER_PROMPT =
-  'Liste les aliments visibles. Format exact : [{"ingredient":"nom simple en français","weight_g":150,"count":2}]. ' +
-  '"count" seulement pour les aliments comptables (œufs, boulettes, tranches). Aucun texte hors du JSON.';
+  'Format strict JSON attendu :\n' +
+  '[{"ingredient":"nom de l\'aliment","weight_g":150}]\n' +
+  'Commence directement par [ :';
 
-export interface VlmDetection { name: string; weightG?: number; count?: number }
-
-/** Parse tolérant de la sortie du VLM (JSON entouré de texte, clés variées, doublons fusionnés). */
+/** Parse tolérant de la sortie du VLM (JSON strict, objets isolés ou liste à puces texte). */
 export function parseVlmOutput(raw: string): VlmDetection[] {
-  const text = String(raw ?? "").replace(/```(?:json)?/gi, "");
+  const text = String(raw ?? "").replace(/```(?:json)?/gi, "").trim();
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   let arr: unknown = null;
@@ -77,15 +77,33 @@ export function parseVlmOutput(raw: string): VlmDetection[] {
     try { arr = JSON.parse(text.slice(start, end + 1)); } catch { arr = null; }
   }
   if (!Array.isArray(arr)) {
-    // Repli : objets isolés {...} ligne par ligne.
+    // Repli 1 : objets {...} isolés
     arr = (text.match(/\{[^{}]*\}/g) ?? []).map((s) => { try { return JSON.parse(s); } catch { return null; } });
   }
+
   const merged = new Map<string, VlmDetection>();
-  for (const e of arr as any[]) {
+
+  // Repli 2 : Si le modèle a répondu sous forme de liste texte libre (ex: "- Poisson : 150g")
+  if (!Array.isArray(arr) || arr.filter(Boolean).length === 0) {
+    const lines = text.split("\n");
+    for (const line of lines) {
+      const match = line.match(/[-*•]?\s*([a-zA-ZÀ-ÿ\s'-]+)[:=,\s]+(\d+)\s*g?/i);
+      if (match) {
+        const name = match[1].trim().toLowerCase();
+        const weightG = parseInt(match[2], 10);
+        if (name.length > 2 && weightG > 2 && weightG < 3000) {
+          merged.set(name, { name, weightG });
+        }
+      }
+    }
+    if (merged.size > 0) return [...merged.values()];
+  }
+
+  for (const e of (arr as any[]) ?? []) {
     if (!e || typeof e !== "object") continue;
-    const name = String(e.ingredient ?? e.name ?? e.food ?? e.aliment ?? "").replace(/[_]+/g, " ").trim().toLowerCase();
-    if (!name) continue;
-    const w = Number(e.weight_g ?? e.weight ?? e.grams ?? e.masse_g);
+    const name = String(e.ingredient ?? e.name ?? e.food ?? e.aliment ?? e.item ?? e.label ?? "").replace(/[_]+/g, " ").trim().toLowerCase();
+    if (!name || name === "nom de l'aliment") continue;
+    const w = Number(e.weight_g ?? e.weight ?? e.grams ?? e.masse_g ?? e.portion_g);
     const c = Number(e.count ?? e.quantity ?? e.pieces);
     const weightG = Number.isFinite(w) && w > 2 && w < 3000 ? Math.round(w) : undefined;
     const count = Number.isFinite(c) && c >= 1 && c < 100 ? Math.round(c) : undefined;
@@ -97,6 +115,7 @@ export function parseVlmOutput(raw: string): VlmDetection[] {
   }
   return [...merged.values()];
 }
+
 
 export async function detectFoodsWithVlm(image: string): Promise<{ detections: VlmDetection[]; latencyMs: number; model: string }> {
   const p = plugin();
