@@ -28,7 +28,7 @@ class LocalVlmService : Service() {
         private const val TAG = "NutriVlm"
         private const val IDLE_UNLOAD_MS = 5 * 60 * 1000L
         private const val DEGRADED_UNLOAD_MS = 20 * 1000L
-        private const val MAX_SIDE = 896
+        private const val MAX_SIDE = 672
         private const val MAX_SIDE_DEGRADED = 448
         private const val MB = 1024L * 1024L
         private const val FULL_MIN_AVAIL = 1800 * MB
@@ -124,7 +124,8 @@ class LocalVlmService : Service() {
                     }
                     out.putString("backend", NutriVlmNative.backend())
                     val side = if (degraded) MAX_SIDE_DEGRADED else adaptiveSide()
-                    val maxTokens = d.getInt("maxTokens", 384).coerceAtMost(if (degraded) 256 else 384)
+                    // 192 tokens suffisent largement pour le tableau JSON d'un repas
+                    val maxTokens = d.getInt("maxTokens", 192).coerceAtMost(192)
                     val tInf = System.currentTimeMillis()
                     val text = NutriVlmNative.analyze(
                         downscale(raw, side),
@@ -142,7 +143,10 @@ class LocalVlmService : Service() {
                     prefs().edit().putLong("lastLatencyMs", System.currentTimeMillis() - started).apply()
                 } catch (t: Throwable) {
                     out.putString("error", t.message ?: t.javaClass.simpleName)
+                    // Si l'analyse échoue ou dépasse le temps, on rétrograde automatiquement à 448 px pour la suivante
+                    prefs().edit().putInt("side", MAX_SIDE_DEGRADED).apply()
                 }
+                
                 try { replyTo.send(Message.obtain(null, MSG_ANALYZE).apply { data = out }) } catch (_: Throwable) {}
                 postDelayed(unloadTask, if (degraded) DEGRADED_UNLOAD_MS else IDLE_UNLOAD_MS)
             }
@@ -185,11 +189,11 @@ class LocalVlmService : Service() {
      */
     private fun adaptiveSide(): Int {
         val saved = prefs().getInt("side", 0)
-        if (saved > 0) return saved
-        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
-        val total = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem
-        return when { total >= 10_000 * MB -> MAX_SIDE; total >= 6_000 * MB -> 672; else -> MAX_SIDE_DEGRADED }
+        // Si l'ancien palier à 896 px était mémorisé, on le rabat sur le nouveau max à 672 px
+        if (saved in 1..MAX_SIDE) return saved
+        return MAX_SIDE // Démarrage par défaut sur 672 px
     }
+
 
     private fun learn(side: Int, inferMs: Long) {
         val steps = listOf(MAX_SIDE_DEGRADED, 672, MAX_SIDE)
