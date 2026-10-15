@@ -825,7 +825,12 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         <button
           onClick={() => {
             const logs = appLogger.getLogs();
-            setLogsContent(logs.map(l => `[${l.timestamp}] [${l.level}] ${l.module}: ${l.message}`).join('\n'));
+            setLogsContent(logs.map(l => {
+              const detailStr = l.details != null
+                ? ` — ${typeof l.details === 'object' ? JSON.stringify(l.details) : l.details}`
+                : '';
+              return `[${l.timestamp}] [${l.level}] ${l.module}: ${l.message}${detailStr}`;
+            }).join('\n'));
             setShowLogsModal(true);
           }}
           className="flex items-center gap-1.5 text-xs text-muted-foreground hover:text-foreground transition-colors px-2 py-1 rounded hover:bg-muted"
