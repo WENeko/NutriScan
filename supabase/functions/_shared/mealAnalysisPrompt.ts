@@ -49,27 +49,14 @@ export function buildCustomNutrientsContext(custom_nutrients?: CustomNutrientDef
   );
 }
 
-/** Construit le system prompt complet, avec les clés custom intégrées au gabarit JSON. */
-export function buildSystemPrompt(
-  std_nutrients?: CustomNutrientDef[],
-  custom_nutrients?: CustomNutrientDef[],
-): string {
-  const stdList = (std_nutrients ?? []).filter((c) => c?.key && c?.unit);
-  const customKeys = (custom_nutrients ?? []).filter((c) => c?.key && c?.unit).map((c) => c.key);
-
-  const stdMicroLines = stdList.map((c) => `      "${c.key}": 0`);
-  const customMicroLines = customKeys.map((k) => `      "${k}": 0`);
-  const itemMicroBlock = [...stdMicroLines, ...customMicroLines].join(",\n");
-
-  const stdListLine = stdList.map((c) => `${c.key} (${c.unit})`).join(", ");
-
-  return `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
+/**
+ * Règles expertes de PERCEPTION (portions, cru/cuit, unités) — partagées à
+ * l'identique entre le prompt cloud complet et le prompt de détection VLM local.
+ */
+export const MEAL_PERCEPTION_RULES = `Tu es un nutritionniste expert. Analyse l'entrée (image ou texte) et estime précisément le poids de chaque ingrédient. Si c'est une image, sois pessimiste sur les graisses cachées (+5-10g de lipides si l'aspect est brillant/frit). Utilise les éléments visuels (couverts, assiette) pour estimer les portions. Si un élément est ambigu, propose l'option la plus calorique par défaut.
 
 IMPORTANT - Poids cru vs cuit (source d'erreur majeure) :
 Quand l'utilisateur indique un poids par écrit pour un aliment féculent qui absorbe de l'eau à la cuisson (pâtes, riz, semoule, quinoa, lentilles, haricots secs, boulgour, etc.), considère TOUJOURS ce poids comme CRU/SEC par défaut, sauf mention explicite "cuit"/"cuites"/"cooked". Utilise les valeurs nutritionnelles du produit CRU (ex: pâtes crues ≈ 350 kcal/100g, riz cru ≈ 350 kcal/100g) et NON les valeurs cuites (≈ 130-140 kcal/100g). Idem pour les viandes/poissons si l'utilisateur donne un poids texte sans précision : considère-le comme cru. Sur une IMAGE en revanche, tu vois l'aliment cuit dans l'assiette : utilise les valeurs cuites, mais estime le poids visible cuit (ratio cru→cuit ≈ x2.5 pour pâtes/riz).
-
-IMPORTANT - Extraction temporelle :
-Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
 
 IMPORTANT - Détection des aliments comptables en unités :
 Pour CHAQUE aliment, détermine s'il se consomme/gère naturellement en unités plutôt qu'en poids brut.
@@ -92,7 +79,39 @@ Si l'aliment se compte en unités, remplis ces 3 champs :
 - "unit_weight_g": poids moyen d'UNE unité en grammes (entier, ex: 60)
 - "unit_label": libellé court de l'unité (ex: "oeuf", "tranche", "portion")
 Le champ "estimated_weight_g" doit être = unit_count * unit_weight_g.
-Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne mets PAS ces champs.
+Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne mets PAS ces champs.`;
+
+/**
+ * Prompt de DÉTECTION (VLM local du mode hybride) : mêmes règles expertes que le
+ * cloud, mais sortie limitée aux aliments + grammes — les nutriments viennent du résolveur.
+ */
+export function buildDetectionSystemContent(): string {
+  return `${MEAL_PERCEPTION_RULES}
+
+MODE DÉTECTION : ne calcule AUCUNE calorie ni nutriment. Nomme chaque aliment précisément en français (ex: "filet de poisson blanc", "frites", "spätzle", "pain blanc").
+Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire, en commençant directement par '[' :
+[{"name":"string","estimated_weight_g":150,"unit_count":1 (optionnel),"unit_weight_g":150 (optionnel),"unit_label":"portion" (optionnel)}]`;
+}
+
+/** Construit le system prompt complet, avec les clés custom intégrées au gabarit JSON. */
+export function buildSystemPrompt(
+  std_nutrients?: CustomNutrientDef[],
+  custom_nutrients?: CustomNutrientDef[],
+): string {
+  const stdList = (std_nutrients ?? []).filter((c) => c?.key && c?.unit);
+  const customKeys = (custom_nutrients ?? []).filter((c) => c?.key && c?.unit).map((c) => c.key);
+
+  const stdMicroLines = stdList.map((c) => `      "${c.key}": 0`);
+  const customMicroLines = customKeys.map((k) => `      "${k}": 0`);
+  const itemMicroBlock = [...stdMicroLines, ...customMicroLines].join(",\n");
+
+  const stdListLine = stdList.map((c) => `${c.key} (${c.unit})`).join(", ");
+
+  return `${MEAL_PERCEPTION_RULES}
+
+IMPORTANT - Extraction temporelle :
+Si le texte contient une indication de temps (ex: "hier à 22h", "ce matin", "lundi midi"), extrais-la et retourne-la dans le champ "suggested_timestamp" au format ISO 8601. Sinon, ne mets pas ce champ.
+
 
 IMPORTANT - Micronutriments :
 Pour chaque aliment, estime aussi les micronutriments suivants (valeurs pour le poids estimé, pas pour 100g).
