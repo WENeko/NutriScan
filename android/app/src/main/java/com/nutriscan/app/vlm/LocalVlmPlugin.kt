@@ -135,8 +135,9 @@ class LocalVlmPlugin : Plugin() {
                 context.startService(svc)
                 if (!context.bindService(svc, conn, Context.BIND_AUTO_CREATE))
                     throw IllegalStateException("Moteur VLM indisponible.")
-                // Avec 1 seule tuile à 448 px, 90 s suffisent largement même sur CPU
-                val timeoutS = 90L
+                // 1re analyse après chargement : consignes à calculer (~1 min de plus).
+                // Les suivantes réutilisent le cache des consignes.
+                val timeoutS = 240L
                 if (!latch.await(timeoutS, TimeUnit.SECONDS)) {
                     // Arrêt forcé du service d'arrière-plan pour ne pas engorger la tentative suivante
                     context.stopService(Intent(context, LocalVlmService::class.java))
@@ -148,6 +149,8 @@ class LocalVlmPlugin : Plugin() {
                     .put("text", r.getString("text") ?: "")
                     .put("latencyMs", r.getLong("latencyMs"))
                     .put("loadMs", r.getLong("loadMs"))
+                    .put("promptCached", r.getBoolean("promptCached"))
+                    .put("promptTokens", r.getInt("promptTokens"))
                     .put("model", model.name))
             } catch (t: Throwable) {
                 call.reject(t.message ?: "Analyse VLM impossible.")

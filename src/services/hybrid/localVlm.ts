@@ -17,7 +17,7 @@ interface LocalVlmNative {
   importModel(opts: { kind: "model" | "mmproj" }): Promise<VlmFile & { model: string }>;
   deleteModel(opts: { model: string }): Promise<{ deleted: boolean }>;
   analyze(opts: { image: string; system: string; prompt: string; model?: string; mmproj?: string; maxTokens?: number }): Promise<{
-    text: string; latencyMs?: number; loadMs?: number; model?: string;
+    text: string; latencyMs?: number; loadMs?: number; model?: string; promptCached?: boolean; promptTokens?: number;
   }>;
 }
 
@@ -129,7 +129,7 @@ export async function detectFoodsWithVlm(image: string): Promise<{ detections: V
     const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT, prompt: VLM_USER_PROMPT, maxTokens: 192 });
     const rawText = (res?.text ?? "").trim();
     const detections = parseVlmOutput(rawText);
-    appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms) — Réponse brute : "${rawText || '<VIDE>'}"`);
+    appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms, consignes ${res?.promptCached ? "en cache" : "calculées"}, ${res?.promptTokens ?? "?"} tokens) — Réponse brute : "${rawText || '<VIDE>'}"`);
     return { detections, latencyMs: Number(res?.latencyMs) || 0, model: res?.model || "vlm" };
   } catch (err: any) {
     const msg = err?.message || String(err);
