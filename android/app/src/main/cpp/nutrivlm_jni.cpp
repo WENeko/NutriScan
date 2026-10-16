@@ -3,6 +3,7 @@
 // ou un manque de mémoire ne ferme jamais l'application principale.
 #include <jni.h>
 #include <android/log.h>
+#include <algorithm>
 #include <mutex>
 #include <string>
 #include <vector>
@@ -22,8 +23,16 @@ llama_model *g_model = nullptr;
 llama_context *g_ctx = nullptr;
 mtmd_context *g_mtmd = nullptr;
 std::string g_last_error;
+// Cache du préfixe (system prompt + en-tête utilisateur) : identique à chaque photo,
+// on garde son KV en mémoire pour ne le calculer qu'une fois par chargement.
+std::vector<llama_token> g_prefix_tokens;
+bool g_prefix_valid = false;
+bool g_last_prefix_hit = false;
+int g_last_prompt_tokens = 0;
 
 void release_all() {
+  g_prefix_tokens.clear();
+  g_prefix_valid = false;
   if (g_mtmd) { mtmd_free(g_mtmd); g_mtmd = nullptr; }
   if (g_ctx) { llama_free(g_ctx); g_ctx = nullptr; }
   if (g_model) { llama_model_free(g_model); g_model = nullptr; }
@@ -68,8 +77,8 @@ static bool load_impl(const std::string &modelPath, const std::string &mmprojPat
   if (!g_model) { g_last_error = "Modèle GGUF illisible ou incompatible : " + modelPath; release_all(); return false; }
 
   llama_context_params cp = llama_context_default_params();
-  cp.n_ctx = nCtx > 0 ? nCtx : 1024;
-  cp.n_batch = 256;
+  cp.n_ctx = nCtx > 0 ? nCtx : 2048;
+  cp.n_batch = 512;
   cp.n_ubatch = 256;
   cp.n_threads = nThreads > 0 ? nThreads : 4;
   cp.n_threads_batch = cp.n_threads;
@@ -131,25 +140,53 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   const std::string user = std::string(mtmd_default_marker()) + "\n" + jstr(env, juser);
   const std::string prompt = build_prompt(jstr(env, jsystem), user);
 
-  llama_memory_clear(llama_get_memory(g_ctx), true);
+  // Découpage : [préfixe constant][image + consigne + en-tête assistant]
+  const std::string marker = mtmd_default_marker();
+  const size_t mpos = prompt.find(marker);
+  if (mpos == std::string::npos) { mtmd_bitmap_free(bmp); g_last_error = "Marqueur image absent du prompt"; return nullptr; }
+  const std::string prefix = prompt.substr(0, mpos);
+  const std::string rest = prompt.substr(mpos);
+
+  const llama_vocab *pvocab = llama_model_get_vocab(g_model);
+  std::vector<llama_token> ptoks(prefix.size() + 16);
+  int np = llama_tokenize(pvocab, prefix.c_str(), (int32_t)prefix.size(), ptoks.data(), (int32_t)ptoks.size(), true, true);
+  if (np < 0) { ptoks.resize(-np); np = llama_tokenize(pvocab, prefix.c_str(), (int32_t)prefix.size(), ptoks.data(), (int32_t)ptoks.size(), true, true); }
+  if (np < 0) { mtmd_bitmap_free(bmp); g_last_error = "Tokenisation du prompt impossible"; return nullptr; }
+  ptoks.resize(np);
+
+  llama_memory_t mem = llama_get_memory(g_ctx);
+  g_last_prefix_hit = g_prefix_valid && ptoks == g_prefix_tokens && llama_memory_seq_rm(mem, 0, np, -1);
+  if (!g_last_prefix_hit) {
+    g_prefix_valid = false;
+    llama_memory_clear(mem, true);
+    for (int i = 0; i < np; i += 512) {
+      llama_batch pb = llama_batch_get_one(ptoks.data() + i, std::min(512, np - i));
+      if (llama_decode(g_ctx, pb) != 0) { mtmd_bitmap_free(bmp); llama_memory_clear(mem, true); g_last_error = "Évaluation du prompt impossible (contexte trop court ?)"; return nullptr; }
+    }
+    g_prefix_tokens = ptoks;
+    g_prefix_valid = true;
+  }
+  LOGI("Préfixe %d tokens (%s)", np, g_last_prefix_hit ? "cache" : "calculé");
 
   mtmd_input_chunks *chunks = mtmd_input_chunks_init();
   mtmd_input_text text{};
-  text.text = prompt.c_str();
-  text.text_len = prompt.size();
-  text.add_special = true;
+  text.text = rest.c_str();
+  text.text_len = rest.size();
+  text.add_special = false;
   text.parse_special = true;
   const mtmd_bitmap *bitmaps[1] = {bmp};
   int32_t rc = mtmd_tokenize(g_mtmd, chunks, &text, bitmaps, 1);
   mtmd_bitmap_free(bmp);
   if (rc != 0) { mtmd_input_chunks_free(chunks); g_last_error = "Tokenisation multimodale impossible"; return nullptr; }
 
-  llama_pos n_past = 0;
-  if (mtmd_helper_eval_chunks(g_mtmd, g_ctx, chunks, 0, 0, 256, true, &n_past) != 0) {
+  llama_pos n_past = np;
+  if (mtmd_helper_eval_chunks(g_mtmd, g_ctx, chunks, n_past, 0, 512, true, &n_past) != 0) {
     mtmd_input_chunks_free(chunks);
+    g_prefix_valid = false;
     g_last_error = "Évaluation de l'image impossible (mémoire ?)";
     return nullptr;
   }
+  g_last_prompt_tokens = (int)n_past;
   mtmd_input_chunks_free(chunks);
 
   // Décodage glouton (température 0) : sortie déterministe, JSON stable.
@@ -200,4 +237,14 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_unload(JNIEnv *, jclass) {
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_nutriscan_app_vlm_NutriVlmNative_lastError(JNIEnv *env, jclass) {
   return env->NewStringUTF(g_last_error.c_str());
+}
+
+extern "C" JNIEXPORT jboolean JNICALL
+Java_com_nutriscan_app_vlm_NutriVlmNative_lastPrefixCached(JNIEnv *, jclass) {
+  return g_last_prefix_hit ? JNI_TRUE : JNI_FALSE;
+}
+
+extern "C" JNIEXPORT jint JNICALL
+Java_com_nutriscan_app_vlm_NutriVlmNative_lastPromptTokens(JNIEnv *, jclass) {
+  return g_last_prompt_tokens;
 }
