@@ -7,6 +7,7 @@
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { appLogger } from "@/services/appLogger";
+import { buildDetectionSystemContent, buildUserPromptText } from "../../../supabase/functions/_shared/mealAnalysisPrompt";
 
 export interface VlmFile { name: string; size: number; kind: "model" | "mmproj" }
 
@@ -107,8 +108,8 @@ export function parseVlmOutput(raw: string): VlmDetection[] {
     if (!e || typeof e !== "object") continue;
     const name = String(e.ingredient ?? e.name ?? e.food ?? e.aliment ?? e.item ?? e.label ?? "").replace(/[_]+/g, " ").trim().toLowerCase();
     if (!name || name === "nom de l'aliment") continue;
-    const w = Number(e.weight_g ?? e.weight ?? e.grams ?? e.masse_g ?? e.portion_g);
-    const c = Number(e.count ?? e.quantity ?? e.pieces);
+    const w = Number(e.estimated_weight_g ?? e.weight_g ?? e.weight ?? e.grams ?? e.masse_g ?? e.portion_g);
+    const c = Number(e.unit_count ?? e.count ?? e.quantity ?? e.pieces);
     const weightG = Number.isFinite(w) && w > 2 && w < 3000 ? Math.round(w) : undefined;
     const count = Number.isFinite(c) && c >= 1 && c < 100 ? Math.round(c) : undefined;
     const prev = merged.get(name);

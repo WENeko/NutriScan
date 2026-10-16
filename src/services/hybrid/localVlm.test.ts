@@ -17,4 +17,11 @@ describe("parseVlmOutput", () => {
     expect(r).toHaveLength(1);
     expect(r[0].weightG).toBe(80);
   });
+  it("lit les tuples à guillemets simples", () => {
+    const r = parseVlmOutput("['fish', 250], ['frites', 120]");
+    expect(r).toEqual([{ name: "fish", weightG: 250, count: undefined }, { name: "frites", weightG: 120, count: undefined }]);
+  });
+  it("lit le format partagé estimated_weight_g / unit_count", () => {
+    expect(parseVlmOutput('[{"name":"oeuf","estimated_weight_g":120,"unit_count":2}]')[0]).toEqual({ name: "oeuf", weightG: 120, count: 2 });
+  });
 });
