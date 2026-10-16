@@ -99,7 +99,8 @@ class LocalVlmService : Service() {
                     out.putString("memoryTier", if (degraded) "degraded" else "full")
 
                     val threads = if (degraded) 2 else performanceCores()
-                    val nCtx = if (degraded) 768 else 1024
+                    // Consignes expertes partagées (~1000 tokens) + image : 2048 évite tout débordement.
+                    val nCtx = if (degraded) 1536 else 2048
                     // GPU Vulkan sauf si une tentative précédente a fait planter le processus.
                     val p = prefs()
                     if (p.getBoolean("gpuPending", false)) {
@@ -136,6 +137,8 @@ class LocalVlmService : Service() {
                     prefs().edit().putBoolean("gpuPending", false).apply()
                     if (!degraded) learn(side, System.currentTimeMillis() - tInf)
                     out.putString("text", text)
+                    out.putBoolean("promptCached", NutriVlmNative.lastPrefixCached())
+                    out.putInt("promptTokens", NutriVlmNative.lastPromptTokens())
                     out.putLong("loadMs", loadMs)
                     out.putInt("imageSide", side)
                     out.putInt("threads", threads)

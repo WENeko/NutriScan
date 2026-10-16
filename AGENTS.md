@@ -6,3 +6,4 @@
 - Distance-based portion rescaling goes only through `src/services/portionScaling.ts` (calibrated/variable/bulk), whatever the analysis mode — one source of truth so modes can't diverge.
 - On-device VLM inference (llama.cpp/mtmd, GGUF + mmproj) runs only in `LocalVlmService` (separate `:vlm` process) via `LocalVlmPlugin`; the VLM only detects foods/grams, nutrients always come from the resolver.
 - Missing micronutrients are filled after the resolver by `src/services/hybrid/microCompletion.ts` (USDA → CNF → targeted cloud AI); it may only fill empty keys, never calories/macros or already-resolved values, and records a per-nutrient source.
+- The VLM keeps the KV cache of the constant prompt prefix (system rules + user header, before the image marker) between analyses and only recomputes it after a reload or prompt change — the shared expert rules are ~1000 tokens and would otherwise dominate CPU latency.
