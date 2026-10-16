@@ -58,30 +58,34 @@ export async function deleteVlmFile(name: string) {
 }
 
 // ── Prompt & parsing ─────────────────────────────────────────────────────────
-export const VLM_SYSTEM_PROMPT =
-  "Tu es un détecteur d'aliments. Identifie chaque aliment visible et estime sa masse en grammes. " +
-  "Ne donne aucun commentaire ni calories. Commence DIRECTEMENT ta réponse par le crochet '['.";
+// Source unique de vérité : mêmes règles expertes que le prompt cloud.
+export interface VlmDetection { name: string; weightG?: number; count?: number }
 
-export const VLM_USER_PROMPT =
-  'Format strict JSON attendu :\n' +
-  '[{"ingredient":"nom de l\'aliment","weight_g":150}]\n' +
-  'Commence directement par [ :';
+export const VLM_SYSTEM_PROMPT = buildDetectionSystemContent();
 
-/** Parse tolérant de la sortie du VLM (JSON strict, objets isolés ou liste à puces texte). */
+export const VLM_USER_PROMPT = buildUserPromptText({ hasImage: true, customFoodsContext: "" }) +
+  " Réponds directement par le tableau JSON [ :";
+
+/** Parse tolérant de la sortie du VLM (JSON strict, guillemets simples, tuples, liste texte). */
 export function parseVlmOutput(raw: string): VlmDetection[] {
   const text = String(raw ?? "").replace(/```(?:json)?/gi, "").trim();
+  // Tuples ['fish', 250] (guillemets simples, sans objet)
+  const tuples = [...text.matchAll(/\[\s*['"]([^'"\]]+)['"]\s*,\s*(\d+(?:[.,]\d+)?)\s*\]/g)];
+  if (tuples.length > 0 && !/\{/.test(text)) {
+    return parseVlmOutput(JSON.stringify(tuples.map((m) => ({ name: m[1], weight_g: Number(m[2].replace(",", ".")) }))));
+  }
   const start = text.indexOf("[");
   const end = text.lastIndexOf("]");
   let arr: unknown = null;
-  if (start >= 0 && end > start) {
-    try { arr = JSON.parse(text.slice(start, end + 1)); } catch { arr = null; }
-  }
+  const tryParse = (s: string) => { try { return JSON.parse(s); } catch { try { return JSON.parse(s.replace(/'/g, '"')); } catch { return null; } } };
+  if (start >= 0 && end > start) arr = tryParse(text.slice(start, end + 1));
   if (!Array.isArray(arr)) {
     // Repli 1 : objets {...} isolés
-    arr = (text.match(/\{[^{}]*\}/g) ?? []).map((s) => { try { return JSON.parse(s); } catch { return null; } });
+    arr = (text.match(/\{[^{}]*\}/g) ?? []).map(tryParse);
   }
 
   const merged = new Map<string, VlmDetection>();
+
 
   // Repli 2 : Si le modèle a répondu sous forme de liste texte libre (ex: "- Poisson : 150g")
   if (!Array.isArray(arr) || arr.filter(Boolean).length === 0) {
