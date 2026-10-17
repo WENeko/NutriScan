@@ -63,7 +63,13 @@ export async function deleteVlmFile(name: string) {
 // ── Prompt & parsing ─────────────────────────────────────────────────────────
 // Source unique de vérité : mêmes règles expertes que le cloud, en version compressée.
 // Le service natif choisit expert (GPU Vulkan) ou court (CPU) selon l'accélérateur réellement chargé.
-export interface VlmDetection { name: string; weightG?: number; count?: number }
+export interface VlmDetection {
+  name: string;
+  weightG?: number;
+  count?: number;
+  unitWeightG?: number;
+  unitLabel?: string;
+}
 
 export const VLM_SYSTEM_PROMPT = buildDetectionSystemContent();
 export const VLM_SYSTEM_PROMPT_SHORT = buildDetectionSystemContentShort();
@@ -124,14 +130,18 @@ export function parseVlmOutput(raw: string): VlmDetection[] {
     if (!name || name === "nom de l'aliment") continue;
     const w = Number(e.estimated_weight_g ?? e.weight_g ?? e.weight ?? e.grams ?? e.masse_g ?? e.portion_g);
     const c = Number(e.unit_count ?? e.count ?? e.quantity ?? e.pieces);
+    const uw = Number(e.unit_weight_g ?? e.unit_weight ?? e.weight_per_unit);
+    const ul = typeof e.unit_label === "string" && e.unit_label.trim() ? e.unit_label.trim() : undefined;
     const weightG = Number.isFinite(w) && w > 2 && w < 3000 ? Math.round(w) : undefined;
     const count = Number.isFinite(c) && c >= 1 && c < 100 ? Math.round(c) : undefined;
+    const unitWeightG = Number.isFinite(uw) && uw > 0 ? Math.round(uw) : undefined;
     const prev = merged.get(name);
     if (prev) {
       if (weightG) prev.weightG = (prev.weightG ?? 0) + weightG;
       if (count) prev.count = (prev.count ?? 0) + count;
-    } else merged.set(name, { name, weightG, count });
-  }
+    } else {
+      merged.set(name, { name, weightG, count, unitWeightG, unitLabel: ul });
+    }
   return [...merged.values()];
 }
 
@@ -140,7 +150,7 @@ export async function detectFoodsWithVlm(image: string): Promise<{ detections: V
   const p = plugin();
   if (!p) throw new Error("VLM local disponible uniquement dans l'app Android native.");
   try {
-    const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT_SHORT, systemGpu: VLM_SYSTEM_PROMPT, systemCpu: VLM_SYSTEM_PROMPT_SHORT, prompt: VLM_USER_PROMPT, maxTokens: 192 });
+    const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT_SHORT, systemGpu: VLM_SYSTEM_PROMPT, systemCpu: VLM_SYSTEM_PROMPT_SHORT, prompt: VLM_USER_PROMPT, maxTokens: 768 });
     const rawText = (res?.text ?? "").trim();
     const detections = parseVlmOutput(rawText);
     const accel = res?.backend === "vulkan" ? `GPU Vulkan (${res?.gpuName || "?"})` : `CPU ${res?.threads ?? "?"} cœurs${res?.gpuReason ? ` — ${res.gpuReason}` : ""}`;
