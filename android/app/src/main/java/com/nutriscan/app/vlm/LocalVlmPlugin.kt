@@ -54,6 +54,17 @@ class LocalVlmPlugin : Plugin() {
         call.resolve(JSObject().put("models", arr))
     }
 
+    /** Lève le verrou « GPU cassé » : la prochaine analyse retentera Vulkan. */
+    @PluginMethod
+    fun resetGpu(call: PluginCall) {
+        // Le service tourne dans :vlm ; on l'arrête pour qu'il relise les préférences.
+        context.stopService(Intent(context, LocalVlmService::class.java))
+        @Suppress("DEPRECATION")
+        context.getSharedPreferences("vlm_profile", Context.MODE_MULTI_PROCESS).edit()
+            .putBoolean("gpuBroken", false).putBoolean("gpuPending", false).commit()
+        call.resolve(JSObject().put("reset", true))
+    }
+
     @PluginMethod
     fun deleteModel(call: PluginCall) {
         val name = call.getString("model")
@@ -120,6 +131,8 @@ class LocalVlmPlugin : Plugin() {
                                 putString("mmprojPath", mmproj.absolutePath)
                                 putString("imagePath", img.absolutePath)
                                 putString("system", call.getString("system") ?: "")
+                                putString("systemGpu", call.getString("systemGpu"))
+                                putString("systemCpu", call.getString("systemCpu"))
                                 putString("prompt", call.getString("prompt") ?: "")
                                 putInt("maxTokens", call.getInt("maxTokens") ?: 384)
                             }
@@ -135,11 +148,10 @@ class LocalVlmPlugin : Plugin() {
                 context.startService(svc)
                 if (!context.bindService(svc, conn, Context.BIND_AUTO_CREATE))
                     throw IllegalStateException("Moteur VLM indisponible.")
-                // 1re analyse après chargement : consignes à calculer (~1 min de plus).
-                // Les suivantes réutilisent le cache des consignes.
                 val timeoutS = 240L
                 if (!latch.await(timeoutS, TimeUnit.SECONDS)) {
-                    // Arrêt forcé du service d'arrière-plan pour ne pas engorger la tentative suivante
+                    // Marqueur : cet arrêt forcé n'est pas un plantage GPU (le service ne bannira pas Vulkan).
+                    try { File(dir(), "timeout.flag").writeText("1") } catch (_: Throwable) {}
                     context.stopService(Intent(context, LocalVlmService::class.java))
                     throw IllegalStateException("Analyse VLM trop longue (> $timeoutS s).")
                 }
@@ -151,6 +163,11 @@ class LocalVlmPlugin : Plugin() {
                     .put("loadMs", r.getLong("loadMs"))
                     .put("promptCached", r.getBoolean("promptCached"))
                     .put("promptTokens", r.getInt("promptTokens"))
+                    .put("backend", r.getString("backend") ?: "cpu")
+                    .put("gpuName", r.getString("gpuName") ?: "")
+                    .put("gpuReason", r.getString("gpuReason") ?: "")
+                    .put("promptVariant", r.getString("promptVariant") ?: "")
+                    .put("threads", r.getInt("threads"))
                     .put("model", model.name))
             } catch (t: Throwable) {
                 call.reject(t.message ?: "Analyse VLM impossible.")
