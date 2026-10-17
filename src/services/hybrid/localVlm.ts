@@ -142,6 +142,8 @@ export function parseVlmOutput(raw: string): VlmDetection[] {
     } else {
       merged.set(name, { name, weightG, count, unitWeightG, unitLabel: ul });
     }
+  }
+  
   return [...merged.values()];
 }
 
