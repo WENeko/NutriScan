@@ -82,15 +82,32 @@ Le champ "estimated_weight_g" doit être = unit_count * unit_weight_g.
 Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne mets PAS ces champs.`;
 
 /**
- * Prompt de DÉTECTION (VLM local du mode hybride) : mêmes règles expertes que le
- * cloud, mais sortie limitée aux aliments + grammes — les nutriments viennent du résolveur.
+ * Règles de perception COMPRESSÉES (style télégraphique, sans perte de consigne) :
+ * même contenu que MEAL_PERCEPTION_RULES, ~4x moins de tokens. Utilisé par le VLM
+ * local, où chaque token de prompt coûte du temps de calcul sur le téléphone.
  */
-export function buildDetectionSystemContent(): string {
-  return `${MEAL_PERCEPTION_RULES}
+export const MEAL_PERCEPTION_RULES_COMPACT = `Rôle: nutritionniste expert. Estimer poids (g) de chaque aliment.
+- Échelle: couverts, assiette (~26cm), verre, main.
+- Ambigu → option la plus calorique.
+- Aspect brillant/frit → graisse cachée: ajouter "huile" 5-10g.
+- Photo = aliment cuit: poids cuit visible (pâtes/riz cuit ≈ cru×2.5). Texte sans "cuit" = cru.
+- Comptable (oeuf, tranche, portion fromage, biscuit, crêpe, saucisse, nugget, fruit entier, tomate cerise, olive, crevette, boulette, pain): unit_count + unit_weight_g + unit_label; estimated_weight_g = unit_count×unit_weight_g.
+- Nombre sans g/kg/ml/cl/L = unités.
+- Vrac (riz, pâtes, sauce, purée, huile): poids seul.`;
 
-MODE DÉTECTION : ne calcule AUCUNE calorie ni nutriment. Nomme chaque aliment précisément en français (ex: "filet de poisson blanc", "frites", "spätzle", "pain blanc").
-Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire, en commençant directement par '[' :
-[{"name":"string","estimated_weight_g":150,"unit_count":1 (optionnel),"unit_weight_g":150 (optionnel),"unit_label":"portion" (optionnel)}]`;
+const DETECTION_OUTPUT = `Mode détection: AUCUNE calorie/nutriment. Noms précis en français (ex: "filet de poisson blanc", "spätzle", "pain blanc").
+Sortie: JSON strict seul, commence par '[':
+[{"name":"...","estimated_weight_g":150,"unit_count":2,"unit_weight_g":75,"unit_label":"tranche"}] (champs unit_* optionnels)`;
+
+/** Prompt de détection EXPERT compressé — VLM sur GPU (toutes les règles, format dense). */
+export function buildDetectionSystemContent(): string {
+  return `${MEAL_PERCEPTION_RULES_COMPACT}\n${DETECTION_OUTPUT}`;
+}
+
+/** Prompt de détection COURT — VLM sur CPU (noyau minimal : échelle, cuit, unités). */
+export function buildDetectionSystemContentShort(): string {
+  return `Nutritionniste. Aliments visibles + poids cuit (g), échelle assiette/couverts. Brillant/frit → +"huile" 5-10g. Comptables: unit_count. Noms français précis, pas de calories.
+JSON seul: [{"name":"...","estimated_weight_g":150,"unit_count":1}]`;
 }
 
 /** Construit le system prompt complet, avec les clés custom intégrées au gabarit JSON. */

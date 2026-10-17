@@ -59,13 +59,21 @@ export async function deleteVlmFile(name: string) {
 }
 
 // ── Prompt & parsing ─────────────────────────────────────────────────────────
-// Source unique de vérité : mêmes règles expertes que le prompt cloud.
+// Source unique de vérité : mêmes règles expertes que le cloud, en version compressée.
+// Le service natif choisit expert (GPU Vulkan) ou court (CPU) selon l'accélérateur réellement chargé.
 export interface VlmDetection { name: string; weightG?: number; count?: number }
 
 export const VLM_SYSTEM_PROMPT = buildDetectionSystemContent();
+export const VLM_SYSTEM_PROMPT_SHORT = buildDetectionSystemContentShort();
 
-export const VLM_USER_PROMPT = buildUserPromptText({ hasImage: true, customFoodsContext: "" }) +
-  " Réponds directement par le tableau JSON [ :";
+// Consigne utilisateur courte : le prompt utilisateur cloud est hors du cache KV et relu à chaque photo.
+export const VLM_USER_PROMPT = "Analyse ce repas. Réponds directement par le tableau JSON [ :";
+
+export async function resetVlmGpu(): Promise<void> {
+  const p = plugin();
+  if (!p) throw new Error("Disponible uniquement dans l'app Android native.");
+  await p.resetGpu();
+}
 
 /** Parse tolérant de la sortie du VLM (JSON strict, guillemets simples, tuples, liste texte). */
 export function parseVlmOutput(raw: string): VlmDetection[] {
