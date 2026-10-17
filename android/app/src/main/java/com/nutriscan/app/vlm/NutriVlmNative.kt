@@ -10,6 +10,8 @@ object NutriVlmNative {
     @JvmStatic external fun lastError(): String
     /** "vulkan" si le GPU est réellement utilisé, sinon "cpu". */
     @JvmStatic external fun backend(): String
+    /** Nom du GPU Vulkan vu par ggml, "" si aucun. */
+    @JvmStatic external fun gpuDeviceName(): String
     /** Vrai si le préfixe du prompt (consignes) venait du cache lors de la dernière analyse. */
     @JvmStatic external fun lastPrefixCached(): Boolean
     @JvmStatic external fun lastPromptTokens(): Int

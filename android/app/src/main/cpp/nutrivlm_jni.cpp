@@ -122,6 +122,17 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_backend(JNIEnv *env, jclass) {
   return env->NewStringUTF(g_on_gpu && g_model ? "vulkan" : "cpu");
 }
 
+/** Sonde ggml : nom du GPU Vulkan exploitable, chaîne vide si aucun. */
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_nutriscan_app_vlm_NutriVlmNative_gpuDeviceName(JNIEnv *env, jclass) {
+  std::lock_guard<std::mutex> lock(g_mutex);
+  llama_backend_init();
+  ggml_backend_dev_t dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_GPU);
+  std::string name = dev ? std::string(ggml_backend_dev_description(dev)) : "";
+  for (char &c : name) if ((unsigned char)c >= 0x80) c = '?';  // ASCII sûr pour NewStringUTF
+  return env->NewStringUTF(name.c_str());
+}
+
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArray jimage, jstring jsystem,
                                                    jstring juser, jint maxTokens) {

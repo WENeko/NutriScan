@@ -5,6 +5,7 @@ import android.app.Service
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -101,13 +102,25 @@ class LocalVlmService : Service() {
                     val threads = if (degraded) 2 else performanceCores()
                     // Consignes expertes partagées (~1000 tokens) + image : 2048 évite tout débordement.
                     val nCtx = if (degraded) 1536 else 2048
-                    // GPU Vulkan sauf si une tentative précédente a fait planter le processus.
                     val p = prefs()
+                    // Un arrêt forcé pour délai dépassé n'est PAS un plantage GPU.
+                    val timeoutMarker = File(filesDir, "vlm/timeout.flag")
                     if (p.getBoolean("gpuPending", false)) {
-                        Log.w(TAG, "Plantage GPU précédent détecté : Vulkan désactivé sur cet appareil")
-                        p.edit().putBoolean("gpuBroken", true).putBoolean("gpuPending", false).commit()
+                        if (timeoutMarker.exists()) {
+                            Log.w(TAG, "Arrêt précédent dû au délai : GPU conservé")
+                        } else {
+                            Log.w(TAG, "Plantage GPU précédent détecté : Vulkan désactivé sur cet appareil")
+                            p.edit().putBoolean("gpuBroken", true).putInt("gpuBrokenVersion", appVersion()).commit()
+                        }
+                        p.edit().putBoolean("gpuPending", false).commit()
                     }
-                    val useGpu = !p.getBoolean("gpuBroken", false)
+                    timeoutMarker.delete()
+                    // Une mise à jour de l'appli redonne une chance au GPU.
+                    if (p.getBoolean("gpuBroken", false) && p.getInt("gpuBrokenVersion", -1) != appVersion())
+                        p.edit().putBoolean("gpuBroken", false).commit()
+                    val decision = gpuDecision(degraded)
+                    val useGpu = decision.first
+                    out.putString("gpuReason", decision.second)
                     val key = "$model|$mmproj|$nCtx|$useGpu"
                     var loadMs = 0L
                     if (loadedKey != key || loadedThreads != threads) {
@@ -123,14 +136,20 @@ class LocalVlmService : Service() {
                         loadedThreads = threads
                         loadMs = System.currentTimeMillis() - t0
                     }
-                    out.putString("backend", NutriVlmNative.backend())
+                    val backend = NutriVlmNative.backend()
+                    out.putString("backend", backend)
+                    out.putString("gpuName", if (backend == "vulkan") NutriVlmNative.gpuDeviceName() else "")
                     val side = if (degraded) MAX_SIDE_DEGRADED else adaptiveSide()
                     // 192 tokens suffisent largement pour le tableau JSON d'un repas
                     val maxTokens = d.getInt("maxTokens", 192).coerceAtMost(192)
+                    // Prompt adapté à l'accélérateur réellement actif : expert (GPU) ou court (CPU).
+                    val onGpu = backend == "vulkan"
+                    val system = (if (onGpu) d.getString("systemGpu") else d.getString("systemCpu")) ?: d.getString("system") ?: ""
+                    out.putString("promptVariant", if (onGpu) "expert" else "court")
                     val tInf = System.currentTimeMillis()
                     val text = NutriVlmNative.analyze(
                         downscale(raw, side),
-                        d.getString("system") ?: "",
+                        system,
                         d.getString("prompt") ?: "",
                         maxTokens,
                     ) ?: throw IllegalStateException(NutriVlmNative.lastError().ifBlank { "Analyse impossible" })
@@ -173,7 +192,30 @@ class LocalVlmService : Service() {
         handler.post { unloadModels() }
     }
 
-    private fun prefs() = getSharedPreferences("vlm_profile", Context.MODE_PRIVATE)
+    @Suppress("DEPRECATION")
+    private fun prefs() = getSharedPreferences("vlm_profile", Context.MODE_MULTI_PROCESS)
+
+    @Suppress("DEPRECATION")
+    private fun appVersion(): Int = try { packageManager.getPackageInfo(packageName, 0).versionCode } catch (_: Throwable) { 0 }
+
+    /**
+     * Compatibilité GPU décidée à chaque analyse : Vulkan 1.1+ déclaré par le système,
+     * ≥ 6 Go de RAM (mémoire unifiée partagée avec le GPU), pas de pression mémoire,
+     * aucun plantage GPU enregistré sur cette version, et un GPU réellement vu par ggml.
+     */
+    private fun gpuDecision(degraded: Boolean): Pair<Boolean, String> {
+        if (prefs().getBoolean("gpuBroken", false)) return false to "GPU désactivé après un plantage"
+        val vk11 = 0x00401000 // VK_API_VERSION_1_1
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, vk11))
+            return false to "Vulkan 1.1 non supporté"
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val total = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem
+        if (total < 5500 * MB) return false to "RAM < 6 Go"
+        if (degraded) return false to "mémoire libre insuffisante"
+        val name = try { NutriVlmNative.gpuDeviceName() } catch (_: Throwable) { "" }
+        if (name.isBlank()) return false to "aucun GPU Vulkan détecté"
+        return true to name
+    }
 
     /** Cœurs « performance » uniquement (fréquence max ≥ 80 % du plus rapide) : les petits cœurs ralentissent llama.cpp. */
     private fun performanceCores(): Int {
