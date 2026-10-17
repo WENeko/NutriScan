@@ -5,6 +5,7 @@ import android.app.Service
 import android.content.ComponentCallbacks2
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.os.Bundle
@@ -192,6 +193,28 @@ class LocalVlmService : Service() {
     }
 
     private fun prefs() = getSharedPreferences("vlm_profile", Context.MODE_PRIVATE)
+
+    @Suppress("DEPRECATION")
+    private fun appVersion(): Int = try { packageManager.getPackageInfo(packageName, 0).versionCode } catch (_: Throwable) { 0 }
+
+    /**
+     * Compatibilité GPU décidée à chaque analyse : Vulkan 1.1+ déclaré par le système,
+     * ≥ 6 Go de RAM (mémoire unifiée partagée avec le GPU), pas de pression mémoire,
+     * aucun plantage GPU enregistré sur cette version, et un GPU réellement vu par ggml.
+     */
+    private fun gpuDecision(degraded: Boolean): Pair<Boolean, String> {
+        if (prefs().getBoolean("gpuBroken", false)) return false to "GPU désactivé après un plantage"
+        val vk11 = 0x00401000 // VK_API_VERSION_1_1
+        if (!packageManager.hasSystemFeature(PackageManager.FEATURE_VULKAN_HARDWARE_VERSION, vk11))
+            return false to "Vulkan 1.1 non supporté"
+        val am = getSystemService(Context.ACTIVITY_SERVICE) as ActivityManager
+        val total = ActivityManager.MemoryInfo().also { am.getMemoryInfo(it) }.totalMem
+        if (total < 5500 * MB) return false to "RAM < 6 Go"
+        if (degraded) return false to "mémoire libre insuffisante"
+        val name = try { NutriVlmNative.gpuDeviceName() } catch (_: Throwable) { "" }
+        if (name.isBlank()) return false to "aucun GPU Vulkan détecté"
+        return true to name
+    }
 
     /** Cœurs « performance » uniquement (fréquence max ≥ 80 % du plus rapide) : les petits cœurs ralentissent llama.cpp. */
     private fun performanceCores(): Int {
