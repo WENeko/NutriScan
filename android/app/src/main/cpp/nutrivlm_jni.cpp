@@ -58,9 +58,9 @@ std::string build_prompt(const std::string &system, const std::string &user) {
   }
   if (n < 0) {
     return "<|im_start|>system\n" + system + "<|im_end|>\n<|im_start|>user\n" + user +
-           "<|im_end|>\n<|im_start|>assistant\n";
+           "<|im_end|>\n<|im_start|>assistant\n<think>\n</think>\n[";
   }
-  return std::string(buf.data(), n);
+  return std::string(buf.data(), n) + "<think>\n</think>\n[";
 }
 }  // namespace
 
@@ -212,8 +212,13 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   llama_sampler_chain_add(smpl, llama_sampler_init_greedy());
   const llama_vocab *vocab = llama_model_get_vocab(g_model);
 
-  std::string out;
+  std::string out = "[";
   char piece[256];
+
+  // Le crochet '[' fait déjà partie du prompt : profondeur initiale = 1
+  int depth = 1;
+  int max_depth = 1;
+  bool in_str = false, esc = false, done = false;
 
   // Arrêt anticipé robuste : ne coupe que sur la vraie fermeture d'un tableau contenant au moins un objet ([{...}])
   int depth = 0;
