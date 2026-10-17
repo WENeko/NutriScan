@@ -78,7 +78,12 @@ export async function resetVlmGpu(): Promise<void> {
 
 /** Parse tolérant de la sortie du VLM (JSON strict, guillemets simples, tuples, liste texte). */
 export function parseVlmOutput(raw: string): VlmDetection[] {
-  const text = String(raw ?? "").replace(/```(?:json)?/gi, "").trim();
+  // Purge toute balise <think> éventuelle
+  const text = String(raw ?? "")
+    .replace(/<think>[\s\S]*?<\/think>/gi, "")
+    .replace(/<think>[\s\S]*/gi, "")
+    .replace(/```(?:json)?/gi, "")
+    .trim();
   // Tuples ['fish', 250] (guillemets simples, sans objet)
   const tuples = [...text.matchAll(/\[\s*['"]([^'"\]]+)['"]\s*,\s*(\d+(?:[.,]\d+)?)\s*\]/g)];
   if (tuples.length > 0 && !/\{/.test(text)) {
