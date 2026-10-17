@@ -124,7 +124,9 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
     queries = vlm.detections.map((d) => ({
       name: d.name,
       weightG: d.weightG ?? 100,
-      ...(d.count && d.weightG ? { unitCount: d.count, unitWeightG: Math.round(d.weightG / d.count) } : {}),
+      unitCount: d.count,
+      unitWeightG: d.unitWeightG ?? (d.count && d.weightG ? Math.round(d.weightG / d.count) : undefined),
+      unitLabel: d.unitLabel,
       detectionConfidence: d.weightG ? 0.8 : 0.6,
     }));
   } else if (mode === "photo") {
