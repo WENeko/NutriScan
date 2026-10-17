@@ -221,9 +221,6 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_analyze(JNIEnv *env, jclass, jbyteArra
   bool in_str = false, esc = false, done = false;
 
   // Arrêt anticipé robuste : ne coupe que sur la vraie fermeture d'un tableau contenant au moins un objet ([{...}])
-  int depth = 0;
-  int max_depth = 0;
-  bool in_str = false, esc = false, done = false;
   for (int i = 0; i < (maxTokens > 0 ? maxTokens : 192) && !done; ++i) {
     llama_token id = llama_sampler_sample(smpl, g_ctx, -1);
     if (llama_vocab_is_eog(vocab, id)) break;
