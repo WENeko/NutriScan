@@ -93,7 +93,7 @@ export const MEAL_PERCEPTION_RULES_COMPACT = `Rôle: extracteur visuel JSON stri
 - Photo = aliment cuit: poids cuit visible (pâtes/riz cuit ≈ cru×2.5). Texte sans "cuit" = cru.
 - Comptable (oeuf, tranche, portion fromage, biscuit, crêpe, saucisse, nugget, fruit entier, tomate cerise, olive, crevette, boulette, pain): unit_count + unit_weight_g + unit_label; estimated_weight_g = unit_count×unit_weight_g.
 - Nombre sans g/kg/ml/cl/L = unités.
-- Aliments non dénombrables / en vrac: poids total seul (sans unit_count).
+- Aliments non dénombrables / en vrac: poids total seul (sans unit_count).`;
 
 const DETECTION_OUTPUT = `PAS de balise <think>, AUCUNE réflexion, AUCUNE calorie ni nutriment, AUCUN markdown. Noms précis en français.
 Réponds UNIQUEMENT par le tableau JSON strict :
