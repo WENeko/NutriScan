@@ -134,7 +134,7 @@ class LocalVlmPlugin : Plugin() {
                                 putString("systemGpu", call.getString("systemGpu"))
                                 putString("systemCpu", call.getString("systemCpu"))
                                 putString("prompt", call.getString("prompt") ?: "")
-                                putInt("maxTokens", call.getInt("maxTokens") ?: 384)
+                                putInt("maxTokens", call.getInt("maxTokens") ?: 768)
                             }
                         })
                     } catch (t: Throwable) { error = t.message ?: "Moteur VLM injoignable."; latch.countDown() }
