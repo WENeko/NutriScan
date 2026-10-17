@@ -192,7 +192,8 @@ class LocalVlmService : Service() {
         handler.post { unloadModels() }
     }
 
-    private fun prefs() = getSharedPreferences("vlm_profile", Context.MODE_PRIVATE)
+    @Suppress("DEPRECATION")
+    private fun prefs() = getSharedPreferences("vlm_profile", Context.MODE_MULTI_PROCESS)
 
     @Suppress("DEPRECATION")
     private fun appVersion(): Int = try { packageManager.getPackageInfo(packageName, 0).versionCode } catch (_: Throwable) { 0 }
