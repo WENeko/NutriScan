@@ -7,7 +7,7 @@
  */
 import { Capacitor, registerPlugin } from "@capacitor/core";
 import { appLogger } from "@/services/appLogger";
-import { buildDetectionSystemContent, buildUserPromptText } from "../../../supabase/functions/_shared/mealAnalysisPrompt";
+import { buildDetectionSystemContent, buildDetectionSystemContentShort } from "../../../supabase/functions/_shared/mealAnalysisPrompt";
 
 export interface VlmFile { name: string; size: number; kind: "model" | "mmproj" }
 
@@ -16,9 +16,11 @@ interface LocalVlmNative {
   listModels(): Promise<{ models: VlmFile[] }>;
   importModel(opts: { kind: "model" | "mmproj" }): Promise<VlmFile & { model: string }>;
   deleteModel(opts: { model: string }): Promise<{ deleted: boolean }>;
-  analyze(opts: { image: string; system: string; prompt: string; model?: string; mmproj?: string; maxTokens?: number }): Promise<{
+  analyze(opts: { image: string; system: string; systemGpu?: string; systemCpu?: string; prompt: string; model?: string; mmproj?: string; maxTokens?: number }): Promise<{
     text: string; latencyMs?: number; loadMs?: number; model?: string; promptCached?: boolean; promptTokens?: number;
+    backend?: string; gpuName?: string; gpuReason?: string; promptVariant?: string; threads?: number;
   }>;
+  resetGpu(): Promise<{ reset: boolean }>;
 }
 
 const LocalVlm = registerPlugin<LocalVlmNative>("LocalVlm");
@@ -134,10 +136,11 @@ export async function detectFoodsWithVlm(image: string): Promise<{ detections: V
   const p = plugin();
   if (!p) throw new Error("VLM local disponible uniquement dans l'app Android native.");
   try {
-    const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT, prompt: VLM_USER_PROMPT, maxTokens: 192 });
+    const res = await p.analyze({ image, system: VLM_SYSTEM_PROMPT_SHORT, systemGpu: VLM_SYSTEM_PROMPT, systemCpu: VLM_SYSTEM_PROMPT_SHORT, prompt: VLM_USER_PROMPT, maxTokens: 192 });
     const rawText = (res?.text ?? "").trim();
     const detections = parseVlmOutput(rawText);
-    appLogger.info("LocalVlm", `Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms, consignes ${res?.promptCached ? "en cache" : "calculées"}, ${res?.promptTokens ?? "?"} tokens) — Réponse brute : "${rawText || '<VIDE>'}"`);
+    const accel = res?.backend === "vulkan" ? `GPU Vulkan (${res?.gpuName || "?"})` : `CPU ${res?.threads ?? "?"} cœurs${res?.gpuReason ? ` — ${res.gpuReason}` : ""}`;
+    appLogger.info("LocalVlm", `Accélérateur : ${accel} [prompt ${res?.promptVariant || "?"}] — Détection VLM en ${res?.latencyMs ?? 0} ms (chargement ${res?.loadMs ?? 0} ms, consignes ${res?.promptCached ? "en cache" : "calculées"}, ${res?.promptTokens ?? "?"} tokens) — Réponse brute : "${rawText || '<VIDE>'}"`);
     return { detections, latencyMs: Number(res?.latencyMs) || 0, model: res?.model || "vlm" };
   } catch (err: any) {
     const msg = err?.message || String(err);
