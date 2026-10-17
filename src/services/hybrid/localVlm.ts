@@ -69,8 +69,7 @@ export const VLM_SYSTEM_PROMPT = buildDetectionSystemContent();
 export const VLM_SYSTEM_PROMPT_SHORT = buildDetectionSystemContentShort();
 
 // Consigne utilisateur courte : le prompt utilisateur cloud est hors du cache KV et relu à chaque photo.
-export const VLM_USER_PROMPT = "Analyse ce repas. Réponds directement par le tableau JSON [ :";
-
+export const VLM_USER_PROMPT = "Identifie chaque aliment et son poids en grammes. Réponds UNIQUEMENT par le tableau JSON [ :";
 export async function resetVlmGpu(): Promise<void> {
   const p = plugin();
   if (!p) throw new Error("Disponible uniquement dans l'app Android native.");
