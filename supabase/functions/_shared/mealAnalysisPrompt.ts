@@ -86,7 +86,7 @@ Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne m
  * même contenu que MEAL_PERCEPTION_RULES, ~4x moins de tokens. Utilisé par le VLM
  * local, où chaque token de prompt coûte du temps de calcul sur le téléphone.
  */
-export const MEAL_PERCEPTION_RULES_COMPACT = `Rôle: nutritionniste expert. Estimer poids (g) de chaque aliment.
+export const MEAL_PERCEPTION_RULES_COMPACT = `Rôle: extracteur visuel JSON strict. Pas de balise <think>, aucun raisonnement, aucun monologue.
 - Échelle: couverts, assiette (~26cm), verre, main.
 - Ambigu → option la plus calorique.
 - Aspect brillant/frit → graisse cachée: ajouter "huile" 5-10g.
@@ -95,7 +95,7 @@ export const MEAL_PERCEPTION_RULES_COMPACT = `Rôle: nutritionniste expert. Esti
 - Nombre sans g/kg/ml/cl/L = unités.
 - Vrac (riz, pâtes, sauce, purée, huile): poids seul.`;
 
-const DETECTION_OUTPUT = `AUCUNE calorie ni nutriment, AUCUN titre ni commentaire, AUCUN markdown. Noms précis en français.
+const DETECTION_OUTPUT = `PAS de balise <think>, AUCUNE réflexion, AUCUNE calorie ni nutriment, AUCUN markdown. Noms précis en français.
 Réponds UNIQUEMENT par le tableau JSON strict :
 [{"name":"...","estimated_weight_g":150,"unit_count":2,"unit_weight_g":75,"unit_label":"tranche"}]`;
 
