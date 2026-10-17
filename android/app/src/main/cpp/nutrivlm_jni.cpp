@@ -97,6 +97,13 @@ static bool load_impl(const std::string &modelPath, const std::string &mmprojPat
   return true;
 }
 
+static ggml_backend_dev_t find_gpu_device() {
+  ggml_backend_dev_t dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_GPU);
+  if (!dev) dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_IGPU);
+  if (!dev) dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_ACCEL);
+  return dev;
+}
+
 extern "C" JNIEXPORT jboolean JNICALL
 Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstring jmodel, jstring jmmproj,
                                                       jint nThreads, jint nCtx, jboolean useGpu) {
@@ -105,8 +112,8 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_loadModels(JNIEnv *env, jclass, jstrin
   const std::string modelPath = jstr(env, jmodel);
   const std::string mmprojPath = jstr(env, jmmproj);
 
-  // Le GPU n'est tenté que si un périphérique Vulkan est réellement présent.
-  bool gpu = useGpu && ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_GPU) != nullptr;
+  // Le GPU n'est tenté que si un périphérique Vulkan est réellement présent.  
+  bool gpu = useGpu && find_gpu_device() != nullptr;
   if (gpu && load_impl(modelPath, mmprojPath, nThreads, nCtx, true)) {
     g_on_gpu = true; g_last_error.clear(); return JNI_TRUE;
   }
@@ -126,8 +133,8 @@ Java_com_nutriscan_app_vlm_NutriVlmNative_backend(JNIEnv *env, jclass) {
 extern "C" JNIEXPORT jstring JNICALL
 Java_com_nutriscan_app_vlm_NutriVlmNative_gpuDeviceName(JNIEnv *env, jclass) {
   std::lock_guard<std::mutex> lock(g_mutex);
-  llama_backend_init();
-  ggml_backend_dev_t dev = ggml_backend_dev_by_type(GGML_BACKEND_DEVICE_TYPE_GPU);
+  llama_backend_init();  
+  ggml_backend_dev_t dev = find_gpu_device();
   std::string name = dev ? std::string(ggml_backend_dev_description(dev)) : "";
   for (char &c : name) if ((unsigned char)c >= 0x80) c = '?';  // ASCII sûr pour NewStringUTF
   return env->NewStringUTF(name.c_str());
