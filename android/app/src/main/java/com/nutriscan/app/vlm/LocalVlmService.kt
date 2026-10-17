@@ -101,13 +101,25 @@ class LocalVlmService : Service() {
                     val threads = if (degraded) 2 else performanceCores()
                     // Consignes expertes partagées (~1000 tokens) + image : 2048 évite tout débordement.
                     val nCtx = if (degraded) 1536 else 2048
-                    // GPU Vulkan sauf si une tentative précédente a fait planter le processus.
                     val p = prefs()
+                    // Un arrêt forcé pour délai dépassé n'est PAS un plantage GPU.
+                    val timeoutMarker = File(filesDir, "vlm/timeout.flag")
                     if (p.getBoolean("gpuPending", false)) {
-                        Log.w(TAG, "Plantage GPU précédent détecté : Vulkan désactivé sur cet appareil")
-                        p.edit().putBoolean("gpuBroken", true).putBoolean("gpuPending", false).commit()
+                        if (timeoutMarker.exists()) {
+                            Log.w(TAG, "Arrêt précédent dû au délai : GPU conservé")
+                        } else {
+                            Log.w(TAG, "Plantage GPU précédent détecté : Vulkan désactivé sur cet appareil")
+                            p.edit().putBoolean("gpuBroken", true).putInt("gpuBrokenVersion", appVersion()).commit()
+                        }
+                        p.edit().putBoolean("gpuPending", false).commit()
                     }
-                    val useGpu = !p.getBoolean("gpuBroken", false)
+                    timeoutMarker.delete()
+                    // Une mise à jour de l'appli redonne une chance au GPU.
+                    if (p.getBoolean("gpuBroken", false) && p.getInt("gpuBrokenVersion", -1) != appVersion())
+                        p.edit().putBoolean("gpuBroken", false).commit()
+                    val decision = gpuDecision(degraded)
+                    val useGpu = decision.first
+                    out.putString("gpuReason", decision.second)
                     val key = "$model|$mmproj|$nCtx|$useGpu"
                     var loadMs = 0L
                     if (loadedKey != key || loadedThreads != threads) {
@@ -123,14 +135,20 @@ class LocalVlmService : Service() {
                         loadedThreads = threads
                         loadMs = System.currentTimeMillis() - t0
                     }
-                    out.putString("backend", NutriVlmNative.backend())
+                    val backend = NutriVlmNative.backend()
+                    out.putString("backend", backend)
+                    out.putString("gpuName", if (backend == "vulkan") NutriVlmNative.gpuDeviceName() else "")
                     val side = if (degraded) MAX_SIDE_DEGRADED else adaptiveSide()
                     // 192 tokens suffisent largement pour le tableau JSON d'un repas
                     val maxTokens = d.getInt("maxTokens", 192).coerceAtMost(192)
+                    // Prompt adapté à l'accélérateur réellement actif : expert (GPU) ou court (CPU).
+                    val onGpu = backend == "vulkan"
+                    val system = (if (onGpu) d.getString("systemGpu") else d.getString("systemCpu")) ?: d.getString("system") ?: ""
+                    out.putString("promptVariant", if (onGpu) "expert" else "court")
                     val tInf = System.currentTimeMillis()
                     val text = NutriVlmNative.analyze(
                         downscale(raw, side),
-                        d.getString("system") ?: "",
+                        system,
                         d.getString("prompt") ?: "",
                         maxTokens,
                     ) ?: throw IllegalStateException(NutriVlmNative.lastError().ifBlank { "Analyse impossible" })
