@@ -140,9 +140,7 @@ class LocalVlmService : Service() {
                     out.putString("backend", backend)
                     out.putString("gpuName", if (backend == "vulkan") NutriVlmNative.gpuDeviceName() else "")
                     val side = if (degraded) MAX_SIDE_DEGRADED else adaptiveSide()
-                    // 192 tokens suffisent largement pour le tableau JSON d'un repas
-                    val maxTokens = d.getInt("maxTokens", 192).coerceAtMost(192)
-                    // Prompt adapté à l'accélérateur réellement actif : expert (GPU) ou court (CPU).
+                    val maxTokens = d.getInt("maxTokens", 768).coerceIn(128, 1024)                  // Prompt adapté à l'accélérateur réellement actif : expert (GPU) ou court (CPU).
                     val onGpu = backend == "vulkan"
                     val system = (if (onGpu) d.getString("systemGpu") else d.getString("systemCpu")) ?: d.getString("system") ?: ""
                     out.putString("promptVariant", if (onGpu) "expert" else "court")
