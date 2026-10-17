@@ -6,7 +6,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { BrainCircuit, Loader2, Trash2, Upload } from "lucide-react";
 import {
-  deleteVlmFile, getHybridDetector, importVlmFile, listVlmFiles, setHybridDetector,
+  deleteVlmFile, getHybridDetector, importVlmFile, listVlmFiles, resetVlmGpu, setHybridDetector,
   type HybridDetector, type VlmFile,
 } from "@/services/hybrid/localVlm";
 import { isMicroAiPassEnabled, setMicroAiPassEnabled } from "@/services/hybrid/microCompletion";
@@ -96,6 +96,13 @@ const LocalVlmSettings: React.FC = () => {
           <p className="text-[10px] text-muted-foreground">
             {hasModel && hasProj ? "✅ VLM prêt pour les photos du mode hybride." : "Importez les deux fichiers pour activer le VLM."}
           </p>
+          <p className="text-[10px] text-muted-foreground">
+            Accélération choisie automatiquement à chaque analyse : GPU (Vulkan) si le téléphone est compatible, sinon processeur avec un prompt plus court.
+          </p>
+          <Button size="sm" variant="outline" className="w-full h-8 rounded-xl text-xs" onClick={async () => {
+            try { await resetVlmGpu(); toast({ title: "GPU réactivé", description: "La prochaine analyse retentera l'accélération GPU." }); }
+            catch (e: any) { toast({ title: "Réinitialisation impossible", description: e?.message, variant: "destructive" }); }
+          }}>Retester l'accélération GPU</Button>
         </div>
       ))}
 

@@ -8,3 +8,5 @@
 - [x] MiniCPM-V 4.6 natif (llama.cpp, process :vlm) comme détecteur du mode hybride
 - [x] Complétion micronutriments : sources supplémentaires (USDA FoodData Central, Fichier canadien CNF) puis passe IA ciblée sur les seules cases vides
 - [ ] Badge de source par micronutriment dans le détail du repas
+- [x] Accélération GPU Vulkan avec détection de compatibilité et repli CPU automatique
+- [x] Prompts de détection compressés : expert (GPU) et court (CPU)
