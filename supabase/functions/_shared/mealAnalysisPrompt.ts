@@ -89,11 +89,11 @@ Si l'aliment ne se compte PAS en unités (riz, pâtes, sauce, huile, etc.), ne m
 export const MEAL_PERCEPTION_RULES_COMPACT = `Rôle: extracteur visuel JSON strict. Pas de balise <think>, aucun raisonnement, aucun monologue.
 - Échelle: couverts, assiette (~26cm), verre, main.
 - Ambigu → option la plus calorique.
-- Aspect brillant/frit → graisse cachée: ajouter "huile" 5-10g.
+- Aspect très gras ou luisant: ajouter graisse de cuisson 5-10g.
 - Photo = aliment cuit: poids cuit visible (pâtes/riz cuit ≈ cru×2.5). Texte sans "cuit" = cru.
 - Comptable (oeuf, tranche, portion fromage, biscuit, crêpe, saucisse, nugget, fruit entier, tomate cerise, olive, crevette, boulette, pain): unit_count + unit_weight_g + unit_label; estimated_weight_g = unit_count×unit_weight_g.
 - Nombre sans g/kg/ml/cl/L = unités.
-- Vrac (riz, pâtes, sauce, purée, huile): poids seul.`;
+- Aliments non dénombrables / en vrac: poids total seul (sans unit_count).
 
 const DETECTION_OUTPUT = `PAS de balise <think>, AUCUNE réflexion, AUCUNE calorie ni nutriment, AUCUN markdown. Noms précis en français.
 Réponds UNIQUEMENT par le tableau JSON strict :
