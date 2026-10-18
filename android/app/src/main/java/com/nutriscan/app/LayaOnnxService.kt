@@ -35,11 +35,11 @@ class LayaOnnxService : Service() {
 
                     // Extraction sécurisée des types Float/Double
                     val angle = if (data.containsKey("angle")) {
-                        data.getFloat("angle").takeIf { it != 0f }?.toDouble() ?: data.getDouble("angle")
+                        (data.get("angle") as? Number)?.toDouble()
                     } else null
 
                     val distance = if (data.containsKey("distance")) {
-                        data.getFloat("distance").takeIf { it != 0f }?.toDouble() ?: data.getDouble("distance")
+                        (data.get("distance") as? Number)?.toDouble()
                     } else null
 
                     val res = LayaOnnxEngine.classify(
