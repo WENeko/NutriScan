@@ -1,5 +1,9 @@
 # Roadmap
 
+- [ ] Intégrer le décodeur ONNX YOLO26l FoodSeg103 et ses masques dans le processus :laya
+- [ ] Relier les classes, portions estimatives et sélection du détecteur au mode hybride
+- [ ] Tester les contrats de détection et résolution ; documenter les limites de validation Android
+
 - [x] Capture en direct via Camera2 natif (LENS_FOCUS_DISTANCE au déclenchement)
 - [x] Badge distance sur la photo (caméra + galerie) avec affichage au clic
 - [x] Correction manuelle de la distance par l'utilisateur
