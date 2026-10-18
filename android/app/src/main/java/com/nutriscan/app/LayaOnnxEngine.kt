@@ -13,6 +13,7 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 import java.nio.FloatBuffer
 import kotlin.math.exp
+import kotlin.math.roundToInt
 
 /**
  * Inférence ONNX Laya-Vision (DINOv2 MoE : entrées image+angle, sorties
@@ -110,6 +111,51 @@ object LayaOnnxEngine {
         return out
     }
 
+    private fun segment(s: OrtSession, imageName: String, bytes: ByteArray, size: Int, maxResults: Int): JSONObject {
+        val bitmap = decode(bytes, size)
+        val scale = minOf(size.toDouble()/bitmap.width, size.toDouble()/bitmap.height)
+        val width = (bitmap.width*scale).roundToInt(); val height = (bitmap.height*scale).roundToInt()
+        val canvasBitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val scaled = Bitmap.createScaledBitmap(bitmap, width, height, true)
+        val canvas = android.graphics.Canvas(canvasBitmap)
+        canvas.drawColor(android.graphics.Color.rgb(114,114,114))
+        canvas.drawBitmap(scaled, ((size-width)/2).toFloat(), ((size-height)/2).toFloat(), null)
+        val originalWidth = bitmap.width; val originalHeight = bitmap.height
+        if (scaled !== bitmap) scaled.recycle()
+        bitmap.recycle()
+        val pixels = IntArray(size*size)
+        canvasBitmap.getPixels(pixels,0,size,0,0,size,size); canvasBitmap.recycle()
+        val buffer = ByteBuffer.allocateDirect(3*size*size*4).order(ByteOrder.nativeOrder()).asFloatBuffer()
+        for (shift in intArrayOf(16,8,0)) for (p in pixels) buffer.put(((p shr shift) and 255)/255f)
+        buffer.rewind()
+        // The supplied fp16-weight export has FLOAT input/output, not FLOAT16 input.
+        OnnxTensor.createTensor(env, buffer, longArrayOf(1,3,size.toLong(),size.toLong())).use { input ->
+            s.run(mapOf(imageName to input)).use { results ->
+                val tensors = results.mapNotNull { it.value as? OnnxTensor }
+                val boxes = tensors.firstOrNull { (it.info as? TensorInfo)?.shape?.size == 3 }
+                    ?: throw IllegalStateException("Sortie YOLO de détection absente.")
+                val masks = tensors.firstOrNull { (it.info as? TensorInfo)?.shape?.size == 4 }
+                    ?: throw IllegalStateException("Sortie YOLO de masques absente.")
+                @Suppress("UNCHECKED_CAST")
+                val rows = (boxes.value as Array<Array<FloatArray>>)[0]
+                @Suppress("UNCHECKED_CAST")
+                val proto = (masks.value as Array<Array<Array<FloatArray>>>)[0]
+                val classes = rows.size - 4 - proto.size
+                require(classes == 103) { "Ce décodeur attend 103 classes FoodSeg103 ; reçu $classes." }
+                val predictions = JSONArray()
+                for (d in FoodSegDecoder.decode(rows,proto,classes,size,originalWidth,originalHeight,maxResults,0.25f)) {
+                    predictions.put(JSONObject().put("label","class_${d.classIndex}").put("classIndex",d.classIndex)
+                        .put("confidence",d.confidence.toDouble()).put("areaFraction",d.areaFraction)
+                        .put("box",JSONArray(d.box.toList())).put("maskRle",JSONArray(d.maskRle.toList()))
+                        .put("maskWidth",proto[0][0].size).put("maskHeight",proto[0].size))
+                }
+                return JSONObject().put("predictions",predictions).put("angleUsed",false)
+                    .put("task","segment").put("classCount",classes)
+                    .put("imageWidth",originalWidth).put("imageHeight",originalHeight)
+            }
+        }
+    }
+
     fun classify(modelFile: File, imageBytes: ByteArray, maxResults: Int, angleDeg: Double?, distanceM: Double?): JSONObject {
         val s = sessionFor(modelFile)
         val names = s.inputNames.toList()
@@ -128,6 +174,13 @@ object LayaOnnxEngine {
 
         val distanceName = names.firstOrNull { it != imageName && it.lowercase().contains("dist") }
         val angleName = names.firstOrNull { it != imageName && it != distanceName && it.lowercase().contains("angle") }
+
+        // Segmentation has prototypes (rank 4) and raw anchors (rank 3).
+        // It must NOT use DINO normalization, softmax or distance-dependent center crop.
+        val outputRanks = s.outputInfo.values.mapNotNull { (it.info as? TensorInfo)?.shape?.size }
+        if (outputRanks.contains(3) && outputRanks.contains(4)) {
+            return segment(s,imageName,imageBytes,size,maxResults)
+        }
 
         val bitmap = decode(imageBytes, size)
         val inputs = HashMap<String, OnnxTensor>()

@@ -288,11 +288,13 @@ class LayaVisionPlugin : Plugin() {
             val modelFile = resolveModelFile(call.getString("model"))
             val predictions = JSArray()
             var angleUsed = false
+            var onnxResult: org.json.JSONObject? = null
             // Angle caméra/table en degrés (90 = dessus), mesuré par les capteurs.
             val angle = call.getDouble("angle")
             if (modelFile.extension.lowercase() == "onnx") {
                 val bytes = Base64.decode(image.substringAfter("base64,", image), Base64.DEFAULT)
-                angleUsed = classifyOnnxRemote(modelFile, bytes, maxResults, predictions, angle, call.getDouble("distance"))
+                onnxResult = classifyOnnxRemote(modelFile, bytes, maxResults, predictions, angle, call.getDouble("distance"))
+                angleUsed = onnxResult.optBoolean("angleUsed", false)
             } else {
                 val bitmap = decodeImage(image)
                 val softwareBitmap =
@@ -317,6 +319,11 @@ class LayaVisionPlugin : Plugin() {
             res.put("latencyMs", System.currentTimeMillis() - started)
             res.put("model", modelFile.name)
             res.put("angleUsed", angleUsed)
+            onnxResult?.let { result ->
+                for (key in listOf("task", "classCount", "imageWidth", "imageHeight")) {
+                    if (result.has(key)) res.put(key, result.get(key))
+                }
+            }
             call.resolve(res)
         } catch (t: Throwable) {
             call.reject(t.message ?: "Détection impossible.", null as String?)
@@ -332,7 +339,7 @@ class LayaVisionPlugin : Plugin() {
      */
     private fun classifyOnnxRemote(
         modelFile: File, imageBytes: ByteArray, maxResults: Int, predictions: JSArray, angle: Double?, distance: Double?
-    ): Boolean {
+    ): org.json.JSONObject {
         val imgFile = File(context.cacheDir, "laya_in_${System.nanoTime()}.jpg").apply { writeBytes(imageBytes) }
         val latch = java.util.concurrent.CountDownLatch(1)
         var json: String? = null
@@ -385,7 +392,7 @@ class LayaVisionPlugin : Plugin() {
         val obj = org.json.JSONObject(json ?: throw IllegalStateException("Réponse vide du moteur local."))
         val arr = obj.optJSONArray("predictions") ?: org.json.JSONArray()
         for (i in 0 until arr.length()) predictions.put(JSObject(arr.getJSONObject(i).toString()))
-        return obj.optBoolean("angleUsed", false)
+        return obj
     }
 
     override fun handleOnDestroy() {
