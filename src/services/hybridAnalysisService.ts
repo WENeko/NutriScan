@@ -133,7 +133,7 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
     const detection = await detectFoodsWithLaya(input.image as string, {
       // Seuil abaissé (diagnostic) en mode hybride uniquement.
       minConfidence: 0.05,
-      maxResults: 5,
+      maxResults: 20,
     });
     detectionModel = detection.model || getSelectedLayaModel() || undefined;
     queries = detection.detections.map((d) => ({
@@ -141,6 +141,13 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
       // La tête de pesée du modèle Laya-Vision fournit la masse estimée ;
       // à défaut (classifieur .tflite simple), portion de référence de 100 g.
       weightG: d.weightG ?? 100,
+      unitCount: d.unitCount,
+      unitWeightG: d.unitWeightG,
+      unitLabel: d.unitLabel,
+      weightSource: d.weightSource,
+      segmentation: detection.task === "segment" ? {
+        classIndex: d.classIndex, areaFraction: d.areaFraction, box: d.box,
+      } : undefined,
       detectionConfidence: d.confidence,
     }));
     // La saisie texte éventuelle complète la photo (« avec 30 g de parmesan »).
@@ -195,7 +202,9 @@ export async function analyzeMealHybrid(input: HybridAnalysisInput): Promise<Hyb
     : resolved) as ResolvedFoodItem[];
   const resolutionMs = Date.now() - resolutionStart;
 
-  if (items.length === 0) throw new Error("Aucune donnée nutritionnelle résolue.");
+  if (items.length === 0 || items.every((item) => item.source === "unresolved")) {
+    throw new Error("Aucune donnée nutritionnelle résolue pour les aliments détectés.");
+  }
   emit("completion", items.length);
 
   const sources: Partial<Record<ResolutionSource, number>> = {};

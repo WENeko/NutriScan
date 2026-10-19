@@ -59,6 +59,10 @@ function ref(
 }
 
 export const FOOD_REFERENCE_TABLE: FoodReference[] = [
+  // Generic cooked fish: cannot infer species or preparation fats from the FoodSeg class.
+  ref("poisson_cuit", "Poisson cuit (générique)", ["poisson", "fish"], [125, 24, 0, 3]),
+  ref("frites", "Frites", ["frites", "french fries"], [312, 3.4, 41, 15]),
+  ref("soupe_legumes", "Soupe de légumes (générique)", ["soupe", "soup"], [35, 1, 5, 1]),
   // ── Viandes & volailles ────────────────────────────────────────────────────
   ref("poulet_blanc_grille", "Blanc de poulet grillé", ["poulet", "blanc de poulet", "chicken", "chicken breast", "grilled chicken"],
     [165, 31, 0, 3.6],

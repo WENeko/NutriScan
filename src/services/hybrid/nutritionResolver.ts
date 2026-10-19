@@ -70,6 +70,8 @@ export interface FoodQuery {
   unitLabel?: string;
   /** Confiance de la détection amont (Laya) — 1 pour une saisie texte. */
   detectionConfidence?: number;
+  weightSource?: "model" | "reference_portion";
+  segmentation?: { classIndex?: number; areaFraction?: number; box?: number[] };
 }
 
 const STD_KEYS = NUTRIENTS_STD_LIST.map((n) => n.key);
@@ -104,7 +106,7 @@ function matchLibraryFood(name: string, customFoods: any[] = []): any | null {
     if (!rn) continue;
     let score = 0;
     if (rn === q) score = 1;
-    else if (q.includes(rn) || rn.includes(q)) score = 0.9;
+    else if ((` ${q} `).includes(` ${rn} `) || (` ${rn} `).includes(` ${q} `)) score = 0.9;
     else {
       const qw = new Set(q.split(" ").filter((w) => w.length > 2));
       const common = rn.split(" ").filter((w) => w.length > 2 && qw.has(w)).length;
@@ -287,6 +289,9 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
     fats: 0,
     source,
     confidence: baseConfidence,
+    weight_source: query.weightSource,
+    portion_assumed: query.weightSource === "reference_portion",
+    segmentation: query.segmentation,
   };
   if (query.unitCount) {
     item.unit_count = query.unitCount;
