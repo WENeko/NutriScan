@@ -142,6 +142,15 @@ object LayaOnnxEngine {
                 val proto = (masks.value as Array<Array<Array<FloatArray>>>)[0]
                 val classes = rows.size - 4 - proto.size
                 require(classes == 103) { "Ce décodeur attend 103 classes FoodSeg103 ; reçu $classes." }
+                val namesMetadata = s.metadata.customMetadata["names"]
+                    ?: throw IllegalStateException("Liste de classes absente des métadonnées ONNX.")
+                val orderedNames = Regex("(?:'|\")(\\d+)(?:'|\")\\s*:").findAll(namesMetadata).toList()
+                // Ultralytics writes a Python dictionary with unquoted numeric keys.
+                val nameMatches = Regex("(?:^|[,\\{])\\s*(\\d+)\\s*:\\s*['\"]([^'\"]+)['\"]")
+                    .findAll(namesMetadata).associate { it.groupValues[1].toInt() to it.groupValues[2] }
+                val labels = JSONArray()
+                require(nameMatches.size == classes) { "Liste FoodSeg103 illisible ou incomplète." }
+                for (i in 0 until classes) labels.put(nameMatches[i] ?: throw IllegalStateException("Classe $i absente."))
                 val predictions = JSONArray()
                 for (d in FoodSegDecoder.decode(rows,proto,classes,size,originalWidth,originalHeight,maxResults,0.25f)) {
                     predictions.put(JSONObject().put("label","class_${d.classIndex}").put("classIndex",d.classIndex)
@@ -151,6 +160,7 @@ object LayaOnnxEngine {
                 }
                 return JSONObject().put("predictions",predictions).put("angleUsed",false)
                     .put("task","segment").put("classCount",classes)
+                    .put("labels",labels)
                     .put("imageWidth",originalWidth).put("imageHeight",originalHeight)
             }
         }

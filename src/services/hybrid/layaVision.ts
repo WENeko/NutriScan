@@ -71,6 +71,7 @@ interface LayaVisionNativePlugin {
     angleUsed?: boolean;
     task?: "segment";
     classCount?: number;
+    labels?: string[];
   }>;
 }
 
@@ -241,6 +242,11 @@ export async function detectFoodsWithLaya(
   const raw = Array.isArray(res?.predictions) ? res.predictions : [];
   if (res.task === "segment" && res.classCount !== FOODSEG103_LABELS.length) {
     throw new Error("Le modèle n’utilise pas les 103 classes FoodSeg103 attendues.");
+  }
+  if (res.task === "segment" && (!Array.isArray(res.labels) ||
+      res.labels.length !== FOODSEG103_LABELS.length ||
+      res.labels.some((label, i) => label !== FOODSEG103_LABELS[i]))) {
+    throw new Error("L’ordre des classes ONNX ne correspond pas à FoodSeg103.");
   }
 
   // Diagnostic : Top-N brut (classe, confiance, tête de pesée, incertitude 1σ).

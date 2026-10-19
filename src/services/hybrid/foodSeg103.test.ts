@@ -36,7 +36,7 @@ describe('FoodSeg103 integration', () => {
     const meal = await analyzeMealHybrid({image:'image',allowNetwork:false});
     expect(meal.items).toHaveLength(3);
     expect(meal.items[0]).toMatchObject({estimated_weight_g:100,calories:125,portion_assumed:true});
-    expect(meal.items[2]).toMatchObject({estimated_weight_g:150,calories:197});
+    expect(meal.items.find((item) => item.segmentation?.classIndex === 64)).toMatchObject({estimated_weight_g:150,calories:197});
     expect(meal.total_summary.calories).toBe(447);
     expect(classify).toHaveBeenCalledWith(expect.objectContaining({maxResults:20}));
   });
