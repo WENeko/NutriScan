@@ -75,6 +75,7 @@ const LayaModelSettings: React.FC = () => {
     setImporting(true);
     try {
       const res = await importLayaModel();
+      setSelected(res.model);
       toast({ title: "Modèle importé", description: res.model });
       await scan();
     } catch (e: any) {
@@ -112,11 +113,10 @@ const LayaModelSettings: React.FC = () => {
     <Card className="bg-card rounded-2xl p-4 shadow-card space-y-3">
       <div className="flex items-center gap-2">
         <ScanEye className="w-4 h-4 text-primary" />
-        <h3 className="font-display font-semibold text-sm">Détection visuelle locale (Laya-Vision)</h3>
+        <h3 className="font-display font-semibold text-sm">Détection locale — YOLO / Laya</h3>
       </div>
       <p className="text-xs text-muted-foreground">
-        Modèle de décision on-device (photo → aliments + pesée estimée en grammes, sans réseau).
-        Importez le fichier <span className="font-mono">laya_vision_int8.onnx</span> depuis vos Téléchargements.
+        YOLO FoodSeg103 : 103 classes. Les portions proposées restent à confirmer ; la segmentation ne mesure pas le poids.
       </p>
 
       {!isNative ? (
@@ -145,7 +145,7 @@ const LayaModelSettings: React.FC = () => {
             <div className="space-y-1.5">
               {models.map((m) => (
                 <div key={m} className="flex items-center gap-1.5">
-                  <button
+                  <Button variant="ghost" aria-pressed={selected === m}
                     onClick={() => handleSelect(m)}
                     className={`flex-1 min-w-0 flex items-center gap-2 rounded-lg px-3 py-2 text-xs text-left transition-colors ${
                       selected === m ? "bg-accent border border-primary/40" : "bg-muted/40 hover:bg-muted"
@@ -153,7 +153,7 @@ const LayaModelSettings: React.FC = () => {
                   >
                     <span className="flex-1 truncate font-mono">{m}</span>
                     {selected === m && <Check className="w-3.5 h-3.5 text-primary shrink-0" />}
-                  </button>
+                  </Button>
                   <Button
                     variant="ghost"
                     size="icon"
@@ -178,7 +178,7 @@ const LayaModelSettings: React.FC = () => {
               <p className="text-[10px] text-muted-foreground">
                 {labelsCount > 0
                   ? `${labelsCount} noms de plats exacts associés à ce modèle.`
-                  : "Sans fichier, la liste ISIA Food-500 / Food-101 intégrée est utilisée (ordre alphabétique)."}
+                  : "YOLO FoodSeg103 : noms français intégrés. Autres modèles : importez leur liste de classes."}
               </p>
             </div>
           )}

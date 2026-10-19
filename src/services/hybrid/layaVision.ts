@@ -22,6 +22,8 @@ import { FOOD101_LABELS } from "./food101Labels";
 import { ISIA500_LABELS } from "./isia500Labels";
 import { consumeCaptureAngle } from "./captureAngle";
 import { consumeCaptureScale } from "./captureScale";
+import { FOODSEG103_LABELS, FOODSEG103_NAMES_FR, foodSegReferencePortion } from "./foodSeg103";
+import { setHybridDetector } from "./localVlm";
 
 export interface LayaPrediction {
   /** Libellé brut renvoyé par le modèle (ex: "grilled_chicken_breast" ou "class_42"). */
@@ -32,6 +34,11 @@ export interface LayaPrediction {
   classIndex?: number;
   /** Masse estimée en grammes par la tête de régression (modèle ONNX). */
   massG?: number;
+  areaFraction?: number;
+  box?: number[];
+  maskRle?: number[];
+  maskWidth?: number;
+  maskHeight?: number;
 }
 
 export interface LayaDetection extends LayaPrediction {
@@ -39,12 +46,17 @@ export interface LayaDetection extends LayaPrediction {
   name: string;
   /** Poids estimé en grammes, si la tête de pesée du modèle l'a fourni. */
   weightG?: number;
+  unitCount?: number;
+  unitWeightG?: number;
+  unitLabel?: string;
+  weightSource?: "model" | "reference_portion";
 }
 
 export interface LayaClassifyResult {
   detections: LayaDetection[];
   latencyMs: number;
   model: string;
+  task?: "segment";
 }
 
 interface LayaVisionNativePlugin {
@@ -57,6 +69,9 @@ interface LayaVisionNativePlugin {
     latencyMs?: number;
     model?: string;
     angleUsed?: boolean;
+    task?: "segment";
+    classCount?: number;
+    labels?: string[];
   }>;
 }
 
@@ -119,7 +134,10 @@ export function getSelectedLayaModel(): string | null {
 
 export function setSelectedLayaModel(model: string | null): void {
   try {
-    if (model) localStorage.setItem(LS_LAYA_MODEL, model);
+    if (model) {
+      localStorage.setItem(LS_LAYA_MODEL, model);
+      setHybridDetector("laya");
+    }
     else localStorage.removeItem(LS_LAYA_MODEL);
   } catch {
     /* stockage indisponible */
@@ -175,7 +193,14 @@ export function parseLabelsFile(text: string): string[] {
 }
 
 /** Résout le nom lisible : libellé direct, classes importées, ou table embarquée. */
-function resolveName(p: LayaPrediction, model: string | null): string {
+function resolveName(p: LayaPrediction, model: string | null, task?: "segment"): string {
+  if (task === "segment") {
+    const i = p.classIndex;
+    if (typeof i !== "number" || !Number.isInteger(i) || !FOODSEG103_LABELS[i]) {
+      throw new Error("Indice de classe FoodSeg103 invalide.");
+    }
+    return FOODSEG103_NAMES_FR[i];
+  }
   if (p.label && !/^class_\d+$/i.test(p.label)) return humanizeLabel(p.label);
   const i = p.classIndex;
   if (typeof i === "number") {
@@ -215,6 +240,14 @@ export async function detectFoodsWithLaya(
     ...(scale?.distanceM ? { distance: scale.distanceM } : {}),
   });
   const raw = Array.isArray(res?.predictions) ? res.predictions : [];
+  if (res.task === "segment" && res.classCount !== FOODSEG103_LABELS.length) {
+    throw new Error("Le modèle n’utilise pas les 103 classes FoodSeg103 attendues.");
+  }
+  if (res.task === "segment" && (!Array.isArray(res.labels) ||
+      res.labels.length !== FOODSEG103_LABELS.length ||
+      res.labels.some((label, i) => label !== FOODSEG103_LABELS[i]))) {
+    throw new Error("L’ordre des classes ONNX ne correspond pas à FoodSeg103.");
+  }
 
   // Diagnostic : Top-N brut (classe, confiance, tête de pesée, incertitude 1σ).
   appLogger.info("LayaVision", "Sortie brute du modèle (Top-" + raw.length + ")", {
@@ -223,7 +256,7 @@ export async function detectFoodsWithLaya(
     predictions: raw.map((p: any, rank: number) => ({
       rang: rank + 1,
       classIndex: p?.classIndex,
-      nom: resolveName(p, res?.model || model || null),
+      nom: resolveName(p, res?.model || model || null, res.task),
       confiance: `${(Number(p?.confidence) * 100).toFixed(1)} %`,
       masseG: Number.isFinite(Number(p?.massG)) ? Math.round(Number(p.massG) * 10) / 10 : null,
       incertitudeG: Number.isFinite(Number(p?.massSigmaG)) ? Math.round(Number(p.massSigmaG) * 10) / 10 : null,
@@ -236,14 +269,18 @@ export async function detectFoodsWithLaya(
       const mass = Number(p.massG);
       // ≤ 2 g = bornage minimum de la tête de pesée (hors distribution) :
       // on considère la masse inconnue → portion par défaut plutôt que 1 g.
-      const weightG = Number.isFinite(mass) && mass > 2 ? Math.round(mass) : undefined;
+      const modelWeight = Number.isFinite(mass) && mass > 2 ? Math.round(mass) : undefined;
+      const weightG = res.task === "segment" && typeof p.classIndex === "number"
+        ? foodSegReferencePortion(p.classIndex) : modelWeight;
       return {
+        ...p,
         label: p.label,
         confidence: Math.max(0, Math.min(1, Number(p.confidence))),
         classIndex: typeof p.classIndex === "number" ? p.classIndex : undefined,
-        massG: weightG,
+        massG: modelWeight,
         weightG,
-        name: resolveName(p, res?.model || model || null),
+        weightSource: res.task === "segment" ? "reference_portion" as const : "model" as const,
+        name: resolveName(p, res?.model || model || null, res.task),
       };
     })
     .filter((p) => p.confidence >= minConfidence)
@@ -256,10 +293,14 @@ export async function detectFoodsWithLaya(
     angleUsed: !!res?.angleUsed,
     scale,
   });
+  if (res.task === "segment") {
+    appLogger.info("FoodSeg103", `${detections.length} régions segmentées — portions de référence à confirmer, pas de pesée depuis les pixels.`);
+  }
 
   return {
     detections,
     latencyMs: Number(res?.latencyMs) || 0,
     model: res?.model || model || "laya",
+    task: res.task,
   };
 }

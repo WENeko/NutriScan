@@ -58,10 +58,10 @@ const LocalVlmSettings: React.FC = () => {
       </div>
       <div className="grid grid-cols-2 gap-2">
         {(["laya", "vlm"] as HybridDetector[]).map((d) => (
-          <button key={d} onClick={() => choose(d)}
+          <Button variant="ghost" aria-pressed={detector === d} key={d} onClick={() => choose(d)}
             className={`rounded-lg px-3 py-2 text-xs transition-colors ${detector === d ? "bg-accent border border-primary/40" : "bg-muted/40 hover:bg-muted"}`}>
-            {d === "laya" ? "Laya ONNX" : "MiniCPM-V (VLM local)"}
-          </button>
+            {d === "laya" ? "YOLO / Laya ONNX" : "MiniCPM-V (VLM local)"}
+          </Button>
         ))}
       </div>
       <p className="text-[11px] text-muted-foreground">

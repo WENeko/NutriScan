@@ -1,5 +1,9 @@
 # Project rules
 
+- Decode raw FoodSeg103 YOLO segmentation only in the isolated ONNX service, using letterboxed RGB/255 inputs and class-wise NMS plus prototype masks; classifier preprocessing would corrupt its detections.
+- FoodSeg class ordering comes from the supplied export metadata; never use Food101/ISIA fallback for segmentation, because indexed labels would silently name the wrong foods.
+- Segmentation masks do not measure grams: carry explicit reference-portion provenance into the resolver until a calibrated volume estimator is validated; never fabricate density calibration or claim nutritional certainty.
+
 - ONNX inference runs only in `LayaOnnxService` (separate `:laya` process); never call ONNX Runtime from the main app process — a native crash/OOM there would close the whole app.
 - Keep `-keep class ai.onnxruntime.**` in ProGuard rules — ONNX Runtime's native code looks up Java classes by name via JNI and crashes in minified release builds otherwise.
 - The hybrid pipeline (Laya + resolver) never calls the on-device LLM unless explicitly opted in — local LLM and hybrid are separate routing steps so one can't stall or pollute the other.

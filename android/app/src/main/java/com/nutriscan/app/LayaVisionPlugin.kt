@@ -320,7 +320,7 @@ class LayaVisionPlugin : Plugin() {
             res.put("model", modelFile.name)
             res.put("angleUsed", angleUsed)
             onnxResult?.let { result ->
-                for (key in listOf("task", "classCount", "imageWidth", "imageHeight")) {
+                for (key in listOf("task", "classCount", "imageWidth", "imageHeight", "labels")) {
                     if (result.has(key)) res.put(key, result.get(key))
                 }
             }
