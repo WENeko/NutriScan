@@ -14,7 +14,7 @@ describe('FoodSeg103 integration', () => {
     expect(FOODSEG103_NAMES_FR).toHaveLength(103);
     expect(FOODSEG103_LABELS[36]).toBe('fish');
     expect(FOODSEG103_LABELS[64]).toBe('pasta');
-    classify.mockResolvedValue({task:'segment',classCount:103,model:'renamed.onnx',predictions:[{label:'class_36',classIndex:36,confidence:.9,areaFraction:.2,box:[0,0,.5,.5]}]});
+    classify.mockResolvedValue({task:'segment',classCount:103,labels:[...FOODSEG103_LABELS],model:'renamed.onnx',predictions:[{label:'class_36',classIndex:36,confidence:.9,areaFraction:.2,box:[0,0,.5,.5]}]});
     const result = await detectFoodsWithLaya('image');
     expect(result.detections[0]).toMatchObject({name:'Poisson',weightG:100,weightSource:'reference_portion',areaFraction:.2});
     expect(result.detections[0].massG).toBeUndefined();
@@ -27,8 +27,18 @@ describe('FoodSeg103 integration', () => {
     classify.mockResolvedValue({task:'segment',classCount:80,predictions:[]});
     await expect(detectFoodsWithLaya('image')).rejects.toThrow('103 classes');
   });
+  it('rejects missing export metadata', async () => {
+    classify.mockResolvedValue({task:'segment',classCount:103,predictions:[]});
+    await expect(detectFoodsWithLaya('image')).rejects.toThrow('ordre des classes');
+  });
+  it('rejects reordered export labels even when the class count matches', async () => {
+    const labels = [...FOODSEG103_LABELS];
+    [labels[0], labels[36]] = [labels[36], labels[0]];
+    classify.mockResolvedValue({task:'segment',classCount:103,labels,predictions:[]});
+    await expect(detectFoodsWithLaya('image')).rejects.toThrow('ordre des classes');
+  });
   it('resolves photo foods by grams, preserves repeated instances and marks assumed portions', async () => {
-    classify.mockResolvedValue({task:'segment',classCount:103,model:'foodseg.onnx',predictions:[
+    classify.mockResolvedValue({task:'segment',classCount:103,labels:[...FOODSEG103_LABELS],model:'foodseg.onnx',predictions:[
       {label:'class_36',classIndex:36,confidence:.9,areaFraction:.2},
       {label:'class_36',classIndex:36,confidence:.8,areaFraction:.1},
       {label:'class_64',classIndex:64,confidence:.85,areaFraction:.3}
