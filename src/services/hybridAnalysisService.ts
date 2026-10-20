@@ -84,7 +84,7 @@ export async function isHybridAvailable(feature: "photo" | "text" = "photo"): Pr
 }
 
 /** Nom de repas lisible à partir des aliments résolus. */
-function buildMealName(items: ResolvedFoodItem[]): string {
+export function buildMealName(items: ResolvedFoodItem[]): string {
   const names = items.map((i) => i.name).filter(Boolean);
   if (names.length === 0) return "Repas";
   if (names.length === 1) return names[0];
@@ -92,7 +92,7 @@ function buildMealName(items: ResolvedFoodItem[]): string {
   return `${names[0]}, ${names[1].toLowerCase()} et ${names.length - 2} autre(s)`;
 }
 
-function sumTotals(items: ResolvedFoodItem[], customKeys: string[]): Record<string, number> {
+export function sumTotals(items: ResolvedFoodItem[], customKeys: string[]): Record<string, number> {
   const keys = ["calories", "proteins", "carbs", "fats", ...STD_KEYS, ...customKeys];
   const totals: Record<string, number> = {};
   for (const key of keys) {

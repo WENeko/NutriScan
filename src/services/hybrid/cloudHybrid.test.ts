@@ -23,7 +23,7 @@ const LIBRARY = [
   },
 ];
 
-const CUSTOM_NUTRIENTS = [{ key: "creatine_mg", label: "Créatine", unit: "mg" }];
+const CUSTOM_NUTRIENTS = [{ key: "creatine_mg", label: "Créatine", unit: "mg", category: "custom" as const }];
 
 function cloudDetection() {
   return {
