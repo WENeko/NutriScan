@@ -1,5 +1,6 @@
 # Roadmap
 
+- [ ] Finaliser les tests FoodSeg103 et vérifier le modèle réel sur la photo du plateau
 - [ ] Intégrer le décodeur ONNX YOLO26l FoodSeg103 et ses masques dans le processus :laya
 - [ ] Relier les classes, portions estimatives et sélection du détecteur au mode hybride
 - [ ] Tester les contrats de détection et résolution ; documenter les limites de validation Android
