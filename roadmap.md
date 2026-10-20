@@ -1,9 +1,10 @@
 # Roadmap
 
-- [ ] Finaliser les tests FoodSeg103 et vérifier le modèle réel sur la photo du plateau
-- [ ] Intégrer le décodeur ONNX YOLO26l FoodSeg103 et ses masques dans le processus :laya
-- [ ] Relier les classes, portions estimatives et sélection du détecteur au mode hybride
-- [ ] Tester les contrats de détection et résolution ; documenter les limites de validation Android
+- [x] Finaliser les tests FoodSeg103 et vérifier le modèle réel sur la photo du plateau (détections incorrectes constatées)
+- [x] Intégrer le décodeur ONNX YOLO26l FoodSeg103 et ses masques dans le processus :laya
+- [x] Relier les classes, portions estimatives et sélection du détecteur au mode hybride
+- [x] Tester les contrats de détection et résolution ; documenter les limites de validation Android
+- [ ] Valider l’import et l’analyse dans l’application Android sur Xiaomi 13T Pro — bloqué : aucun appareil Android disponible ici
 
 - [x] Capture en direct via Camera2 natif (LENS_FOCUS_DISTANCE au déclenchement)
 - [x] Badge distance sur la photo (caméra + galerie) avec affichage au clic
