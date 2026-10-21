@@ -1132,11 +1132,11 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
             {hybridPipeline && (
               <div className="mt-2 flex flex-wrap gap-1.5 text-[10px]">
                 <span className="px-2 py-0.5 rounded-full bg-primary/10 text-primary font-medium">
-                  ⚡ Local · {hybridPipeline.totalMs} ms
+                  ⚡ {hybridPipeline.detector ? "Hybride cloud" : "Local"} · {hybridPipeline.totalMs} ms
                 </span>
                 {Object.entries(hybridPipeline.sources || {}).map(([src, n]) => (
                   <span key={src} className="px-2 py-0.5 rounded-full bg-muted text-muted-foreground">
-                    {({ library: "Bibliothèque", reference: "CIQUAL", openfoodfacts: "Open Food Facts", micro_llm: "Micro-LLM", unresolved: "Non résolu" } as Record<string, string>)[src] ?? src} ×{String(n)}
+                    {({ library: "Bibliothèque", reference: "CIQUAL", openfoodfacts: "Open Food Facts", usda: "USDA", micro_llm: "Micro-LLM", unresolved: "Non résolu" } as Record<string, string>)[src] ?? src} ×{String(n)}
                   </span>
                 ))}
               </div>

@@ -57,7 +57,7 @@ export function mergeMicroFill(item: Record<string, any>, fill: MicroFill, allow
 
 export function missingMicroKeys(item: Record<string, any>, customNutrients: CustomNutrientDef[] = []): string[] {
   const keys = [...NUTRIENTS_STD_LIST.map((n) => n.key), ...customNutrients.map((c) => c.key)];
-  return keys.filter((k) => item[k] == null);
+  return [...new Set(keys)].filter((k) => !PROTECTED.has(k) && item[k] == null);
 }
 
 /** Complète tous les aliments d'un repas en un seul appel serveur. */
@@ -75,9 +75,11 @@ export async function completeMissingMicros(
   if (requests.length === 0) return items;
 
   try {
-    const { data, error } = await supabase.functions.invoke("complete-micros", {
+    const fills: (MicroFill & { index: number })[] = [];
+    for (let offset = 0; offset < requests.length; offset += 20) {
+      const { data, error } = await supabase.functions.invoke("complete-micros", {
       body: {
-        items: requests,
+        items: requests.slice(offset, offset + 20),
         allow_ai: opts.allowAi ?? isMicroAiPassEnabled(),
         nutrients: [
           ...NUTRIENTS_STD_LIST.map((n) => ({ key: n.key, label: n.label, unit: n.unit })),
@@ -86,7 +88,9 @@ export async function completeMissingMicros(
       },
     });
     if (error) throw error;
-    const fills: (MicroFill & { index: number })[] = Array.isArray(data?.items) ? data.items : [];
+    if (data?.error) throw new Error(String(data.error));
+    fills.push(...(Array.isArray(data?.items) ? data.items : []));
+    }
     const out = [...items];
     for (const f of fills) {
       const req = requests.find((r) => r.index === f.index);

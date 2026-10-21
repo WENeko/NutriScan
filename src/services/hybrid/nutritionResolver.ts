@@ -14,6 +14,7 @@
  * valeurs déterministes ne sont jamais écrasées par une estimation.
  */
 import { appLogger } from "@/services/appLogger";
+import { supabase } from "@/integrations/supabase/client";
 import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
@@ -27,7 +28,7 @@ import {
   type FoodReference,
 } from "./foodReferenceTable";
 
-export type ResolutionSource = "library" | "reference" | "openfoodfacts" | "micro_llm" | "unresolved";
+export type ResolutionSource = "library" | "reference" | "openfoodfacts" | "usda" | "micro_llm" | "unresolved";
 
 export interface ResolvedFoodItem {
   name: string;
@@ -204,6 +205,25 @@ async function searchOpenFoodFacts(name: string): Promise<Record<string, number>
 
 // ── Étage 3 : micro-LLM local (complétion ciblée) ────────────────────────────
 
+async function searchUsda(name: string, customNutrients: CustomNutrientDef[]): Promise<Record<string, number> | null> {
+  try {
+    const { data, error } = await supabase.functions.invoke("resolve-usda", {
+      body: { queries: [name], nutrients: [...NUTRIENTS_STD_LIST, ...customNutrients] },
+    });
+    if (error || data?.error) return null;
+    const values = data?.results?.find((r: any) => r.query === name)?.per100;
+    if (!values || typeof values !== "object") return null;
+    const out: Record<string, number> = {};
+    for (const [key, value] of Object.entries(values)) {
+      if (typeof value === "number" && Number.isFinite(value) && value >= 0) out[key] = value;
+    }
+    return out.calories > 0 || out.proteins > 0 ? out : null;
+  } catch (e) {
+    appLogger.warn("HybridResolver", "USDA indisponible", e);
+    return null;
+  }
+}
+
 /**
  * Demande au micro-LLM local UNIQUEMENT les valeurs manquantes, sous forme
  * d'un prompt texte très court (pas d'image, pas de JSON verbeux).
@@ -280,6 +300,15 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
     }
   }
 
+  // USDA n'intervient qu'après échec des bases précédentes.
+  if (!per100 && opts.allowNetwork !== false) {
+    per100 = await searchUsda(query.name, customNutrients);
+    if (per100) {
+      source = "usda";
+      baseConfidence = Math.min(baseConfidence, 0.7);
+    }
+  }
+
   const item: ResolvedFoodItem = {
     name: displayName,
     estimated_weight_g: weightG,
@@ -292,6 +321,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
     weight_source: query.weightSource,
     portion_assumed: query.weightSource === "reference_portion",
     segmentation: query.segmentation,
+    micro_sources: per100 ? Object.fromEntries(allKeys.filter((k) => per100?.[k] != null).map((k) => [k, source])) : {},
   };
   if (query.unitCount) {
     item.unit_count = query.unitCount;

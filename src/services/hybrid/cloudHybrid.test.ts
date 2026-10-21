@@ -1,5 +1,8 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { analyzeMealCloudHybrid, cloudItemToQuery } from "./cloudHybridService";
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue({ data: { items: [] }, error: null }) }));
+vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke } } }));
+import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 
 /**
  * Règles métier du mode hybride cloud :
@@ -59,6 +62,10 @@ describe("cloudItemToQuery", () => {
   it("rejette un item sans nom", () => {
     expect(cloudItemToQuery({ estimated_weight_g: 50 })).toBeNull();
   });
+  it("rejette les masses invalides au lieu de fabriquer une portion", () => {
+    expect(cloudItemToQuery({ name: "Poulet", estimated_weight_g: -20 })).toBeNull();
+    expect(cloudItemToQuery({ name: "Poulet" })).toBeNull();
+  });
 });
 
 describe("analyzeMealCloudHybrid", () => {
@@ -85,6 +92,13 @@ describe("analyzeMealCloudHybrid", () => {
     // Totaux recalculés depuis les items résolus.
     expect(res.total_summary.calories).toBe(330);
     expect(res.pipeline.detector).toBe("Test Cloud");
+    const body = invoke.mock.calls.find(([name]) => name === "complete-micros")?.[1].body;
+    expect(body.nutrients).toEqual([
+      ...NUTRIENTS_STD_LIST.map((n) => ({ key: n.key, label: n.label, unit: n.unit })),
+      { key: "creatine_mg", label: "Créatine", unit: "mg", custom: true },
+    ]);
+    expect(body.items[0].missing).not.toContain("iron_mg");
+    expect(body.items[0].missing).not.toContain("creatine_mg");
   });
 
   it("échoue si le cloud ne détecte rien", async () => {

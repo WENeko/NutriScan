@@ -1,15 +1,22 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
+import { createClient } from "npm:@supabase/supabase-js@2";
+import { z } from "npm:zod@3";
 import {
   buildSystemContent,
+  buildCloudDetectionSystemContent,
+  buildCloudDetectionUserPrompt,
   buildCustomFoodsContext,
   buildUserPromptText,
 } from "../_shared/mealAnalysisPrompt.ts";
 
-const corsHeaders = {
-  "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
-};
+const Nutrient = z.object({ key: z.string().min(1).max(60), label: z.string().max(80).optional(), unit: z.string().min(1).max(10) });
+const Body = z.object({
+  image: z.string().min(1).max(20000000).optional(), text: z.string().min(1).max(10000).optional(),
+  custom_foods: z.array(z.object({ name: z.string().min(1).max(255) }).passthrough()).max(2000).optional(),
+  custom_nutrients: z.array(Nutrient).max(80).optional(), std_nutrients: z.array(Nutrient).max(80).optional(),
+  local_time: z.string().max(80).optional(), detection_only: z.boolean().optional(), ping: z.boolean().optional(),
+});
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -17,8 +24,19 @@ serve(async (req) => {
   }
 
   try {
-    const body = await req.json();
-    const { image, text, custom_foods, custom_nutrients, std_nutrients, local_time } = body;
+    const auth = req.headers.get("Authorization") ?? "";
+    const url = Deno.env.get("SUPABASE_URL");
+    const anonKey = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!url || !anonKey) throw new Error("Configuration indisponible");
+    const sb = createClient(url, anonKey, { global: { headers: { Authorization: auth } } });
+    const { data: claims, error: authError } = await sb.auth.getClaims(auth.replace(/^Bearer /, ""));
+    if (!auth.startsWith("Bearer ") || authError || !claims?.claims?.sub) {
+      return new Response(JSON.stringify({ error: "Non autorisé" }), { status: 401, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    }
+    const parsedBody = Body.safeParse(await req.json().catch(() => null));
+    if (!parsedBody.success) return new Response(JSON.stringify({ error: parsedBody.error.flatten().fieldErrors }), { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } });
+    const { image, text, custom_foods, custom_nutrients, std_nutrients, local_time, detection_only, ping } = parsedBody.data;
+    if (ping) return new Response(JSON.stringify({ ok: true }), { headers: { ...corsHeaders, "Content-Type": "application/json" } });
 
     if (!image && !text) {
       return new Response(
@@ -32,18 +50,21 @@ serve(async (req) => {
 
     // Prompt construit depuis la SOURCE UNIQUE DE VÉRITÉ partagée (_shared).
     const customFoodsContext = buildCustomFoodsContext(custom_foods);
-    const systemContent = buildSystemContent(std_nutrients, custom_nutrients);
+    const systemContent = detection_only ? buildCloudDetectionSystemContent() : buildSystemContent(std_nutrients, custom_nutrients);
+    const prompt = detection_only
+      ? buildCloudDetectionUserPrompt({ hasImage: !!image, text, local_time, custom_foods })
+      : buildUserPromptText({ hasImage: !!image, text, local_time, customFoodsContext });
 
     const userContent: any[] = [];
     if (image) {
       userContent.push(
-        { type: "text", text: buildUserPromptText({ hasImage: true, local_time, customFoodsContext }) },
+        { type: "text", text: prompt },
         { type: "image_url", image_url: { url: image } }
       );
     } else if (text) {
       userContent.push({
         type: "text",
-        text: buildUserPromptText({ hasImage: false, text, local_time, customFoodsContext }),
+        text: prompt,
       });
     }
 

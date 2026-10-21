@@ -9,6 +9,8 @@ import { fallbackModelFor } from '@/lib/providerCatalog';
 // SOURCE UNIQUE DE VÉRITÉ du prompt — partagée avec l'edge function `analyze-meal`.
 import {
   buildSystemContent,
+  buildCloudDetectionSystemContent,
+  buildCloudDetectionUserPrompt,
   buildCustomFoodsContext,
   buildLocalSystemContent,
   buildLocalCustomFoodsContext,
@@ -90,7 +92,7 @@ const analysisCache = new AnalysisCache();
  * Chaque item contient: food_name, calories, proteins, carbs, fats, quantity, unit_count?, unit_label?, unit_weight_g?, 
  * PLUS tous les micronutriments de NUTRIENTS_STD_LIST (fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg, iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg)
  */
-export async function analyzeMealWithGemini({ image, text, custom_foods, custom_nutrients, local_time, check_nutrient, requestedMicros = [], providerOverride }: {
+export async function analyzeMealWithGemini({ image, text, custom_foods, custom_nutrients, local_time, check_nutrient, requestedMicros = [], providerOverride, detectionOnly = false }: {
   image?: string;
   text?: string;
   custom_foods?: any[];
@@ -98,11 +100,12 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   local_time?: string;
   check_nutrient?: string;
   requestedMicros?: string[];
+  detectionOnly?: boolean;
   /** Force l'usage d'un fournisseur précis (utilisé par le moteur de fallback en cascade). */
   providerOverride?: import("@/lib/aiAccess").ActiveProviderConfig | null;
 }): Promise<any> {
   // Vérifier le cache si on a une image (désactivé lorsqu'un fournisseur précis est imposé)
-  if (image && !providerOverride) {
+  if (image && !providerOverride && !detectionOnly) {
     const cached = analysisCache.get(image, text);
     if (cached) {
       appLogger.info("IA", "Analyse servie depuis le cache");
@@ -115,14 +118,14 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   if (!providerOverride && isLovableAiEnabled()) {
     appLogger.info("IA", "Analyse via edge function Lovable");
     const { data, error } = await supabase.functions.invoke("analyze-meal", {
-      body: { image, text, custom_foods, custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time },
+      body: { image, text, custom_foods, custom_nutrients, std_nutrients: NUTRIENTS_STD_LIST, local_time, detection_only: detectionOnly },
     });
     if (error) {
       appLogger.error("IA", "Erreur edge function analyze-meal", error);
       throw new Error(error.message || "Erreur d'analyse IA Lovable");
     }
     if (data?.error) throw new Error(data.error);
-    if (image && typeof data === "object") analysisCache.set(image, text, data);
+    if (image && !detectionOnly && typeof data === "object") analysisCache.set(image, text, data);
     return data;
   }
 
@@ -140,7 +143,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   // ── PROMPT : SOURCE UNIQUE DE VÉRITÉ (identique à l'edge function `analyze-meal`)
   // quel que soit le fournisseur / modèle utilisé pour l'analyse.
-  const systemContent = buildSystemContent(NUTRIENTS_STD_LIST, custom_nutrients);
+  if (detectionOnly && isLocalApiType(apiType)) throw new Error("Le mode hybride cloud exige un fournisseur cloud.");
+  const systemContent = detectionOnly ? buildCloudDetectionSystemContent() : buildSystemContent(NUTRIENTS_STD_LIST, custom_nutrients);
   const customFoodsContext = buildCustomFoodsContext(custom_foods);
 
   // Détecte le mime type depuis le préfixe data:image/xxx;base64,
@@ -157,7 +161,9 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   }
 
   // Message utilisateur identique à l'edge function (image ou description).
-  const promptText = buildUserPromptText({ hasImage: !!image, text, local_time, customFoodsContext });
+  const promptText = detectionOnly
+    ? buildCloudDetectionUserPrompt({ hasImage: !!image, text, local_time, custom_foods })
+    : buildUserPromptText({ hasImage: !!image, text, local_time, customFoodsContext });
 
   // Modèle choisi par l'utilisateur (jamais figé dans le code). Repli intelligent
   // selon le fournisseur uniquement si aucun modèle n'a été sélectionné.
@@ -283,7 +289,7 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
     result = trimmed;
   }
 
-  if (image && typeof result === "object") {
+  if (image && !detectionOnly && typeof result === "object") {
     analysisCache.set(image, text, result);
     appLogger.info("IA", `Résultat mis en cache (modèle: ${chosenModel})`);
   }
