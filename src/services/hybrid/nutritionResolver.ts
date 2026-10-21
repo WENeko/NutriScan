@@ -300,6 +300,15 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
     }
   }
 
+  // USDA n'intervient qu'après échec des bases précédentes.
+  if (!per100 && opts.allowNetwork !== false) {
+    per100 = await searchUsda(query.name, customNutrients);
+    if (per100) {
+      source = "usda";
+      baseConfidence = Math.min(baseConfidence, 0.7);
+    }
+  }
+
   const item: ResolvedFoodItem = {
     name: displayName,
     estimated_weight_g: weightG,
@@ -312,6 +321,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
     weight_source: query.weightSource,
     portion_assumed: query.weightSource === "reference_portion",
     segmentation: query.segmentation,
+    micro_sources: per100 ? Object.fromEntries(allKeys.filter((k) => per100?.[k] != null).map((k) => [k, source])) : {},
   };
   if (query.unitCount) {
     item.unit_count = query.unitCount;

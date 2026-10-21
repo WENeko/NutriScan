@@ -113,6 +113,23 @@ Réponds UNIQUEMENT par la liste JSON débutant par '[' :
 }
 
 /** Construit le system prompt complet, avec les clés custom intégrées au gabarit JSON. */
+export function buildCloudDetectionSystemContent(): string {
+  return `${MEAL_PERCEPTION_RULES}
+Détection uniquement : aucune valeur nutritionnelle. Exprime les graisses de cuisson estimées comme un aliment en grammes.
+Noms précis en français, mention cru/cuit lorsque pertinent. Conserve les cinq champs et les unités des aliments comptables.
+Extrais suggested_timestamp ISO 8601 seulement si une indication temporelle existe, en heure locale utilisateur.
+JSON strict uniquement, sans markdown ni raisonnement :
+{"meal_name":"Repas","confidence_score":0.85,"items":[{"name":"aliment","estimated_weight_g":150,"unit_count":2,"unit_weight_g":75,"unit_label":"portion"}]}`;
+}
+
+export function buildCloudDetectionUserPrompt(opts: { hasImage: boolean; text?: string; local_time?: string; custom_foods?: any[] }): string {
+  const refs = (opts.custom_foods ?? []).map((f) => ({ name: f.name, serving_size_g: f.serving_size_g }));
+  return `${opts.hasImage ? "Identifie tous les aliments visibles et leurs portions." : "Identifie les aliments et portions de cette description."}
+${opts.text ?? ""}
+${opts.local_time ? `Heure locale utilisateur : ${opts.local_time}.` : ""}
+${refs.length ? `Références personnelles (noms et portions seulement) : ${JSON.stringify(refs)}` : ""}`;
+}
+
 export function buildSystemPrompt(
   std_nutrients?: CustomNutrientDef[],
   custom_nutrients?: CustomNutrientDef[],
