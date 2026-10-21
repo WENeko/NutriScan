@@ -45,7 +45,8 @@ export interface CloudHybridResult {
 export function cloudItemToQuery(item: any, cloudConfidence?: number): FoodQuery | null {
   const name = String(item?.food_name ?? item?.name ?? "").trim();
   if (!name) return null;
-  const weightG = Number(item?.estimated_weight_g ?? item?.quantity ?? item?.weight_g) || 100;
+  const weightG = Number(item?.estimated_weight_g ?? item?.quantity ?? item?.weight_g);
+  if (!Number.isFinite(weightG) || weightG <= 0) return null;
   return {
     name,
     weightG,
@@ -99,13 +100,16 @@ export async function analyzeMealCloudHybrid(
     allowMicroLlm: false,
   });
   // ── Étape 3 : boucle de complétion des micros restés vides ────────────────
+  if (resolved.some((item) => item.source === "unresolved") || resolved.length !== queries.length) {
+    throw new Error("Données nutritionnelles introuvables pour certains aliments ; essayez un nom plus précis ou ajoutez-les à la bibliothèque.");
+  }
+  emit("completion", resolved.length);
   const items = (await completeMissingMicros(resolved, customNutrients)) as ResolvedFoodItem[];
   const resolutionMs = Date.now() - resolutionStart;
 
   if (items.length === 0 || items.every((item) => item.source === "unresolved")) {
     throw new Error("Aucune donnée nutritionnelle résolue pour les aliments détectés.");
   }
-  emit("completion", items.length);
 
   const sources: Partial<Record<ResolutionSource, number>> = {};
   for (const item of items) sources[item.source] = (sources[item.source] ?? 0) + 1;

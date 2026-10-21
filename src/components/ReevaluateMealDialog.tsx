@@ -107,6 +107,8 @@ const ReevaluateMealDialog: React.FC<Props> = ({ meal, userId, customDefs, onClo
 
   function stepKey(s: RoutingStep): string {
     if (s.type === "edge_function") return "edge";
+    if (s.type === "hybrid") return "hybrid";
+    if (s.type === "cloud_hybrid") return `cloud_hybrid::${s.providerId ?? "edge"}::${s.model ?? ""}`;
     return `byok::${s.providerId}::${s.model ?? ""}`;
   }
 

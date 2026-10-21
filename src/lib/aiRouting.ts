@@ -23,6 +23,7 @@ import { fallbackModelFor } from "@/lib/providerCatalog";
 import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { HYBRID_LABEL, analyzeMealHybrid, isHybridAvailable } from "@/services/hybridAnalysisService";
+import { CLOUD_HYBRID_LABEL, analyzeMealCloudHybrid } from "@/services/hybrid/cloudHybridService";
 
 export type FeatureKey = "photo" | "text" | "coach" | "recipe";
 
@@ -33,7 +34,7 @@ export interface RoutingStep {
    * - "hybrid"        → pipeline hybride ultra-rapide (Laya + base locale + micro-LLM),
    *                     disponible uniquement pour l'analyse photo et texte.
    */
-  type: "byok" | "edge_function" | "hybrid";
+  type: "byok" | "edge_function" | "hybrid" | "cloud_hybrid";
   providerId?: string;
   model?: string;
 }
@@ -49,6 +50,7 @@ export interface RoutingConfig {
   models: Record<string, string[]>;
   /** Mode hybride local activé en priorité 1 pour l'analyse photo / texte. */
   hybrid: boolean;
+  cloud_hybrid: boolean;
 }
 
 export const EDGE_LABEL = "Edge Function Lovable";
@@ -68,6 +70,7 @@ export const emptyRoutingConfig = (): RoutingConfig => ({
   recipe: [],
   models: {},
   hybrid: false,
+  cloud_hybrid: false,
 });
 
 export function normalizeRoutingConfig(raw: any): RoutingConfig {
@@ -76,7 +79,7 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
   const pick = (k: FeatureKey): RoutingStep[] =>
     Array.isArray(raw[k])
       ? (raw[k] as RoutingStep[]).filter(
-          (s) => s && (s.type === "byok" || s.type === "edge_function" || s.type === "hybrid"),
+          (s) => s && (s.type === "byok" || s.type === "edge_function" || s.type === "hybrid" || s.type === "cloud_hybrid"),
         )
       : [];
   const models: Record<string, string[]> = {};
@@ -93,6 +96,7 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
     recipe: pick("recipe"),
     models,
     hybrid: !!raw.hybrid,
+    cloud_hybrid: !!raw.cloud_hybrid,
   };
 }
 
@@ -179,6 +183,12 @@ function defaultSteps(ctx: RoutingContext): RoutingStep[] {
 }
 
 /** Liste ordonnée des steps réellement exécutables pour une fonctionnalité. */
+export function applyCloudHybridSteps(steps: RoutingStep[], enabled: boolean, feature: FeatureKey, isCloudProvider: (id: string) => boolean): RoutingStep[] {
+  if (!enabled || (feature !== "photo" && feature !== "text")) return steps;
+  return steps.map((s) => s.type === "edge_function" || (s.type === "byok" && s.providerId && isCloudProvider(s.providerId))
+    ? { ...s, type: "cloud_hybrid" } : s);
+}
+
 function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
   let steps = ctx.routing.enabled ? ctx.routing[feature] : [];
   if (!steps || steps.length === 0) steps = defaultSteps(ctx);
@@ -187,12 +197,22 @@ function resolveSteps(ctx: RoutingContext, feature: FeatureKey): RoutingStep[] {
     steps = [{ type: "hybrid" }, ...steps.filter((s) => s.type !== "hybrid")];
   }
   // Filtre les steps non exécutables (edge sans droit, byok sans clé sauf local).
-  return steps.filter((s) => {
+  const executable = steps.filter((s) => {
+    if (s.type === "cloud_hybrid") {
+      if (feature !== "photo" && feature !== "text") return false;
+      if (!s.providerId) return ctx.lovableEnabled;
+      const p = ctx.providers.get(s.providerId);
+      return !!p && !isLocalApiType(p.apiType) && (!!p.apiKey || isKeyOptional(p.apiType));
+    }
     if (s.type === "edge_function") return ctx.lovableEnabled;
     // Le mode hybride ne concerne que l'analyse (photo / texte).
     if (s.type === "hybrid") return feature === "photo" || feature === "text";
     const p = s.providerId ? ctx.providers.get(s.providerId) : null;
     return !!p && (!!p.apiKey || isKeyOptional(p.apiType));
+  });
+  return applyCloudHybridSteps(executable, ctx.routing.cloud_hybrid, feature, (id) => {
+    const p = ctx.providers.get(id);
+    return !!p && !isLocalApiType(p.apiType);
   });
 }
 
@@ -264,6 +284,7 @@ export interface FeatureResult {
 }
 
 function labelForStep(ctx: RoutingContext, step: RoutingStep): string {
+  if (step.type === "cloud_hybrid") return `${CLOUD_HYBRID_LABEL} · ${labelForStep(ctx, { ...step, type: step.providerId ? "byok" : "edge_function" })}`;
   if (step.type === "edge_function") return EDGE_LABEL;
   if (step.type === "hybrid") return HYBRID_LABEL;
   const p = step.providerId ? ctx.providers.get(step.providerId) : null;
@@ -317,7 +338,28 @@ export async function executeAIFeatureWithFallback(
         const ap = payload as AnalysisPayload;
         let data: any;
         onProgress?.({ step: "vision", modelLabel: label, attempt: i + 1, isFallback });
-        if (step.type === "hybrid") {
+        if (step.type === "cloud_hybrid") {
+          const detector: RoutingStep = { ...step, type: step.providerId ? "byok" : "edge_function" };
+          const detect = async () => {
+            if (detector.type === "edge_function") {
+              if (!ctx.lovableEnabled) throw new Error("IA de l'application non activée.");
+              const { data, error } = await supabase.functions.invoke("analyze-meal", {
+                body: { ...ap, std_nutrients: NUTRIENTS_STD_LIST, detection_only: true },
+              });
+              if (error || data?.error) throw new Error(error?.message ?? data.error);
+              return data;
+            }
+            const p = detector.providerId ? ctx.providers.get(detector.providerId) : null;
+            if (!p || isLocalApiType(p.apiType)) throw new Error("Fournisseur cloud indisponible.");
+            return analyzeMealWithGemini({ ...ap, detectionOnly: true, providerOverride: {
+              providerId: p.id, name: p.name, apiType: p.apiType, baseUrl: p.baseUrl,
+              modelsEndpoint: p.modelsEndpoint, model: detector.model ?? ctx.selectedModel, apiKey: p.apiKey,
+            } });
+          };
+          data = await analyzeMealCloudHybrid({ ...ap, custom_nutrients: ap.custom_nutrients as any,
+            onStage: (evt) => onProgress?.({ step: evt.stage === "detection" ? "vision" : evt.stage === "done" ? "finalizing" : "nutrition", modelLabel: label, attempt: i + 1, isFallback }),
+          }, detect, labelForStep(ctx, detector));
+        } else if (step.type === "hybrid") {
           // Pipeline hybride : détection Laya (photo) ou parseur déterministe (texte),
           // puis résolution nutritionnelle locale et complétion par micro-LLM.
           data = await analyzeMealHybrid({
@@ -346,7 +388,8 @@ export async function executeAIFeatureWithFallback(
           if (!d || !Array.isArray(d.items)) throw new Error("Réponse vide/invalide");
           data = d;
         } else {
-          const p = ctx.providers.get(step.providerId!)!;
+          const p = step.providerId ? ctx.providers.get(step.providerId) : null;
+          if (!p) throw new Error("Fournisseur indisponible.");
           const override: ActiveProviderConfig = {
             providerId: p.id,
             name: p.name,
@@ -376,7 +419,8 @@ export async function executeAIFeatureWithFallback(
         text = d?.reply ?? "";
         if (d?.model) modelUsed = `${EDGE_LABEL} · ${d.model}`;
       } else {
-        const p = ctx.providers.get(step.providerId!)!;
+        const p = step.providerId ? ctx.providers.get(step.providerId) : null;
+        if (!p) throw new Error("Fournisseur indisponible.");
         const chatModel = step.model ?? ctx.selectedModel ?? fallbackModelFor(p.baseUrl, p.apiType);
         text = await callChatProvider(p, chatModel, cp.system, cp.userText);
         modelUsed = `${p.name} · ${chatModel}`;
@@ -470,7 +514,13 @@ export async function listAvailableStepsForUser(userId: string, feature: Feature
       pushByok(p.id, undefined);
     }
   });
-  return out;
+  return out.map((entry) => {
+    const step = applyCloudHybridSteps([entry.step], ctx.routing.cloud_hybrid, feature, (id) => {
+      const p = ctx.providers.get(id);
+      return !!p && !isLocalApiType(p.apiType);
+    })[0];
+    return { ...entry, step, label: labelForStep(ctx, step) };
+  });
 }
 
 export interface HealthCheckResult {
@@ -481,6 +531,7 @@ export interface HealthCheckResult {
 
 /** Vérifie la disponibilité d'un step (ping léger). */
 export async function checkStepHealth(userId: string, step: RoutingStep): Promise<HealthCheckResult> {
+  if (step.type === "cloud_hybrid") return checkStepHealth(userId, { ...step, type: step.providerId ? "byok" : "edge_function" });
   const start = Date.now();
   try {
     if (step.type === "edge_function") {
@@ -512,7 +563,7 @@ export async function checkStepHealth(userId: string, step: RoutingStep): Promis
     let url = "";
     const headers: Record<string, string> = {};
     if (p.apiType === "gemini") {
-      url = `${base}/v1beta/models?key=${encodeURIComponent(p.apiKey!)}`;
+      url = `${base}/v1beta/models?key=${encodeURIComponent(p.apiKey ?? "")}`;
     } else {
       url = `${base}${p.modelsEndpoint || "/models"}`;
       // Serveur perso : la clé (Bearer) est facultative.

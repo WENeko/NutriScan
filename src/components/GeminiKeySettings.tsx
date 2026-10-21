@@ -122,6 +122,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
   const [selectedModel, setSelectedModel] = useState<string>("");
   const [cards, setCards] = useState<Record<string, CardState>>({});
   const [config, setConfig] = useState<RoutingConfig>(emptyRoutingConfig());
+  const [savingConfig, setSavingConfig] = useState(false);
 
   const [draft, setDraft] = useState<AdminDraft | null>(null);
   const [savingDraft, setSavingDraft] = useState(false);
@@ -168,7 +169,7 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
       let changed = JSON.stringify(prunedModels) !== JSON.stringify(norm.models);
       for (const f of FEATURES) {
         const filtered = norm[f].filter((s) =>
-          s.type === "edge_function" ? true : !!s.providerId && validIds.has(s.providerId) && modelOk(s.providerId, s.model),
+          s.type === "edge_function" || s.type === "hybrid" || (s.type === "cloud_hybrid" && !s.providerId) ? true : !!s.providerId && validIds.has(s.providerId) && modelOk(s.providerId, s.model),
         );
         if (filtered.length !== norm[f].length) changed = true;
         cleaned[f] = filtered;
@@ -209,12 +210,19 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
 
   /** Persiste silencieusement la config (modèles + cascade + interrupteur). */
   async function persistConfig(next: RoutingConfig) {
+    if (savingConfig || loading) return;
+    const previous = config;
+    setSavingConfig(true);
     setConfig(next);
     const { error } = await supabase
       .from("profiles")
       .update({ routing_config: next as any })
       .eq("user_id", userId);
-    if (error) toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+    setSavingConfig(false);
+    if (error) {
+      setConfig(previous);
+      toast({ title: "Sauvegarde KO", description: error.message, variant: "destructive" });
+    }
     else void loadAiAccess(userId);
   }
 
@@ -616,7 +624,13 @@ const GeminiKeySettings: React.FC<Props> = ({ userId }) => {
             Analyse d'abord sur l'appareil (base locale + modèle photo), puis bascule sur vos autres modèles si besoin.
           </div>
         </div>
-        <Switch checked={!!config.hybrid} onCheckedChange={(v) => void persistConfig({ ...config, hybrid: v })} />
+        <Switch aria-label="Mode hybride local" disabled={loading || savingConfig} checked={!!config.hybrid} onCheckedChange={(v) => void persistConfig({ ...config, hybrid: v })} />
+      </div>
+
+      <div className="flex items-center justify-between bg-accent rounded-xl p-3">
+        <Label htmlFor="cloud-hybrid" className="pr-3 text-sm font-semibold">Mode hybride cloud</Label>
+        <Switch id="cloud-hybrid" aria-label="Mode hybride cloud" disabled={loading || savingConfig} checked={config.cloud_hybrid}
+          onCheckedChange={(v) => void persistConfig({ ...config, cloud_hybrid: v })} />
       </div>
 
       {/* 1. Interrupteur « Personnaliser les modèles » (avant les cartes) */}
