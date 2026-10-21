@@ -1,9 +1,14 @@
 import { describe, it, expect } from "vitest";
-import { mergeMicroFill } from "./microCompletion";
+import { mergeMicroFill, missingMicroKeys } from "./microCompletion";
 
 const keys = ["calcium_mg", "iron_mg", "vitamin_c_mg", "calories"];
 
 describe("mergeMicroFill", () => {
+  it("préserve une valeur zéro connue et exclut les macros même dans une liste custom", () => {
+    const out = mergeMicroFill({ estimated_weight_g: 100, iron_mg: 0 }, { values: { iron_mg: 2 }, sources: { iron_mg: "ai" } }, keys);
+    expect(out.iron_mg).toBe(0);
+    expect(missingMicroKeys({}, [{ key: "calories", label: "Calories", unit: "kcal", category: "custom" }])).not.toContain("calories");
+  });
   it("n'écrase jamais une valeur déjà résolue (CIQUAL)", () => {
     const out = mergeMicroFill({ estimated_weight_g: 100, calcium_mg: 120 }, { values: { calcium_mg: 999 }, sources: { calcium_mg: "ai" } }, keys);
     expect(out.calcium_mg).toBe(120);

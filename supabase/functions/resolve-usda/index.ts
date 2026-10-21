@@ -9,6 +9,7 @@ import { z } from "npm:zod@3";
 
 const Body = z.object({
   queries: z.array(z.string().min(1).max(120)).min(1).max(10),
+  nutrients: z.array(z.object({ key: z.string().min(1).max(60), label: z.string().max(80).optional(), unit: z.string().min(1).max(10) })).max(80).optional(),
 });
 
 const json = (b: unknown, status = 200) =>
@@ -71,16 +72,45 @@ Deno.serve(async (req) => {
   try {
     const auth = req.headers.get("Authorization") ?? "";
     if (!auth.startsWith("Bearer ")) return json({ error: "Non autorisé" }, 401);
-    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } } });
+    const url = Deno.env.get("SUPABASE_URL");
+    const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!url || !anon) throw new Error("Configuration indisponible");
+    const sb = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data: claims, error: authErr } = await sb.auth.getClaims(auth.slice(7));
     if (authErr || !claims?.claims?.sub) return json({ error: "Non autorisé" }, 401);
 
-    const parsed = Body.safeParse(await req.json());
+    const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
 
     const usdaKey = Deno.env.get("FDC_API_KEY") || "DEMO_KEY";
+    // USDA recherche en anglais ; cette passe traduit uniquement les noms,
+    // sans jamais générer de valeurs nutritionnelles.
+    let english = parsed.data.queries;
+    const apiKey = Deno.env.get("LOVABLE_API_KEY");
+    if (apiKey) {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), 15000);
+      try {
+        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST", signal: controller.signal,
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "google/gemini-2.5-flash", response_format: { type: "json_object" },
+            messages: [{ role: "system", content: "Translate food names into precise short English USDA search terms, preserving raw/cooked preparation. Return only {\"names\":[...]} in the same order. No nutritional values." },
+              { role: "user", content: JSON.stringify({ names: english }) }] }),
+        });
+        if (response.ok) {
+          const content = (await response.json())?.choices?.[0]?.message?.content;
+          const translated = z.object({ names: z.array(z.string().min(1).max(120)) }).safeParse(JSON.parse(content));
+          if (translated.success && translated.data.names.length === english.length) english = translated.data.names;
+        }
+      } catch { /* Repli sur les termes originaux. */ } finally { clearTimeout(timer); }
+    }
+    const allowed = new Set(["calories", "proteins", "carbs", "fats", ...(parsed.data.nutrients?.map((n) => n.key) ?? Object.values(USDA_MAP).map((n) => n.key)), "omega3_mg"]);
     const results = await Promise.all(
-      parsed.data.queries.map(async (q) => ({ query: q, per100: await usdaPer100(q, usdaKey) })),
+      parsed.data.queries.map(async (q, index) => {
+        const per100 = await usdaPer100(english[index], usdaKey);
+        return { query: q, per100: per100 ? Object.fromEntries(Object.entries(per100).filter(([k]) => allowed.has(k))) : null };
+      }),
     );
     return json({ results });
   } catch (e) {

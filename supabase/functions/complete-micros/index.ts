@@ -125,23 +125,27 @@ Deno.serve(async (req) => {
   try {
     const auth = req.headers.get("Authorization") ?? "";
     if (!auth.startsWith("Bearer ")) return json({ error: "Non autorisé" }, 401);
-    const sb = createClient(Deno.env.get("SUPABASE_URL")!, Deno.env.get("SUPABASE_ANON_KEY")!, { global: { headers: { Authorization: auth } } });
+    const url = Deno.env.get("SUPABASE_URL");
+    const anon = Deno.env.get("SUPABASE_ANON_KEY");
+    if (!url || !anon) throw new Error("Configuration indisponible");
+    const sb = createClient(url, anon, { global: { headers: { Authorization: auth } } });
     const { data: claims, error: authErr } = await sb.auth.getClaims(auth.slice(7));
     if (authErr || !claims?.claims?.sub) return json({ error: "Non autorisé" }, 401);
 
-    const parsed = Body.safeParse(await req.json());
+    const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
     const { items, nutrients, allow_ai } = parsed.data;
     const apiKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
     const usdaKey = Deno.env.get("FDC_API_KEY") || "DEMO_KEY";
     const std = new Set(nutrients.filter((n) => !n.custom).map((n) => n.key));
+    const allowed = new Set(nutrients.map((n) => n.key));
 
     const english = apiKey ? await translate(apiKey, items.map((i) => i.name)) : items.map((i) => i.name);
 
     const results = await Promise.all(items.map(async (it, i) => {
       const values: Record<string, number> = {};
       const sources: Record<string, string> = {};
-      let remaining = it.missing.filter((k) => !["calories", "proteins", "carbs", "fats"].includes(k));
+      let remaining = [...new Set(it.missing)].filter((k) => allowed.has(k) && !["calories", "proteins", "carbs", "fats"].includes(k));
       const apply = (per100: Record<string, number> | null, src: string) => {
         if (!per100) return;
         for (const k of remaining) {
@@ -162,7 +166,7 @@ Deno.serve(async (req) => {
     if (allow_ai && apiKey && todo.length) {
       const defs = new Map(nutrients.map((n) => [n.key, n]));
       const ask = todo.map((r) => ({
-        index: r.index, food: r.name, grams: items.find((x) => x.index === r.index)!.weight_g,
+        index: r.index, food: r.name, grams: items.find((x) => x.index === r.index)?.weight_g,
         keys: r.remaining.map((k) => `${k} (${defs.get(k)?.unit ?? ""}, ${defs.get(k)?.label ?? k})`),
       }));
       const raw = await aiChat(apiKey,
