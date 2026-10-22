@@ -1,8 +1,9 @@
 # Roadmap
 
-- [ ] Terminer le switch hybride cloud indépendant et réutiliser la cascade cloud existante
-- [ ] Ajouter USDA après bibliothèque / CIQUAL / OFF et conserver les listes de micros dynamiques
-- [ ] Déployer la détection cloud dédiée et vérifier switch, résolution et complétion
+- [x] Terminer le switch hybride cloud indépendant et réutiliser la cascade cloud existante
+- [x] Ajouter USDA après bibliothèque / CIQUAL / OFF et conserver les listes de micros dynamiques
+- [x] Déployer analyze-meal, resolve-usda et complete-micros ; tests de routage/résolution/complétion réussis
+- [ ] Vérifier la persistance du switch et une analyse cloud réelle dans l’interface — bloqué : aucune session utilisateur disponible ; connexion dans l’aperçu nécessaire
 
 - [x] Finaliser les tests FoodSeg103 et vérifier le modèle réel sur la photo du plateau (détections incorrectes constatées)
 - [x] Intégrer le décodeur ONNX YOLO26l FoodSeg103 et ses masques dans le processus :laya
