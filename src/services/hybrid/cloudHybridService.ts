@@ -81,7 +81,7 @@ export async function analyzeMealCloudHybrid(
   const cloudItems: any[] = Array.isArray(cloud?.items) ? cloud.items : [];
   const cloudConfidence = Number(cloud?.confidence_score);
   const queries = cloudItems
-    .map((it) => cloudItemToQuery(it, Number.isFinite(cloudConfidence) ? cloudConfidence / 100 : undefined))
+    .map((it) => cloudItemToQuery(it, Number.isFinite(cloudConfidence) ? (cloudConfidence <= 1 ? cloudConfidence : cloudConfidence / 100) : undefined))
     .filter((q): q is FoodQuery => q !== null);
   const detectionMs = Date.now() - detectionStart;
 
