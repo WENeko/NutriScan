@@ -90,8 +90,8 @@ function scalePer100(
   const ratio = weightG / 100;
   const out: Record<string, number> = {};
   for (const k of keys) {
-    const v = Number(per100[k]);
-    if (Number.isFinite(v) && v !== 0) out[k] = round1(v * ratio);
+    const v = per100[k];
+    if (typeof v === "number" && Number.isFinite(v) && v >= 0) out[k] = round1(v * ratio);
   }
   return out;
 }
@@ -129,17 +129,18 @@ function per100FromLibraryRow(row: any, customNutrients: CustomNutrientDef[]): R
   };
   // Micros standards : nutrients_std en priorité, colonnes héritées en repli.
   for (const [field, key] of Object.entries(PER100_FIELD_TO_STDKEY)) {
-    const v = Number(std[key] ?? row?.[field]);
-    if (Number.isFinite(v) && v !== 0) per100[key] = v;
+    const raw = std[key] ?? row?.[field];
+    const v = Number(raw);
+    if (raw != null && Number.isFinite(v) && v >= 0) per100[key] = v;
   }
   for (const key of STD_KEYS) {
     const v = Number(std[key]);
-    if (Number.isFinite(v) && v !== 0 && per100[key] == null) per100[key] = v;
+    if (std[key] != null && Number.isFinite(v) && v >= 0 && per100[key] == null) per100[key] = v;
   }
   // Micros personnalisés déjà renseignés dans la bibliothèque.
   for (const def of customNutrients) {
     const v = Number(custom[def.key]);
-    if (Number.isFinite(v) && v !== 0) per100[def.key] = v;
+    if (custom[def.key] != null && Number.isFinite(v) && v >= 0) per100[def.key] = v;
   }
   return per100;
 }
@@ -193,7 +194,7 @@ async function searchOpenFoodFacts(name: string): Promise<Record<string, number>
     if (!per100.calories && !per100.proteins) return null;
     for (const { off, key, factor } of OFF_MAP) {
       const v = Number(nutriments[off]);
-      if (Number.isFinite(v) && v !== 0) per100[key] = v * factor;
+      if (nutriments[off] != null && Number.isFinite(v) && v >= 0) per100[key] = v * factor;
     }
     return per100;
   } catch {

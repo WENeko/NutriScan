@@ -6,6 +6,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
+import { translate } from "../_shared/microAi.ts";
 
 const Body = z.object({
   queries: z.array(z.string().min(1).max(120)).min(1).max(10),
@@ -87,24 +88,7 @@ Deno.serve(async (req) => {
     // sans jamais générer de valeurs nutritionnelles.
     let english = parsed.data.queries;
     const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (apiKey) {
-      const controller = new AbortController();
-      const timer = setTimeout(() => controller.abort(), 15000);
-      try {
-        const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST", signal: controller.signal,
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-2.5-flash", response_format: { type: "json_object" },
-            messages: [{ role: "system", content: "Translate food names into precise short English USDA search terms, preserving raw/cooked preparation. Return only {\"names\":[...]} in the same order. No nutritional values." },
-              { role: "user", content: JSON.stringify({ names: english }) }] }),
-        });
-        if (response.ok) {
-          const content = (await response.json())?.choices?.[0]?.message?.content;
-          const translated = z.object({ names: z.array(z.string().min(1).max(120)) }).safeParse(JSON.parse(content));
-          if (translated.success && translated.data.names.length === english.length) english = translated.data.names;
-        }
-      } catch { /* Repli sur les termes originaux. */ } finally { clearTimeout(timer); }
-    }
+    if (apiKey) english = await translate(apiKey, parsed.data.queries);
     const allowed = new Set(["calories", "proteins", "carbs", "fats", ...(parsed.data.nutrients?.map((n) => n.key) ?? Object.values(USDA_MAP).map((n) => n.key)), "omega3_mg"]);
     const results = await Promise.all(
       parsed.data.queries.map(async (q, index) => {

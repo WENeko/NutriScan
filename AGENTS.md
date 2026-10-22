@@ -1,6 +1,7 @@
 # Project rules
 
 - Cloud hybrid wraps each configured cloud analysis step without changing its order or invoking local models implicitly; detection uses shared perception rules and only the five portion fields, then library → reference → OFF → USDA and missing-only micro completion supply nutrition.
+- USDA resolution and micro completion share translation helpers under edge-function `_shared`; reuse the existing translation model so search names stay consistent without a second AI integration.
 
 - Decode raw FoodSeg103 YOLO segmentation only in the isolated ONNX service, using letterboxed RGB/255 inputs and class-wise NMS plus prototype masks; classifier preprocessing would corrupt its detections.
 - FoodSeg class ordering comes from the supplied export metadata; never use Food101/ISIA fallback for segmentation, because indexed labels would silently name the wrong foods.

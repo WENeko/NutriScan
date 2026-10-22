@@ -28,4 +28,10 @@ describe("USDA resolver stage", () => {
     expect(out.source).toBe("unresolved");
     expect(invoke).not.toHaveBeenCalled();
   });
+  it("keeps known zero micros resolved so completion cannot overwrite them", async () => {
+    const out = await resolveFoodItem({ name: "alimentxyz", weightG: 200 }, { customFoods: [{ name: "alimentxyz", calories_per_100g: 75, nutrients_std: { iron_mg: 0 }, nutrients_custom: { choline_mg: 0 } }], customNutrients: [{ key: "choline_mg", label: "Choline", unit: "mg", category: "custom" }] });
+    expect(out.iron_mg).toBe(0);
+    expect(out.choline_mg).toBe(0);
+    expect(out.micro_sources.iron_mg).toBe("library");
+  });
 });
