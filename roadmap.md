@@ -1,5 +1,8 @@
 # Roadmap
 
+- [ ] Remplacer l’appariement hybride cloud par une sélection sémantique de fiches existantes, sans modifier noms/portions ni le cloud classique
+- [ ] Tester et déployer la sélection et la complétion sans chiffres générés
+
 - [x] Terminer le switch hybride cloud indépendant et réutiliser la cascade cloud existante
 - [x] Ajouter USDA après bibliothèque / CIQUAL / OFF et conserver les listes de micros dynamiques
 - [x] Déployer analyze-meal, resolve-usda et complete-micros ; tests de routage/résolution/complétion réussis
