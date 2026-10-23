@@ -64,7 +64,7 @@ export function missingMicroKeys(item: Record<string, any>, customNutrients: Cus
 export async function completeMissingMicros(
   items: Record<string, any>[],
   customNutrients: CustomNutrientDef[] = [],
-  opts: { allowAi?: boolean } = {},
+  opts: { allowAi?: boolean; semanticOnly?: boolean } = {},
 ): Promise<Record<string, any>[]> {
   const requests = items.map((it, index) => ({
     index,
@@ -81,6 +81,7 @@ export async function completeMissingMicros(
       body: {
         items: requests.slice(offset, offset + 20),
         allow_ai: opts.allowAi ?? isMicroAiPassEnabled(),
+        ...(opts.semanticOnly ? { semantic_only: true } : {}),
         nutrients: [
           ...NUTRIENTS_STD_LIST.map((n) => ({ key: n.key, label: n.label, unit: n.unit })),
           ...customNutrients.map((c) => ({ key: c.key, label: c.label ?? c.key, unit: c.unit, custom: true })),
