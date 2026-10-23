@@ -49,7 +49,7 @@ export function parseObj(s: string): any {
 export async function translate(apiKey: string, names: string[], strict = false): Promise<string[]> {
   const raw = await aiChat(apiKey,
     "Translate food names to short generic English USDA search terms (e.g. 'poulet rôti' -> 'chicken, roasted'). JSON only.",
-    `{"names":${JSON.stringify(names)}} -> {"en":["..."]} same order. Preserve recipes and preparation; do not substitute ingredients.`, strict);
+    `{"names":${JSON.stringify(names)}} -> {"en":["..."]} same order.` + (strict ? " Preserve recipes and preparation; do not substitute ingredients." : ""), strict);
   const en = parseObj(raw)?.en;
   return Array.isArray(en) && en.length === names.length ? en.map(String) : names;
 }
