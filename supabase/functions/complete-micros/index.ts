@@ -5,6 +5,7 @@ import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { fetchJson, aiChat, parseObj, translate } from "../_shared/microAi.ts";
+import { chooseRecords, usdaRecords, selectedCnfRecords } from "../_shared/compositionRecords.ts";
 
 const Body = z.object({
   items: z.array(z.object({
@@ -17,6 +18,7 @@ const Body = z.object({
     key: z.string().max(60), label: z.string().max(80), unit: z.string().max(10), custom: z.boolean().optional(),
   })).max(80),
   allow_ai: z.boolean().optional(),
+  semantic_only: z.boolean().optional(),
 });
 
 const json = (b: unknown, status = 200) =>
@@ -99,13 +101,33 @@ Deno.serve(async (req) => {
 
     const parsed = Body.safeParse(await req.json().catch(() => null));
     if (!parsed.success) return json({ error: parsed.error.flatten().fieldErrors }, 400);
-    const { items, nutrients, allow_ai } = parsed.data;
+    const { items, nutrients, allow_ai, semantic_only } = parsed.data;
     const apiKey = Deno.env.get("LOVABLE_API_KEY") ?? "";
     const usdaKey = Deno.env.get("FDC_API_KEY") || "DEMO_KEY";
     const std = new Set(nutrients.filter((n) => !n.custom).map((n) => n.key));
     const allowed = new Set(nutrients.map((n) => n.key));
 
     const english = apiKey ? await translate(apiKey, items.map((i) => i.name)) : items.map((i) => i.name);
+
+    if (semantic_only) {
+      // Cloud hybrid never consumes generated micro values or first search hits.
+      const requests = await Promise.all(items.map(async (it, i) => ({ ...it, records: await usdaRecords(english[i], usdaKey) })));
+      const chosen = await chooseRecords(apiKey, requests);
+      const stillMissing = items.filter((it) => it.missing.some((k) => std.has(k) && chosen.get(it.index)?.per100[k] == null));
+      const cnf = await selectedCnfRecords(apiKey, stillMissing.map((it) => ({ index: it.index, name: it.name, english: english[items.indexOf(it)] })));
+      return json({ items: items.map((it) => {
+        const values: Record<string, number> = {}, sources: Record<string, string> = {};
+        for (const key of it.missing) {
+          if (!allowed.has(key) || !std.has(key) || ["calories", "proteins", "carbs", "fats"].includes(key)) continue;
+          const record = chosen.get(it.index)?.per100[key] != null ? chosen.get(it.index) : cnf.get(it.index);
+          const value = record?.per100[key];
+          if (value == null) continue;
+          values[key] = Math.round(value * it.weight_g / 100 * 10) / 10;
+          sources[key] = record?.source ?? "usda";
+        }
+        return { index: it.index, values, sources };
+      }) });
+    }
 
     const results = await Promise.all(items.map(async (it, i) => {
       const values: Record<string, number> = {};

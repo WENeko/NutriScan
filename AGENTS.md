@@ -2,6 +2,8 @@
 
 - Cloud hybrid wraps each configured cloud analysis step without changing its order or invoking local models implicitly; detection uses shared perception rules and only the five portion fields, then library → reference → OFF → USDA and missing-only micro completion supply nutrition.
 - USDA resolution and micro completion share translation helpers under edge-function `_shared`; reuse the existing translation model so search names stay consistent without a second AI integration.
+- Cloud hybrid uses its own semantic record-selection path: AI sees candidate IDs/names only, numbers come from existing records, detected names/portions stay immutable, and uncertain matches remain unresolved; baseline cloud and local matching are unchanged.
+- Cloud-hybrid micro completion uses semantically selected USDA/CNF records only and leaves unavailable values empty; never enable generated micro estimates on this path.
 
 - Decode raw FoodSeg103 YOLO segmentation only in the isolated ONNX service, using letterboxed RGB/255 inputs and class-wise NMS plus prototype masks; classifier preprocessing would corrupt its detections.
 - FoodSeg class ordering comes from the supplied export metadata; never use Food101/ISIA fallback for segmentation, because indexed labels would silently name the wrong foods.
