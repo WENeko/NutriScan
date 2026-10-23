@@ -38,6 +38,6 @@ export async function selectFoodCandidates(apiKey: string, requests: SelectionRe
     "Bread unspecified is NOT necessarily wholemeal bread. No substitute ingredients or approximate recipes. " +
     "If uncertain or no equivalent, id=null and equivalent=false. Never generate nutrients, weights or rename foods. " +
     'JSON only: {"matches":[{"index":0,"id":null,"equivalent":false}]}',
-    JSON.stringify(active));
+    JSON.stringify(active), true);
   return validatedSelections(parseObj(raw), active);
 }

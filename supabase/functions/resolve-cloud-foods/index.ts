@@ -1,7 +1,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
-import { translate } from "../_shared/microAi.ts";
+import { translate, FoodSelectionError } from "../_shared/microAi.ts";
 import { selectFoodCandidates } from "../_shared/foodSelection.ts";
 import { chooseRecords, hasCompositionMacros, offRecords, usdaRecords, type CompositionRecord } from "../_shared/compositionRecords.ts";
 
@@ -65,6 +65,6 @@ Deno.serve(async (req) => {
       return record ? { index: it.index, ...record, per100: Object.fromEntries(Object.entries(record.per100).filter(([key]) => allowed.has(key))) } : { index: it.index, per100: null, source: "unresolved" };
     }) });
   } catch (error) {
-    return json({ error: error instanceof Error ? error.message : "Résolution indisponible" }, 500);
+    return json({ error: error instanceof Error ? error.message : "Résolution indisponible" }, error instanceof FoodSelectionError ? error.status : 500);
   }
 });

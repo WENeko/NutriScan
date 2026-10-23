@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { analyzeMealCloudHybrid, cloudItemToQuery } from "./cloudHybridService";
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn(async (name: string) => name === "resolve-cloud-foods"
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn(async (name: string, _options: any) => name === "resolve-cloud-foods"
   ? { data: { results: [{ index: 0, id: "library:0", name: "Poulet rôti", source: "library", per100: { calories: 165, proteins: 31, carbs: 0, fats: 3.6, iron_mg: 1, creatine_mg: 400 } }] }, error: null }
   : { data: { items: [] }, error: null }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke } } }));
@@ -96,7 +96,9 @@ describe("analyzeMealCloudHybrid", () => {
     // Totaux recalculés depuis les items résolus.
     expect(res.total_summary.calories).toBe(330);
     expect(res.pipeline.detector).toBe("Test Cloud");
-    const body = invoke.mock.calls.find(([name]) => name === "complete-micros")?.[1].body;
+    const call = invoke.mock.calls.find(([name]) => name === "complete-micros");
+    expect(call).toBeDefined();
+    const body = call?.[1]?.body;
     expect(body.nutrients).toEqual([
       ...NUTRIENTS_STD_LIST.map((n) => ({ key: n.key, label: n.label, unit: n.unit })),
       { key: "creatine_mg", label: "Créatine", unit: "mg", custom: true },

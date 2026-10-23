@@ -4,7 +4,7 @@
 import { corsHeaders } from "npm:@supabase/supabase-js@2/cors";
 import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
-import { fetchJson, aiChat, parseObj, translate } from "../_shared/microAi.ts";
+import { fetchJson, aiChat, parseObj, translate, FoodSelectionError } from "../_shared/microAi.ts";
 import { chooseRecords, usdaRecords, selectedCnfRecords } from "../_shared/compositionRecords.ts";
 
 const Body = z.object({
@@ -175,6 +175,6 @@ Deno.serve(async (req) => {
 
     return json({ items: results.map(({ index, values, sources }) => ({ index, values, sources })) });
   } catch (e) {
-    return json({ error: e instanceof Error ? e.message : "Erreur inconnue" }, 500);
+    return json({ error: e instanceof Error ? e.message : "Erreur inconnue" }, e instanceof FoodSelectionError ? e.status : 500);
   }
 });
