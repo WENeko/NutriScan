@@ -39,10 +39,11 @@ export interface MicroFill { values: Record<string, number>; sources: Record<str
  * Fusionne des valeurs proposées dans un aliment : uniquement les clés manquantes,
  * jamais les macros, rejet des valeurs aberrantes (rapportées à 100 g).
  */
-export function mergeMicroFill(item: Record<string, any>, fill: MicroFill, allowedKeys: string[]): Record<string, any> {
+export function mergeMicroFill(item: Record<string, any>, fill: MicroFill, allowedKeys: string[], recordsOnly = false): Record<string, any> {
   const out = { ...item, micro_sources: { ...(item.micro_sources ?? {}) } };
   const weight = Number(item.estimated_weight_g) || 100;
   for (const [key, raw] of Object.entries(fill.values ?? {})) {
+    if (recordsOnly && !["usda", "cnf"].includes(fill.sources?.[key])) continue;
     if (PROTECTED.has(key) || !allowedKeys.includes(key)) continue;
     if (item[key] != null) continue;
     const v = Number(raw);
@@ -96,7 +97,7 @@ export async function completeMissingMicros(
     for (const f of fills) {
       const req = requests.find((r) => r.index === f.index);
       if (!req) continue;
-      out[f.index] = mergeMicroFill(out[f.index], f, req.missing);
+      out[f.index] = mergeMicroFill(out[f.index], f, req.missing, opts.semanticOnly);
     }
     return out;
   } catch (e) {

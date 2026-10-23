@@ -107,7 +107,7 @@ Deno.serve(async (req) => {
     const std = new Set(nutrients.filter((n) => !n.custom).map((n) => n.key));
     const allowed = new Set(nutrients.map((n) => n.key));
 
-    const english = apiKey ? await translate(apiKey, items.map((i) => i.name)) : items.map((i) => i.name);
+    const english = apiKey ? await translate(apiKey, items.map((i) => i.name), !!semantic_only) : items.map((i) => i.name);
 
     if (semantic_only) {
       // Cloud hybrid never consumes generated micro values or first search hits.

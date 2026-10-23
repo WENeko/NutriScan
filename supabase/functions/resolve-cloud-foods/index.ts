@@ -55,7 +55,7 @@ Deno.serve(async (req) => {
     }
     if (pending().length) {
       const unresolved = pending();
-      const english = await translate(apiKey, unresolved.map((it) => it.name));
+      const english = await translate(apiKey, unresolved.map((it) => it.name), true);
       const requests = await Promise.all(unresolved.map(async (it, i) => ({ ...it, records: (await usdaRecords(english[i] ?? it.name, Deno.env.get("FDC_API_KEY") || "DEMO_KEY")).filter(hasCompositionMacros) })));
       for (const [index, record] of await chooseRecords(apiKey, requests)) selected.set(index, record);
     }

@@ -5,10 +5,10 @@
  *
  *   1. Détection cloud  — noms, grammes et unités (le contrat d'analyse
  *      habituel est consommé, ses nutriments sont ignorés).
- *   2. Résolution       — bibliothèque perso → table CIQUAL embarquée →
- *      Open Food Facts → USDA (nutritionResolver).
- *   3. Complétion micros— USDA → CNF → passe IA ciblée sur les seules cases
- *      vides (microCompletion), listes standard ET personnalisées dynamiques.
+ *   2. Résolution       — sélection sémantique de fiches existantes : bibliothèque
+ *      perso → référence embarquée → Open Food Facts → USDA. Titres inchangés.
+ *   3. Complétion micros— fiches USDA → CNF sélectionnées sémantiquement, seules
+ *      cases vides, listes standard ET personnalisées dynamiques. Aucun chiffre IA.
  *
  * La sortie respecte le contrat de `analyzeMealWithGemini` / `analyzeMealHybrid`
  * (meal_name, confidence_score, items[], total_summary) pour être consommée
