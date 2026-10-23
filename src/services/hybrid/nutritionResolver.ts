@@ -61,6 +61,8 @@ export interface ResolveOptions {
   allowMicroLlm?: boolean;
   /** Modèle local à utiliser pour l'étage 3. */
   microLlmModel?: string;
+  /** Explicit cloud-only record; null rejects matching, undefined keeps legacy behavior. */
+  cloudRecord?: { per100: Record<string, number>; source: ResolutionSource; id: string; name: string } | null;
 }
 
 export interface FoodQuery {
@@ -118,7 +120,7 @@ function matchLibraryFood(name: string, customFoods: any[] = []): any | null {
   return best?.row ?? null;
 }
 
-function per100FromLibraryRow(row: any, customNutrients: CustomNutrientDef[]): Record<string, number> {
+export function per100FromLibraryRow(row: any, customNutrients: CustomNutrientDef[]): Record<string, number> {
   const std = (row?.nutrients_std || {}) as Record<string, number>;
   const custom = (row?.nutrients_custom || {}) as Record<string, number>;
   const per100: Record<string, number> = {
@@ -260,7 +262,8 @@ async function completeWithMicroLlm(
 export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {}): Promise<ResolvedFoodItem> {
   const customNutrients = (opts.customNutrients ?? []).filter((c) => c?.key && c?.unit);
   const allKeys = [...STD_KEYS, ...customNutrients.map((c) => c.key)];
-  const weightG = Math.max(1, Math.round(query.weightG || 100));
+  const cloudOnly = opts.cloudRecord !== undefined;
+  const weightG = cloudOnly ? query.weightG : Math.max(1, Math.round(query.weightG || 100));
 
   let per100: Record<string, number> | null = null;
   let source: ResolutionSource = "unresolved";
@@ -268,7 +271,12 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
   let baseConfidence = query.detectionConfidence ?? 1;
 
   // 1) Bibliothèque perso
-  const libRow = matchLibraryFood(query.name, opts.customFoods);
+  if (opts.cloudRecord) {
+    per100 = opts.cloudRecord.per100;
+    source = opts.cloudRecord.source;
+    baseConfidence = Math.min(baseConfidence, 0.85);
+  }
+  const libRow = cloudOnly ? null : matchLibraryFood(query.name, opts.customFoods);
   if (libRow) {
     per100 = per100FromLibraryRow(libRow, customNutrients);
     source = "library";
@@ -276,7 +284,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
   }
 
   // 2) Table de référence embarquée
-  if (!per100) {
+  if (!per100 && !cloudOnly) {
     const match = findFoodReference(query.name);
     if (match) {
       let food: FoodReference = match.food;
@@ -292,7 +300,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
   }
 
   // 3) Open Food Facts
-  if (!per100 && opts.allowNetwork !== false) {
+  if (!per100 && !cloudOnly && opts.allowNetwork !== false) {
     const off = await searchOpenFoodFacts(query.name);
     if (off) {
       per100 = off;
@@ -302,7 +310,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
   }
 
   // USDA n'intervient qu'après échec des bases précédentes.
-  if (!per100 && opts.allowNetwork !== false) {
+  if (!per100 && !cloudOnly && opts.allowNetwork !== false) {
     per100 = await searchUsda(query.name, customNutrients);
     if (per100) {
       source = "usda";
@@ -312,6 +320,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
 
   const item: ResolvedFoodItem = {
     name: displayName,
+    ...(opts.cloudRecord ? { nutrition_reference: { id: opts.cloudRecord.id, name: opts.cloudRecord.name, source } } : {}),
     estimated_weight_g: weightG,
     calories: 0,
     proteins: 0,
@@ -324,7 +333,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
     segmentation: query.segmentation,
     micro_sources: per100 ? Object.fromEntries(allKeys.filter((k) => per100?.[k] != null).map((k) => [k, source])) : {},
   };
-  if (query.unitCount) {
+  if (cloudOnly || query.unitCount) {
     item.unit_count = query.unitCount;
     item.unit_weight_g = query.unitWeightG;
     item.unit_label = query.unitLabel;
@@ -342,7 +351,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
   }
 
   // 4) Micro-LLM local : uniquement pour les trous
-  if (opts.allowMicroLlm) {
+  if (opts.allowMicroLlm && !cloudOnly) {
     const missing: { key: string; label: string; unit: string }[] = [];
     if (!per100) {
       missing.push(

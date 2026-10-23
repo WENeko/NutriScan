@@ -5,10 +5,10 @@
  *
  *   1. Détection cloud  — noms, grammes et unités (le contrat d'analyse
  *      habituel est consommé, ses nutriments sont ignorés).
- *   2. Résolution       — bibliothèque perso → table CIQUAL embarquée →
- *      Open Food Facts → USDA (nutritionResolver).
- *   3. Complétion micros— USDA → CNF → passe IA ciblée sur les seules cases
- *      vides (microCompletion), listes standard ET personnalisées dynamiques.
+ *   2. Résolution       — sélection sémantique de fiches existantes : bibliothèque
+ *      perso → référence embarquée → Open Food Facts → USDA. Titres inchangés.
+ *   3. Complétion micros— fiches USDA → CNF sélectionnées sémantiquement, seules
+ *      cases vides, listes standard ET personnalisées dynamiques. Aucun chiffre IA.
  *
  * La sortie respecte le contrat de `analyzeMealWithGemini` / `analyzeMealHybrid`
  * (meal_name, confidence_score, items[], total_summary) pour être consommée
@@ -18,7 +18,8 @@ import { appLogger } from "@/services/appLogger";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { completeMissingMicros } from "./microCompletion";
-import { resolveFoodItems, type FoodQuery, type ResolutionSource, type ResolvedFoodItem } from "./nutritionResolver";
+import { resolveCloudFoodItems } from "./cloudSemanticResolver";
+import { type FoodQuery, type ResolutionSource, type ResolvedFoodItem } from "./nutritionResolver";
 import { buildMealName, sumTotals, type HybridPipelineMetrics, type HybridProgressEvent } from "@/services/hybridAnalysisService";
 
 export const CLOUD_HYBRID_LABEL = "Hybride cloud (vision + bases officielles)";
@@ -92,7 +93,7 @@ export async function analyzeMealCloudHybrid(
 
   // ── Étape 2 : résolution déterministe (jamais les chiffres du modèle) ─────
   const resolutionStart = Date.now();
-  const resolved = await resolveFoodItems(queries, {
+  const resolved = await resolveCloudFoodItems(queries, {
     customFoods: input.custom_foods,
     customNutrients,
     fromImage: mode === "photo",
@@ -104,7 +105,7 @@ export async function analyzeMealCloudHybrid(
     throw new Error("Données nutritionnelles introuvables pour certains aliments ; essayez un nom plus précis ou ajoutez-les à la bibliothèque.");
   }
   emit("completion", resolved.length);
-  const items = (await completeMissingMicros(resolved, customNutrients)) as ResolvedFoodItem[];
+  const items = (await completeMissingMicros(resolved, customNutrients, { allowAi: false, semanticOnly: true })) as ResolvedFoodItem[];
   const resolutionMs = Date.now() - resolutionStart;
 
   if (items.length === 0 || items.every((item) => item.source === "unresolved")) {
