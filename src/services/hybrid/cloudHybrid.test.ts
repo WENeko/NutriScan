@@ -1,6 +1,8 @@
 import { describe, expect, it, vi } from "vitest";
 import { analyzeMealCloudHybrid, cloudItemToQuery } from "./cloudHybridService";
-const { invoke } = vi.hoisted(() => ({ invoke: vi.fn().mockResolvedValue({ data: { items: [] }, error: null }) }));
+const { invoke } = vi.hoisted(() => ({ invoke: vi.fn(async (name: string) => name === "resolve-cloud-foods"
+  ? { data: { results: [{ index: 0, id: "library:0", name: "Poulet rôti", source: "library", per100: { calories: 165, proteins: 31, carbs: 0, fats: 3.6, iron_mg: 1, creatine_mg: 400 } }] }, error: null }
+  : { data: { items: [] }, error: null }) }));
 vi.mock("@/integrations/supabase/client", () => ({ supabase: { functions: { invoke } } }));
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 
@@ -80,6 +82,8 @@ describe("analyzeMealCloudHybrid", () => {
     expect(item.calories).toBe(330);
     expect(item.proteins).toBe(62);
     expect(item.source).toBe("library");
+    expect(item.name).toBe("poulet rôti");
+    expect(item.food_name).toBe("poulet rôti");
     // Portions conservées.
     expect(item.estimated_weight_g).toBe(200);
     expect(item.unit_count).toBe(2);
@@ -99,6 +103,8 @@ describe("analyzeMealCloudHybrid", () => {
     ]);
     expect(body.items[0].missing).not.toContain("iron_mg");
     expect(body.items[0].missing).not.toContain("creatine_mg");
+    expect(body.allow_ai).toBe(false);
+    expect(body.semantic_only).toBe(true);
   });
 
   it("échoue si le cloud ne détecte rien", async () => {
