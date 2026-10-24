@@ -101,8 +101,12 @@ export async function analyzeMealCloudHybrid(
     allowMicroLlm: false,
   });
   // ── Étape 3 : boucle de complétion des micros restés vides ────────────────
-  if (resolved.some((item) => item.source === "unresolved") || resolved.length !== queries.length) {
+  if (resolved.length !== queries.length || resolved.every((item) => item.source === "unresolved")) {
     throw new Error("Données nutritionnelles introuvables pour certains aliments ; essayez un nom plus précis ou ajoutez-les à la bibliothèque.");
+  }
+  const unresolvedNames = resolved.filter((item) => item.source === "unresolved").map((item) => item.name);
+  if (unresolvedNames.length) {
+    appLogger.warn("CloudHybrid", "Repas partiellement résolu : totaux incomplets", { foods: unresolvedNames });
   }
   emit("completion", resolved.length);
   const items = (await completeMissingMicros(resolved, customNutrients, { allowAi: false, semanticOnly: true })) as ResolvedFoodItem[];
