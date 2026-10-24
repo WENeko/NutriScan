@@ -100,6 +100,49 @@ export function normalizeRoutingConfig(raw: any): RoutingConfig {
   };
 }
 
+/**
+ * Nettoyage de la config au chargement : retire les modèles/steps devenus
+ * obsolètes (fournisseur supprimé, modèle retiré de la liste).
+ *
+ * Garanties de non-destruction :
+ *  - Sans liste de fournisseurs fiable (vide : échec réseau, droits…), on ne
+ *    touche à RIEN — une liste vide ne doit jamais effacer la configuration.
+ *  - Un step n'est retiré que si son obsolescence est CERTAINE : fournisseur
+ *    absent d'une liste non vide, ou modèle absent d'une liste non vide.
+ *  - L'interrupteur `enabled` n'a aucune influence : désactiver la
+ *    personnalisation conserve intégralement modèles et cascades.
+ */
+export function pruneRoutingConfig(
+  config: RoutingConfig,
+  validProviderIds: string[],
+): { config: RoutingConfig; changed: boolean } {
+  if (validProviderIds.length === 0) return { config, changed: false };
+  const validIds = new Set(validProviderIds);
+
+  const models: Record<string, string[]> = {};
+  let changed = false;
+  for (const [pid, list] of Object.entries(config.models)) {
+    if (validIds.has(pid)) models[pid] = list;
+    else changed = true;
+  }
+
+  const out: RoutingConfig = { ...config, models };
+  for (const f of ["photo", "text", "coach", "recipe"] as FeatureKey[]) {
+    const filtered = config[f].filter((s) => {
+      if (s.type === "edge_function" || s.type === "hybrid") return true;
+      if (s.type === "cloud_hybrid" && !s.providerId) return true;
+      if (!s.providerId || !validIds.has(s.providerId)) return false;
+      // Modèle obsolète seulement si la liste du fournisseur existe et est non vide.
+      const list = models[s.providerId];
+      if (s.type === "byok" && list && list.length > 0 && !list.includes(s.model || "")) return false;
+      return true;
+    });
+    if (filtered.length !== config[f].length) changed = true;
+    out[f] = filtered;
+  }
+  return { config: out, changed };
+}
+
 
 interface ResolvedProvider {
   id: string;
