@@ -1,5 +1,9 @@
 # Roadmap
 
+- [ ] Préserver les repas hybrides cloud partiellement résolus et afficher les aliments non résolus
+- [ ] Améliorer les recherches OFF/USDA sans perdre la cuisson lors de la sélection ; ajouter des références vérifiées cloud-only
+- [ ] Tester et déployer le correctif hybride cloud
+
 - [x] Remplacer l’appariement hybride cloud par une sélection sémantique de fiches existantes, sans modifier noms/portions ni le cloud classique
 - [x] Tester et déployer la sélection et la complétion sans chiffres générés (sélection IA réelle vérifiée ; parcours connecté bloqué sans compte identifié)
 

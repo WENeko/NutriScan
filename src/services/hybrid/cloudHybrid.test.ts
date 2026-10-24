@@ -114,4 +114,22 @@ describe("analyzeMealCloudHybrid", () => {
       analyzeMealCloudHybrid({ text: "???" }, async () => ({ items: [] }), "Test Cloud"),
     ).rejects.toThrow();
   });
+
+  it("conserve un repas partiellement résolu, ses portions et uniquement les totaux connus", async () => {
+    const detection = cloudDetection();
+    const res = await analyzeMealCloudHybrid({ text: "poulet et Schupfnudlen" }, async () => ({
+      ...detection,
+      items: [...detection.items, { name: "Schupfnudlen cuits", estimated_weight_g: 180, unit_count: 6, unit_weight_g: 30, unit_label: "pièce", calories: 9999, iron_mg: 999 }],
+    }), "Test Cloud");
+    expect(res.items).toHaveLength(2);
+    expect(res.items[1]).toMatchObject({ name: "Schupfnudlen cuits", food_name: "Schupfnudlen cuits", estimated_weight_g: 180, unit_count: 6, unit_weight_g: 30, unit_label: "pièce", source: "unresolved", calories: 0, proteins: 0, carbs: 0, fats: 0 });
+    expect(res.items[1].iron_mg).toBeUndefined();
+    expect(res.total_summary.calories).toBe(330);
+    expect(res.pipeline.sources.unresolved).toBe(1);
+  });
+
+  it("rejette un repas dont aucun aliment n'est résolu", async () => {
+    invoke.mockResolvedValueOnce({ data: { results: [{ index: 0, source: "unresolved", per100: null }] }, error: null } as any);
+    await expect(analyzeMealCloudHybrid({ text: "inconnu" }, async () => cloudDetection(), "Test Cloud")).rejects.toThrow("Données nutritionnelles introuvables");
+  });
 });
