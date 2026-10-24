@@ -48,6 +48,7 @@ import {
   EDGE_LABEL,
   emptyRoutingConfig,
   normalizeRoutingConfig,
+  pruneRoutingConfig,
 } from "@/lib/aiRouting";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import { importLocalIntentModel, listLocalIntentModels } from "@/services/localAiBridge";
