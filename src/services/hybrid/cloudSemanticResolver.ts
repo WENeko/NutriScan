@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import { FOOD_REFERENCE_TABLE } from "./foodReferenceTable";
+import { CLOUD_FOOD_REFERENCES } from "./cloudFoodReferences";
 import { per100FromLibraryRow, resolveFoodItem, type FoodQuery, type ResolveOptions, type ResolutionSource } from "./nutritionResolver";
 
 /** Separate cloud path: legacy/local matching is never invoked here. */
@@ -11,7 +12,7 @@ export async function resolveCloudFoodItems(queries: FoodQuery[], opts: ResolveO
       id: `library:${index}`, name: String(food.name ?? ""), source: "library",
       per100: per100FromLibraryRow(food, opts.customNutrients ?? []),
     })),
-    ...FOOD_REFERENCE_TABLE.map((food) => ({
+    ...[...FOOD_REFERENCE_TABLE, ...CLOUD_FOOD_REFERENCES].map((food) => ({
       id: `reference:${food.id}`, name: food.name, aliases: food.aliases,
       source: "reference", per100: food.per100,
     })),
