@@ -3,6 +3,7 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 import { z } from "npm:zod@3";
 import { translate, FoodSelectionError } from "../_shared/microAi.ts";
 import { selectFoodCandidates } from "../_shared/foodSelection.ts";
+import { cloudFoodSearchName } from "../_shared/cloudFoodSearch.ts";
 import { chooseRecords, hasCompositionMacros, offRecords, usdaRecords, type CompositionRecord } from "../_shared/compositionRecords.ts";
 
 const Body = z.object({
@@ -50,13 +51,25 @@ Deno.serve(async (req) => {
     }
     const pending = () => items.filter((it) => !selected.has(it.index));
     if (pending().length) {
-      const requests = await Promise.all(pending().map(async (it) => ({ ...it, records: (await offRecords(it.name)).filter(hasCompositionMacros) })));
+      const requests = await Promise.all(pending().map(async (it) => {
+        let records = (await offRecords(it.name)).filter(hasCompositionMacros);
+        const searchName = cloudFoodSearchName(it.name);
+        if (!records.length && searchName !== it.name) records = (await offRecords(searchName)).filter(hasCompositionMacros);
+        return { ...it, records };
+      }));
       for (const [index, record] of await chooseRecords(apiKey, requests)) selected.set(index, record);
     }
     if (pending().length) {
       const unresolved = pending();
       const english = await translate(apiKey, unresolved.map((it) => it.name), true);
-      const requests = await Promise.all(unresolved.map(async (it, i) => ({ ...it, records: (await usdaRecords(english[i] ?? it.name, Deno.env.get("FDC_API_KEY") || "DEMO_KEY")).filter(hasCompositionMacros) })));
+      const requests = await Promise.all(unresolved.map(async (it, i) => {
+        const query = english[i] ?? it.name;
+        const key = Deno.env.get("FDC_API_KEY") || "DEMO_KEY";
+        let records = (await usdaRecords(query, key)).filter(hasCompositionMacros);
+        const searchName = cloudFoodSearchName(query);
+        if (!records.length && searchName !== query) records = (await usdaRecords(searchName, key)).filter(hasCompositionMacros);
+        return { ...it, records };
+      }));
       for (const [index, record] of await chooseRecords(apiKey, requests)) selected.set(index, record);
     }
     const allowed = new Set(["calories", "proteins", "carbs", "fats", ...nutrients.map((n) => n.key)]);

@@ -54,6 +54,7 @@ interface MealItem {
   carbsDensity: number;
   fatsDensity: number;
   isCustom?: boolean;
+  nutritionSource?: string;
   fiber?: number;
   sugar?: number;
   saturated_fat?: number;
@@ -410,7 +411,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
     const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
       const itemName = item.food_name || item.name || "Aliment";
-      const customMatch = customFoodMap.get(itemName.toLowerCase());
+      const cloudHybrid = Boolean(data?.pipeline?.detector);
+      const customMatch = cloudHybrid ? undefined : customFoodMap.get(itemName.toLowerCase());
       const aiWeight = parseFloat(item.quantity || item.estimated_weight_g || item.weight_g || "100") || 100;
       const hasExplicitWeight = Boolean(item.quantity || item.estimated_weight_g || item.weight_g);
       const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
@@ -486,6 +488,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         carbsDensity: carbs / weight,
         fatsDensity: fats / weight,
         isCustom,
+        ...(cloudHybrid ? { nutritionSource: item.source } : {}),
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
         ...(Object.keys(customExtras).length ? { customExtras } : {}),
@@ -977,8 +980,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
           {items.map((item, idx) => (
             <div key={idx} className="bg-card rounded-xl p-3 shadow-card space-y-2">
-              <div className="flex items-center justify-between">
-                <div className="flex items-center gap-1.5">
+              <div className="flex items-center justify-between gap-2">
+                <div className="flex min-w-0 flex-wrap items-center gap-1.5">
+                  {item.nutritionSource === "unresolved" && <span className="text-[10px] bg-destructive/10 text-destructive px-1.5 py-0.5 rounded font-semibold">Non résolu</span>}
                   {item.isCustom && <span className="text-[10px] bg-primary/10 text-primary px-1.5 py-0.5 rounded font-semibold">✓ Vérifié</span>}
                   {item.isCooked && <span className="text-[10px] bg-secondary/10 text-secondary px-1.5 py-0.5 rounded font-semibold">🍳 Cuit</span>}
                   {editingIdx === idx ? (
@@ -994,7 +998,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
                     </>
                   )}
                 </div>
-                <div className="flex items-center gap-1">
+                <div className="flex shrink-0 items-center gap-1">
                   <button onClick={() => setEditingIdx(editingIdx === idx ? null : idx)} className="p-1 rounded-lg hover:bg-muted">
                     <Pencil className="w-3.5 h-3.5 text-muted-foreground" />
                   </button>
@@ -1120,7 +1124,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
           <div className="bg-accent rounded-xl p-3">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-semibold">Total</span>
+              <span className="font-semibold">{items.some((item) => item.nutritionSource === "unresolved") ? "Total partiel" : "Total"}</span>
               <span className="font-bold text-primary">{Math.round(totals.calories)} kcal</span>
             </div>
             <div className="flex gap-3 text-xs text-muted-foreground mt-1">
