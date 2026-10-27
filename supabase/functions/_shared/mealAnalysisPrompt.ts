@@ -117,9 +117,10 @@ export function buildCloudDetectionSystemContent(): string {
   return `${MEAL_PERCEPTION_RULES}
 Détection uniquement : aucune valeur nutritionnelle. Exprime les graisses de cuisson estimées comme un aliment en grammes.
 Noms précis en français, mention cru/cuit lorsque pertinent. Conserve les cinq champs et les unités des aliments comptables.
+Si la nature exacte d'un aliment est visuellement incertaine (ex : type de viande, espèce de poisson, fromage), garde ton meilleur choix dans "name" et ajoute "choices" : 2 à 4 alternatives plausibles précises (ex : ["Bœuf","Agneau","Porc"]). N'ajoute pas "choices" si tu es sûr.
 Extrais suggested_timestamp ISO 8601 seulement si une indication temporelle existe, en heure locale utilisateur.
 JSON strict uniquement, sans markdown ni raisonnement :
-{"meal_name":"Repas","confidence_score":0.85,"items":[{"name":"aliment","estimated_weight_g":150,"unit_count":2,"unit_weight_g":75,"unit_label":"portion"}]}`;
+{"meal_name":"Repas","confidence_score":0.85,"items":[{"name":"aliment","estimated_weight_g":150,"unit_count":2,"unit_weight_g":75,"unit_label":"portion","choices":["option"]}]}`;
 }
 
 export function buildCloudDetectionUserPrompt(opts: { hasImage: boolean; text?: string; local_time?: string; custom_foods?: any[] }): string {
