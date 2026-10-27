@@ -77,6 +77,8 @@ interface MealItem {
   isCooked?: boolean;
   /** Valeurs des nutriments custom (clé technique -> valeur) retournées par l'IA */
   customExtras?: Record<string, number>;
+  /** Alternatives proposées quand l'identité de l'aliment est incertaine (hybride cloud). */
+  choices?: string[];
 }
 
 const roundNutrient = (value: number) => Math.round(value * 10) / 10;
@@ -409,9 +411,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     }
     const customFoodMap = new Map(customFoods.map((f: any) => [f.name.toLowerCase(), f]));
 
-    const mappedItems: MealItem[] = (data.items || []).map((item: any) => {
+    const mapOne = (item: any, cloudHybrid: boolean): MealItem => {
       const itemName = item.food_name || item.name || "Aliment";
-      const cloudHybrid = Boolean(data?.pipeline?.detector);
       const customMatch = cloudHybrid ? undefined : customFoodMap.get(itemName.toLowerCase());
       const aiWeight = parseFloat(item.quantity || item.estimated_weight_g || item.weight_g || "100") || 100;
       const hasExplicitWeight = Boolean(item.quantity || item.estimated_weight_g || item.weight_g);
@@ -489,12 +490,15 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         fatsDensity: fats / weight,
         isCustom,
         ...(cloudHybrid ? { nutritionSource: item.source } : {}),
+        ...(cloudHybrid && Array.isArray(item.choices) && item.choices.length ? { choices: item.choices.map(String) } : {}),
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
         ...(Object.keys(customExtras).length ? { customExtras } : {}),
         ...(unitCount && unitWeightG ? { unitCount, unitWeightG, unitLabel: unitLabel || "unité" } : {}),
       };
-    });
+    };
+    mapItemRef.current = (item: any) => mapOne(item, true);
+    const mappedItems: MealItem[] = (data.items || []).map((item: any) => mapOne(item, Boolean(data?.pipeline?.detector)));
     setItems(mappedItems);
   };
 
