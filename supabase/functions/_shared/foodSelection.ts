@@ -12,16 +12,22 @@ export interface SelectionRequest {
   candidates: FoodCandidate[];
 }
 
-/** Only IDs from the supplied catalogue can be accepted; no AI numbers are consumed. */
+/** Only IDs from the supplied catalogue can be accepted; no AI numbers are consumed.
+ *  Tolerant to string indices, "true" flags and IDs returned without their source prefix. */
 export function validatedSelections(raw: unknown, requests: SelectionRequest[]): Map<number, string> {
   const selections = new Map<number, string>();
-  if (!raw || typeof raw !== "object" || !("matches" in raw) || !Array.isArray(raw.matches)) return selections;
+  const list = Array.isArray(raw) ? raw : (raw && typeof raw === "object" && Array.isArray((raw as any).matches) ? (raw as any).matches : null);
+  if (!list) return selections;
   for (const request of requests) {
-    const matches = raw.matches.filter((m: any) => m?.index === request.index);
+    const matches = list.filter((m: any) => m != null && Number(m.index) === request.index);
     if (matches.length !== 1) continue;
     const match = matches[0];
-    if (match?.equivalent !== true || typeof match.id !== "string") continue;
-    if (request.candidates.some((c) => c.id === match.id)) selections.set(request.index, match.id);
+    const equivalent = match?.equivalent === true || match?.equivalent === "true";
+    if (!equivalent || match.id == null) continue;
+    const id = String(match.id).trim();
+    const found = request.candidates.find((c) => c.id === id)
+      ?? request.candidates.find((c) => c.id.split(":").pop() === id.split(":").pop());
+    if (found) selections.set(request.index, found.id);
   }
   return selections;
 }
@@ -34,6 +40,8 @@ export async function selectFoodCandidates(apiKey: string, requests: SelectionRe
     "Only choose an existing candidate ID if it represents the SAME food and preparation. " +
     "Respect species when specified, raw/cooked, ingredients, added fat, brand, and recipes. " +
     "Generic fish can match unspecified cooked white fish, not salmon or fish soup. " +
+    "Cooking method words (grillé, poêlé, vapeur, cuit) may match a generic cooked record of the same food. " +
+    "Mixed vegetable soup can match a generic vegetable soup; lettuce/green salad can match raw lettuce. " +
     "Apple is NOT potato. Potato noodles/Schupfnudeln are NOT potatoes or plain pasta. " +
     "Bread unspecified is NOT necessarily wholemeal bread. No substitute ingredients or approximate recipes. " +
     "If uncertain or no equivalent, id=null and equivalent=false. Never generate nutrients, weights or rename foods. " +
