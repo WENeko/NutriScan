@@ -58,6 +58,41 @@ export function cloudItemToQuery(item: any, cloudConfidence?: number): FoodQuery
   };
 }
 
+/** Alternatives proposées par la vision quand l'identité d'un aliment est incertaine (2 à 4, dédoublonnées). */
+export function extractChoices(item: any): string[] {
+  if (!Array.isArray(item?.choices)) return [];
+  const name = String(item?.name ?? item?.food_name ?? "").trim().toLowerCase();
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const c of item.choices) {
+    const s = String(c ?? "").trim().slice(0, 60);
+    const k = s.toLowerCase();
+    if (!s || k === name || seen.has(k)) continue;
+    seen.add(k);
+    out.push(s);
+  }
+  return out.slice(0, 4);
+}
+
+/** Re-résout UN aliment renommé par l'utilisateur (choix rapide) via le même chemin officiel. */
+export async function resolveCloudChoice(
+  name: string,
+  weightG: number,
+  opts: { custom_foods?: any[]; custom_nutrients?: CustomNutrientDef[]; fromImage?: boolean; unitCount?: number; unitWeightG?: number; unitLabel?: string },
+): Promise<any> {
+  const customNutrients = (opts.custom_nutrients ?? []).filter((c) => c?.key && c?.unit);
+  const query: FoodQuery = { name, weightG, unitCount: opts.unitCount, unitWeightG: opts.unitWeightG, unitLabel: opts.unitLabel, detectionConfidence: 1 };
+  const resolved = await resolveCloudFoodItems([query], {
+    customFoods: opts.custom_foods,
+    customNutrients,
+    fromImage: opts.fromImage ?? true,
+    allowNetwork: true,
+    allowMicroLlm: false,
+  });
+  const [item] = (await completeMissingMicros(resolved, customNutrients, { allowAi: false, semanticOnly: true })) as ResolvedFoodItem[];
+  return item ? { ...item, food_name: item.name } : null;
+}
+
 /**
  * Exécute le mode hybride cloud.
  * @param detect Fonction de détection cloud (edge function ou BYOK) renvoyant
@@ -81,9 +116,10 @@ export async function analyzeMealCloudHybrid(
   const cloud = await detect();
   const cloudItems: any[] = Array.isArray(cloud?.items) ? cloud.items : [];
   const cloudConfidence = Number(cloud?.confidence_score);
-  const queries = cloudItems
-    .map((it) => cloudItemToQuery(it, Number.isFinite(cloudConfidence) ? (cloudConfidence <= 1 ? cloudConfidence : cloudConfidence / 100) : undefined))
-    .filter((q): q is FoodQuery => q !== null);
+  const pairs = cloudItems
+    .map((it) => ({ query: cloudItemToQuery(it, Number.isFinite(cloudConfidence) ? (cloudConfidence <= 1 ? cloudConfidence : cloudConfidence / 100) : undefined), choices: extractChoices(it) }))
+    .filter((p): p is { query: FoodQuery; choices: string[] } => p.query !== null);
+  const queries = pairs.map((p) => p.query);
   const detectionMs = Date.now() - detectionStart;
 
   if (queries.length === 0) {
@@ -128,7 +164,11 @@ export async function analyzeMealCloudHybrid(
     meal_name: String(cloud?.meal_name ?? "").trim() || buildMealName(items),
     confidence_score: Math.max(1, Math.min(100, confidence)),
     suggested_timestamp: cloud?.suggested_timestamp,
-    items: items.map((item) => ({ ...item, food_name: item.name })),
+    items: items.map((item, i) => ({
+      ...item,
+      food_name: item.name,
+      ...(pairs[i]?.choices.length ? { choices: pairs[i].choices } : {}),
+    })),
     total_summary: sumTotals(items, customKeys),
     pipeline: {
       detectionMs,

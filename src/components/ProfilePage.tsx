@@ -281,11 +281,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       }
       if (d.calorie_cycling && typeof d.calorie_cycling === "object") {
         const cc = d.calorie_cycling as any;
+        const locked = Array.isArray(cc.locked) && cc.locked.length === 7 ? cc.locked.map(Boolean) : [...DEFAULT_CYCLING.locked!];
         setCalorieCycling({
           enabled: !!cc.enabled,
           multipliers: Array.isArray(cc.multipliers) && cc.multipliers.length === 7
-            ? normalizeMultipliers(cc.multipliers.map(Number))
+            ? (locked.some(Boolean) ? cc.multipliers.map(Number) : normalizeMultipliers(cc.multipliers.map(Number)))
             : [...DEFAULT_CYCLING.multipliers],
+          locked,
+          trainingDays: Array.isArray(cc.trainingDays) ? cc.trainingDays.map(Number).filter((d: number) => d >= 0 && d < 7) : [],
         });
       }
       const goals = d.goals as any;

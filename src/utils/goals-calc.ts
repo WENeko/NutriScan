@@ -117,12 +117,43 @@ export function calculateScientificGoals(input: GoalsInput): GoalsOutput {
 export interface CalorieCycling {
   enabled: boolean;
   multipliers: number[];
+  /** Jours fixés par l'utilisateur (ne bougent pas lors du rééquilibrage). */
+  locked?: boolean[];
+  /** Jours d'entraînement choisis (index ISO). */
+  trainingDays?: number[];
 }
 
 export const DEFAULT_CYCLING: CalorieCycling = {
   enabled: false,
   multipliers: [1, 1, 1, 1, 1, 1, 1],
+  locked: [false, false, false, false, false, false, false],
+  trainingDays: [],
 };
+
+/** Rééquilibre la semaine pour une moyenne de 1.0 en ne modifiant QUE les jours non verrouillés.
+ *  Les jours verrouillés gardent exactement leur valeur. Bornes : 0.7 → 1.3.
+ *  Si tous les jours sont verrouillés (ou bornes saturées), retourne la meilleure approximation. */
+export function rebalanceWithLocks(m: number[], locked: boolean[]): number[] {
+  if (m.length !== 7) return [...DEFAULT_CYCLING.multipliers];
+  const out = [...m];
+  const free = () => out.map((_, i) => i).filter((i) => !locked[i]);
+  for (let iter = 0; iter < 10; iter++) {
+    const idx = free();
+    if (!idx.length) break;
+    const diff = 7 - out.reduce((s, v) => s + v, 0);
+    if (Math.abs(diff) < 1e-6) break;
+    const share = diff / idx.length;
+    let clamped = false;
+    for (const i of idx) {
+      const v = out[i] + share;
+      const c = Math.min(1.3, Math.max(0.7, v));
+      if (c !== v) clamped = true;
+      out[i] = c;
+    }
+    if (!clamped) break;
+  }
+  return out.map((v) => Math.round(v * 1000) / 1000);
+}
 
 /** Convertit le jour JS (0 = Dimanche) vers l'index ISO (0 = Lundi … 6 = Dimanche). */
 export function getIsoDayIndex(date: Date): number {
