@@ -1,6 +1,7 @@
 # Roadmap
 
 - [x] Désactiver la génération automatique d’APK à chaque commit ; conserver le lancement manuel GitHub Actions et vérifier les déclencheurs
+- [ ] Finaliser le plan nutrition hybride cloud : recherche OFF actuelle, catalogue USDA Survey, références uniquement vérifiées et contrôle gnocchi/plats composés
 
 - [x] Résolveur cloud : sélection tolérante (index/ID), cuisson générique acceptée
 - [x] Cyclage : puces jours d'entraînement, détection multi-sources, curseurs verrouillables
