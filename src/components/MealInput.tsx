@@ -581,7 +581,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         .eq("user_id", userId);
       const resolved = await resolveCloudChoice(choice, getItemWeight(current), {
         custom_foods: customFoods || [],
-        custom_nutrients: customNutrients,
+        custom_nutrients: customNutrients as any,
         fromImage: mode === "image",
         unitCount: current.unitCount,
         unitWeightG: current.unitWeightG,
