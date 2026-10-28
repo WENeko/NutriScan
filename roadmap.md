@@ -1,5 +1,7 @@
 # Roadmap
 
+- [x] Désactiver la génération automatique d’APK à chaque commit ; conserver le lancement manuel GitHub Actions et vérifier les déclencheurs
+
 - [x] Résolveur cloud : sélection tolérante (index/ID), cuisson générique acceptée
 - [x] Cyclage : puces jours d'entraînement, détection multi-sources, curseurs verrouillables
 - [x] Choix rapides pour aliments incertains (ex. viande) + saisie libre, re-résolution officielle
