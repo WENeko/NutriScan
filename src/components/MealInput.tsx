@@ -24,6 +24,7 @@ import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 import { uploadMealImage } from "@/lib/mealImageUpload";
 import DistanceBadge from "./DistanceBadge";
 import { parseImageScale, peekCaptureScale, setCaptureScale, type CaptureScale } from "@/services/hybrid/captureScale";
+import { resolveCloudChoice } from "@/services/hybrid/cloudHybridService";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -184,6 +185,10 @@ type InputMode = "image" | "text" | "barcode";
 const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecipe, onPrefillConsumed }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
+  const mapItemRef = useRef<((item: any) => MealItem) | null>(null);
+  const [choiceBusyIdx, setChoiceBusyIdx] = useState<number | null>(null);
+  const [otherIdx, setOtherIdx] = useState<number | null>(null);
+  const [otherText, setOtherText] = useState("");
   const [mode, setMode] = useState<InputMode>("image");
   const [preview, setPreview] = useState<string | null>(null);
   const [analyzing, setAnalyzing] = useState(false);
@@ -562,6 +567,38 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
   const updateItemName = (idx: number, name: string) => {
     setItems((prev) => prev.map((item, i) => i === idx ? { ...item, name } : item));
+  };
+
+  /** Choix rapide : renomme l'aliment et le re-résout sur les bases officielles (poids conservé). */
+  const applyItemChoice = async (idx: number, choice: string) => {
+    const current = items[idx];
+    if (!current || !mapItemRef.current) return;
+    setChoiceBusyIdx(idx);
+    try {
+      const { data: customFoods } = await supabaseLovable
+        .from("custom_foods")
+        .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, nutrients_std, nutrients_custom")
+        .eq("user_id", userId);
+      const resolved = await resolveCloudChoice(choice, getItemWeight(current), {
+        custom_foods: customFoods || [],
+        custom_nutrients: customNutrients as any,
+        fromImage: mode === "image",
+        unitCount: current.unitCount,
+        unitWeightG: current.unitWeightG,
+        unitLabel: current.unitLabel,
+      });
+      if (!resolved) throw new Error("Résolution impossible");
+      const next = mapItemRef.current(resolved);
+      setItems((prev) => prev.map((it, i) => (i === idx ? { ...next, isCooked: it.isCooked } : it)));
+      setOtherIdx(null);
+      if (resolved.source === "unresolved") {
+        toast({ title: "Toujours introuvable", description: `« ${choice} » n'a pas de fiche officielle ; essaie un nom plus courant.` });
+      }
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e?.message ?? String(e), variant: "destructive" });
+    } finally {
+      setChoiceBusyIdx(null);
+    }
   };
 
   const removeItem = (idx: number) => {
@@ -1011,6 +1048,45 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
                   </button>
                 </div>
               </div>
+
+              {item.nutritionSource && (item.choices?.length || item.nutritionSource === "unresolved") ? (
+                <div className="space-y-1.5">
+                  <p className="text-[10px] text-muted-foreground">
+                    {item.choices?.length ? "Pas sûr de l'aliment ? Précise :" : "Aliment non trouvé : précise ou renomme-le."}
+                  </p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {(item.choices ?? []).map((c) => (
+                      <button
+                        key={c}
+                        type="button"
+                        disabled={choiceBusyIdx === idx}
+                        onClick={() => applyItemChoice(idx, c)}
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold bg-accent hover:bg-primary/15 disabled:opacity-50"
+                      >
+                        {c}
+                      </button>
+                    ))}
+                    {otherIdx === idx ? (
+                      <form
+                        className="flex items-center gap-1"
+                        onSubmit={(e) => { e.preventDefault(); if (otherText.trim()) applyItemChoice(idx, otherText.trim()); }}
+                      >
+                        <Input autoFocus value={otherText} onChange={(e) => setOtherText(e.target.value)} placeholder="ex : Veau" className="h-7 text-xs rounded-md w-32" />
+                        <Button type="submit" size="sm" className="h-7 px-2 text-xs" disabled={!otherText.trim() || choiceBusyIdx === idx}>OK</Button>
+                      </form>
+                    ) : (
+                      <button
+                        type="button"
+                        onClick={() => { setOtherIdx(idx); setOtherText(""); }}
+                        className="px-2.5 py-1 rounded-full text-xs font-semibold bg-muted text-muted-foreground"
+                      >
+                        ✏️ Autre
+                      </button>
+                    )}
+                    {choiceBusyIdx === idx && <Loader2 className="w-4 h-4 animate-spin text-primary self-center" />}
+                  </div>
+                </div>
+              ) : null}
 
               {item.unitCount && item.unitWeightG && (
                 <div className="flex items-center gap-3 bg-accent rounded-lg px-3 py-1.5">
