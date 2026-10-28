@@ -1,5 +1,12 @@
 # Roadmap
 
+- [x] Résolveur cloud : sélection tolérante (index/ID), cuisson générique acceptée
+- [x] Cyclage : puces jours d'entraînement, détection multi-sources, curseurs verrouillables
+- [x] Choix rapides pour aliments incertains (ex. viande) + saisie libre, re-résolution officielle
+- [ ] Réorganiser les réglages (déficit/surplus près du budget) — mis de côté à la demande de l'utilisateur
+- [ ] Vérifier ces trois points dans l'appli connectée — bloqué : aucune session utilisateur ici
+
+
 - [x] Préserver les repas hybrides cloud partiellement résolus et afficher les aliments non résolus et le total partiel
 - [x] Améliorer les recherches OFF/USDA sans perdre la cuisson lors de la sélection ; ajouter citron et lentilles USDA vérifiés cloud-only
 - [x] Tester et déployer le correctif hybride cloud
