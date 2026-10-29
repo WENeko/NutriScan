@@ -5,7 +5,8 @@
 
 import { supabase } from "@/integrations/supabase/client";
 import { calculateScientificGoals } from "@/utils/goals-calc";
-import { differenceInYears } from "date-fns";
+import { differenceInYears, format } from "date-fns";
+import { createThrottledHealthSync } from "./foregroundHealthSync";
 import {
   computeSmoothedDailySport,
   type SportSample,
@@ -149,7 +150,7 @@ export async function readNativeHealthData(days = 30): Promise<HealthConnectData
           start_time: new Date(s.start_time).toISOString(),
           end_time: new Date(s.end_time).toISOString(),
           value_kcal: Number(s.value_kcal) || 0,
-          recorded_date: new Date(s.start_time).toISOString().slice(0, 10),
+          recorded_date: format(new Date(s.start_time), "yyyy-MM-dd"),
         }))
         .filter((s) => {
           const durationMs = new Date(s.end_time).getTime() - new Date(s.start_time).getTime();
@@ -237,7 +238,7 @@ export async function syncHealthData(
   const errors: string[] = [];
 
   try {
-    const today = new Date().toISOString().slice(0, 10);
+    const today = format(new Date(), "yyyy-MM-dd");
 
     // ── Sync Poids et Composition (un seul enregistrement par jour grâce à la contrainte UNIQUE) ──
     if (prefs.sync_weight && data.weight?.length) {
@@ -305,8 +306,8 @@ export async function syncHealthData(
 
     // ── Sync Calories sportives : stocke les samples bruts + recalcule la
     //    valeur lissée 7 j filtrée par sport_allowed_sources. ──
-    if (prefs.sync_calories && data.sportSamples?.length) {
-      const sampleRows = data.sportSamples.map((s) => ({
+    if (prefs.sync_calories) {
+      const sampleRows = (data.sportSamples ?? []).map((s) => ({
         user_id: userId,
         source_package: s.source_package,
         source_name: s.source_name,
@@ -315,9 +316,12 @@ export async function syncHealthData(
         value_kcal: s.value_kcal,
         recorded_date: s.recorded_date,
       }));
-      await supabase
-        .from("sport_activity_samples")
-        .upsert(sampleRows, { onConflict: "user_id,source_package,start_time,end_time" });
+      if (sampleRows.length) {
+        const { error } = await supabase
+          .from("sport_activity_samples")
+          .upsert(sampleRows, { onConflict: "user_id,source_package,start_time,end_time" });
+        if (error) throw error;
+      }
 
       // Récupère sources autorisées + recompute moyenne lissée
       const { data: profile } = await supabase
@@ -417,7 +421,7 @@ export function onAppResumeRecheck(callback: () => void): (() => void) | null {
 // autorisé et qu'au moins une source est activée. Les enregistrements de
 // composition utilisent la date remontée par Health Connect (recorded_at),
 // ce qui évite les doublons grâce à l'upsert (user_id, recorded_at).
-export async function autoSyncHealthData(userId: string): Promise<void> {
+export const autoSyncHealthData = createThrottledHealthSync(async (userId: string): Promise<void> => {
   try {
     const prefs = getHealthConnectPreferences();
     const anyEnabled = prefs.sync_weight || prefs.sync_body_fat || prefs.sync_calories || prefs.sync_sleep;
@@ -431,5 +435,5 @@ export async function autoSyncHealthData(userId: string): Promise<void> {
   } catch (e) {
     console.warn("[health] autoSyncHealthData failed", e);
   }
-}
+});
 

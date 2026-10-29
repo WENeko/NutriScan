@@ -2,6 +2,15 @@
  * Sport calories — filtrage par source + dédoublonnage temporel + lissage 7 jours.
  */
 import { supabase } from "@/integrations/supabase/client";
+import { format } from "date-fns";
+
+export function completedSportDayKeys(today = new Date()): string[] {
+  return Array.from({ length: 7 }, (_, index) => {
+    const day = new Date(today);
+    day.setDate(day.getDate() - index - 1);
+    return format(day, "yyyy-MM-dd");
+  });
+}
 
 export interface SportSample {
   source_package: string;
@@ -45,7 +54,7 @@ export function aggregateSportCalories(
   return kept.reduce((sum, s) => sum + s.kcal, 0);
 }
 
-/** Charge les samples des 8 derniers jours et calcule la moyenne quotidienne
+/** Charge les samples des 7 jours révolus et calcule la moyenne quotidienne
  *  sur les 7 jours révolus (hors aujourd'hui). */
 export async function computeSmoothedDailySport(
   userId: string,
@@ -53,14 +62,9 @@ export async function computeSmoothedDailySport(
 ): Promise<number> {
   if (!allowedSources.length) return 0;
 
-  const today = new Date();
-  const start = new Date(today);
-  start.setDate(start.getDate() - 8);
-  const end = new Date(today);
-  end.setDate(end.getDate() - 1);
-
-  const startStr = start.toISOString().slice(0, 10);
-  const endStr = end.toISOString().slice(0, 10);
+  const days = completedSportDayKeys();
+  const startStr = days[6];
+  const endStr = days[0];
 
   const { data } = await supabase
     .from("sport_activity_samples")
@@ -79,10 +83,7 @@ export async function computeSmoothedDailySport(
   }
 
   let total = 0;
-  for (let i = 1; i <= 7; i++) {
-    const d = new Date(today);
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+  for (const key of days) {
     total += aggregateSportCalories(byDay.get(key) || [], allowedSources);
   }
   return total / 7;
@@ -98,7 +99,7 @@ export async function listDetectedSources(
     .from("sport_activity_samples")
     .select("source_package, source_name")
     .eq("user_id", userId)
-    .gte("recorded_date", since.toISOString().slice(0, 10));
+    .gte("recorded_date", format(since, "yyyy-MM-dd"));
 
   if (!data) return [];
   const map = new Map<string, { name: string | null; samples: number }>();
