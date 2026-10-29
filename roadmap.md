@@ -1,5 +1,14 @@
 # Roadmap
 
+- [x] Priorité IQM — Option A : moteur pur de qualité nutritionnelle et tests (ratios, profils, contexte sportif, données manquantes)
+- [x] Option A : import santé au démarrage et à chaque reprise, délai de 60 s, aucun import concurrent ; lissage sur J-7 à J-1 en dates locales (40 tests ciblés, contrôle Paris/Los Angeles)
+- [ ] Validation de l'import réel sur Android — bloqué : aucun appareil Android disponible ; validation connectée indisponible sans compte utilisateur identifié
+
+## Phase suivante (hors Option A)
+- Persistance des profils/tags, suggestions modifiables, badges et jauges, recalcul après édition
+
+## Travaux précédents
+
 - [x] Désactiver la génération automatique d’APK à chaque commit ; conserver le lancement manuel GitHub Actions et vérifier les déclencheurs
 - [ ] Finaliser le plan nutrition hybride cloud : recherche OFF actuelle, catalogue USDA Survey, références uniquement vérifiées et contrôle gnocchi/plats composés
 
