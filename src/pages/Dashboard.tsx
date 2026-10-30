@@ -5,6 +5,8 @@ import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserP
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { applyCycling, type CalorieCycling } from "@/utils/goals-calc";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
+import { QualityBadge, QualityFractions } from "@/components/NutritionQuality";
+import { calculateDailyQuality, qualityInputFromMeal, sumQualityNutrients, normalizeSportPreset, type UserPreset } from "@/utils/metabolic-quality";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
@@ -52,11 +54,14 @@ interface Meal {
   total_fats: number;
   meal_name?: string | null;
   is_favorite?: boolean;
+  peri_workout?: string;
 }
 
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [goals, setGoals] = useState<Goals>({ calories: 2000, proteins: 150, carbs: 250, fats: 70 });
   const [todayTotals, setTodayTotals] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
+  const [qualityItems, setQualityItems] = useState<Record<string, unknown>[]>([]);
+  const [sportPreset, setSportPreset] = useState<UserPreset>("hypertrophy");
   const [todayMeals, setTodayMeals] = useState<Meal[]>([]);
   const [allMeals, setAllMeals] = useState<Meal[]>([]);
   const [favoriteMeals, setFavoriteMeals] = useState<Meal[]>([]);
@@ -175,6 +180,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     setWeekDaysElapsed(mondayBased);
 
     if (profile) {
+      setSportPreset(normalizeSportPreset(profile.sport_preset));
       const g = profile.goals as any;
       baseCalories = g?.calories ?? 2000;
       const currentWeight = lastWeight !== undefined ? Number(lastWeight) : 70;
@@ -312,6 +318,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeekTotalCalories(Math.round(weekTotal));
       setWeekAvgCalories(Math.round(weekTotal / mondayBased));
 
+      setQualityItems([]);
+      setTodayMicros({});
+      setWeekMicros({});
       // Fetch week micros via JSONB (source unique de vérité)
       const todayMealIds = today.map((m) => m.id);
       const weekMealIds = weekMeals.map((m) => m.id);
@@ -322,6 +331,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
           .in("meal_id", weekMealIds);
         if (items) {
           const todayMealIdSet = new Set(todayMealIds);
+          setQualityItems(items.filter(item => todayMealIdSet.has(item.meal_id)));
           const weekTotals: Record<string, number> = {};
           const dayTotals: Record<string, number> = {};
           (items as any[]).forEach((item) => {
@@ -341,6 +351,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         setWeekMicros({});
       }
     } else {
+      setQualityItems([]);
       setTodayMeals([]);
       setAllMeals([]);
       setFavoriteMeals([]);
@@ -351,6 +362,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeekAvgCalories(0);
     }
   }, [userId]);
+
+  const dailyQuality = useMemo(() => calculateDailyQuality(todayMeals.map(meal => qualityInputFromMeal(meal, qualityItems.filter(item => item.meal_id === meal.id))), sportPreset), [todayMeals, qualityItems, sportPreset]);
+  const dailyQualityInput = { ...todayTotals, carbohydrateBasis: "unknown" as const, nutrients_std: sumQualityNutrients(qualityItems) };
+  useEffect(() => {
+    const refresh = () => { void fetchData(); };
+    window.addEventListener("nutriscan:quality-profile", refresh);
+    return () => window.removeEventListener("nutriscan:quality-profile", refresh);
+  }, [fetchData]);
 
   // Synchronisation Health Connect silencieuse à l'ouverture et à la reprise.
   // recorded_at provient de la date Health Connect → upsert sans doublons.
@@ -637,6 +656,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
               </div>
 
+              <div className="space-y-3 border-t border-border py-3">
+                <QualityBadge {...dailyQuality} />
+                <QualityFractions input={dailyQualityInput} />
+              </div>
               {/* Sport info */}
               {sportCalories > 0 && (
                 <div className="flex items-center justify-center mb-3">
@@ -758,7 +781,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {todayMeals.length > 0 && (
               <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
                 <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
-                <MealHistory meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
+                <MealHistory sportPreset={sportPreset} meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
               </section>
             )}
 
@@ -777,7 +800,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
                 </button>
                 {showFavorites && (
-                  <MealHistory meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
+                  <MealHistory sportPreset={sportPreset} meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
                 )}
               </section>
             )}
@@ -785,7 +808,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {/* All history — today's meals are shown in "Repas du jour" above, so exclude them here to avoid redundancy */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
-              <MealHistory meals={allMeals.filter((m) => !isToday(new Date(m.timestamp)))} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
+              <MealHistory sportPreset={sportPreset} meals={allMeals.filter((m) => !isToday(new Date(m.timestamp)))} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
             </section>
           </>
         )}

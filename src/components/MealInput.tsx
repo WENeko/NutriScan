@@ -24,6 +24,9 @@ import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 import { uploadMealImage } from "@/lib/mealImageUpload";
 import DistanceBadge from "./DistanceBadge";
 import { parseImageScale, peekCaptureScale, setCaptureScale, type CaptureScale } from "@/services/hybrid/captureScale";
+import NutritionQuality from "./NutritionQuality";
+import WorkoutContextPicker from "./WorkoutContextPicker";
+import { sumQualityNutrients, normalizeSportPreset, type UserPreset, type WorkoutContext } from "@/utils/metabolic-quality";
 import { resolveCloudChoice } from "@/services/hybrid/cloudHybridService";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
@@ -82,6 +85,9 @@ interface MealItem {
   choices?: string[];
 }
 
+const knownNutrient = (value: unknown): number | undefined => value == null || value === "" || !Number.isFinite(Number(value)) ? undefined : Number(value);
+const scaledNutrient = (value: unknown, factor: number) => { const n = knownNutrient(value); return n === undefined ? undefined : Math.round(n * factor * 10) / 10; };
+
 const roundNutrient = (value: number) => Math.round(value * 10) / 10;
 
 const getItemWeight = (item: MealItem) => {
@@ -101,22 +107,22 @@ const scaleItemToWeight = (item: MealItem, newWeight: number, overrides: Partial
     proteins: roundNutrient(item.proteins * factor),
     carbs: roundNutrient(item.carbs * factor),
     fats: roundNutrient(item.fats * factor),
-    fiber: roundNutrient((item.fiber || 0) * factor),
-    sugar: roundNutrient((item.sugar || 0) * factor),
-    saturated_fat: roundNutrient((item.saturated_fat || 0) * factor),
-    omega3_mg: roundNutrient((item.omega3_mg || 0) * factor),
-    sodium_mg: roundNutrient((item.sodium_mg || 0) * factor),
-    potassium_mg: roundNutrient((item.potassium_mg || 0) * factor),
-    magnesium_mg: roundNutrient((item.magnesium_mg || 0) * factor),
-    calcium_mg: roundNutrient((item.calcium_mg || 0) * factor),
-    iron_mg: roundNutrient((item.iron_mg || 0) * factor),
-    zinc_mg: roundNutrient((item.zinc_mg || 0) * factor),
-    vitamin_b_mg: roundNutrient((item.vitamin_b_mg || 0) * factor),
-    vitamin_b9_mcg: roundNutrient((item.vitamin_b9_mcg || 0) * factor),
-    vitamin_b12_mcg: roundNutrient((item.vitamin_b12_mcg || 0) * factor),
-    vitamin_c_mg: roundNutrient((item.vitamin_c_mg || 0) * factor),
-    vitamin_d_mcg: roundNutrient((item.vitamin_d_mcg || 0) * factor),
-    vitamin_e_mg: roundNutrient((item.vitamin_e_mg || 0) * factor),
+    fiber: scaledNutrient(item.fiber, factor),
+    sugar: scaledNutrient(item.sugar, factor),
+    saturated_fat: scaledNutrient(item.saturated_fat, factor),
+    omega3_mg: scaledNutrient(item.omega3_mg, factor),
+    sodium_mg: scaledNutrient(item.sodium_mg, factor),
+    potassium_mg: scaledNutrient(item.potassium_mg, factor),
+    magnesium_mg: scaledNutrient(item.magnesium_mg, factor),
+    calcium_mg: scaledNutrient(item.calcium_mg, factor),
+    iron_mg: scaledNutrient(item.iron_mg, factor),
+    zinc_mg: scaledNutrient(item.zinc_mg, factor),
+    vitamin_b_mg: scaledNutrient(item.vitamin_b_mg, factor),
+    vitamin_b9_mcg: scaledNutrient(item.vitamin_b9_mcg, factor),
+    vitamin_b12_mcg: scaledNutrient(item.vitamin_b12_mcg, factor),
+    vitamin_c_mg: scaledNutrient(item.vitamin_c_mg, factor),
+    vitamin_d_mcg: scaledNutrient(item.vitamin_d_mcg, factor),
+    vitamin_e_mg: scaledNutrient(item.vitamin_e_mg, factor),
     customExtras: item.customExtras
       ? Object.fromEntries(Object.entries(item.customExtras).map(([k, v]) => [k, roundNutrient(v * factor)]))
       : undefined,
@@ -215,6 +221,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const [mealName, setMealName] = useState("");
   const [editingName, setEditingName] = useState(false);
   const [mealTimestamp, setMealTimestamp] = useState("");
+  const [workoutContext, setWorkoutContext] = useState<WorkoutContext>("none");
+  const [contextChosen, setContextChosen] = useState(false);
+  const [sportPreset, setSportPreset] = useState<UserPreset>("hypertrophy");
   const [source, setSource] = useState<"ai" | "text" | "barcode">("ai");
   const [addingManual, setAddingManual] = useState(false);
   const [manualItem, setManualItem] = useState({ name: "", weight: "" });
@@ -229,11 +238,12 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       await logDatabaseHealth();
       const { data } = await supabaseLovable
         .from("profiles")
-        .select("custom_nutrients")
+        .select("custom_nutrients,sport_preset")
         .eq("user_id", userId)
         .single();
       const arr = Array.isArray((data as any)?.custom_nutrients) ? (data as any).custom_nutrients : [];
       setCustomNutrients(arr);
+      setSportPreset(normalizeSportPreset(data?.sport_preset));
     };
     init();
   }, [userId]);
@@ -423,26 +433,26 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       const hasExplicitWeight = Boolean(item.quantity || item.estimated_weight_g || item.weight_g);
       const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
       const weight = customMatch && (!hasExplicitWeight || aiWeight === 100) ? customDefaultWeight : aiWeight;
-      let proteins = Number(item.proteins) || 0;
-      let carbs = Number(item.carbs) || 0;
-      let fats = Number(item.fats) || 0;
+      let proteins = knownNutrient(item.proteins);
+      let carbs = knownNutrient(item.carbs);
+      let fats = knownNutrient(item.fats);
       let calories = Number(item.calories) || Math.round(proteins * 4 + carbs * 4 + fats * 9);
-      let fiber = Number(item.fiber) || 0;
-      let sugar = Number(item.sugar) || 0;
-      let saturated_fat = Number(item.saturated_fat) || 0;
-      let omega3_mg = Number(item.omega3_mg) || 0;
-      let sodium_mg = Number(item.sodium_mg) || 0;
-      let potassium_mg = Number(item.potassium_mg) || 0;
-      let magnesium_mg = Number(item.magnesium_mg) || 0;
-      let calcium_mg = Number(item.calcium_mg) || 0;
-      let iron_mg = Number(item.iron_mg) || 0;
-      let zinc_mg = Number(item.zinc_mg) || 0;
-      let vitamin_b_mg = Number(item.vitamin_b_mg) || 0;
-      let vitamin_b9_mcg = Number(item.vitamin_b9_mcg) || 0;
-      let vitamin_b12_mcg = Number(item.vitamin_b12_mcg) || 0;
-      let vitamin_c_mg = Number(item.vitamin_c_mg) || 0;
-      let vitamin_d_mcg = Number(item.vitamin_d_mcg) || 0;
-      let vitamin_e_mg = Number(item.vitamin_e_mg) || 0;
+      let fiber = knownNutrient(item.fiber);
+      let sugar = knownNutrient(item.sugar);
+      let saturated_fat = knownNutrient(item.saturated_fat);
+      let omega3_mg = knownNutrient(item.omega3_mg);
+      let sodium_mg = knownNutrient(item.sodium_mg);
+      let potassium_mg = knownNutrient(item.potassium_mg);
+      let magnesium_mg = knownNutrient(item.magnesium_mg);
+      let calcium_mg = knownNutrient(item.calcium_mg);
+      let iron_mg = knownNutrient(item.iron_mg);
+      let zinc_mg = knownNutrient(item.zinc_mg);
+      let vitamin_b_mg = knownNutrient(item.vitamin_b_mg);
+      let vitamin_b9_mcg = knownNutrient(item.vitamin_b9_mcg);
+      let vitamin_b12_mcg = knownNutrient(item.vitamin_b12_mcg);
+      let vitamin_c_mg = knownNutrient(item.vitamin_c_mg);
+      let vitamin_d_mcg = knownNutrient(item.vitamin_d_mcg);
+      let vitamin_e_mg = knownNutrient(item.vitamin_e_mg);
       let isCustom = false;
 
       if (customMatch) {
@@ -452,7 +462,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         calories = Math.round((Number(customMatch.calories_per_100g) || 0) * weight / 100);
         const cmStd = (customMatch.nutrients_std || {}) as Record<string, number>;
         const cmCol = (col: string, key: string) =>
-          roundNutrient(((Number(customMatch[col]) || Number(cmStd[key])) || 0) * weight / 100);
+          scaledNutrient(customMatch[col] ?? cmStd[key], weight / 100);
         fiber = cmCol("fiber_per_100g", "fiber");
         sugar = cmCol("sugar_per_100g", "sugar");
         saturated_fat = cmCol("saturated_fat_per_100g", "saturated_fat");
@@ -522,22 +532,22 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       protDensity: proteins / weight,
       carbsDensity: carbs / weight,
       fatsDensity: fats / weight,
-      fiber: product.fiber || 0,
-      sugar: product.sugar || 0,
-      saturated_fat: product.saturated_fat || 0,
-      omega3_mg: product.omega3_mg || 0,
-      sodium_mg: product.sodium_mg || 0,
-      potassium_mg: product.potassium_mg || 0,
-      magnesium_mg: product.magnesium_mg || 0,
-      calcium_mg: product.calcium_mg || 0,
-      iron_mg: product.iron_mg || 0,
-      zinc_mg: product.zinc_mg || 0,
-      vitamin_b_mg: product.vitamin_b_mg || 0,
-      vitamin_b9_mcg: product.vitamin_b9_mcg || 0,
-      vitamin_b12_mcg: product.vitamin_b12_mcg || 0,
-      vitamin_c_mg: product.vitamin_c_mg || 0,
-      vitamin_d_mcg: product.vitamin_d_mcg || 0,
-      vitamin_e_mg: product.vitamin_e_mg || 0,
+      fiber: knownNutrient(product.fiber),
+      sugar: knownNutrient(product.sugar),
+      saturated_fat: knownNutrient(product.saturated_fat),
+      omega3_mg: knownNutrient(product.omega3_mg),
+      sodium_mg: knownNutrient(product.sodium_mg),
+      potassium_mg: knownNutrient(product.potassium_mg),
+      magnesium_mg: knownNutrient(product.magnesium_mg),
+      calcium_mg: knownNutrient(product.calcium_mg),
+      iron_mg: knownNutrient(product.iron_mg),
+      zinc_mg: knownNutrient(product.zinc_mg),
+      vitamin_b_mg: knownNutrient(product.vitamin_b_mg),
+      vitamin_b9_mcg: knownNutrient(product.vitamin_b9_mcg),
+      vitamin_b12_mcg: knownNutrient(product.vitamin_b12_mcg),
+      vitamin_c_mg: knownNutrient(product.vitamin_c_mg),
+      vitamin_d_mcg: knownNutrient(product.vitamin_d_mcg),
+      vitamin_e_mg: knownNutrient(product.vitamin_e_mg),
     }]);
   };
 
@@ -640,7 +650,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       const fats = roundNutrient((cf.fats_per_100g || 0) * nutrientWeight / 100);
       const cfStd = (cf.nutrients_std || {}) as Record<string, number>;
       const cfCol = (col: string, key: string) =>
-        roundNutrient(((Number((cf as any)[col]) || Number(cfStd[key])) || 0) * nutrientWeight / 100);
+        scaledNutrient(cf[col] ?? cfStd[key], nutrientWeight / 100);
       const fiber = cfCol("fiber_per_100g", "fiber");
       const sugar = cfCol("sugar_per_100g", "sugar");
       const saturated_fat = cfCol("saturated_fat_per_100g", "saturated_fat");
@@ -699,22 +709,22 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
             carbsDensity: c / queryWeight,
             fatsDensity: f / queryWeight,
             isCooked: manualIsCooked,
-            fiber: Number(item.fiber) || 0,
-            sugar: Number(item.sugar) || 0,
-            saturated_fat: Number(item.saturated_fat) || 0,
-            omega3_mg: Number(item.omega3_mg) || 0,
-            sodium_mg: Number(item.sodium_mg) || 0,
-            potassium_mg: Number(item.potassium_mg) || 0,
-            magnesium_mg: Number(item.magnesium_mg) || 0,
-            calcium_mg: Number(item.calcium_mg) || 0,
-            iron_mg: Number(item.iron_mg) || 0,
-            zinc_mg: Number(item.zinc_mg) || 0,
-            vitamin_b_mg: Number(item.vitamin_b_mg) || 0,
-            vitamin_b9_mcg: Number(item.vitamin_b9_mcg) || 0,
-            vitamin_b12_mcg: Number(item.vitamin_b12_mcg) || 0,
-            vitamin_c_mg: Number(item.vitamin_c_mg) || 0,
-            vitamin_d_mcg: Number(item.vitamin_d_mcg) || 0,
-            vitamin_e_mg: Number(item.vitamin_e_mg) || 0,
+            fiber: knownNutrient(item.fiber),
+            sugar: knownNutrient(item.sugar),
+            saturated_fat: knownNutrient(item.saturated_fat),
+            omega3_mg: knownNutrient(item.omega3_mg),
+            sodium_mg: knownNutrient(item.sodium_mg),
+            potassium_mg: knownNutrient(item.potassium_mg),
+            magnesium_mg: knownNutrient(item.magnesium_mg),
+            calcium_mg: knownNutrient(item.calcium_mg),
+            iron_mg: knownNutrient(item.iron_mg),
+            zinc_mg: knownNutrient(item.zinc_mg),
+            vitamin_b_mg: knownNutrient(item.vitamin_b_mg),
+            vitamin_b9_mcg: knownNutrient(item.vitamin_b9_mcg),
+            vitamin_b12_mcg: knownNutrient(item.vitamin_b12_mcg),
+            vitamin_c_mg: knownNutrient(item.vitamin_c_mg),
+            vitamin_d_mcg: knownNutrient(item.vitamin_d_mcg),
+            vitamin_e_mg: knownNutrient(item.vitamin_e_mg),
             customExtras: Object.fromEntries(customNutrients
               .map((c) => [c.key, Number(item[c.key]) || 0] as const)
               .filter(([, v]) => v !== 0)),
@@ -775,6 +785,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           total_fats: totals.fats,
           image_url: imageUrl,
           timestamp,
+          peri_workout: workoutContext,
           raw_ai_analysis: rawAnalysis || null,
           raw_text_input: rawTextInput,
           is_confirmed: true,
@@ -790,22 +801,22 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           proteins: Number(item.proteins),
           carbs: Number(item.carbs),
           fats: Number(item.fats),
-          fiber: item.fiber || 0,
-          sugar: item.sugar || 0,
-          sodium_mg: item.sodium_mg || 0,
-          potassium_mg: item.potassium_mg || 0,
-          magnesium_mg: item.magnesium_mg || 0,
-          calcium_mg: item.calcium_mg || 0,
-          iron_mg: item.iron_mg || 0,
-          zinc_mg: item.zinc_mg || 0,
-          vitamin_c_mg: item.vitamin_c_mg || 0,
-          vitamin_d_mcg: item.vitamin_d_mcg || 0,
-          vitamin_b9_mcg: item.vitamin_b9_mcg || 0,
-          vitamin_b12_mcg: item.vitamin_b12_mcg || 0,
-          vitamin_e_mg: item.vitamin_e_mg || 0,
-          omega3_mg: item.omega3_mg || 0,
-          saturated_fat: item.saturated_fat || 0,
-          vitamin_b_mg: item.vitamin_b_mg || 0,
+          fiber: knownNutrient(item.fiber),
+          sugar: knownNutrient(item.sugar),
+          sodium_mg: knownNutrient(item.sodium_mg),
+          potassium_mg: knownNutrient(item.potassium_mg),
+          magnesium_mg: knownNutrient(item.magnesium_mg),
+          calcium_mg: knownNutrient(item.calcium_mg),
+          iron_mg: knownNutrient(item.iron_mg),
+          zinc_mg: knownNutrient(item.zinc_mg),
+          vitamin_c_mg: knownNutrient(item.vitamin_c_mg),
+          vitamin_d_mcg: knownNutrient(item.vitamin_d_mcg),
+          vitamin_b9_mcg: knownNutrient(item.vitamin_b9_mcg),
+          vitamin_b12_mcg: knownNutrient(item.vitamin_b12_mcg),
+          vitamin_e_mg: knownNutrient(item.vitamin_e_mg),
+          omega3_mg: knownNutrient(item.omega3_mg),
+          saturated_fat: knownNutrient(item.saturated_fat),
+          vitamin_b_mg: knownNutrient(item.vitamin_b_mg),
           quantity: parseFloat(item.quantity?.replace("g", "") || "100") || 100,
           unit_count: item.unitCount || null,
           unit_label: item.unitLabel || null,
@@ -838,6 +849,8 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     setConfidenceScore(null);
     setMealName("");
     setMealTimestamp("");
+    setWorkoutContext("none");
+    setContextChosen(false);
     setEditingIdx(null);
     setEditingName(false);
     setAddingManual(false);
@@ -1202,6 +1215,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
             </div>
           )}
 
+          <WorkoutContextPicker userId={userId} timestamp={mealTimestamp ? localDateTimeToISO(mealTimestamp) : new Date().toISOString()}
+            value={workoutContext} allowSuggestion={!contextChosen} onChange={value => { setWorkoutContext(value); setContextChosen(true); }} />
+          <NutritionQuality preset={sportPreset} input={{ ...totals, nutrients_std: sumQualityNutrients(items as unknown as Record<string, unknown>[]), carbohydrateBasis: "unknown", peri_workout: workoutContext }} />
           <div className="bg-accent rounded-xl p-3">
             <div className="flex items-center justify-between text-sm">
               <span className="font-semibold">{items.some((item) => item.nutritionSource === "unresolved") ? "Total partiel" : "Total"}</span>

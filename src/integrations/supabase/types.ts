@@ -277,6 +277,7 @@ export type Database = {
           meal_name: string | null
           model_used: string | null
           parent_meal_id: string | null
+          peri_workout: string
           raw_ai_analysis: string | null
           raw_text_input: string | null
           source: string
@@ -299,6 +300,7 @@ export type Database = {
           meal_name?: string | null
           model_used?: string | null
           parent_meal_id?: string | null
+          peri_workout?: string
           raw_ai_analysis?: string | null
           raw_text_input?: string | null
           source?: string
@@ -321,6 +323,7 @@ export type Database = {
           meal_name?: string | null
           model_used?: string | null
           parent_meal_id?: string | null
+          peri_workout?: string
           raw_ai_analysis?: string | null
           raw_text_input?: string | null
           source?: string
@@ -397,6 +400,7 @@ export type Database = {
           selected_ai_model: string | null
           selected_ai_provider_id: string | null
           sport_allowed_sources: string[]
+          sport_preset: string
           target_body_fat_percent: number | null
           target_muscle_mass_kg: number | null
           target_weight_kg: number | null
@@ -441,6 +445,7 @@ export type Database = {
           selected_ai_model?: string | null
           selected_ai_provider_id?: string | null
           sport_allowed_sources?: string[]
+          sport_preset?: string
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null
@@ -485,6 +490,7 @@ export type Database = {
           selected_ai_model?: string | null
           selected_ai_provider_id?: string | null
           sport_allowed_sources?: string[]
+          sport_preset?: string
           target_body_fat_percent?: number | null
           target_muscle_mass_kg?: number | null
           target_weight_kg?: number | null

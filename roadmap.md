@@ -4,8 +4,11 @@
 - [x] Option A : import santé au démarrage et à chaque reprise, délai de 60 s, aucun import concurrent ; lissage sur J-7 à J-1 en dates locales (40 tests ciblés, contrôle Paris/Los Angeles)
 - [ ] Validation de l'import réel sur Android — bloqué : aucun appareil Android disponible ; validation connectée indisponible sans compte utilisateur identifié
 
-## Phase suivante (hors Option A)
-- Persistance des profils/tags, suggestions modifiables, badges et jauges, recalcul après édition
+## Phase suivante
+- [ ] Persistance des profils IQM et des contextes pré/intra/post-effort
+- [ ] Suggestions sportives confirmables sans modifier les choix manuels
+- [ ] Badges IQM repas/journée et jauges sucres/fibres/saturés avec données partielles explicites
+- [ ] Recalcul à la création et après modification, tests et parcours connecté
 
 ## Travaux précédents
 

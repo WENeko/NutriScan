@@ -1,0 +1,3 @@
+ALTER TABLE public.profiles ADD COLUMN sport_preset text NOT NULL DEFAULT 'hypertrophy' CHECK (sport_preset IN ('hypertrophy', 'cut', 'endurance', 'health'));
+ALTER TABLE public.meals ADD COLUMN peri_workout text NOT NULL DEFAULT 'none' CHECK (peri_workout IN ('none', 'pre_workout', 'intra_workout', 'post_workout'));
+COMMENT ON COLUMN public.meals.peri_workout IS 'User-confirmed workout context; automatic suggestions never overwrite this value.';

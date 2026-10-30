@@ -17,8 +17,10 @@ export interface CustomNutrientDef extends NutrientDef {
 export function buildStdNutrients(item: Record<string, unknown>): Record<string, number> {
   const out: Record<string, number> = {};
   for (const n of NUTRIENTS_STD_LIST) {
-    const v = Number(item[n.key]);
-    if (Number.isFinite(v) && v > 0) out[n.key] = v;
+    const raw = item[n.key];
+    if (raw === null || raw === undefined || raw === "") continue;
+    const v = Number(raw);
+    if (Number.isFinite(v) && v >= 0) out[n.key] = v;
   }
   return out;
 }

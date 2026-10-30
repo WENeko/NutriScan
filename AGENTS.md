@@ -1,6 +1,7 @@
 # Project rules
 
 - Keep IQM calculations pure in `src/utils/metabolic-quality.ts`; unknown nutrients remain unknown and coverage accompanies provisional scores so missing records never become fabricated measurements.
+- Persist user-confirmed meal workout contexts and the IQM preset independently of calorie goals; derive IQM from current ingredients, require complete ingredient coverage per nutrient, and never auto-apply workout suggestions or infer carbohydrate catalogue conventions.
 - Health imports share a per-user 60-second single-flight guard and refresh on foreground only after import; sport calorie smoothing uses seven completed local dates so today's sessions never enter the smoothed supplement.
 - Cloud hybrid wraps each configured cloud analysis step without changing its order or invoking local models implicitly; detection uses shared perception rules and only the five portion fields, then library → reference → OFF → USDA and missing-only micro completion supply nutrition.
 - USDA resolution and micro completion share translation helpers under edge-function `_shared`; reuse the existing translation model so search names stay consistent without a second AI integration.

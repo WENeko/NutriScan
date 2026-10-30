@@ -105,6 +105,33 @@ export function calculateDailyQuality(meals: QualityInput[], preset: UserPreset 
 }
 
 export interface WorkoutInterval { start_time: string; end_time: string }
+export const QUALITY_KEYS = ["sugar", "fiber", "saturated_fat", "omega3_mg"] as const;
+
+/** A nutrient total is known only when every ingredient has a measurement. */
+export function sumQualityNutrients(items: Record<string, unknown>[]): Record<string, number> {
+  const totals: Record<string, number> = {};
+  if (!items.length) return totals;
+  for (const key of QUALITY_KEYS) {
+    const values = items.map(item => {
+      const std = item.nutrients_std as Record<string, unknown> | undefined;
+      return std ? std[key] : item[key];
+    });
+    if (values.every(measured)) totals[key] = (values as number[]).reduce((sum, value) => sum + value, 0);
+  }
+  return totals;
+}
+
+export function qualityInputFromMeal(meal: { total_calories: number | null; total_proteins: number | null; total_carbs: number | null; total_fats: number | null; peri_workout?: string }, items: Record<string, unknown>[]): QualityInput {
+  return { calories: meal.total_calories, proteins: meal.total_proteins, carbs: meal.total_carbs, fats: meal.total_fats,
+    nutrients_std: sumQualityNutrients(items), carbohydrateBasis: "unknown", peri_workout: normalizeWorkoutContext(meal.peri_workout) };
+}
+
+export function normalizeWorkoutContext(value: unknown): WorkoutContext {
+  return value === "pre_workout" || value === "intra_workout" || value === "post_workout" ? value : "none";
+}
+export function normalizeSportPreset(value: unknown): UserPreset {
+  return value === "cut" || value === "endurance" || value === "health" ? value : "hypertrophy";
+}
 /** Suggestion only; caller must preserve an explicitly chosen user tag.
  * Absolute instants handle timezone changes and sessions crossing midnight.
  */

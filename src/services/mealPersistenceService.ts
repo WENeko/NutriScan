@@ -15,6 +15,7 @@ import {
   type CustomNutrientDef,
 } from "@/utils/nutrients-helpers";
 import { writeMealToHealthConnect } from "./nutritionWriter";
+import { normalizeWorkoutContext, type WorkoutContext } from "@/utils/metabolic-quality";
 
 const PERSO_ENABLED = false;
 
@@ -59,6 +60,7 @@ interface SaveMealParams {
     total_fats: number;
     image_url?: string | null;
     timestamp?: string;
+    peri_workout?: WorkoutContext;
     raw_ai_analysis?: string | null;
     raw_text_input?: string | null;
     is_confirmed?: boolean;
@@ -80,6 +82,7 @@ function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
     total_carbs: m.total_carbs,
     total_fats: m.total_fats,
     timestamp: m.timestamp ?? new Date().toISOString(),
+    peri_workout: normalizeWorkoutContext(m.peri_workout),
     image_url: m.image_url ?? null,
     raw_ai_analysis: m.raw_ai_analysis ?? null,
     raw_text_input: m.raw_text_input ?? null,
