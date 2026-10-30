@@ -22,6 +22,13 @@
       "when": 1791751388826,
       "tag": "0002_add_capture_distance_to_meals",
       "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1793352035684,
+      "tag": "0003_meal_quality_context",
+      "breakpoints": true
     }
   ]
 }
