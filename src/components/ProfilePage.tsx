@@ -7,6 +7,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight, RefreshCw, Droplets } from "lucide-react";
+import SportPresetPicker from "./SportPresetPicker";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import NumericInput from "@/components/NumericInput";
@@ -892,6 +893,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         {/* ============ GOALS ============ */}
         {subPage === "goals" && (
           <>
+            <SportPresetPicker userId={userId} />
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
               <div className="grid grid-cols-3 gap-2">
