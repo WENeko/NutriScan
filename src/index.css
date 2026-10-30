@@ -118,6 +118,8 @@
 }
 
 @layer utilities {
+  .quality-sugar { background: hsl(var(--nutri-orange)); }
+  .quality-saturated { background: hsl(var(--secondary)); }
   .nutri-gradient {
     background: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--primary-glow)));
   }
