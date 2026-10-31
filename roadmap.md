@@ -11,7 +11,7 @@
 - [x] Recalcul à la création et après modification ; conserver les zéros mesurés sans créer de valeurs manquantes
 - [ ] Parcours connecté création/modification/profil — bloqué : aucune session ; la connexion automatique ne trouve pas de compte correspondant au demandeur
 - [x] Cibles qualitatives par profil (calcul + tests)
-- [ ] Affichage des cibles et articulation et articulation avec les glucides du cyclage (sans réorganisation des réglages)
+- [x] Objectifs du profil affichés sur le tableau de bord ; glucides prioritaires les jours d’entraînement du cyclage
 
 ## Travaux précédents
 

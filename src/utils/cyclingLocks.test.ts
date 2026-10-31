@@ -48,3 +48,18 @@ describe("sélection de fiche tolérante", () => {
     expect(validatedSelections({ matches: [{ index: 0, id: "999", equivalent: true }] }, req).size).toBe(0);
   });
 });
+
+import { applyCycling as applyCyc } from "./goals-calc";
+describe("applyCycling training carbs", () => {
+  const base = { calories: 2000, proteins: 150, carbs: 200, fats: 70 };
+  const mon = new Date(2026, 9, 26); // Monday, ISO index 0
+  const mult = [1.2, 1, 1, 1, 1, 1, 0.8];
+  it("training day: all extra calories go to carbs", () => {
+    const g = applyCyc(base, { enabled: true, multipliers: mult, trainingDays: [0] }, mon, 80);
+    expect(g.carbs).toBe(300); expect(g.fats).toBe(70);
+  });
+  it("rest day: 80% carbs / 20% fats", () => {
+    const g = applyCyc(base, { enabled: true, multipliers: mult, trainingDays: [] }, mon, 80);
+    expect(g.carbs).toBe(280); expect(g.fats).toBe(79);
+  });
+});
