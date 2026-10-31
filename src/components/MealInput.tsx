@@ -433,9 +433,9 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       const hasExplicitWeight = Boolean(item.quantity || item.estimated_weight_g || item.weight_g);
       const customDefaultWeight = Number(customMatch?.serving_size_g) || 100;
       const weight = customMatch && (!hasExplicitWeight || aiWeight === 100) ? customDefaultWeight : aiWeight;
-      let proteins = knownNutrient(item.proteins);
-      let carbs = knownNutrient(item.carbs);
-      let fats = knownNutrient(item.fats);
+      let proteins = Number(item.proteins) || 0;
+      let carbs = Number(item.carbs) || 0;
+      let fats = Number(item.fats) || 0;
       let calories = Number(item.calories) || Math.round(proteins * 4 + carbs * 4 + fats * 9);
       let fiber = knownNutrient(item.fiber);
       let sugar = knownNutrient(item.sugar);
