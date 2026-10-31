@@ -1118,8 +1118,9 @@ const [searchQuery, setSearchQuery] = useState("");
               </div>
             </div>
           )}
-    </div>
-  );
+      </div>
+    );
+  };
 
   const toggleGroup = (key: string) =>
     setCollapsedGroups((prev) => ({ ...prev, [key]: !prev[key] }));
