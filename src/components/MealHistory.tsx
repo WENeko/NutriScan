@@ -27,9 +27,9 @@ import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import NumericInput from "./NumericInput";
-import NutritionQuality from "./NutritionQuality";
+import NutritionQuality, { QualityBadge } from "./NutritionQuality";
 import WorkoutContextPicker, { WORKOUT_LABELS } from "./WorkoutContextPicker";
-import { normalizeWorkoutContext, qualityInputFromMeal, type WorkoutContext, type UserPreset } from "@/utils/metabolic-quality";
+import { normalizeWorkoutContext, qualityInputFromMeal, calculateMealQuality, type WorkoutContext, type UserPreset } from "@/utils/metabolic-quality";
 import DistanceBadge from "./DistanceBadge";
 import { scaleForDistance } from "@/services/portionScaling";
 import MealMicros from "./MealMicros";
@@ -807,15 +807,22 @@ const [searchQuery, setSearchQuery] = useState("");
     );
   }
 
-  const renderMealCard = (meal: Meal, idx: number) => (
-    <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
-      <div
-        role="button"
-        tabIndex={0}
-        onClick={() => onSelect(meal.id)}
-        onKeyDown={(e) => { if (e.key === "Enter") onSelect(meal.id); }}
-        className="w-full flex flex-col gap-2 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left cursor-pointer"
-      >
+  const renderMealCard = (meal: Meal, idx: number) => {
+    const mealQualityInput = qualityInputFromMeal(
+      meal,
+      qualityRows.filter((item) => item.meal_id === meal.id)
+    );
+    const mealQuality = calculateMealQuality(mealQualityInput, sportPreset);
+
+    return (
+      <div key={meal.id} style={{ animationDelay: `${idx * 40}ms` }}>
+        <div
+          role="button"
+          tabIndex={0}
+          onClick={() => onSelect(meal.id)}
+          onKeyDown={(e) => { if (e.key === "Enter") onSelect(meal.id); }}
+          className="w-full flex flex-col gap-2 bg-card rounded-xl p-3 shadow-card hover:shadow-float transition-shadow text-left cursor-pointer"
+        >
         <div className="w-full flex items-start gap-3">
           <div className="flex-shrink-0">
             {meal.image_url ? (
@@ -948,43 +955,51 @@ const [searchQuery, setSearchQuery] = useState("");
                 </DropdownMenu>
               )}
             </div>
-
           </div>
         </div>
+
+        {/* Ligne IQM compacte intégrée par défaut dans la carte */}
+        <div className="pt-1 border-t border-border/40" onClick={(e) => e.stopPropagation()}>
+          <QualityBadge {...mealQuality} />
+        </div>
+
         <AiBadges model={meal.model_used} confidence={meal.confidence_score} />
       </div>
 
-          {/* Read-only expanded ingredient list */}
-          {expandedMealId === meal.id && editingMealId !== meal.id && (
-            <div className="bg-accent/50 rounded-xl px-3 py-2 mt-1 space-y-1 animate-fade-up">
-              {(expandedItems[meal.id] || []).length === 0 ? (
-                <p className="text-[10px] text-muted-foreground">Aucun ingrédient.</p>
-              ) : (
-                (expandedItems[meal.id] || []).map((it) => (
-                  <div key={it.id} className="flex items-center justify-between gap-2 text-xs">
-                    <span className="truncate flex-1">
-                      <span className="font-medium">{it.name}</span>
-                      {it.quantity && <span className="text-muted-foreground"> · {it.quantity}</span>}
-                    </span>
-                    <div className="flex items-center gap-2 flex-shrink-0 font-medium">
-                      <span style={{ color: MACRO_COLORS.calorie }}>{Math.round(it.calories || 0)}kcal</span>
-                      <span style={{ color: MACRO_COLORS.protein }}>P{Math.round(it.proteins || 0)}</span>
-                      <span style={{ color: MACRO_COLORS.carb }}>G{Math.round(it.carbs || 0)}</span>
-                      <span style={{ color: MACRO_COLORS.fat }}>L{Math.round(it.fats || 0)}</span>
-                    </div>
-                  </div>
-                ))
-              )}
-            </div>
+      {/* Read-only expanded ingredient list */}
+      {expandedMealId === meal.id && editingMealId !== meal.id && (
+        <div className="bg-accent/50 rounded-xl px-3 py-2 mt-1 space-y-1 animate-fade-up">
+          {(expandedItems[meal.id] || []).length === 0 ? (
+            <p className="text-[10px] text-muted-foreground">Aucun ingrédient.</p>
+          ) : (
+            (expandedItems[meal.id] || []).map((it) => (
+              <div key={it.id} className="flex items-center justify-between gap-2 text-xs">
+                <span className="truncate flex-1">
+                  <span className="font-medium">{it.name}</span>
+                  {it.quantity && <span className="text-muted-foreground"> · {it.quantity}</span>}
+                </span>
+                <div className="flex items-center gap-2 flex-shrink-0 font-medium">
+                  <span style={{ color: MACRO_COLORS.calorie }}>{Math.round(it.calories || 0)}kcal</span>
+                  <span style={{ color: MACRO_COLORS.protein }}>P{Math.round(it.proteins || 0)}</span>
+                  <span style={{ color: MACRO_COLORS.carb }}>G{Math.round(it.carbs || 0)}</span>
+                  <span style={{ color: MACRO_COLORS.fat }}>L{Math.round(it.fats || 0)}</span>
+                </div>
+              </div>
+            ))
           )}
+        </div>
+      )}
 
-          <div className="px-3">
-            <NutritionQuality preset={sportPreset} input={qualityInputFromMeal(meal, qualityRows.filter(item => item.meal_id === meal.id))} />
-          </div>
-          {/* Meal micros */}
-          <div className="px-3 pb-2">
-            <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} refreshKey={`${meal.total_calories}-${meal.total_proteins}-${meal.total_carbs}-${meal.total_fats}`} />
-          </div>
+      {/* Meal micros avec les fractions dépliables */}
+      <div className="px-3 pb-2">
+        <MealMicros
+          mealId={meal.id}
+          microGoals={microGoals}
+          customDefs={customDefs}
+          refreshKey={`${meal.total_calories}-${meal.total_proteins}-${meal.total_carbs}-${meal.total_fats}`}
+          qualityInput={mealQualityInput}
+        />
+      </div>     
 
 
           {/* Inline edit panel */}
