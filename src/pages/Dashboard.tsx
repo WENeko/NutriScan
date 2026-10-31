@@ -365,7 +365,11 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   }, [userId]);
 
   const dailyQuality = useMemo(() => calculateDailyQuality(todayMeals.map(meal => qualityInputFromMeal(meal, qualityItems.filter(item => item.meal_id === meal.id))), sportPreset), [todayMeals, qualityItems, sportPreset]);
-  const dailyQualityInput = { ...todayTotals, carbohydrateBasis: "unknown" as const, nutrients_std: todayMeals.every(meal => qualityItems.some(item => item.meal_id === meal.id)) ? sumQualityNutrients(qualityItems) : {} };
+  const dailyQualityInput = useMemo(() => ({
+    ...todayTotals,
+    carbohydrateBasis: "available" as const,
+    nutrients_std: Object.keys(todayMicros).length > 0 ? todayMicros : sumQualityNutrients(qualityItems),
+  }), [todayTotals, todayMicros, qualityItems]);
   useEffect(() => {
     const refresh = () => { void fetchData(); };
     window.addEventListener("nutriscan:quality-profile", refresh);
