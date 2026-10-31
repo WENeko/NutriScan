@@ -25,7 +25,7 @@ export function QualityFractions({ input }: { input: QualityInput }) {
   ];
   return <div className="space-y-3">
     {bars.map(bar => <div key={bar.label} className="space-y-1">
-      <div className="flex flex-wrap justify-between gap-1 text-xs"><span className="font-semibold">{bar.label} · {format(bar.total)}</span><span className="text-muted-foreground">{bar.fraction} {format(bar.detail)}</span></div>
+      <div className="flex flex-wrap justify-between gap-1 text-xs"><span className="font-semibold">{bar.label} · {format(bar.total)}</span><span className="text-muted-foreground">{bar.fraction} {format(bar.detail)}{bar.detail != null && bar.total != null && bar.total > 0 ? ` · ${Math.round(bar.detail / bar.total * 100)} %` : ""}</span></div>
       <div className="flex h-2 overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${bar.fraction} ${format(bar.detail)} sur ${format(bar.total)}`}>
         {bar.detail != null && bar.total != null && bar.total > 0 && <div className={bar.className} style={{ width: `${Math.min(100, bar.detail / bar.total * 100)}%` }} />}
       </div>
