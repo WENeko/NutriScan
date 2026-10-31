@@ -4,12 +4,15 @@ import { supabase } from "@/integrations/supabase/client";
 import { useTooltipCtx } from "./TooltipContext";
 import { getMicroInfo, getCustomMicroInfo, type MicroGoals, NUTRIENTS_STD_LIST, getMasterList } from "@/utils/nutrition-logic";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
+import { QualityFractions } from "./NutritionQuality";
+import { type QualityInput } from "@/utils/metabolic-quality";
 
 interface MealMicrosProps {
   mealId: string;
   microGoals?: MicroGoals;
   customDefs?: CustomNutrientDef[];
   refreshKey?: number | string;
+  qualityInput?: QualityInput;
 }
 
 const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) => {
@@ -29,7 +32,7 @@ const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) =
   );
 };
 
-const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs = [], refreshKey }) => {
+const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs = [], refreshKey, qualityInput }) => {
   const [open, setOpen] = useState(false);
   const [micros, setMicros] = useState<Record<string, number> | null>(null);
   const prefix = useId();
@@ -68,28 +71,35 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
         Détails Santé
       </button>
       {open && (
-        <div className="grid grid-cols-2 gap-1.5 mt-1.5 animate-fade-up">
-          {micros && hasMicros ? (
-            allNutrients.filter((n) => (micros[n.key] || 0) > 0).map((n, i) => {
-              const goal = microGoals ? (microGoals as any)[n.key] ?? 0 : 0;
-              const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
-              const customDef = customDefs.find((c) => c.key === n.key);
-              const info = isStd && microGoals
-                ? getMicroInfo(n.key, goal)
-                : getCustomMicroInfo(n.label, n.unit, goal, !!customDef?.is_limit, customDef?.description);
-              return (
-                <div key={n.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
-                  <div className="flex items-center gap-1">
-                    <span className="text-[10px] font-medium">{n.label}</span>
-                    {info && <MicroInfoBubble info={info} id={`${prefix}-mm-${i}`} />}
-                  </div>
-                  <span className="text-[10px] font-bold">{Math.round((micros[n.key] || 0) * 10) / 10}{n.unit}</span>
-                </div>
-              );
-            })
-          ) : (
-            <p className="text-[10px] text-muted-foreground col-span-2">Aucun micronutriment enregistré.</p>
+        <div className="space-y-2 mt-1.5 animate-fade-up">
+          {qualityInput && (
+            <div className="bg-accent/40 rounded-lg p-2.5">
+              <QualityFractions input={qualityInput} />
+            </div>
           )}
+          <div className="grid grid-cols-2 gap-1.5">
+            {micros && hasMicros ? (
+              allNutrients.filter((n) => (micros[n.key] || 0) > 0).map((n, i) => {
+                const goal = microGoals ? (microGoals as any)[n.key] ?? 0 : 0;
+                const isStd = NUTRIENTS_STD_LIST.some((s) => s.key === n.key);
+                const customDef = customDefs.find((c) => c.key === n.key);
+                const info = isStd && microGoals
+                  ? getMicroInfo(n.key, goal)
+                  : getCustomMicroInfo(n.label, n.unit, goal, !!customDef?.is_limit, customDef?.description);
+                return (
+                  <div key={n.key} className="bg-accent rounded-lg px-2 py-1.5 flex items-center justify-between">
+                    <div className="flex items-center gap-1">
+                      <span className="text-[10px] font-medium">{n.label}</span>
+                      {info && <MicroInfoBubble info={info} id={`${prefix}-mm-${i}`} />}
+                    </div>
+                    <span className="text-[10px] font-bold">{Math.round((micros[n.key] || 0) * 10) / 10}{n.unit}</span>
+                  </div>
+                );
+              })
+            ) : (
+              <p className="text-[10px] text-muted-foreground col-span-2">Aucun micronutriment enregistré.</p>
+            )}
+          </div>
         </div>
       )}
     </div>
