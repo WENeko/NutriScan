@@ -220,7 +220,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const [textInput, setTextInput] = useState("");
   const [mealName, setMealName] = useState("");
   const [editingName, setEditingName] = useState(false);
-  const [mealTimestamp, setMealTimestamp] = useState("");
+  const [mealTimestamp, setMealTimestamp] = useState(getLocalDateTimeString);
   const [workoutContext, setWorkoutContext] = useState<WorkoutContext>("none");
   const [contextChosen, setContextChosen] = useState(false);
   const [sportPreset, setSportPreset] = useState<UserPreset>("hypertrophy");
@@ -848,7 +848,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
     setModelUsed(null);
     setConfidenceScore(null);
     setMealName("");
-    setMealTimestamp("");
+    setMealTimestamp(getLocalDateTimeString());
     setWorkoutContext("none");
     setContextChosen(false);
     setEditingIdx(null);
