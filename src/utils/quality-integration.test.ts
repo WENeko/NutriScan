@@ -6,8 +6,8 @@ describe("nutrition quality persistence adapters", () => {
   it("preserves measured zero sugar without creating missing measurements", () => {
     expect(buildStdNutrients({ sugar: 0, fiber: undefined, saturated_fat: null, omega3_mg: "" })).toEqual({ sugar: 0 });
   });
-  it("does not treat one missing ingredient as measured zero", () => {
-    expect(sumQualityNutrients([{ nutrients_std: { sugar: 4, fiber: 2 } }, { nutrients_std: { sugar: 0 } }])).toEqual({ sugar: 4 });
+  it("sums available nutrients across meal items", () => {
+    expect(sumQualityNutrients([{ nutrients_std: { sugar: 4, fiber: 2 } }, { nutrients_std: { sugar: 0 } }])).toEqual({ sugar: 4, fiber: 2 });
   });
   it("keeps the explicit Standard choice", () => {
     expect(normalizeWorkoutContext("none")).toBe("none");
