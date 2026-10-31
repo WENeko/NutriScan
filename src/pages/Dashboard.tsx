@@ -279,13 +279,21 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     }
 
     const todayStart = startOfDay(now);
-    const { data: meals } = await supabase
-      .from("meals")
-      .select("*")
-      .eq("user_id", userId)
-      .order("timestamp", { ascending: false });
+    const PAGE = 1000;
+    const meals: Meal[] = [];
+    for (let offset = 0; ; offset += PAGE) {
+      const { data: page } = await supabase
+        .from("meals")
+        .select("*")
+        .eq("user_id", userId)
+        .order("timestamp", { ascending: false })
+        .range(offset, offset + PAGE - 1);
+      const rows = (page as Meal[]) || [];
+      meals.push(...rows);
+      if (rows.length < PAGE) break;
+    }
 
-    if (meals) {
+    if (meals.length > 0) {
       const typedMeals = meals as Meal[];
       setAllMeals(typedMeals);
       setFavoriteMeals(
