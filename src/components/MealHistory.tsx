@@ -27,6 +27,9 @@ import { toast } from "@/hooks/use-toast";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import NumericInput from "./NumericInput";
+import NutritionQuality from "./NutritionQuality";
+import WorkoutContextPicker, { WORKOUT_LABELS } from "./WorkoutContextPicker";
+import { normalizeWorkoutContext, qualityInputFromMeal, type WorkoutContext, type UserPreset } from "@/utils/metabolic-quality";
 import DistanceBadge from "./DistanceBadge";
 import { scaleForDistance } from "@/services/portionScaling";
 import MealMicros from "./MealMicros";
@@ -79,6 +82,7 @@ interface Meal {
   model_used?: string | null;
   confidence_score?: number | null;
   capture_distance_m?: number | null;
+  peri_workout?: string;
 }
 
 /** Couleur de la pastille de confiance selon le score (0-100). */
@@ -128,11 +132,12 @@ interface MealHistoryProps {
   customDefs?: import("@/utils/nutrients-helpers").CustomNutrientDef[];
   groupByPeriod?: boolean;
   searchable?: boolean;
+  sportPreset?: UserPreset;
 }
 
 type AddMode = "text" | "barcode";
 
-const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs, groupByPeriod = false, searchable = false }) => {
+const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRefresh, microGoals, customDefs, groupByPeriod = false, searchable = false, sportPreset = "hypertrophy" }) => {
   const [quickActions] = useMealQuickActions();
   const menuActions = MEAL_ACTIONS.map((a) => a.value).filter((a) => !quickActions.includes(a));
   const [editingMealId, setEditingMealId] = useState<string | null>(null);
@@ -143,6 +148,15 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   const [editWeightInputs, setEditWeightInputs] = useState<string[]>([]);
   const [editMealName, setEditMealName] = useState("");
   const [editTimestamp, setEditTimestamp] = useState("");
+  const [editContext, setEditContext] = useState<WorkoutContext>("none");
+  const [editContextChosen, setEditContextChosen] = useState(false);
+  const [qualityRows, setQualityRows] = useState<Record<string, unknown>[]>([]);
+  useEffect(() => {
+    let active = true;
+    setQualityRows([]);
+    if (meals.length) void supabase.from("meal_items").select("meal_id,nutrients_std").in("meal_id", meals.map(meal => meal.id)).then(({ data }) => { if (active) setQualityRows(data ?? []); });
+    return () => { active = false; };
+  }, [meals]);
   const [editDistance, setEditDistance] = useState<number | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
   // Expand (read-only) ingredient list state
@@ -357,6 +371,8 @@ const [searchQuery, setSearchQuery] = useState("");
       if (error) throw error;
       const meal = meals.find((m) => m.id === mealId);
       setEditMealName(meal?.meal_name || "");
+      setEditContext(normalizeWorkoutContext(meal?.peri_workout));
+      setEditContextChosen(false);
       setEditTimestamp(meal ? getLocalDateTimeString(new Date(meal.timestamp)) : getLocalDateTimeString());
       setEditDistance((meal as any)?.capture_distance_m ?? null);
 
@@ -461,10 +477,10 @@ const [searchQuery, setSearchQuery] = useState("");
           ...item,
           quantity: `${newWeight}g`, proteins, carbs, fats,
           calories: Math.round(proteins * 4 + carbs * 4 + fats * 9),
-          fiber: Math.round(density.fiberD * newWeight * 10) / 10,
-          sugar: Math.round(density.sugarD * newWeight * 10) / 10,
-          saturated_fat: Math.round(density.satFatD * newWeight * 10) / 10,
-          omega3_mg: Math.round(density.omega3D * newWeight * 10) / 10,
+          fiber: item.fiber == null ? undefined : Math.round(density.fiberD * newWeight * 10) / 10,
+          sugar: item.sugar == null ? undefined : Math.round(density.sugarD * newWeight * 10) / 10,
+          saturated_fat: item.saturated_fat == null ? undefined : Math.round(density.satFatD * newWeight * 10) / 10,
+          omega3_mg: item.omega3_mg == null ? undefined : Math.round(density.omega3D * newWeight * 10) / 10,
           sodium_mg: Math.round(density.sodiumD * newWeight * 10) / 10,
           potassium_mg: Math.round(density.potassiumD * newWeight * 10) / 10,
           magnesium_mg: Math.round(density.magnesiumD * newWeight * 10) / 10,
@@ -510,10 +526,10 @@ const [searchQuery, setSearchQuery] = useState("");
           carbs: Math.round(density.carbsD * newWeight * 10) / 10,
           fats: Math.round(density.fatsD * newWeight * 10) / 10,
           calories: Math.round(density.protD * newWeight * 4 + density.carbsD * newWeight * 4 + density.fatsD * newWeight * 9),
-          fiber: Math.round(density.fiberD * newWeight * 10) / 10,
-          sugar: Math.round(density.sugarD * newWeight * 10) / 10,
-          saturated_fat: Math.round(density.satFatD * newWeight * 10) / 10,
-          omega3_mg: Math.round(density.omega3D * newWeight * 10) / 10,
+          fiber: item.fiber == null ? undefined : Math.round(density.fiberD * newWeight * 10) / 10,
+          sugar: item.sugar == null ? undefined : Math.round(density.sugarD * newWeight * 10) / 10,
+          saturated_fat: item.saturated_fat == null ? undefined : Math.round(density.satFatD * newWeight * 10) / 10,
+          omega3_mg: item.omega3_mg == null ? undefined : Math.round(density.omega3D * newWeight * 10) / 10,
           sodium_mg: Math.round(density.sodiumD * newWeight * 10) / 10,
           potassium_mg: Math.round(density.potassiumD * newWeight * 10) / 10,
           magnesium_mg: Math.round(density.magnesiumD * newWeight * 10) / 10,
@@ -565,10 +581,10 @@ const [searchQuery, setSearchQuery] = useState("");
           carbs: Math.round(density.carbsD * w * 10) / 10,
           fats: Math.round(density.fatsD * w * 10) / 10,
           calories: Math.round(density.protD * w * 4 + density.carbsD * w * 4 + density.fatsD * w * 9),
-          fiber: Math.round(density.fiberD * w * 10) / 10,
-          sugar: Math.round(density.sugarD * w * 10) / 10,
-          saturated_fat: Math.round(density.satFatD * w * 10) / 10,
-          omega3_mg: Math.round(density.omega3D * w * 10) / 10,
+          fiber: item.fiber == null ? undefined : Math.round(density.fiberD * w * 10) / 10,
+          sugar: item.sugar == null ? undefined : Math.round(density.sugarD * w * 10) / 10,
+          saturated_fat: item.saturated_fat == null ? undefined : Math.round(density.satFatD * w * 10) / 10,
+          omega3_mg: item.omega3_mg == null ? undefined : Math.round(density.omega3D * w * 10) / 10,
           sodium_mg: Math.round(density.sodiumD * w * 10) / 10,
           potassium_mg: Math.round(density.potassiumD * w * 10) / 10,
           magnesium_mg: Math.round(density.magnesiumD * w * 10) / 10,
@@ -716,6 +732,7 @@ const [searchQuery, setSearchQuery] = useState("");
       const { data: updatedMeal } = await supabase.from("meals").update({
         meal_name: editMealName || null,
         capture_distance_m: editDistance,
+        peri_workout: editContext,
         timestamp: editTimestamp ? localDateTimeToISO(editTimestamp) : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,
@@ -786,6 +803,7 @@ const [searchQuery, setSearchQuery] = useState("");
             <p className={`text-xs text-muted-foreground truncate ${meal.meal_name ? '' : 'text-sm font-semibold text-foreground'}`}>
               {format(new Date(meal.timestamp), "EEEE d MMM, HH:mm", { locale: fr })}
             </p>
+            {meal.peri_workout && meal.peri_workout !== "none" && <p className="text-xs text-primary">{WORKOUT_LABELS[normalizeWorkoutContext(meal.peri_workout)]}</p>}
             <div className="flex gap-2 text-xs mt-0.5 font-medium">
               <span style={{ color: MACRO_COLORS.protein }}>P: {Math.round(meal.total_proteins)}g</span>
               <span style={{ color: MACRO_COLORS.carb }}>G: {Math.round(meal.total_carbs)}g</span>
@@ -927,6 +945,9 @@ const [searchQuery, setSearchQuery] = useState("");
             </div>
           )}
 
+          <div className="px-3">
+            <NutritionQuality preset={sportPreset} input={qualityInputFromMeal(meal, qualityRows.filter(item => item.meal_id === meal.id))} />
+          </div>
           {/* Meal micros */}
           <div className="px-3 pb-2">
             <MealMicros mealId={meal.id} microGoals={microGoals} customDefs={customDefs} refreshKey={`${meal.total_calories}-${meal.total_proteins}-${meal.total_carbs}-${meal.total_fats}`} />
@@ -946,6 +967,9 @@ const [searchQuery, setSearchQuery] = useState("");
                 <label className="text-[10px] font-semibold text-muted-foreground flex items-center gap-1"><Clock className="w-3 h-3" /> Date/Heure</label>
                 <Input type="datetime-local" value={editTimestamp} onChange={(e) => setEditTimestamp(e.target.value)} className="h-8 text-xs rounded-lg" />
               </div>
+              <WorkoutContextPicker userId={userId} timestamp={editTimestamp ? localDateTimeToISO(editTimestamp) : meal.timestamp}
+                value={editContext} allowSuggestion={!editContextChosen} onChange={value => { setEditContext(value); setEditContextChosen(true); }} />
+              <NutritionQuality preset={sportPreset} input={qualityInputFromMeal({ total_calories: editItems.reduce((sum, item) => sum + (item.calories ?? 0), 0), total_proteins: editItems.reduce((sum, item) => sum + (item.proteins ?? 0), 0), total_carbs: editItems.reduce((sum, item) => sum + (item.carbs ?? 0), 0), total_fats: editItems.reduce((sum, item) => sum + (item.fats ?? 0), 0), peri_workout: editContext }, editItems.map(item => ({ ...item, nutrients_std: buildStdNutrients(item as unknown as Record<string, unknown>) })))} />
               {/* Distance de prise de vue (recalcule les quantités) */}
               <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground">Distance de prise de vue</label>
