@@ -4,23 +4,33 @@ import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
 
 export function QualityBadge({ score, grade, coverage }: { score: number | null; grade: string | null; coverage: number }) {
-  return <div className="flex flex-wrap items-center gap-2 text-xs">
-    <span className={`font-semibold ${grade === "A" || grade === "B" ? "text-primary" : grade === "D" ? "text-destructive" : "text-muted-foreground"}`}>
-      IQM {score === null ? "—" : `${score}/100 · ${grade}`}
-    </span>
-    <span className="text-muted-foreground">{coverage < 0.999 ? "Provisoire · " : ""}couverture {Math.round(coverage * 100)} %</span>
-    <Popover>
-      <PopoverTrigger asChild>
-        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" aria-label="À propos de l’IQM">
-          <Info className="h-3.5 w-3.5" />
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent className="max-w-64 text-xs p-3 leading-relaxed" side="top">
-        Score indicatif, non clinique. Les valeurs manquantes restent inconnues. La couverture représente les critères calculables.
-      </PopoverContent>
-    </Popover>
-  </div>;
+  return (
+    <div className="flex flex-wrap items-center gap-2 text-xs">
+      <span className={`font-semibold ${grade === "A" || grade === "B" ? "text-primary" : grade === "D" ? "text-destructive" : "text-muted-foreground"}`}>
+        IQM {score === null ? "—" : `${score}/100 · ${grade}`}
+      </span>
+      <span className="text-muted-foreground">{coverage < 0.999 ? "Provisoire · " : ""}couverture {Math.round(coverage * 100)} %</span>
+      <Popover>
+        <PopoverTrigger asChild>
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon"
+            onClick={(e) => e.stopPropagation()}
+            className="h-6 w-6 text-muted-foreground hover:text-foreground"
+            aria-label="À propos de l’IQM"
+          >
+            <Info className="h-3.5 w-3.5" />
+          </Button>
+        </PopoverTrigger>
+        <PopoverContent className="max-w-64 text-xs p-3 leading-relaxed" side="top" onClick={(e) => e.stopPropagation()}>
+          Score indicatif, non clinique. Les valeurs manquantes restent inconnues. La couverture représente les critères calculables.
+        </PopoverContent>
+      </Popover>
+    </div>
+  );
 }
+
 
 const format = (value: number | null | undefined, unit = "g") => value == null ? "—" : `${Math.round(value * 10) / 10} ${unit}`;
 export function QualityFractions({ input }: { input: QualityInput }) {
