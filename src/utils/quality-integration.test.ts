@@ -27,8 +27,9 @@ describe("nutrition quality persistence adapters", () => {
     expect(workout.scores.carbs).toBe(100);
     expect(calculateDailyQuality([qualityInputFromMeal(meal, items), qualityInputFromMeal({ ...meal, peri_workout: "post_workout" }, items)]).score).toBeGreaterThan(standard.score ?? 100);
   });
-  it("does not infer a carbohydrate convention from mixed catalogues", () => {
+    it("does not infer a carbohydrate convention from mixed catalogues", () => {
     const input = qualityInputFromMeal({ total_calories: 500, total_proteins: 30, total_carbs: 60, total_fats: 15 }, [{ nutrients_std: { sugar: 5, fiber: 10 } }]);
-    expect(calculateMealQuality(input).fractions.nonSugarCarbs).toBeNull();
+    expect(calculateMealQuality(input).fractions.nonSugarCarbs).toBe(55);
+    expect(calculateMealQuality({ ...input, carbohydrateBasis: "unknown" }).fractions.nonSugarCarbs).toBeNull();
   });
 });
