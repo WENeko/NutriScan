@@ -181,12 +181,17 @@ export function applyCycling(
   if (!cycling?.enabled || !Array.isArray(cycling.multipliers) || cycling.multipliers.length !== 7) {
     return baseGoals;
   }
-  const mult = cycling.multipliers[getIsoDayIndex(date)] ?? 1;
+  const dayIndex = getIsoDayIndex(date);
+  const mult = cycling.multipliers[dayIndex] ?? 1;
   const targetCalories = Math.round(baseGoals.calories * mult);
   const deltaKcal = targetCalories - baseGoals.calories;
 
-  const deltaCarbs = (deltaKcal * 0.8) / 4;
-  const deltaFats = (deltaKcal * 0.2) / 9;
+  // Training days: the whole delta goes to carbs (fuel for the session).
+  // Rest days keep the 80/20 split so fats are not cut too hard.
+  const isTraining = Array.isArray(cycling.trainingDays) && cycling.trainingDays.includes(dayIndex);
+  const carbShare = isTraining ? 1 : 0.8;
+  const deltaCarbs = (deltaKcal * carbShare) / 4;
+  const deltaFats = (deltaKcal * (1 - carbShare)) / 9;
 
   const fatFloor = weightKg && weightKg > 0 ? Math.round(weightKg * 0.5) : 20;
   const fats = Math.max(Math.round(baseGoals.fats + deltaFats), fatFloor);

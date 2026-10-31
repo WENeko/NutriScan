@@ -6,6 +6,7 @@ import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic"
 import { applyCycling, type CalorieCycling } from "@/utils/goals-calc";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { QualityBadge, QualityFractions } from "@/components/NutritionQuality";
+import { QualityTargets } from "@/components/QualityTargets";
 import { calculateDailyQuality, qualityInputFromMeal, sumQualityNutrients, normalizeSportPreset, type UserPreset } from "@/utils/metabolic-quality";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
@@ -659,6 +660,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               <div className="space-y-3 border-t border-border py-3">
                 <QualityBadge {...dailyQuality} />
                 <QualityFractions input={dailyQualityInput} />
+                <QualityTargets preset={sportPreset} weightKg={weight} calories={goals.calories} totals={todayTotals} nutrients={dailyQualityInput.nutrients_std} />
               </div>
               {/* Sport info */}
               {sportCalories > 0 && (
