@@ -31,8 +31,11 @@ export function hasCompositionMacros(record: CompositionRecord): boolean {
 }
 
 export async function offRecords(name: string): Promise<CompositionRecord[]> {
-  const data = await fetchJson("https://world.openfoodfacts.org/cgi/search.pl?" +
-    `search_terms=${encodeURIComponent(name)}&search_simple=1&action=process&json=1&page_size=8&fields=code,product_name,brands,nutriments`);
+  const data = await fetchJson(
+    `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(name)}&page_size=8&fields=code,product_name,brands,nutriments`,
+    6000,
+    { headers: { "User-Agent": "NutriScan - Android/Web - Version 0.90.0" } }
+  );
   return (data?.products ?? []).flatMap((p: any) => {
     if (!p.code || !p.product_name || !p.nutriments) return [];
     const per100: Record<string, number> = {};
@@ -49,7 +52,7 @@ export async function offRecords(name: string): Promise<CompositionRecord[]> {
 
 export async function usdaRecords(query: string, key: string): Promise<CompositionRecord[]> {
   const data = await fetchJson(`https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}` +
-    `&dataType=Foundation,SR%20Legacy&pageSize=8&api_key=${encodeURIComponent(key)}`);
+    `&dataType=Foundation,SR%20Legacy,Survey%20(FNDDS)&pageSize=8&api_key=${encodeURIComponent(key)}`);
   return (data?.foods ?? []).flatMap((food: any) => {
     if (!food.fdcId || !food.description || !Array.isArray(food.foodNutrients)) return [];
     const per100: Record<string, number> = {};
