@@ -112,19 +112,35 @@ export function sumQualityNutrients(items: Record<string, unknown>[]): Record<st
   const totals: Record<string, number> = {};
   if (!items.length) return totals;
   for (const key of QUALITY_KEYS) {
-    const values = items.map(item => {
+    let sum = 0;
+    let hasAny = false;
+    for (const item of items) {
       const std = item.nutrients_std as Record<string, unknown> | undefined;
-      return std ? std[key] : item[key];
-    });
-    if (values.every(measured)) totals[key] = (values as number[]).reduce((sum, value) => sum + value, 0);
+      const raw = std && std[key] !== undefined ? std[key] : item[key];
+      if (typeof raw === "number" && !isNaN(raw) && raw >= 0) {
+        sum += raw;
+        hasAny = true;
+      }
+    }
+    if (hasAny) {
+      totals[key] = Math.round(sum * 10) / 10;
+    }
   }
   return totals;
 }
 
 export function qualityInputFromMeal(meal: { total_calories: number | null; total_proteins: number | null; total_carbs: number | null; total_fats: number | null; peri_workout?: string }, items: Record<string, unknown>[]): QualityInput {
-  return { calories: meal.total_calories, proteins: meal.total_proteins, carbs: meal.total_carbs, fats: meal.total_fats,
-    nutrients_std: sumQualityNutrients(items), carbohydrateBasis: "unknown", peri_workout: normalizeWorkoutContext(meal.peri_workout) };
+  return {
+    calories: meal.total_calories,
+    proteins: meal.total_proteins,
+    carbs: meal.total_carbs,
+    fats: meal.total_fats,
+    nutrients_std: sumQualityNutrients(items),
+    carbohydrateBasis: "available",
+    peri_workout: normalizeWorkoutContext(meal.peri_workout),
+  };
 }
+
 
 export function normalizeWorkoutContext(value: unknown): WorkoutContext {
   return value === "pre_workout" || value === "intra_workout" || value === "post_workout" ? value : "none";
