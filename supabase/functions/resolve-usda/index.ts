@@ -50,7 +50,7 @@ async function fetchJson(url: string, ms = 6000): Promise<any> {
 
 async function usdaPer100(query: string, key: string): Promise<Record<string, number> | null> {
   const url = `https://api.nal.usda.gov/fdc/v1/foods/search?query=${encodeURIComponent(query)}` +
-    `&dataType=Foundation,SR%20Legacy&pageSize=1&api_key=${key}`;
+    `&dataType=Foundation,SR%20Legacy,Survey%20(FNDDS)&pageSize=1&api_key=${key}`;
   const food = (await fetchJson(url))?.foods?.[0];
   if (!food?.foodNutrients) return null;
   const out: Record<string, number> = {};
