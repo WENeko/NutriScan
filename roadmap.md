@@ -10,7 +10,8 @@
 - [x] Badges IQM repas/journée et jauges sucres/fibres/saturés avec données partielles explicites ; fibres séparées pour éviter de mélanger les conventions UE/US
 - [x] Recalcul à la création et après modification ; conserver les zéros mesurés sans créer de valeurs manquantes
 - [ ] Parcours connecté création/modification/profil — bloqué : aucune session ; la connexion automatique ne trouve pas de compte correspondant au demandeur
-- [ ] Étapes suivantes : cibles qualitatives personnalisées par profil et articulation avec les glucides du cyclage (sans réorganisation des réglages)
+- [x] Cibles qualitatives par profil (calcul + tests)
+- [ ] Affichage des cibles et articulation et articulation avec les glucides du cyclage (sans réorganisation des réglages)
 
 ## Travaux précédents
 

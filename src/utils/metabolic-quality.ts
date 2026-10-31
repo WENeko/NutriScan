@@ -148,3 +148,29 @@ export function detectWorkoutContext(timestamp: string | Date, sessions: Workout
   }
   return candidates.sort((a, b) => a.distance - b.distance)[0]?.context ?? "none";
 }
+/** Daily qualitative targets per sport profile (CDC §3). Values derive from weight and calories; null means not defined for the profile. */
+export interface QualityTargets {
+  proteinG: [number, number];
+  fatMinG: number | null;
+  omega3MinMg: number | null;
+  sugarMaxG: number | null;
+  fiberMinG: number | null;
+  saturatedMaxG: number | null;
+}
+export function qualityTargets(preset: UserPreset, weightKg: number, kcal: number, peri = false): QualityTargets {
+  const w = Math.max(0, weightKg), e = Math.max(0, kcal);
+  switch (preset) {
+    case "hypertrophy":
+      return { proteinG: [1.8 * w, 2.2 * w], fatMinG: 1.0 * w, omega3MinMg: 3000,
+        sugarMaxG: peri ? null : e * 0.10 / 4, fiberMinG: null, saturatedMaxG: null };
+    case "cut":
+      return { proteinG: [2.2 * w, 2.5 * w], fatMinG: 0.8 * w, omega3MinMg: null,
+        sugarMaxG: 25, fiberMinG: e * 15 / 1000, saturatedMaxG: null };
+    case "endurance":
+      return { proteinG: [1.6 * w, 1.8 * w], fatMinG: null, omega3MinMg: null,
+        sugarMaxG: null, fiberMinG: null, saturatedMaxG: null };
+    case "health":
+      return { proteinG: [e * 0.30 / 4, e * 0.30 / 4], fatMinG: null, omega3MinMg: null,
+        sugarMaxG: null, fiberMinG: null, saturatedMaxG: e * 0.08 / 9 };
+  }
+}
