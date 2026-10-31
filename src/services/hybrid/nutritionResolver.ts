@@ -176,12 +176,15 @@ const OFF_MAP: { off: string; key: string; factor: number }[] = [
 
 async function searchOpenFoodFacts(name: string): Promise<Record<string, number> | null> {
   const url =
-    `https://world.openfoodfacts.org/cgi/search.pl?search_terms=${encodeURIComponent(name)}` +
-    `&search_simple=1&action=process&json=1&page_size=1&fields=${OFF_FIELDS}`;
+    `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(name)}` +
+    `&page_size=1&fields=${OFF_FIELDS}`;
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), 4000);
   try {
-    const res = await fetch(url, { signal: controller.signal });
+    const res = await fetch(url, {
+      signal: controller.signal,
+      headers: { "User-Agent": "NutriScan - Android/Web - Version 0.90.0" },
+    });
     if (!res.ok) return null;
     const data = await res.json();
     const product = data?.products?.[0];
