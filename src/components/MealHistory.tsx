@@ -154,8 +154,31 @@ const MealHistory: React.FC<MealHistoryProps> = ({ meals, userId, onSelect, onRe
   useEffect(() => {
     let active = true;
     setQualityRows([]);
-    if (meals.length) void supabase.from("meal_items").select("meal_id,nutrients_std").in("meal_id", meals.map(meal => meal.id)).then(({ data }) => { if (active) setQualityRows(data ?? []); });
-    return () => { active = false; };
+    if (!meals.length) return;
+
+    const ids = meals.map((meal) => meal.id);
+    const CHUNK_SIZE = 50;
+    const chunks: string[][] = [];
+    for (let i = 0; i < ids.length; i += CHUNK_SIZE) {
+      chunks.push(ids.slice(i, i + CHUNK_SIZE));
+    }
+
+    Promise.all(
+      chunks.map((chunk) =>
+        supabase
+          .from("meal_items")
+          .select("meal_id,nutrients_std")
+          .in("meal_id", chunk)
+      )
+    ).then((results) => {
+      if (!active) return;
+      const allRows = results.flatMap((res) => res.data ?? []);
+      setQualityRows(allRows);
+    });
+
+    return () => {
+      active = false;
+    };
   }, [meals]);
   const [editDistance, setEditDistance] = useState<number | null>(null);
   const [loadingEdit, setLoadingEdit] = useState(false);
@@ -176,22 +199,32 @@ const [searchQuery, setSearchQuery] = useState("");
   const [reevaluatingMeal, setReevaluatingMeal] = useState<Meal | null>(null);
   const [pendingDeleteId, setPendingDeleteId] = useState<string | null>(null);
 
-  // Prefetch ingredient names for all visible meals (search source)
+    // Prefetch ingredient names for all visible meals (search source)
   useEffect(() => {
     if (!searchable || meals.length === 0) return;
     const missing = meals.map((m) => m.id).filter((id) => !(id in itemNamesByMeal));
     if (missing.length === 0) return;
     (async () => {
-      const { data } = await supabase
-        .from("meal_items")
-        .select("meal_id, name")
-        .in("meal_id", missing);
+      const CHUNK_SIZE = 50;
+      const chunks: string[][] = [];
+      for (let i = 0; i < missing.length; i += CHUNK_SIZE) {
+        chunks.push(missing.slice(i, i + CHUNK_SIZE));
+      }
+
+      const results = await Promise.all(
+        chunks.map((chunk) =>
+          supabase.from("meal_items").select("meal_id, name").in("meal_id", chunk)
+        )
+      );
+
       const map: Record<string, string> = {};
-      (data || []).forEach((row: any) => {
-        const k = row.meal_id;
-        map[k] = (map[k] ? map[k] + " " : "") + (row.name || "").toLowerCase();
-      });
-      // ensure missing ids present even if empty
+      results
+        .flatMap((r) => r.data ?? [])
+        .forEach((row: any) => {
+          const k = row.meal_id;
+          map[k] = (map[k] ? map[k] + " " : "") + (row.name || "").toLowerCase();
+        });
+
       missing.forEach((id) => { if (!(id in map)) map[id] = ""; });
       setItemNamesByMeal((prev) => ({ ...prev, ...map }));
     })();
