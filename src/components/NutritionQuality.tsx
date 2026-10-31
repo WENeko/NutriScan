@@ -1,5 +1,5 @@
 import { calculateMealQuality, type QualityInput, type UserPreset } from "@/utils/metabolic-quality";
-import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Button } from "@/components/ui/button";
 import { Info } from "lucide-react";
 
@@ -9,9 +9,16 @@ export function QualityBadge({ score, grade, coverage }: { score: number | null;
       IQM {score === null ? "—" : `${score}/100 · ${grade}`}
     </span>
     <span className="text-muted-foreground">{coverage < 0.999 ? "Provisoire · " : ""}couverture {Math.round(coverage * 100)} %</span>
-    <TooltipProvider><Tooltip><TooltipTrigger asChild><Button type="button" variant="ghost" size="icon" className="h-6 w-6" aria-label="À propos de l’IQM"><Info /></Button></TooltipTrigger>
-      <TooltipContent className="max-w-64">Score indicatif, non clinique. Les valeurs manquantes restent inconnues. La couverture représente les critères calculables.</TooltipContent>
-    </Tooltip></TooltipProvider>
+    <Popover>
+      <PopoverTrigger asChild>
+        <Button type="button" variant="ghost" size="icon" className="h-6 w-6 text-muted-foreground hover:text-foreground" aria-label="À propos de l’IQM">
+          <Info className="h-3.5 w-3.5" />
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent className="max-w-64 text-xs p-3 leading-relaxed" side="top">
+        Score indicatif, non clinique. Les valeurs manquantes restent inconnues. La couverture représente les critères calculables.
+      </PopoverContent>
+    </Popover>
   </div>;
 }
 
