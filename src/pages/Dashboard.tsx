@@ -23,7 +23,8 @@ import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { autoSyncHealthData } from "@/services/health-connect";
 import { startHealthConnectAutoSync } from "@/services/healthConnectReconciler";
-import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone } from "lucide-react";
+import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { applyFavoriteOrder, favoriteKey, loadFavoriteOrder, moveItem, saveFavoriteOrder } from "@/lib/favoriteOrder";
 import { startOfDay, startOfWeek, endOfWeek, format, isToday } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
 import UpdateDialog from "@/components/UpdateDialog";
@@ -69,6 +70,14 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [showProfile, setShowProfile] = useState(false);
   const [showDataSources, setShowDataSources] = useState(false);
   const [showFavorites, setShowFavorites] = useState(false);
+  const [reorderFavorites, setReorderFavorites] = useState(false);
+  const moveFavorite = (index: number, delta: number) => {
+    setFavoriteMeals((prev) => {
+      const next = moveItem(prev, index, delta);
+      saveFavoriteOrder(userId, next.map(favoriteKey));
+      return next;
+    });
+  };
   const [weekAvgCalories, setWeekAvgCalories] = useState(0);
   const [weekTotalCalories, setWeekTotalCalories] = useState(0);
   const [weekDaysElapsed, setWeekDaysElapsed] = useState(1);
@@ -297,12 +306,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       const typedMeals = meals as Meal[];
       setAllMeals(typedMeals);
       setFavoriteMeals(
-        typedMeals
-          .filter((m) => m.is_favorite)
-          .filter((m) => !(m as any).parent_meal_id)
-          .filter((meal, index, self) => 
-            index === self.findIndex((t) => t.meal_name === meal.meal_name)
-          )
+        applyFavoriteOrder(
+          typedMeals
+            .filter((m) => m.is_favorite)
+            .filter((m) => !(m as any).parent_meal_id)
+            .filter((meal, index, self) =>
+              index === self.findIndex((t) => t.meal_name === meal.meal_name)
+            ),
+          loadFavoriteOrder(userId),
+        )
       );
 
       const today = typedMeals.filter((m) => new Date(m.timestamp) >= todayStart);
@@ -807,13 +819,41 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             {/* Favorites */}
             {favoriteMeals.length > 0 && (
               <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
-                <button onClick={() => setShowFavorites(!showFavorites)} className="flex items-center justify-between w-full mb-3">
-                  <h2 className="font-display font-semibold text-base flex items-center gap-1.5">
-                    <Heart className="w-4 h-4 fill-destructive text-destructive" /> Favoris
-                  </h2>
-                  <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
-                </button>
-                {showFavorites && (
+                <div className="flex items-center justify-between w-full mb-3 gap-2">
+                  <button onClick={() => setShowFavorites(!showFavorites)} className="flex items-center justify-between flex-1">
+                    <h2 className="font-display font-semibold text-base flex items-center gap-1.5">
+                      <Heart className="w-4 h-4 fill-destructive text-destructive" /> Favoris
+                    </h2>
+                    <ChevronDown className={`w-4 h-4 text-muted-foreground transition-transform ${showFavorites ? "rotate-180" : ""}`} />
+                  </button>
+                  {showFavorites && favoriteMeals.length > 1 && (
+                    <button
+                      onClick={() => setReorderFavorites((v) => !v)}
+                      className="flex items-center gap-1 text-xs px-2 py-1 rounded-lg border border-border text-muted-foreground hover:bg-accent"
+                    >
+                      <ArrowUpDown className="w-3.5 h-3.5" /> {reorderFavorites ? "Terminé" : "Réorganiser"}
+                    </button>
+                  )}
+                </div>
+                {showFavorites && reorderFavorites && (
+                  <div className="space-y-1.5">
+                    <p className="text-xs text-muted-foreground mb-1">Les 6 premiers s'affichent dans le widget.</p>
+                    {favoriteMeals.map((m, i) => (
+                      <div key={m.id} className={`flex items-center gap-2 rounded-xl border px-3 py-2 bg-card ${i < 6 ? "border-primary/40" : "border-border"}`}>
+                        <span className="text-xs text-muted-foreground w-5">{i + 1}</span>
+                        <span className="flex-1 text-sm truncate">{m.meal_name || "Repas"}</span>
+                        <span className="text-xs text-muted-foreground">{Math.round(Number(m.total_calories) || 0)} kcal</span>
+                        <button aria-label="Monter" disabled={i === 0} onClick={() => moveFavorite(i, -1)} className="p-1.5 rounded-lg hover:bg-accent disabled:opacity-30">
+                          <ArrowUp className="w-4 h-4" />
+                        </button>
+                        <button aria-label="Descendre" disabled={i === favoriteMeals.length - 1} onClick={() => moveFavorite(i, 1)} className="p-1.5 rounded-lg hover:bg-accent disabled:opacity-30">
+                          <ArrowDown className="w-4 h-4" />
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+                {showFavorites && !reorderFavorites && (
                   <MealHistory sportPreset={sportPreset} meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
                 )}
               </section>
