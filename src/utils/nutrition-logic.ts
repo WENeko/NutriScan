@@ -12,13 +12,15 @@ export interface NutrientDef {
   isLimitDefault?: boolean;
   /** Description générée (bienfaits/impact) pour le tooltip — surtout pour les micros custom */
   description?: string;
+  /** Nom du champ Open Food Facts quand il diffère de la clé (sinon dérivé de la clé). */
+  offTag?: string;
 }
 
 export const NUTRIENTS_STD_LIST: NutrientDef[] = [
   { key: "fiber", label: "Fibres", unit: "g", category: "macro" },
-  { key: "sugar", label: "Sucres", unit: "g", category: "macro", isLimitDefault: true },
+  { key: "sugar", label: "Sucres", unit: "g", category: "macro", isLimitDefault: true, offTag: "sugars" },
   { key: "saturated_fat", label: "AG Sat.", unit: "g", category: "macro", isLimitDefault: true },
-  { key: "omega3_mg", label: "Oméga-3", unit: "mg", category: "lipid" },
+  { key: "omega3_mg", label: "Oméga-3", unit: "mg", category: "lipid", offTag: "omega-3-fat" },
   { key: "sodium_mg", label: "Sodium", unit: "mg", category: "mineral", isLimitDefault: true },
   { key: "potassium_mg", label: "Potassium", unit: "mg", category: "mineral" },
   { key: "magnesium_mg", label: "Magnésium", unit: "mg", category: "mineral" },

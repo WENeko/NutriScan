@@ -12,7 +12,7 @@ const Body = z.object({
     id: z.string().min(1).max(100), name: z.string().min(1).max(300), aliases: z.array(z.string().max(120)).max(30).optional(),
     source: z.enum(["library", "reference"]), per100: z.record(z.string().max(60), z.number().finite().nonnegative()),
   })).max(300),
-  nutrients: z.array(z.object({ key: z.string().max(60), label: z.string().max(80).optional(), unit: z.string().max(10) })).max(80),
+  nutrients: z.array(z.object({ key: z.string().max(60), label: z.string().max(80).optional(), unit: z.string().max(10), offTag: z.string().max(60).optional() })).max(80),
 });
 const json = (body: unknown, status = 200) => new Response(JSON.stringify(body), {
   status, headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -52,9 +52,9 @@ Deno.serve(async (req) => {
     const pending = () => items.filter((it) => !selected.has(it.index));
     if (pending().length) {
       const requests = await Promise.all(pending().map(async (it) => {
-        let records = (await offRecords(it.name)).filter(hasCompositionMacros);
+        let records = (await offRecords(it.name, nutrients)).filter(hasCompositionMacros);
         const searchName = cloudFoodSearchName(it.name);
-        if (!records.length && searchName !== it.name) records = (await offRecords(searchName)).filter(hasCompositionMacros);
+        if (!records.length && searchName !== it.name) records = (await offRecords(searchName, nutrients)).filter(hasCompositionMacros);
         return { ...it, records };
       }));
       for (const [index, record] of await chooseRecords(apiKey, requests)) selected.set(index, record);

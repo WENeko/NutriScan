@@ -1,5 +1,6 @@
 import { fetchJson } from "./microAi.ts";
 import { selectFoodCandidates } from "./foodSelection.ts";
+import { extractOffNutrients, OFF_MACRO_DEFS, type OffNutrientDef } from "./offNutrients.ts";
 
 export interface CompositionRecord {
   id: string;
@@ -17,20 +18,12 @@ const USDA_MAP: Record<string, [string, number]> = {
   "418": ["vitamin_b12_mcg", 1], "323": ["vitamin_e_mg", 1],
 };
 
-const OFF_MAP: Record<string, [string, number]> = {
-  "energy-kcal": ["calories", 1], proteins: ["proteins", 1], carbohydrates: ["carbs", 1], fat: ["fats", 1],
-  fiber: ["fiber", 1], sugars: ["sugar", 1], "saturated-fat": ["saturated_fat", 1],
-  "omega-3-fat": ["omega3_mg", 1000], sodium: ["sodium_mg", 1000], potassium: ["potassium_mg", 1000],
-  magnesium: ["magnesium_mg", 1000], calcium: ["calcium_mg", 1000], iron: ["iron_mg", 1000], zinc: ["zinc_mg", 1000],
-  "vitamin-c": ["vitamin_c_mg", 1000], "vitamin-d": ["vitamin_d_mcg", 1e6],
-  "vitamin-b9": ["vitamin_b9_mcg", 1e6], "vitamin-b12": ["vitamin_b12_mcg", 1e6], "vitamin-e": ["vitamin_e_mg", 1000],
-};
-
 export function hasCompositionMacros(record: CompositionRecord): boolean {
   return ["calories", "proteins", "carbs", "fats"].every((key) => Number.isFinite(record.per100[key]) && record.per100[key] >= 0);
 }
 
-export async function offRecords(name: string): Promise<CompositionRecord[]> {
+/** `nutrients` = liste dynamique (standards + personnalisés) envoyée par l'app. */
+export async function offRecords(name: string, nutrients: OffNutrientDef[] = []): Promise<CompositionRecord[]> {
   const data = await fetchJson(
     `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(name)}&page_size=8&fields=code,product_name,brands,nutriments`,
     6000,
@@ -38,11 +31,7 @@ export async function offRecords(name: string): Promise<CompositionRecord[]> {
   );
   return (data?.products ?? []).flatMap((p: any) => {
     if (!p.code || !p.product_name || !p.nutriments) return [];
-    const per100: Record<string, number> = {};
-    for (const [field, [key, factor]] of Object.entries(OFF_MAP)) {
-      const value = p.nutriments[`${field}_100g`];
-      if (typeof value === "number" && Number.isFinite(value) && value >= 0) per100[key] = value * factor;
-    }
+    const per100 = extractOffNutrients(p.nutriments, [...OFF_MACRO_DEFS, ...nutrients]);
     if (per100.calories == null && ["proteins", "carbs", "fats"].every((k) => per100[k] != null)) {
       per100.calories = 4 * per100.proteins + 4 * per100.carbs + 9 * per100.fats;
     }
