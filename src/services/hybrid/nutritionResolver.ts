@@ -19,6 +19,7 @@ import { runLocalIntentChat } from "@/services/localAiBridge";
 import { NUTRIENTS_STD_LIST } from "@/utils/nutrition-logic";
 import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { PER100_FIELD_TO_STDKEY } from "@/utils/nutrients-helpers";
+import { extractOffNutrients, OFF_MACRO_DEFS } from "../../../supabase/functions/_shared/offNutrients";
 import {
   FOOD_REFERENCE_TABLE,
   cookedEquivalentOf,
@@ -155,26 +156,7 @@ const OFF_FIELDS = [
   "serving_quantity",
 ].join(",");
 
-/** Mapping nutriments Open Food Facts → clés NUTRIENTS_STD_LIST (facteur inclus). */
-const OFF_MAP: { off: string; key: string; factor: number }[] = [
-  { off: "fiber_100g", key: "fiber", factor: 1 },
-  { off: "sugars_100g", key: "sugar", factor: 1 },
-  { off: "saturated-fat_100g", key: "saturated_fat", factor: 1 },
-  { off: "omega-3-fat_100g", key: "omega3_mg", factor: 1000 },
-  { off: "sodium_100g", key: "sodium_mg", factor: 1000 },
-  { off: "potassium_100g", key: "potassium_mg", factor: 1000 },
-  { off: "magnesium_100g", key: "magnesium_mg", factor: 1000 },
-  { off: "calcium_100g", key: "calcium_mg", factor: 1000 },
-  { off: "iron_100g", key: "iron_mg", factor: 1000 },
-  { off: "zinc_100g", key: "zinc_mg", factor: 1000 },
-  { off: "vitamin-c_100g", key: "vitamin_c_mg", factor: 1000 },
-  { off: "vitamin-d_100g", key: "vitamin_d_mcg", factor: 1_000_000 },
-  { off: "vitamin-b9_100g", key: "vitamin_b9_mcg", factor: 1_000_000 },
-  { off: "vitamin-b12_100g", key: "vitamin_b12_mcg", factor: 1_000_000 },
-  { off: "vitamin-e_100g", key: "vitamin_e_mg", factor: 1000 },
-];
-
-async function searchOpenFoodFacts(name: string): Promise<Record<string, number> | null> {
+async function searchOpenFoodFacts(name: string, customNutrients: CustomNutrientDef[] = []): Promise<Record<string, number> | null> {
   const url =
     `https://world.openfoodfacts.org/api/v2/search?search_terms=${encodeURIComponent(name)}` +
     `&page_size=1&fields=${OFF_FIELDS}`;
@@ -187,20 +169,17 @@ async function searchOpenFoodFacts(name: string): Promise<Record<string, number>
     });
     if (!res.ok) return null;
     const data = await res.json();
-    const product = data?.products?.[0];
-    const nutriments = product?.nutriments;
+    const nutriments = data?.products?.[0]?.nutriments;
     if (!nutriments) return null;
+    const macros = extractOffNutrients(nutriments, OFF_MACRO_DEFS);
     const per100: Record<string, number> = {
-      calories: Number(nutriments["energy-kcal_100g"]) || 0,
-      proteins: Number(nutriments.proteins_100g) || 0,
-      carbs: Number(nutriments.carbohydrates_100g) || 0,
-      fats: Number(nutriments.fat_100g) || 0,
+      calories: macros.calories ?? 0,
+      proteins: macros.proteins ?? 0,
+      carbs: macros.carbs ?? 0,
+      fats: macros.fats ?? 0,
     };
     if (!per100.calories && !per100.proteins) return null;
-    for (const { off, key, factor } of OFF_MAP) {
-      const v = Number(nutriments[off]);
-      if (nutriments[off] != null && Number.isFinite(v) && v >= 0) per100[key] = v * factor;
-    }
+    Object.assign(per100, extractOffNutrients(nutriments, [...NUTRIENTS_STD_LIST, ...customNutrients]));
     return per100;
   } catch {
     return null;
@@ -304,7 +283,7 @@ export async function resolveFoodItem(query: FoodQuery, opts: ResolveOptions = {
 
   // 3) Open Food Facts
   if (!per100 && !cloudOnly && opts.allowNetwork !== false) {
-    const off = await searchOpenFoodFacts(query.name);
+    const off = await searchOpenFoodFacts(query.name, opts.customNutrients ?? []);
     if (off) {
       per100 = off;
       source = "openfoodfacts";
