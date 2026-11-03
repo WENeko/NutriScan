@@ -7,7 +7,7 @@
  *   + calories actives) seulement si aucun jour n'est choisi.
  */
 import React, { useMemo, useState } from "react";
-import { supabase } from "@/integrations/supabase/client";
+import { readTrainingDays } from "@/services/training-days";
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Slider } from "@/components/ui/slider";
@@ -25,6 +25,7 @@ const NO_LOCKS = [false, false, false, false, false, false, false];
 
 interface Props {
   userId: string;
+  allowedSources: string[];
   baseCalories: number;
   weighinDay?: number | null;
   value: CalorieCycling;
@@ -42,7 +43,7 @@ export function buildTrainingMultipliers(trainingDays: number[]): number[] {
   );
 }
 
-const CyclingEditor: React.FC<Props> = ({ userId, baseCalories, weighinDay, value, onChange }) => {
+const CyclingEditor: React.FC<Props> = ({ allowedSources, baseCalories, weighinDay, value, onChange }) => {
   const [detecting, setDetecting] = useState(false);
   const locked = value.locked?.length === 7 ? value.locked : NO_LOCKS;
   const trainingDays = value.trainingDays ?? [];
@@ -53,24 +54,21 @@ const CyclingEditor: React.FC<Props> = ({ userId, baseCalories, weighinDay, valu
     return Math.round((m.reduce((s, v) => s + v, 0) / 7) * baseCalories);
   }, [value.multipliers, baseCalories]);
 
-  /** Jours habituels de sport sur 60 jours (Santé Connect + calories actives). */
-  const detectSportDays = async (): Promise<number[]> => {
-    const since = new Date();
-    since.setDate(since.getDate() - 60);
-    const sinceStr = since.toISOString().slice(0, 10);
-    const [samples, body] = await Promise.all([
-      supabase.from("sport_activity_samples").select("recorded_date").eq("user_id", userId).gte("recorded_date", sinceStr),
-      supabase.from("body_composition").select("recorded_at, active_calories_kcal").eq("user_id", userId).gte("recorded_at", sinceStr),
-    ]);
-    const dates = new Set<string>();
-    for (const r of (samples.data ?? []) as any[]) if (r.recorded_date) dates.add(String(r.recorded_date).slice(0, 10));
-    for (const r of (body.data ?? []) as any[]) if (Number(r.active_calories_kcal) > 150) dates.add(String(r.recorded_at).slice(0, 10));
-    const counts = new Map<number, number>();
-    for (const d of dates) {
-      const iso = (new Date(`${d}T12:00:00`).getDay() + 6) % 7;
-      counts.set(iso, (counts.get(iso) ?? 0) + 1);
+  const detectSportDays = async () => {
+    setDetecting(true);
+    try {
+      const days = await readTrainingDays(allowedSources);
+      if (!days.length) {
+        toast({ title: "Aucun jour habituel détecté", description: "Pas de séances répétées sur les quatre dernières semaines. Tes choix actuels sont conservés." });
+        return;
+      }
+      onChange({ ...value, trainingDays: days, locked: [...NO_LOCKS], multipliers: buildTrainingMultipliers(days) });
+      toast({ title: "Jours détectés", description: days.map((d) => DAY_LABELS[d]).join(", ") });
+    } catch (error) {
+      toast({ title: "Détection indisponible", description: error instanceof Error ? error.message : "Lecture des séances impossible.", variant: "destructive" });
+    } finally {
+      setDetecting(false);
     }
-    return Array.from(counts.entries()).filter(([, n]) => n >= 2).map(([iso]) => iso).sort();
   };
 
   const handleToggle = (enabled: boolean) => onChange({ ...value, enabled });
@@ -107,21 +105,11 @@ const CyclingEditor: React.FC<Props> = ({ userId, baseCalories, weighinDay, valu
       onChange({ ...value, locked: [...NO_LOCKS], multipliers: rebalanceWithLocks([1.05, 1.05, 1.05, 1.05, 1.05, 0.875, 0.875], NO_LOCKS) });
       return;
     }
-    let days = trainingDays;
-    if (!days.length) {
-      setDetecting(true);
-      try {
-        days = await detectSportDays();
-      } finally {
-        setDetecting(false);
-      }
-      if (!days.length) {
-        toast({ title: "Aucun entraînement détecté", description: "Touche tes jours d'entraînement ci-dessous." });
-        return;
-      }
-      toast({ title: "Jours détectés", description: days.map((d) => DAY_LABELS[d]).join(", ") });
+    if (!trainingDays.length) {
+      await detectSportDays();
+      return;
     }
-    onChange({ ...value, trainingDays: days, locked: [...NO_LOCKS], multipliers: buildTrainingMultipliers(days) });
+    onChange({ ...value, locked: [...NO_LOCKS], multipliers: buildTrainingMultipliers(trainingDays) });
   };
 
   return (
@@ -163,8 +151,11 @@ const CyclingEditor: React.FC<Props> = ({ userId, baseCalories, weighinDay, valu
           </div>
 
           <div className="flex flex-wrap gap-2">
+            <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={detectSportDays} disabled={detecting}>
+              <Dumbbell className="w-3.5 h-3.5 mr-1" /> {detecting ? "Détection…" : "Détecter mes jours"}
+            </Button>
             <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={() => applyPreset("training")} disabled={detecting}>
-              <Dumbbell className="w-3.5 h-3.5 mr-1" /> {trainingDays.length ? "Training / Repos" : "Détecter mes jours"}
+              <CalendarRange className="w-3.5 h-3.5 mr-1" /> Training / Repos
             </Button>
             <Button type="button" size="sm" variant="outline" className="h-8 rounded-lg text-xs" onClick={() => applyPreset("5/2")}>
               5/2 léger

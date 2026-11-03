@@ -107,6 +107,43 @@ class SportSamplesPlugin : Plugin() {
         }
     }
 
+    /** Session-only, paginated reader for training weekdays; no energy inference. */
+    @PluginMethod
+    fun readExerciseSessions(call: PluginCall) {
+        val start = call.getString("startDate") ?: return call.reject("startDate required")
+        val end = call.getString("endDate") ?: return call.reject("endDate required")
+        val c = client() ?: return call.resolve(JSObject()
+            .put("available", false).put("granted", false).put("samples", JSArray()))
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val granted = c.permissionController.getGrantedPermissions().contains(exoPerm)
+                val out = JSArray()
+                if (granted) {
+                    val range = TimeRangeFilter.between(Instant.parse(start), Instant.parse(end))
+                    var token: String? = null
+                    do {
+                        val response = c.readRecords(ReadRecordsRequest(
+                            recordType = ExerciseSessionRecord::class,
+                            timeRangeFilter = range,
+                            pageToken = token
+                        ))
+                        response.records.forEach { r ->
+                            out.put(JSObject()
+                                .put("source_package", r.metadata.dataOrigin.packageName)
+                                .put("start_time", r.startTime.toString())
+                                .put("end_time", r.endTime.toString()))
+                        }
+                        token = response.pageToken
+                    } while (token != null)
+                }
+                call.resolve(JSObject().put("available", true)
+                    .put("granted", granted).put("samples", out))
+            } catch (e: Exception) {
+                call.reject(e.message ?: "Exercise session read failed", e)
+            }
+        }
+    }
+
     /**
      * Retourne un échantillon par enregistrement avec sa source :
      *   { samples: [{ source_package, source_name, start_time, end_time, value_kcal, type }] }
