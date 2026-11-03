@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Demande actuelle
+- [ ] Étape 1 : choix ponctuel Entraînement/Repos aujourd’hui, sauvegardé par date locale sans modifier la routine ; recalcul des cibles et retour à la routine
+- [ ] Tester les dérogations et leur sauvegarde dans l’interface
 - [x] Détecter les jours habituels à partir des séances réelles des sources approuvées, sans compter les pas ni les calories quotidiennes
 - [x] Regrouper les réglages : corps, budget/nutrition, santé connectée, préférences, administration IA
 - [x] Tester la détection et vérifier les réglages avec des séances simulées (120 tests, dates Paris/Los Angeles, panneaux accessibles sans erreur)
