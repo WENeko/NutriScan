@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { startForegroundHealthSync } from "@/services/foregroundHealthSync";
 import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserProfile } from "@/lib/micro-goals";
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
-import { applyCycling, type CalorieCycling } from "@/utils/goals-calc";
+import { getIsoDayIndex, type CalorieCycling } from "@/utils/goals-calc";
+import { applyDayCycling, type DayType } from "@/utils/day-cycling";
+import { Button } from "@/components/ui/button";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { QualityBadge, QualityFractions } from "@/components/NutritionQuality";
 import { QualityTargets } from "@/components/QualityTargets";
@@ -60,6 +62,10 @@ interface Meal {
 }
 
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
+  const [dayOverride, setDayOverride] = useState<DayType | null>(null);
+  const [dayRoutine, setDayRoutine] = useState<CalorieCycling | null>(null);
+  const [savingDay, setSavingDay] = useState(false);
+  const [dayReady, setDayReady] = useState(false);
   const [goals, setGoals] = useState<Goals>({ calories: 2000, proteins: 150, carbs: 250, fats: 70 });
   const [todayTotals, setTodayTotals] = useState({ calories: 0, proteins: 0, carbs: 0, fats: 0 });
   const [qualityItems, setQualityItems] = useState<Record<string, unknown>[]>([]);
@@ -231,7 +237,19 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       };
       // Cyclage calorique : objectif du jour dérivé de la moyenne hebdo.
       const cycling = (profile as any).calorie_cycling as CalorieCycling | null;
-      const dayGoals = applyCycling(baseGoals, cycling, now, currentWeight);
+      const { data: exception, error: exceptionError } = await supabase
+        .from("training_day_overrides").select("day_type")
+        .eq("user_id", userId).eq("local_date", format(now, "yyyy-MM-dd")).maybeSingle();
+      if (exceptionError) {
+        setDayReady(false);
+        toast({ title: "Choix du jour indisponible", description: "Impossible de charger votre ajustement. Réessayez à la prochaine ouverture.", variant: "destructive" });
+        return;
+      }
+      const override: DayType | null = exception?.day_type === "training" || exception?.day_type === "rest" ? exception.day_type : null;
+      setDayOverride(override);
+      setDayRoutine(cycling);
+      setDayReady(true);
+      const dayGoals = applyDayCycling(baseGoals, cycling, now, currentWeight, override);
       setGoals(dayGoals);
 
 
@@ -383,6 +401,35 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setWeekAvgCalories(0);
     }
   }, [userId]);
+
+  const changeDayType = async (dayType: DayType | null) => {
+    if (savingDay || !dayReady) return;
+    setSavingDay(true);
+    try {
+      const localDate = format(new Date(), "yyyy-MM-dd");
+      const result = dayType === null
+        ? await supabase.from("training_day_overrides").delete().eq("user_id", userId).eq("local_date", localDate)
+        : await supabase.from("training_day_overrides").upsert({ user_id: userId, local_date: localDate, day_type: dayType }, { onConflict: "user_id,local_date" });
+      if (result.error) throw result.error;
+      await fetchData();
+    } catch {
+      toast({ title: "Choix non enregistré", description: "Votre objectif reste inchangé. Réessayez.", variant: "destructive" });
+    } finally {
+      setSavingDay(false);
+    }
+  };
+
+  // Re-read the dated exception at local midnight and on foreground, even without an import.
+  useEffect(() => {
+    let localDate = format(new Date(), "yyyy-MM-dd");
+    const refreshDay = () => {
+      const nextDate = format(new Date(), "yyyy-MM-dd");
+      if (nextDate !== localDate) { localDate = nextDate; void fetchData(); }
+    };
+    const timer = window.setInterval(refreshDay, 30_000);
+    document.addEventListener("visibilitychange", refreshDay);
+    return () => { window.clearInterval(timer); document.removeEventListener("visibilitychange", refreshDay); };
+  }, [fetchData]);
 
   const dailyQuality = useMemo(() => calculateDailyQuality(todayMeals.map(meal => qualityInputFromMeal(meal, qualityItems.filter(item => item.meal_id === meal.id))), sportPreset), [todayMeals, qualityItems, sportPreset]);
   const dailyQualityInput = useMemo(() => ({
@@ -636,6 +683,22 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
             {/* Remaining focus card */}
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              {dayRoutine?.enabled && (
+                <div className="mb-4 space-y-2" aria-label="Cyclage aujourd’hui" aria-busy={savingDay}>
+                  <div className="flex items-center justify-between gap-2 text-xs">
+                    <span className="font-semibold">Aujourd’hui · {format(new Date(), "dd/MM")}</span>
+                    <span className="text-muted-foreground">{dayOverride ? "Ajustement ponctuel" : "Routine"}</span>
+                  </div>
+                  <div className="flex gap-2" role="group" aria-label="Type de journée">
+                    {(["training", "rest"] as const).map(type => {
+                      const selected = (dayOverride ?? (dayRoutine.trainingDays?.includes(getIsoDayIndex(new Date())) ? "training" : "rest")) === type;
+                      return <Button key={type} className="flex-1" size="sm" variant={selected ? "default" : "outline"} aria-pressed={selected} disabled={savingDay || !dayReady} onClick={() => void changeDayType(type)}>{type === "training" ? "Entraînement" : "Repos"}</Button>;
+                    })}
+                    {dayOverride && <Button size="icon" variant="ghost" title="Revenir à la routine" aria-label="Revenir à la routine" disabled={savingDay} onClick={() => void changeDayType(null)}><ArrowUpDown /></Button>}
+                  </div>
+                  <p className="text-xs text-muted-foreground">Cible : {goals.calories} kcal · {goals.carbs} g de glucides</p>
+                </div>
+              )}
               <div className="flex items-center justify-center mb-4">
                   <CircularProgress
                     value={todayTotals.calories}
