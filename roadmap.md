@@ -1,9 +1,10 @@
 # Roadmap
 
 ## Demande actuelle
-- [ ] Détecter les jours habituels à partir des séances réelles des sources approuvées, sans compter les pas ni les calories quotidiennes
-- [ ] Regrouper les réglages : corps, budget/nutrition, santé connectée, préférences, administration IA
-- [ ] Tester la détection et vérifier les réglages ; validation native sur Android requise
+- [x] Détecter les jours habituels à partir des séances réelles des sources approuvées, sans compter les pas ni les calories quotidiennes
+- [x] Regrouper les réglages : corps, budget/nutrition, santé connectée, préférences, administration IA
+- [x] Tester la détection et vérifier les réglages avec des séances simulées (120 tests, dates Paris/Los Angeles, panneaux accessibles sans erreur)
+- [ ] Valider la lecture réelle des séances et la sauvegarde connectée — bloqué : aucun appareil Android, SDK/Java ni compte correspondant au demandeur disponible ici ; nouvel APK nécessaire
 
 - [x] Priorité IQM — Option A : moteur pur de qualité nutritionnelle et tests (ratios, profils, contexte sportif, données manquantes)
 - [x] Option A : import santé au démarrage et à chaque reprise, délai de 60 s, aucun import concurrent ; lissage sur J-7 à J-1 en dates locales (40 tests ciblés, contrôle Paris/Los Angeles)
@@ -26,7 +27,7 @@
 - [x] Résolveur cloud : sélection tolérante (index/ID), cuisson générique acceptée
 - [x] Cyclage : puces jours d'entraînement, détection multi-sources, curseurs verrouillables
 - [x] Choix rapides pour aliments incertains (ex. viande) + saisie libre, re-résolution officielle
-- [ ] Réorganiser les réglages (déficit/surplus près du budget) — repris dans la demande actuelle
+- [x] Réorganiser les réglages (déficit/surplus près du budget)
 - [ ] Vérifier ces trois points dans l'appli connectée — bloqué : aucune session utilisateur ici
 
 

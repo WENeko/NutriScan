@@ -28,6 +28,7 @@ const getHealthPlugin = async () => {
 
 interface DataSourcesSettingsProps {
   onBack?: () => void;
+  onSportSourcesChange?: (sources: string[]) => void;
 }
 
 const DATA_SOURCES = [
@@ -61,7 +62,7 @@ const DATA_SOURCES = [
   },
 ];
 
-const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => {
+const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack, onSportSourcesChange }) => {
   const [prefs, setPrefs] = useState<HealthConnectPreferences>(getHealthConnectPreferences());
   const [isConnected, setIsConnected] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
@@ -251,7 +252,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
       </div>
       {isConnected && (
         <p className="text-[11px] text-muted-foreground -mt-3">
-          Bouton « Synchroniser maintenant » disponible dans Profil → Composition corporelle.
+          Synchronisation disponible dans Santé & Activité connectée.
         </p>
       )}
 
@@ -296,7 +297,7 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack }) => 
       </div>
 
       {/* Sources sportives détectées (dédoublonnage) */}
-      {prefs.sync_calories && <SportSourcesCard />}
+      {prefs.sync_calories && <SportSourcesCard onChange={onSportSourcesChange} />}
 
       {/* BDD perso — double sauvegarde */}
       <PersoBridgeCard />
@@ -379,7 +380,7 @@ const PersoBridgeCard: React.FC = () => {
   );
 };
 
-const SportSourcesCard: React.FC = () => {
+const SportSourcesCard: React.FC<{ onChange?: (sources: string[]) => void }> = ({ onChange }) => {
   const [sources, setSources] = useState<{ package: string; name: string | null; samples: number }[]>([]);
   const [allowed, setAllowed] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
@@ -405,8 +406,13 @@ const SportSourcesCard: React.FC = () => {
   const toggle = async (pkg: string) => {
     if (!userId) return;
     const next = allowed.includes(pkg) ? allowed.filter((p) => p !== pkg) : [...allowed, pkg];
+    const { error } = await supabase.from("profiles").update({ sport_allowed_sources: next } as any).eq("user_id", userId);
+    if (error) {
+      toast({ title: "Sources non enregistrées", description: error.message, variant: "destructive" });
+      return;
+    }
     setAllowed(next);
-    await supabase.from("profiles").update({ sport_allowed_sources: next } as any).eq("user_id", userId);
+    onChange?.(next);
     toast({ title: "Sources mises à jour", description: `${next.length} source(s) approuvée(s)` });
   };
 
@@ -435,7 +441,7 @@ const SportSourcesCard: React.FC = () => {
             <div key={s.package} className="flex items-center justify-between gap-2 p-2 rounded-lg bg-muted/40">
               <div className="min-w-0 flex-1">
                 <p className="text-xs font-semibold truncate">{s.name || s.package}</p>
-                <p className="text-[10px] text-muted-foreground font-mono truncate">{s.package} · {s.samples} séance(s)</p>
+                <p className="text-[10px] text-muted-foreground font-mono truncate">{s.package} · {s.samples} échantillon(s)</p>
               </div>
               <Switch checked={allowed.includes(s.package)} onCheckedChange={() => toggle(s.package)} />
             </div>
