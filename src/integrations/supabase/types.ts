@@ -623,6 +623,24 @@ export type Database = {
         }
         Relationships: []
       }
+      training_day_overrides: {
+        Row: {
+          day_type: string
+          local_date: string
+          user_id: string
+        }
+        Insert: {
+          day_type: string
+          local_date: string
+          user_id: string
+        }
+        Update: {
+          day_type?: string
+          local_date?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_api_keys: {
         Row: {
           gemini_api_key: string | null
