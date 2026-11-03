@@ -39,7 +39,7 @@ import {
 import { computeSmoothedDailySport } from "@/services/sport-calories";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
-type SubPage = null | "identity" | "activity" | "health" | "goals" | "settings" | "admin";
+type SubPage = null | "identity" | "health" | "goals" | "settings" | "admin";
 
 
 interface SuggestedCustom extends CustomNutrientDef {}
@@ -501,11 +501,10 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   };
 
   const PAGE_TITLES: Record<Exclude<SubPage, null>, string> = {
-    identity: "Identité & Mensurations",
-    activity: "Activité & Objectif",
-    health: "Santé & Mode de vie",
-    goals: "Objectifs nutritionnels",
-    settings: "Préférences & Rappels",
+    identity: "Corps & Mensurations",
+    health: "Santé & Activité connectée",
+    goals: "Budget Calorique & Nutrition",
+    settings: "Préférences de l’App",
     admin: "Administration IA",
   };
 
@@ -513,31 +512,25 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     {
       id: "identity",
       icon: User,
-      label: "Identité & Mensurations",
+      label: "Corps & Mensurations",
       desc: `${weight} kg · ${height} cm · ${gender === "male" ? "Homme" : "Femme"}`,
-    },
-    {
-      id: "activity",
-      icon: Activity,
-      label: "Activité & Objectif corporel",
-      desc: `${ACTIVITY_LEVELS.find((a) => a.value === activityLevel)?.label ?? "—"} · ${GOAL_TYPES.find((g) => g.value === goalType)?.label ?? "—"}`,
-    },
-    {
-      id: "health",
-      icon: Heart,
-      label: "Santé & Mode de vie",
-      desc: [isAthlete && "Sportif", isSmoker && "Fumeur", isPregnant && "Grossesse", isMenopausal && "Ménopause"].filter(Boolean).join(" · ") || "Aucun indicateur",
     },
     {
       id: "goals",
       icon: Target,
-      label: "Objectifs nutritionnels",
+      label: "Budget Calorique & Nutrition",
       desc: `${targets.calories || 0} kcal · ${goalsMode === "scientific" ? "Scientifique" : goalsMode === "manual" ? "Manuel" : "Coach IA"}`,
+    },
+    {
+      id: "health",
+      icon: Heart,
+      label: "Santé & Activité connectée",
+      desc: `${sportAllowedSources.length} source(s) approuvée(s) · ${Math.round(sportDailyAvg)} kcal/j de sport`,
     },
     {
       id: "settings",
       icon: Settings,
-      label: "Préférences & Rappels",
+      label: "Préférences de l’App",
       desc: `Pesée ${WEIGHIN_FREQUENCIES.find((f) => f.value === weighinFrequency)?.label.toLowerCase() ?? weighinFrequency}`,
     },
     {
@@ -565,7 +558,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           <button onClick={goBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
             <ArrowLeft className="w-5 h-5" />
           </button>
-          <h1 className="text-lg font-display font-bold">{subPage ? PAGE_TITLES[subPage] : "Mon Profil"}</h1>
+          <h1 className="text-lg font-display font-bold min-w-0 break-words">{subPage ? PAGE_TITLES[subPage] : "Mon Profil"}</h1>
         </div>
       </header>
 
@@ -658,10 +651,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <Label className="text-xs text-muted-foreground">Masse musculaire (kg)</Label>
                   <NumericInput value={muscleMass === "" ? 0 : muscleMass} onChange={(v) => setMuscleMass(v || "")} displayDecimals={1} className="h-10 rounded-xl" placeholder="Ex: 35" />
                 </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
-                  <NumericInput value={sportCalories} onChange={(v) => setSportCalories(v)} displayDecimals={0} className="h-10 rounded-xl" placeholder="Ex: 300" />
-                </div>
               </div>
               {leanMass && (
                 <div className="mt-3 bg-accent rounded-xl p-2.5 text-xs">
@@ -669,25 +658,135 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
                 </div>
               )}
-              <Button
-                onClick={handleHealthSync}
-                disabled={isSyncing}
-                variant="outline"
-                className="w-full h-11 rounded-xl mt-4"
-              >
-                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
-                {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
-              </Button>
-              <p className="text-[10px] text-muted-foreground mt-2 text-center">
-                Importe poids, masse grasse & musculaire depuis Health Connect, avec leurs dates de mesure.
-              </p>
+            </section>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-display font-semibold text-base">Morphotype</h2>
+                <button onClick={() => setShowMorphoHelp(!showMorphoHelp)} className="p-1 rounded-lg hover:bg-muted">
+                  <HelpCircle className="w-4 h-4 text-muted-foreground" />
+                </button>
+              </div>
+              {showMorphoHelp && (
+                <div className="bg-accent rounded-xl p-3 mb-3 text-xs text-muted-foreground space-y-2 animate-fade-up">
+                  <p className="font-semibold text-foreground">🔍 Comment identifier ton morphotype ?</p>
+                  <p>• <strong>Poignets fins</strong> (tour &lt; 16cm) → tendance Ecto</p>
+                  <p>• <strong>Métabolisme rapide</strong>, difficulté à grossir → Ecto</p>
+                  <p>• <strong>Prends du muscle facilement</strong>, épaules larges → Méso</p>
+                  <p>• <strong>Ossature large</strong>, stocke facilement → Endo</p>
+                  <p>• Tu te situes entre deux ? Choisis un <strong>hybride</strong> (Ecto-Méso ou Endo-Méso).</p>
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-2">
+                {MORPHOTYPES.map((m) => (
+                  <button
+                    key={m.value}
+                    onClick={() => setMorphotype(m.value)}
+                    className={`p-3 rounded-xl text-left transition-all ${
+                      morphotype === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
+                    }`}
+                  >
+                    <div className="text-sm font-semibold">{m.emoji} {m.label}</div>
+                    <div className={`text-[10px] mt-0.5 ${morphotype === m.value ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.desc}</div>
+                  </button>
+                ))}
+              </div>
+              {morphotype && (
+                <p className="text-[10px] text-muted-foreground mt-2">
+                  Facteur MB appliqué : ×{MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0}
+                </p>
+              )}
+            </section>
+
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "120ms" }}>
+              <h2 className="font-display font-semibold text-base mb-3">🎯 Objectifs corporels</h2>
+              <div className="grid grid-cols-3 gap-3">
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
+                  <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="75" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Gras cible (%)</Label>
+                  <NumericInput value={targetBodyFat === "" ? 0 : targetBodyFat} onChange={(v) => setTargetBodyFat(v || "")} className="h-10 rounded-xl" placeholder="15" />
+                </div>
+                <div className="space-y-1">
+                  <Label className="text-xs text-muted-foreground">Muscle cible (kg)</Label>
+                  <NumericInput value={targetMuscleMass === "" ? 0 : targetMuscleMass} onChange={(v) => setTargetMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="40" />
+                </div>
+              </div>
             </section>
           </>
         )}
 
-        {/* ============ ACTIVITY ============ */}
-        {subPage === "activity" && (
+        {/* ============ GOALS ============ */}
+        {subPage === "goals" && (
           <>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
+              <div className="grid grid-cols-3 gap-2">
+                {[
+                  { value: "scientific" as GoalsMode, label: "Scientifique", icon: Calculator, desc: "Formules" },
+                  { value: "manual" as GoalsMode, label: "Manuel", icon: Sliders, desc: "Valeurs ou %" },
+                  { value: "ai_coach" as GoalsMode, label: "Coach IA", icon: Sparkles, desc: "Prompt libre" },
+                ].map((m) => {
+                  const Icon = m.icon;
+                  return (
+                    <button
+                      key={m.value}
+                      onClick={() => setGoalsMode(m.value)}
+                      className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${
+                        goalsMode === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      <Icon className="w-4 h-4" />
+                      <span className="text-xs font-semibold">{m.label}</span>
+                      <span className={`text-[9px] ${goalsMode === m.value ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>{m.desc}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            </section>
+
+            {goalsMode === "scientific" && (
+              <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
+                <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
+                <div className="flex gap-2 mb-3">
+                  {[
+                    { value: "mifflin", label: "Mifflin-St Jeor" },
+                    { value: "katch", label: "Katch-McArdle" },
+                  ].map((m) => (
+                    <button
+                      key={m.value}
+                      onClick={() => setBmrMethod(m.value)}
+                      className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
+                        bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
+                      }`}
+                    >
+                      {m.label}
+                    </button>
+                  ))}
+                </div>
+                {bmrMethod === "katch" && !leanMass && (
+                  <p className="text-xs text-destructive mb-2">⚠️ Renseignez la masse grasse (%) pour utiliser Katch-McArdle.</p>
+                )}
+                {bmrMethod === "katch" && leanMass && (
+                  <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
+                )}
+                <div className="bg-accent/50 rounded-lg p-2.5 mb-3">
+                  <div className="flex items-start gap-1.5">
+                    <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
+                    <p className="text-[10px] text-muted-foreground">{BMR_METHOD_INFO[bmrMethod]}</p>
+                  </div>
+                </div>
+                <div className="bg-accent rounded-xl p-3 text-center">
+                  <span className="text-xs text-muted-foreground">MB calculé : </span>
+                  <span className="text-lg font-bold text-primary">{bmr} kcal</span>
+                  {morphotype && <span className="text-[10px] text-muted-foreground ml-1">(morpho ×{MORPHOTYPE_BMR_FACTOR[morphotype]})</span>}
+                </div>
+              </section>
+            )}
+
+            {goalsMode === "scientific" && (
+              <>
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <h2 className="font-display font-semibold text-base mb-3">Niveau d'activité</h2>
               <div className="grid grid-cols-2 gap-2">
@@ -778,197 +877,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
 
 
-            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="font-display font-semibold text-base">Morphotype</h2>
-                <button onClick={() => setShowMorphoHelp(!showMorphoHelp)} className="p-1 rounded-lg hover:bg-muted">
-                  <HelpCircle className="w-4 h-4 text-muted-foreground" />
-                </button>
-              </div>
-              {showMorphoHelp && (
-                <div className="bg-accent rounded-xl p-3 mb-3 text-xs text-muted-foreground space-y-2 animate-fade-up">
-                  <p className="font-semibold text-foreground">🔍 Comment identifier ton morphotype ?</p>
-                  <p>• <strong>Poignets fins</strong> (tour &lt; 16cm) → tendance Ecto</p>
-                  <p>• <strong>Métabolisme rapide</strong>, difficulté à grossir → Ecto</p>
-                  <p>• <strong>Prends du muscle facilement</strong>, épaules larges → Méso</p>
-                  <p>• <strong>Ossature large</strong>, stocke facilement → Endo</p>
-                  <p>• Tu te situes entre deux ? Choisis un <strong>hybride</strong> (Ecto-Méso ou Endo-Méso).</p>
-                </div>
-              )}
-              <div className="grid grid-cols-2 gap-2">
-                {MORPHOTYPES.map((m) => (
-                  <button
-                    key={m.value}
-                    onClick={() => setMorphotype(m.value)}
-                    className={`p-3 rounded-xl text-left transition-all ${
-                      morphotype === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground hover:bg-muted/80"
-                    }`}
-                  >
-                    <div className="text-sm font-semibold">{m.emoji} {m.label}</div>
-                    <div className={`text-[10px] mt-0.5 ${morphotype === m.value ? "text-primary-foreground/80" : "text-muted-foreground"}`}>{m.desc}</div>
-                  </button>
-                ))}
-              </div>
-              {morphotype && (
-                <p className="text-[10px] text-muted-foreground mt-2">
-                  Facteur MB appliqué : ×{MORPHOTYPE_BMR_FACTOR[morphotype] || 1.0}
-                </p>
-              )}
-            </section>
-
-            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "120ms" }}>
-              <h2 className="font-display font-semibold text-base mb-3">🎯 Objectifs corporels</h2>
-              <div className="grid grid-cols-3 gap-3">
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Poids cible (kg)</Label>
-                  <NumericInput value={targetWeight === "" ? 0 : targetWeight} onChange={(v) => setTargetWeight(v || "")} className="h-10 rounded-xl" placeholder="75" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Gras cible (%)</Label>
-                  <NumericInput value={targetBodyFat === "" ? 0 : targetBodyFat} onChange={(v) => setTargetBodyFat(v || "")} className="h-10 rounded-xl" placeholder="15" />
-                </div>
-                <div className="space-y-1">
-                  <Label className="text-xs text-muted-foreground">Muscle cible (kg)</Label>
-                  <NumericInput value={targetMuscleMass === "" ? 0 : targetMuscleMass} onChange={(v) => setTargetMuscleMass(v || "")} className="h-10 rounded-xl" placeholder="40" />
-                </div>
-              </div>
-            </section>
-          </>
-        )}
-
-        {/* ============ HEALTH ============ */}
-        {subPage === "health" && (
-          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-            <div className="flex items-center gap-2 mb-3">
-              <Heart className="w-4 h-4 text-primary" />
-              <h2 className="font-display font-semibold text-base">Santé & Mode de vie</h2>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              Ces indicateurs personnalisent les objectifs <strong>micronutriments</strong> en mode scientifique (vitamines, minéraux…).
-            </p>
-
-            <div className="space-y-3">
-              {[
-                {
-                  key: "athlete",
-                  label: "Sportif·ve régulier·ère",
-                  desc: "Augmente Magnésium, Zinc, Sodium, Vit. C/E, B12, Oméga-3.",
-                  value: isAthlete,
-                  set: setIsAthlete,
-                },
-                {
-                  key: "smoker",
-                  label: "Fumeur·euse",
-                  desc: "Augmente Vit. C (+35 mg) et Vit. E (+2 mg).",
-                  value: isSmoker,
-                  set: setIsSmoker,
-                },
-                {
-                  key: "pregnant",
-                  label: "Grossesse",
-                  desc: "Fer 27 mg, B9 (folates) 600 µg.",
-                  value: isPregnant,
-                  set: setIsPregnant,
-                },
-                {
-                  key: "menopausal",
-                  label: "Ménopause",
-                  desc: "Calcium 1200 mg, Fer abaissé à 8 mg.",
-                  value: isMenopausal,
-                  set: setIsMenopausal,
-                },
-              ].map((item) => (
-                <div key={item.key} className="flex items-start gap-3 bg-accent/40 rounded-xl p-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{item.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
-                  </div>
-                  <Switch checked={item.value} onCheckedChange={item.set} />
-                </div>
-              ))}
-            </div>
-          </section>
-        )}
-
-        {/* ============ GOALS ============ */}
-        {subPage === "goals" && (
-          <>
-            <SportPresetPicker userId={userId} />
-            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-              <h2 className="font-display font-semibold text-base mb-3">Mode de calcul des objectifs</h2>
-              <div className="grid grid-cols-3 gap-2">
-                {[
-                  { value: "scientific" as GoalsMode, label: "Scientifique", icon: Calculator, desc: "Formules" },
-                  { value: "manual" as GoalsMode, label: "Manuel", icon: Sliders, desc: "Valeurs ou %" },
-                  { value: "ai_coach" as GoalsMode, label: "Coach IA", icon: Sparkles, desc: "Prompt libre" },
-                ].map((m) => {
-                  const Icon = m.icon;
-                  return (
-                    <button
-                      key={m.value}
-                      onClick={() => setGoalsMode(m.value)}
-                      className={`p-3 rounded-xl transition-all flex flex-col items-center gap-1 ${
-                        goalsMode === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      <Icon className="w-4 h-4" />
-                      <span className="text-xs font-semibold">{m.label}</span>
-                      <span className={`text-[9px] ${goalsMode === m.value ? "text-primary-foreground/80" : "text-muted-foreground/70"}`}>{m.desc}</span>
-                    </button>
-                  );
-                })}
-              </div>
-            </section>
-
-            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "15ms" }}>
-              <div className="flex items-center gap-2 mb-3">
-                <Droplets className="w-4 h-4 text-primary" />
-                <h2 className="font-display font-semibold text-base">Objectif d'hydratation</h2>
-              </div>
-              <Label className="text-xs text-muted-foreground">Eau (ml / jour)</Label>
-              <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
-              <p className="text-[10px] text-muted-foreground mt-2">+500 ml automatiques les jours avec sport.</p>
-            </section>
-
-
-
-            {goalsMode === "scientific" && (
-              <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
-                <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
-                <div className="flex gap-2 mb-3">
-                  {[
-                    { value: "mifflin", label: "Mifflin-St Jeor" },
-                    { value: "katch", label: "Katch-McArdle" },
-                  ].map((m) => (
-                    <button
-                      key={m.value}
-                      onClick={() => setBmrMethod(m.value)}
-                      className={`flex-1 py-2.5 rounded-xl text-xs font-semibold transition-all ${
-                        bmrMethod === m.value ? "nutri-gradient text-primary-foreground shadow-float" : "bg-muted text-muted-foreground"
-                      }`}
-                    >
-                      {m.label}
-                    </button>
-                  ))}
-                </div>
-                {bmrMethod === "katch" && !leanMass && (
-                  <p className="text-xs text-destructive mb-2">⚠️ Renseignez la masse grasse (%) pour utiliser Katch-McArdle.</p>
-                )}
-                {bmrMethod === "katch" && leanMass && (
-                  <p className="text-[10px] text-muted-foreground mb-2">Formule : 21.6 × {leanMass.toFixed(1)} kg (masse maigre) + 370</p>
-                )}
-                <div className="bg-accent/50 rounded-lg p-2.5 mb-3">
-                  <div className="flex items-start gap-1.5">
-                    <Info className="w-3 h-3 text-primary mt-0.5 flex-shrink-0" />
-                    <p className="text-[10px] text-muted-foreground">{BMR_METHOD_INFO[bmrMethod]}</p>
-                  </div>
-                </div>
-                <div className="bg-accent rounded-xl p-3 text-center">
-                  <span className="text-xs text-muted-foreground">MB calculé : </span>
-                  <span className="text-lg font-bold text-primary">{bmr} kcal</span>
-                  {morphotype && <span className="text-[10px] text-muted-foreground ml-1">(morpho ×{MORPHOTYPE_BMR_FACTOR[morphotype]})</span>}
-                </div>
-              </section>
+              </>
             )}
 
             {goalsMode === "manual" && (
@@ -1165,11 +1074,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
             <CyclingEditor
               userId={userId}
+              allowedSources={sportAllowedSources}
               baseCalories={targets.calories}
               weighinDay={weighinDay}
               value={calorieCycling}
               onChange={setCalorieCycling}
             />
+
+            <SportPresetPicker userId={userId} />
 
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "70ms" }}>
               <div className="flex items-center justify-between gap-3">
@@ -1202,6 +1114,98 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             )}
 
             <CustomNutrientsEditor key={customsRefreshKey} userId={userId} />
+          </>
+        )}
+
+        {/* ============ HEALTH ============ */}
+        {subPage === "health" && (
+          <>
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <h2 className="font-display font-semibold text-base mb-3">Synchronisation Santé</h2>
+              <Button
+                onClick={handleHealthSync}
+                disabled={isSyncing}
+                variant="outline"
+                className="w-full h-11 rounded-xl mt-4"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${isSyncing ? "animate-spin" : ""}`} />
+                {isSyncing ? "Synchronisation…" : "Synchroniser maintenant"}
+              </Button>
+              <p className="text-[10px] text-muted-foreground mt-2 text-center">
+                Importe poids, masse grasse & musculaire depuis Health Connect, avec leurs dates de mesure.
+              </p>
+              <div className="mt-4 space-y-1">
+                <Label className="text-xs text-muted-foreground">Calories sport/jour</Label>
+                <NumericInput value={sportCalories} onChange={setSportCalories} displayDecimals={0} className="h-10 rounded-xl" />
+              </div>
+              <div className="mt-3 text-sm text-muted-foreground">Sport moyen 7 jours révolus : <span className="font-semibold text-primary">{Math.round(sportDailyAvg)} kcal/j</span></div>
+            </section>
+            <DataSourcesSettings onSportSourcesChange={async (sources) => {
+              setSportAllowedSources(sources);
+              setSportDailyAvg(await computeSmoothedDailySport(userId, sources));
+            }} />
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "15ms" }}>
+              <div className="flex items-center gap-2 mb-3">
+                <Droplets className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Objectif d'hydratation</h2>
+              </div>
+              <Label className="text-xs text-muted-foreground">Eau (ml / jour)</Label>
+              <NumericInput value={waterGoal} onChange={(v) => setWaterGoal(v)} className="h-10 rounded-xl" placeholder="2000" />
+              <p className="text-[10px] text-muted-foreground mt-2">+500 ml automatiques les jours avec sport.</p>
+            </section>
+
+
+
+          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+            <div className="flex items-center gap-2 mb-3">
+              <Heart className="w-4 h-4 text-primary" />
+              <h2 className="font-display font-semibold text-base">Santé & Mode de vie</h2>
+            </div>
+            <p className="text-xs text-muted-foreground mb-4">
+              Ces indicateurs personnalisent les objectifs <strong>micronutriments</strong> en mode scientifique (vitamines, minéraux…).
+            </p>
+
+            <div className="space-y-3">
+              {[
+                {
+                  key: "athlete",
+                  label: "Sportif·ve régulier·ère",
+                  desc: "Augmente Magnésium, Zinc, Sodium, Vit. C/E, B12, Oméga-3.",
+                  value: isAthlete,
+                  set: setIsAthlete,
+                },
+                {
+                  key: "smoker",
+                  label: "Fumeur·euse",
+                  desc: "Augmente Vit. C (+35 mg) et Vit. E (+2 mg).",
+                  value: isSmoker,
+                  set: setIsSmoker,
+                },
+                {
+                  key: "pregnant",
+                  label: "Grossesse",
+                  desc: "Fer 27 mg, B9 (folates) 600 µg.",
+                  value: isPregnant,
+                  set: setIsPregnant,
+                },
+                {
+                  key: "menopausal",
+                  label: "Ménopause",
+                  desc: "Calcium 1200 mg, Fer abaissé à 8 mg.",
+                  value: isMenopausal,
+                  set: setIsMenopausal,
+                },
+              ].map((item) => (
+                <div key={item.key} className="flex items-start gap-3 bg-accent/40 rounded-xl p-3">
+                  <div className="flex-1 min-w-0">
+                    <div className="text-sm font-medium">{item.label}</div>
+                    <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                  </div>
+                  <Switch checked={item.value} onCheckedChange={item.set} />
+                </div>
+              ))}
+            </div>
+          </section>
           </>
         )}
 
@@ -1270,10 +1274,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <ThemeColorsSettings />
 
             <AppPermissionsSettings />
-
-            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "60ms" }}>
-              <DataSourcesSettings />
-            </section>
 
             <MealCardSettings />
 
