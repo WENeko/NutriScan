@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Étape 3 : bandeau Lun→Dim sur l’accueil, un tap inverse un jour à venir, re-tap revient à la routine
 - [x] Étape 2 : bannière « Séance détectée » un jour de repos, confirmation en un tap ou « Garder Repos » (mémorisé pour la journée)
 - [ ] Étape 2 sur appareil — bloqué : nouvel APK nécessaire
 - [ ] Étape 1 : choix ponctuel Entraînement/Repos aujourd’hui, sauvegardé par date locale sans modifier la routine ; recalcul des cibles et retour à la routine

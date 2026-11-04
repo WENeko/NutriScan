@@ -4,7 +4,7 @@ import { startForegroundHealthSync } from "@/services/foregroundHealthSync";
 import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserProfile } from "@/lib/micro-goals";
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { getIsoDayIndex, type CalorieCycling } from "@/utils/goals-calc";
-import { applyDayCycling, type DayType } from "@/utils/day-cycling";
+import { applyDayCycling, buildWeekStrip, nextDayChoice, type DayType } from "@/utils/day-cycling";
 import { readFirstSessionToday } from "@/services/training-days";
 import { Button } from "@/components/ui/button";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
@@ -64,6 +64,7 @@ interface Meal {
 
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [dayOverride, setDayOverride] = useState<DayType | null>(null);
+  const [weekOverrides, setWeekOverrides] = useState<Record<string, DayType>>({});
   const [unplannedSession, setUnplannedSession] = useState<Date | null>(null);
   const [dayRoutine, setDayRoutine] = useState<CalorieCycling | null>(null);
   const [savingDay, setSavingDay] = useState(false);
@@ -248,6 +249,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         return;
       }
       const override: DayType | null = exception?.day_type === "training" || exception?.day_type === "rest" ? exception.day_type : null;
+      const weekDays = buildWeekStrip(cycling, now, {});
+      const { data: weekRows } = await supabase.from("training_day_overrides").select("local_date, day_type")
+        .eq("user_id", userId).gte("local_date", weekDays[0].date).lte("local_date", weekDays[6].date);
+      const wk: Record<string, DayType> = {};
+      (weekRows ?? []).forEach((r: any) => { if (r.day_type === "training" || r.day_type === "rest") wk[r.local_date] = r.day_type; });
+      setWeekOverrides(wk);
       setDayOverride(override);
       setDayRoutine(cycling);
       setDayReady(true);
@@ -404,11 +411,11 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     }
   }, [userId]);
 
-  const changeDayType = async (dayType: DayType | null) => {
+  const changeDayType = async (dayType: DayType | null, date?: string) => {
     if (savingDay || !dayReady) return;
     setSavingDay(true);
     try {
-      const localDate = format(new Date(), "yyyy-MM-dd");
+      const localDate = date ?? format(new Date(), "yyyy-MM-dd");
       const result = dayType === null
         ? await supabase.from("training_day_overrides").delete().eq("user_id", userId).eq("local_date", localDate)
         : await supabase.from("training_day_overrides").upsert({ user_id: userId, local_date: localDate, day_type: dayType }, { onConflict: "user_id,local_date" });
@@ -722,6 +729,18 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                     })}
                     {dayOverride && <Button size="icon" variant="ghost" title="Revenir à la routine" aria-label="Revenir à la routine" disabled={savingDay} onClick={() => void changeDayType(null)}><ArrowUpDown /></Button>}
                   </div>
+                  <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semaine d’entraînement">
+                    {buildWeekStrip(dayRoutine, new Date(), weekOverrides).map(d => (
+                      <button key={d.date} type="button" disabled={d.isPast || savingDay || !dayReady}
+                        onClick={() => void changeDayType(nextDayChoice(d), d.date)}
+                        aria-label={`${["Lundi","Mardi","Mercredi","Jeudi","Vendredi","Samedi","Dimanche"][d.isoIndex]} : ${d.effective === "training" ? "Entraînement" : "Repos"}${d.override ? " (ajusté)" : ""}`}
+                        className={`rounded-lg py-1.5 text-[11px] font-medium border transition-colors disabled:opacity-50 ${d.effective === "training" ? "bg-primary text-primary-foreground border-primary" : "bg-muted text-muted-foreground border-border"} ${d.isToday ? "ring-2 ring-ring ring-offset-1 ring-offset-background" : ""} ${d.override ? "border-dashed border-foreground/60" : ""}`}>
+                        <div>{["L","M","M","J","V","S","D"][d.isoIndex]}</div>
+                        <div className="text-[10px]">{d.effective === "training" ? "🏋" : "·"}</div>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground">Touchez un jour à venir pour inverser ; bord pointillé = ajusté (re-touchez pour revenir à la routine).</p>
                   {unplannedSession && (
                     <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 space-y-2" role="status">
                       <p className="text-xs font-medium">Séance détectée à {format(unplannedSession, "HH:mm")}. Passer la journée en Entraînement ?</p>
