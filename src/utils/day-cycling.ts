@@ -22,3 +22,25 @@ export function cyclingForDay(cycling: CalorieCycling | null, date: Date, overri
 export function applyDayCycling(base: Parameters<typeof applyCycling>[0], cycling: CalorieCycling | null, date: Date, weight: number, override: DayType | null) {
   return applyCycling(base, cyclingForDay(cycling, date, override), date, weight);
 }
+export interface WeekStripDay { date: string; isoIndex: number; routine: DayType; override: DayType | null; effective: DayType; isToday: boolean; isPast: boolean; }
+
+const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+
+/** Monday→Sunday of the local week containing `today`, with routine type and dated exceptions. */
+export function buildWeekStrip(cycling: CalorieCycling | null, today: Date, overrides: Record<string, DayType>): WeekStripDay[] {
+  const todayIdx = getIsoDayIndex(today);
+  const todayStr = ymd(today);
+  const training = cycling?.trainingDays ?? [];
+  return Array.from({ length: 7 }, (_, i) => {
+    const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - todayIdx + i);
+    const date = ymd(d);
+    const routine: DayType = training.includes(i) ? "training" : "rest";
+    const override = overrides[date] ?? null;
+    return { date, isoIndex: i, routine, override, effective: override ?? routine, isToday: date === todayStr, isPast: date < todayStr };
+  });
+}
+
+/** One tap flips the day away from its routine; tapping an exception returns to the routine (null). */
+export function nextDayChoice(day: Pick<WeekStripDay, "routine" | "override">): DayType | null {
+  return day.override ? null : day.routine === "training" ? "rest" : "training";
+}
