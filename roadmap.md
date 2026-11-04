@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Étape 2 : bannière « Séance détectée » un jour de repos, confirmation en un tap ou « Garder Repos » (mémorisé pour la journée)
+- [ ] Étape 2 sur appareil — bloqué : nouvel APK nécessaire
 - [ ] Étape 1 : choix ponctuel Entraînement/Repos aujourd’hui, sauvegardé par date locale sans modifier la routine ; recalcul des cibles et retour à la routine
 - [ ] Tester les dérogations et leur sauvegarde dans l’interface
 - [x] Détecter les jours habituels à partir des séances réelles des sources approuvées, sans compter les pas ni les calories quotidiennes
