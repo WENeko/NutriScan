@@ -93,7 +93,8 @@ const CyclingEditor: React.FC<Props> = ({ allowedSources, baseCalories, weighinD
 
   const toggleTrainingDay = (idx: number) => {
     const next = trainingDays.includes(idx) ? trainingDays.filter((d) => d !== idx) : [...trainingDays, idx].sort();
-    onChange({ ...value, trainingDays: next, locked: [...NO_LOCKS], multipliers: buildTrainingMultipliers(next) });
+    // Ne modifie que les jours d'entraînement sans écraser les multiplicateurs personnalisés
+    onChange({ ...value, trainingDays: next });
   };
 
   const applyPreset = async (kind: "training" | "5/2" | "reset") => {
