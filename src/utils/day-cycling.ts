@@ -8,7 +8,7 @@ export type DayType = "training" | "rest";
 export function cyclingForDay(cycling: CalorieCycling | null, date: Date, override: DayType | null): CalorieCycling | null {
   if (!cycling?.enabled || cycling.multipliers.length !== 7 || !override) return cycling;
   const index = getIsoDayIndex(date);
-  const training = cycling.trainingDays ?? [];
+  const training = resolveTrainingDays(cycling);
   const desiredTraining = override === "training";
   if (training.includes(index) === desiredTraining) return cycling;
   const coefficients = cycling.multipliers.filter((_, i) => training.includes(i) === desiredTraining);
@@ -30,7 +30,7 @@ const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 export function buildWeekStrip(cycling: CalorieCycling | null, today: Date, overrides: Record<string, DayType>): WeekStripDay[] {
   const todayIdx = getIsoDayIndex(today);
   const todayStr = ymd(today);
-  const training = cycling?.trainingDays ?? [];
+  const training = resolveTrainingDays(cycling);
   return Array.from({ length: 7 }, (_, i) => {
     const d = new Date(today.getFullYear(), today.getMonth(), today.getDate() - todayIdx + i);
     const date = ymd(d);
@@ -44,3 +44,18 @@ export function buildWeekStrip(cycling: CalorieCycling | null, today: Date, over
 export function nextDayChoice(day: Pick<WeekStripDay, "routine" | "override">): DayType | null {
   return day.override ? null : day.routine === "training" ? "rest" : "training";
 }
+
+/** Résout les jours d'entraînement : priorité à la liste explicite, sinon déduit des jours avec surplus (> 1.01). */
+export function resolveTrainingDays(cycling: CalorieCycling | null): number[] {
+  if (!cycling) return [];
+  if (Array.isArray(cycling.trainingDays) && cycling.trainingDays.length > 0) {
+    return cycling.trainingDays;
+  }
+  if (Array.isArray(cycling.multipliers) && cycling.multipliers.length === 7) {
+    return cycling.multipliers
+      .map((m, idx) => (m > 1.01 ? idx : -1))
+      .filter((idx) => idx >= 0);
+  }
+  return [];
+}
+
