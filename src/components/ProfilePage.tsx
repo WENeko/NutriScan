@@ -283,15 +283,25 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (d.calorie_cycling && typeof d.calorie_cycling === "object") {
         const cc = d.calorie_cycling as any;
         const locked = Array.isArray(cc.locked) && cc.locked.length === 7 ? cc.locked.map(Boolean) : [...DEFAULT_CYCLING.locked!];
+        const rawMultipliers = Array.isArray(cc.multipliers) && cc.multipliers.length === 7
+          ? (locked.some(Boolean) ? cc.multipliers.map(Number) : normalizeMultipliers(cc.multipliers.map(Number)))
+          : [...DEFAULT_CYCLING.multipliers];
+        const parsedTrainingDays = Array.isArray(cc.trainingDays)
+          ? cc.trainingDays.map(Number).filter((d: number) => d >= 0 && d < 7)
+          : [];
+        // Déduction automatique si trainingDays est absent de l'ancien format
+        const trainingDays = parsedTrainingDays.length > 0
+          ? parsedTrainingDays
+          : rawMultipliers.map((m: number, idx: number) => (m > 1.01 ? idx : -1)).filter((idx: number) => idx >= 0);
+
         setCalorieCycling({
           enabled: !!cc.enabled,
-          multipliers: Array.isArray(cc.multipliers) && cc.multipliers.length === 7
-            ? (locked.some(Boolean) ? cc.multipliers.map(Number) : normalizeMultipliers(cc.multipliers.map(Number)))
-            : [...DEFAULT_CYCLING.multipliers],
+          multipliers: rawMultipliers,
           locked,
-          trainingDays: Array.isArray(cc.trainingDays) ? cc.trainingDays.map(Number).filter((d: number) => d >= 0 && d < 7) : [],
+          trainingDays,
         });
       }
+
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
       // For non-scientific modes, restore saved targets so they are not overwritten
