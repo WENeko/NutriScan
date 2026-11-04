@@ -50,3 +50,31 @@ export async function readTrainingDays(allowedSources: string[], now = new Date(
   if (!result.granted) throw new Error("Autorise la lecture des séances d’exercice dans Santé Connect, puis relance la détection.");
   return detectHabitualTrainingDays(result.samples, allowedSources, now);
 }
+/** Earliest approved session started today (local date), or null. Used only to propose, never to apply. */
+export function firstSessionToday(sessions: ExerciseSession[], allowedSources: string[], now = new Date()): Date | null {
+  const allowed = new Set(allowedSources);
+  const today = format(now, "yyyy-MM-dd");
+  let first: Date | null = null;
+  for (const s of sessions) {
+    if (!allowed.has(s.source_package)) continue;
+    const from = new Date(s.start_time);
+    const to = new Date(s.end_time);
+    if (!Number.isFinite(from.getTime()) || !Number.isFinite(to.getTime()) || to <= from || from > now) continue;
+    if (format(from, "yyyy-MM-dd") !== today) continue;
+    if (!first || from < first) first = from;
+  }
+  return first;
+}
+
+/** Silent read of today's sessions; returns null when unavailable or not permitted. */
+export async function readFirstSessionToday(allowedSources: string[], now = new Date()): Promise<Date | null> {
+  if (!allowedSources.length) return null;
+  const reader = (window as unknown as { Capacitor?: { Plugins?: { SportSamples?: { readExerciseSessions?: (o: { startDate: string; endDate: string }) => Promise<{ available: boolean; granted: boolean; samples: ExerciseSession[] }> } } } })
+    .Capacitor?.Plugins?.SportSamples?.readExerciseSessions;
+  if (!reader) return null;
+  const start = new Date(now); start.setHours(0, 0, 0, 0);
+  try {
+    const r = await reader({ startDate: start.toISOString(), endDate: now.toISOString() });
+    return r.available && r.granted ? firstSessionToday(r.samples, allowedSources, now) : null;
+  } catch { return null; }
+}
