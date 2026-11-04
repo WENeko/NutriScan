@@ -37,3 +37,20 @@ describe("jours habituels d'entraînement", () => {
     await expect(readTrainingDays(["samsung"], now)).rejects.toThrow("Autorise");
   });
 });
+import { firstSessionToday } from "./training-days";
+describe("firstSessionToday", () => {
+  const now = new Date(2026, 10, 4, 19, 0);
+  const at = (h: number, d = 4) => ({ start: new Date(2026, 10, d, h, 0).toISOString(), end: new Date(2026, 10, d, h + 1, 0).toISOString() });
+  it("returns earliest approved session of today", () => {
+    const s = [at(17), at(8)].map(x => ({ source_package: "ok", start_time: x.start, end_time: x.end }));
+    expect(firstSessionToday(s, ["ok"], now)?.getHours()).toBe(8);
+  });
+  it("ignores unapproved sources and yesterday", () => {
+    const y = at(17, 3);
+    const t = at(17);
+    expect(firstSessionToday([
+      { source_package: "ok", start_time: y.start, end_time: y.end },
+      { source_package: "bad", start_time: t.start, end_time: t.end },
+    ], ["ok"], now)).toBeNull();
+  });
+});

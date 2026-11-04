@@ -5,6 +5,7 @@ import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserP
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { getIsoDayIndex, type CalorieCycling } from "@/utils/goals-calc";
 import { applyDayCycling, type DayType } from "@/utils/day-cycling";
+import { readFirstSessionToday } from "@/services/training-days";
 import { Button } from "@/components/ui/button";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { QualityBadge, QualityFractions } from "@/components/NutritionQuality";
@@ -63,6 +64,7 @@ interface Meal {
 
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [dayOverride, setDayOverride] = useState<DayType | null>(null);
+  const [unplannedSession, setUnplannedSession] = useState<Date | null>(null);
   const [dayRoutine, setDayRoutine] = useState<CalorieCycling | null>(null);
   const [savingDay, setSavingDay] = useState(false);
   const [dayReady, setDayReady] = useState(false);
@@ -419,6 +421,30 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
     }
   };
 
+  // Étape 2 : proposer (jamais appliquer) le passage en Entraînement si une séance approuvée a eu lieu un jour de repos.
+  const isRoutineRest = !!dayRoutine?.enabled && !dayRoutine.trainingDays?.includes(getIsoDayIndex(new Date()));
+  useEffect(() => {
+    if (!userId || !dayReady || !isRoutineRest || dayOverride) { setUnplannedSession(null); return; }
+    let cancelled = false;
+    const check = async () => {
+      const key = `unplanned-dismissed:${userId}:${format(new Date(), "yyyy-MM-dd")}`;
+      if (localStorage.getItem(key)) { setUnplannedSession(null); return; }
+      const { data } = await supabase.from("profiles").select("sport_allowed_sources").eq("user_id", userId).maybeSingle();
+      const sources = (data as any)?.sport_allowed_sources;
+      const found = await readFirstSessionToday(Array.isArray(sources) ? sources : []);
+      if (!cancelled) setUnplannedSession(found);
+    };
+    void check();
+    const onVisible = () => { if (document.visibilityState === "visible") void check(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { cancelled = true; document.removeEventListener("visibilitychange", onVisible); };
+  }, [userId, dayReady, isRoutineRest, dayOverride]);
+
+  const dismissUnplanned = () => {
+    localStorage.setItem(`unplanned-dismissed:${userId}:${format(new Date(), "yyyy-MM-dd")}`, "1");
+    setUnplannedSession(null);
+  };
+
   // Re-read the dated exception at local midnight and on foreground, even without an import.
   useEffect(() => {
     let localDate = format(new Date(), "yyyy-MM-dd");
@@ -696,6 +722,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                     })}
                     {dayOverride && <Button size="icon" variant="ghost" title="Revenir à la routine" aria-label="Revenir à la routine" disabled={savingDay} onClick={() => void changeDayType(null)}><ArrowUpDown /></Button>}
                   </div>
+                  {unplannedSession && (
+                    <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 space-y-2" role="status">
+                      <p className="text-xs font-medium">Séance détectée à {format(unplannedSession, "HH:mm")}. Passer la journée en Entraînement ?</p>
+                      <div className="flex gap-2">
+                        <Button size="sm" className="flex-1" disabled={savingDay} onClick={() => void changeDayType("training")}>Oui, Entraînement</Button>
+                        <Button size="sm" variant="outline" className="flex-1" onClick={dismissUnplanned}>Garder Repos</Button>
+                      </div>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground">Cible : {goals.calories} kcal · {goals.carbs} g de glucides</p>
                 </div>
               )}
