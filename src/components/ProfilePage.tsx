@@ -564,11 +564,24 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   return (
     <div className="min-h-screen bg-background pb-8">
       <header className="sticky top-0 z-10 glass-card px-4 py-3">
-        <div className="flex items-center gap-3 max-w-lg mx-auto">
-          <button onClick={goBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
-            <ArrowLeft className="w-5 h-5" />
-          </button>
-          <h1 className="text-lg font-display font-bold min-w-0 break-words">{subPage ? PAGE_TITLES[subPage] : "Mon Profil"}</h1>
+        <div className="flex items-center justify-between gap-3 max-w-lg mx-auto">
+          <div className="flex items-center gap-3 min-w-0">
+            <button onClick={goBack} className="p-2 rounded-xl hover:bg-muted transition-colors">
+              <ArrowLeft className="w-5 h-5" />
+            </button>
+            <h1 className="text-lg font-display font-bold min-w-0 break-words">{subPage ? PAGE_TITLES[subPage] : "Mon Profil"}</h1>
+          </div>
+          {subPage !== null && (
+            <Button
+              size="sm"
+              onClick={handleSave}
+              disabled={saving}
+              className="rounded-xl nutri-gradient text-primary-foreground font-semibold shadow-sm hover:opacity-90 shrink-0"
+            >
+              <Save className="w-4 h-4 mr-1.5" />
+              {saving ? "..." : "Enregistrer"}
+            </Button>
+          )}
         </div>
       </header>
 
