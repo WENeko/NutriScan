@@ -6,10 +6,11 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
-import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight, RefreshCw, Droplets } from "lucide-react";
+import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight, RefreshCw, Droplets, Scale } from "lucide-react";
 import SportPresetPicker from "./SportPresetPicker";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
+import { fr } from "date-fns/locale";
 import NumericInput from "@/components/NumericInput";
 import CustomNutrientsEditor from "@/components/CustomNutrientsEditor";
 import GeminiKeySettings from "@/components/GeminiKeySettings";
@@ -142,6 +143,8 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   const [targetWeight, setTargetWeight] = useState<number | "">("");
   const [targetBodyFat, setTargetBodyFat] = useState<number | "">("");
   const [targetMuscleMass, setTargetMuscleMass] = useState<number | "">("");
+  const [lastWeighinRecordedAt, setLastWeighinRecordedAt] = useState<string | null>(null);
+  const [savingBodyMetrics, setSavingBodyMetrics] = useState(false);
 
   // Weighin reminders
   const [weighinFrequency, setWeighinFrequency] = useState<string>("weekly");
@@ -246,6 +249,9 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (bf !== undefined) setBodyFat(Math.round(Number(bf) * 10) / 10);
       if (mm !== undefined) setMuscleMass(Math.round(Number(mm) * 10) / 10);
       if (ac !== undefined) setSportCalories(Math.round(Number(ac)));
+
+      const lastDate = lastBodyRows.find((r: any) => r.weight_kg != null)?.recorded_at;
+      if (lastDate) setLastWeighinRecordedAt(lastDate);
     }
 
     if (data) {
@@ -428,7 +434,41 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     });
   };
 
+  const handleSaveBodyMetrics = async () => {
+    if (!weight && bodyFat === "" && muscleMass === "") {
+      toast({ title: "Aucune valeur renseignée", variant: "destructive" });
+      return;
+    }
+    setSavingBodyMetrics(true);
+    try {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const { error } = await supabase.from("body_composition").upsert({
+        user_id: userId,
+        recorded_at: today,
+        weight_kg: weight || null,
+        body_fat_percent: bodyFat === "" ? null : (bodyFat as number),
+        muscle_mass_kg: muscleMass === "" ? null : (muscleMass as number),
+        source: "manual",
+      }, { onConflict: "user_id,recorded_at" });
+      if (error) throw error;
 
+      await supabase
+        .from("profiles")
+        .update({ last_weighin_date: today })
+        .eq("user_id", userId);
+
+      setLastWeighinRecordedAt(today);
+      toast({
+        title: "Pesée enregistrée !",
+        description: `Mesures enregistrées pour aujourd'hui (${format(new Date(), "d MMMM yyyy", { locale: fr })}).`,
+      });
+    } catch (e: any) {
+      toast({ title: "Erreur", description: e.message, variant: "destructive" });
+    } finally {
+      setSavingBodyMetrics(false);
+    }
+  };
+  
   const handleSave = async () => {
     setSaving(true);
     try {
@@ -452,7 +492,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
           weighin_minute: weighinMinute,
           morphotype: morphotype || null,
           mass_gain_phase: massGainPhase || null,
-          last_weighin_date: null,
           goals_mode: goalsMode,
           is_athlete: isAthlete,
           is_smoker: isSmoker,
@@ -471,20 +510,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (error) throw error;
 
       const today = format(new Date(), "yyyy-MM-dd");
-
-      // Source unique de vérité : on enregistre weight / fat / muscle /
-      // sport_calories dans body_composition (upsert sur le jour).
-      if (weight || bodyFat !== "" || muscleMass !== "" || sportCalories) {
-        await supabase.from("body_composition").upsert({
-          user_id: userId,
-          recorded_at: today,
-          weight_kg: weight || null,
-          body_fat_percent: bodyFat === "" ? null : (bodyFat as number),
-          muscle_mass_kg: muscleMass === "" ? null : (muscleMass as number),
-          active_calories_kcal: sportCalories || null,
-          source: "manual",
-        }, { onConflict: "user_id,recorded_at" });
-      }
 
       // Snapshot des objectifs du jour (sans dupliquer weight/fat)
       const goalsSnap: any = {
@@ -681,7 +706,30 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                   <span className="font-bold text-primary">{leanMass.toFixed(1)} kg</span>
                 </div>
               )}
+
+              {/* Nouveau : bouton dédié pour enregistrer explicitement une pesée manuelle */}
+              <div className="mt-4 pt-3 border-t border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
+                <span className="text-[11px] text-muted-foreground">
+                  {lastWeighinRecordedAt ? (
+                    <>Dernière pesée : <strong className="text-foreground">{format(new Date(lastWeighinRecordedAt + "T00:00:00"), "d MMMM yyyy", { locale: fr })}</strong></>
+                  ) : (
+                    "Aucune pesée manuelle enregistrée"
+                  )}
+                </span>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant="outline"
+                  disabled={savingBodyMetrics}
+                  onClick={handleSaveBodyMetrics}
+                  className="rounded-xl h-8 px-3 text-xs font-medium gap-1.5 self-end sm:self-auto hover:bg-primary/10 hover:text-primary hover:border-primary/30"
+                >
+                  <Scale className="w-3.5 h-3.5" />
+                  {savingBodyMetrics ? "Enregistrement..." : "Enregistrer cette pesée"}
+                </Button>
+              </div>
             </section>
+
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "90ms" }}>
               <div className="flex items-center justify-between mb-3">
                 <h2 className="font-display font-semibold text-base">Morphotype</h2>
