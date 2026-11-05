@@ -118,6 +118,8 @@ export interface UserProfile {
   isPregnant?: boolean;
   isAthlete?: boolean;
   isMenopausal?: boolean;
+  calorie_cycling?: import("./goals-calc").CalorieCycling | null;
+  sport_allowed_sources?: string[];
 }
 
 /**
