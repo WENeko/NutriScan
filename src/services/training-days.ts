@@ -78,3 +78,14 @@ export async function readFirstSessionToday(allowedSources: string[], now = new 
     return r.available && r.granted ? firstSessionToday(r.samples, allowedSources, now) : null;
   } catch { return null; }
 }
+
+/** Silent read of sessions in [start, end); empty when unavailable or not permitted. */
+export async function readSessionsInRange(start: Date, end: Date): Promise<ExerciseSession[]> {
+  const reader = (window as unknown as { Capacitor?: { Plugins?: { SportSamples?: { readExerciseSessions?: (o: { startDate: string; endDate: string }) => Promise<{ available: boolean; granted: boolean; samples: ExerciseSession[] }> } } } })
+    .Capacitor?.Plugins?.SportSamples?.readExerciseSessions;
+  if (!reader) return [];
+  try {
+    const r = await reader({ startDate: start.toISOString(), endDate: end.toISOString() });
+    return r.available && r.granted ? r.samples : [];
+  } catch { return []; }
+}

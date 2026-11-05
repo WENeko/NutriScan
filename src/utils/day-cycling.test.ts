@@ -16,7 +16,7 @@ describe("dated cycling exceptions", () => {
     expect(applyDayCycling(base, routine, new Date(2026, 10, 5), 80, null).calories).toBe(1700);
   });
   it("does not invent a surplus when no training coefficient exists", () => {
-    expect(cyclingForDay({ ...routine, trainingDays: [] }, new Date(2026, 10, 5), "training")?.multipliers[3]).toBe(1);
+    expect(cyclingForDay({ enabled: true, multipliers: [1, 0.9, 1, 0.9, 1, 0.9, 0.9], trainingDays: [] }, new Date(2026, 10, 5), "training")?.multipliers[3]).toBe(1);
   });
   it("disabled cycling leaves goals unchanged", () => {
     expect(applyDayCycling(base, { ...routine, enabled: false }, new Date(2026, 10, 5), 80, "training")).toEqual(base);

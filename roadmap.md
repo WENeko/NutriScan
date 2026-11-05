@@ -64,3 +64,6 @@
 - [ ] Badge de source par micronutriment dans le détail du repas
 - [x] Accélération GPU Vulkan avec détection de compatibilité et repli CPU automatique
 - [x] Prompts de détection compressés : expert (GPU) et court (CPU)
+
+- [x] Étape 4 : calendrier mensuel dans Évolution (routine/exceptions, séances approuvées, calories, pesées, fiche du jour)
+- [ ] Marqueurs de séances sur les graphiques poids/macros

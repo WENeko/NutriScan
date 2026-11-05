@@ -12,6 +12,7 @@ import type { CustomNutrientDef } from "@/utils/nutrients-helpers";
 import CustomChartsManager, { CHART_COLORS, type CustomChartConfig } from "@/components/CustomChartsManager";
 import { useChartZoomPan, ZoomPanArea } from "@/hooks/useChartZoomPan";
 import { RotateCcw } from "lucide-react";
+import ActivityCalendar from "@/components/ActivityCalendar";
 
 
 interface EvolutionPageProps {
@@ -36,6 +37,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   customNutrients = [], microOverrides = {},
   customCharts = [], onCustomChartsChange
 }) => {
+  const [view, setView] = useState<"charts" | "calendar">("charts");
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
   const [nutritionData, setNutritionData] = useState<any[]>([]);
   const [bodyData, setBodyData] = useState<any[]>([]);
@@ -355,8 +357,29 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     return [Math.floor(min - padding), Math.ceil(max + padding)];
   };
 
+  const viewSwitch = (
+    <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
+      {(["charts", "calendar"] as const).map((v) => (
+        <button key={v} onClick={() => setView(v)}
+          className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${view === v ? "bg-card text-foreground shadow-card" : "text-muted-foreground"}`}>
+          {v === "charts" ? "Graphiques" : "Calendrier"}
+        </button>
+      ))}
+    </div>
+  );
+
+  if (view === "calendar") {
+    return (
+      <div className="space-y-4 pb-10">
+        {viewSwitch}
+        <ActivityCalendar userId={userId} calorieGoal={calorieGoal} userProfile={userProfile} />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6 pb-10">
+      {viewSwitch}
       {/* Période */}
       <div className="sticky top-[52px] z-20 bg-background/95 backdrop-blur-sm px-4 py-2 -mx-4">
         <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
