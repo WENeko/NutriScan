@@ -13,7 +13,8 @@ import CustomChartsManager, { CHART_COLORS, type CustomChartConfig } from "@/com
 import { useChartZoomPan, ZoomPanArea } from "@/hooks/useChartZoomPan";
 import { RotateCcw } from "lucide-react";
 import ActivityCalendar from "@/components/ActivityCalendar";
-
+import { readSessionsInRange } from "@/services/training-days";
+import { sessionsByDate } from "@/utils/activity-calendar";
 
 interface EvolutionPageProps {
   userId: string;
@@ -44,19 +45,17 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   const [goalsHistory, setGoalsHistory] = useState<any[]>([]);
   const [activeIndex, setActiveIndex] = useState<number | null>(null);
 
-  // (dynamicGoals retiré — la résolution des objectifs micro passe désormais
-  // par resolveMicroGoals dans le useMemo `resolvedMicros` ci-dessous.)
-
   const allMicros = useMemo(() => getMasterList(customNutrients), [customNutrients]);
 
-  useEffect(() => { fetchData(); }, [userId, period, customNutrients]);
+  useEffect(() => { 
+    fetchData(); 
+  }, [userId, period, customNutrients, userProfile?.sport_allowed_sources]);
 
   const fetchData = async () => {
     const today = new Date();
     let startDate = period === "7d" ? subDays(today, 6) : subDays(today, 29);
 
     if (period === "all") {
-      // Amplitude complète des enregistrements (repas + composition corporelle)
       const [{ data: firstMeal }, { data: firstBody }] = await Promise.all([
         supabase.from("meals").select("timestamp").eq("user_id", userId).order("timestamp").limit(1),
         supabase.from("body_composition").select("recorded_at").eq("user_id", userId).order("recorded_at").limit(1),
@@ -67,15 +66,24 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       const earliest = candidates.length
         ? new Date(Math.min(...candidates.map((d) => d.getTime())))
         : subMonths(today, 3);
-      // Toujours au moins 3 mois d'axe pour la vue par défaut
       startDate = earliest < subMonths(today, 3) ? earliest : subMonths(today, 3);
     }
 
     const numDays = differenceInCalendarDays(startOfDay(today), startOfDay(startDate)) + 1;
 
+    // Récupération des séances natives (sources approuvées)
+    const allowedSources: string[] = Array.isArray(userProfile?.sport_allowed_sources)
+      ? userProfile.sport_allowed_sources
+      : [];
+    let sessionsMap: Record<string, number> = {};
+    try {
+      const rawSessions = await readSessionsInRange(startOfDay(startDate), endOfDay(today));
+      sessionsMap = sessionsByDate(rawSessions, allowedSources);
+    } catch {
+      sessionsMap = {};
+    }
 
-    // Pagination : PostgREST plafonne à 1000 lignes par requête. Sans cela, la
-    // vue "Global" perd des repas et affiche des totaux trop faibles.
+    // Pagination repas
     const PAGE = 1000;
     const meals: any[] = [];
     for (let offset = 0; ; offset += PAGE) {
@@ -96,7 +104,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     const microsByMeal: Record<string, Record<string, number>> = {};
 
     if (mealIds.length > 0) {
-      // Source unique de vérité : JSONB nutrients_std + nutrients_custom
       const CHUNK = 200;
       const items: any[] = [];
       for (let i = 0; i < mealIds.length; i += CHUNK) {
@@ -122,16 +129,18 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       });
     }
 
-
     const dayMap: Record<string, any> = {};
     for (let i = 0; i < numDays; i++) {
       const d = subDays(today, numDays - 1 - i);
       const key = format(d, "yyyy-MM-dd");
+      const sessionCount = sessionsMap[key] || 0;
       dayMap[key] = {
         key,
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: format(d, "dd/MM/yyyy"),
-        calories: 0, proteins: 0, carbs: 0, fats: 0
+        calories: 0, proteins: 0, carbs: 0, fats: 0,
+        hasSession: sessionCount > 0,
+        sessionsCount: sessionCount,
       };
 
       allMicros.forEach(n => dayMap[key][n.key] = 0);
@@ -150,7 +159,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         });
       }
     });
-    // Arrondi une seule fois, après agrégation de la journée
+
     Object.values(dayMap).forEach((d: any) => {
       d.calories = Math.round(d.calories);
       d.proteins = Math.round(d.proteins);
@@ -158,6 +167,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       d.fats = Math.round(d.fats);
     });
 
+    // Composition corporelle
     const bodyComp: any[] = [];
     for (let offset = 0; ; offset += PAGE) {
       const { data: page } = await supabase
@@ -172,11 +182,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       bodyComp.push(...rows);
       if (rows.length < PAGE) break;
     }
-    // Point d'ancrage : dernier enregistrement AVANT la fenêtre, pour que la
-    // courbe puisse être tracée jusqu'au premier point visible (sinon un seul
-    // point dans la fenêtre = graphique vide).
-    // Une ancre distincte est nécessaire par mesure : le relevé précédent de
-    // poids peut ne contenir ni masse grasse ni masse musculaire (et inversement).
+
     const previousBodyQueries = ["weight_kg", "body_fat_percent", "muscle_mass_kg"].map((column) =>
       supabase
         .from("body_composition")
@@ -190,10 +196,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     );
     const previousBodyResults = await Promise.all(previousBodyQueries);
     const bodyBefore = previousBodyResults.flatMap(({ data }) => data || []);
-    // Déduplication par jour : priorité à health_connect, sinon la dernière entrée créée
+
     const bodyByDay = new Map<string, any>();
     [...bodyBefore, ...(bodyComp || [])].forEach((b: any) => {
-
       const key = b.recorded_at;
       const existing = bodyByDay.get(key);
       if (!existing) { bodyByDay.set(key, b); return; }
@@ -201,26 +206,31 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       const currentHC = b.source === "health_connect";
       if (currentHC && !existingHC) { bodyByDay.set(key, b); return; }
       if (currentHC === existingHC) {
-        // même priorité → garder la plus récente
         if (new Date(b.created_at).getTime() >= new Date(existing.created_at).getTime()) {
           bodyByDay.set(key, b);
         }
       }
     });
+
     const round1 = (v: any) => (v === null || v === undefined ? null : Math.round(Number(v) * 10) / 10);
     setBodyData(Array.from(bodyByDay.values())
       .sort((a, b) => a.recorded_at.localeCompare(b.recorded_at))
-      .map(b => ({
-        key: String(b.recorded_at).slice(0, 10),
-        day: format(new Date(b.recorded_at), "dd/MM"),
-        date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
+      .map(b => {
+        const dayKey = String(b.recorded_at).slice(0, 10);
+        const sessionCount = sessionsMap[dayKey] || 0;
+        return {
+          key: dayKey,
+          day: format(new Date(b.recorded_at), "dd/MM"),
+          date: format(new Date(b.recorded_at), "dd/MM/yyyy"),
+          weight: round1(b.weight_kg),
+          bodyFat: round1(b.body_fat_percent),
+          muscleMass: round1(b.muscle_mass_kg),
+          hasSession: sessionCount > 0,
+          sessionsCount: sessionCount,
+        };
+      }));
 
-        weight: round1(b.weight_kg),
-        bodyFat: round1(b.body_fat_percent),
-        muscleMass: round1(b.muscle_mass_kg)
-      })));
-
-    // Fetch goals history (incluant snapshots antérieurs au range pour forward-fill)
+    // Historique des objectifs
     const goalsHist: any[] = [];
     for (let offset = 0; ; offset += PAGE) {
       const { data: page } = await supabase
@@ -243,16 +253,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       fats: Number(g.fats),
     }));
 
-    // Forward-fill objectifs sur chaque jour du dayMap
     const sortedKeys = Object.keys(dayMap).sort();
     let gIdx = 0;
     let current: any = null;
-    // Initialiser current avec le dernier snapshot antérieur au range
     for (let i = 0; i < goalsList.length; i++) {
       if (goalsList[i].recorded_at <= sortedKeys[0]) current = goalsList[i];
       else break;
     }
-    // Avancer gIdx au premier snapshot dans le range
     while (gIdx < goalsList.length && goalsList[gIdx].recorded_at < sortedKeys[0]) gIdx++;
 
     sortedKeys.forEach((key) => {
@@ -271,7 +278,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     setGoalsHistory(goalsList);
   };
 
-  // --- Zoom / pan sur l'axe temporel (30 jours & Global) ---
+  // Zoom / pan
   const zoomEnabled = period !== "7d";
   const defaultVisibleCount = period === "all" ? 90 : nutritionData.length || 30;
   const { window: zoomWindow, isZoomed, reset: resetZoom, controller } = useChartZoomPan(
@@ -291,16 +298,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     const from = visibleNutritionData[0].key;
     const to = visibleNutritionData[visibleNutritionData.length - 1].key;
     const inRange = bodyData.filter((b) => hasValue(b) && (!b.key || (b.key >= from && b.key <= to)));
-    // Conserve le dernier point antérieur qui possède réellement cette mesure.
     const anchor = [...bodyData].reverse().find((b) => hasValue(b) && b.key && b.key < from);
     return anchor ? [anchor, ...inRange] : inRange;
   };
 
-
   const rangeLabel = visibleNutritionData.length
     ? `${visibleNutritionData[0].date} → ${visibleNutritionData[visibleNutritionData.length - 1].date}`
     : "";
-
 
   const resolvedMicros = useMemo(
     () => resolveMicroGoals(
@@ -324,7 +328,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     const daysWithData = visibleNutritionData.filter((d) => d.calories > 0).length || 1;
     return resolvedMicros.map((m) => {
       const avg = visibleNutritionData.reduce((sum, d) => sum + (Number(d[m.key]) || 0), 0) / daysWithData;
-
       const goal = m.goal > 0 ? m.goal : 1;
       const pct = (avg / goal) * 100;
       return {
@@ -406,7 +409,14 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
       {/* 1. CALORIES */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-        <h3 className="font-display font-semibold text-sm mb-3">Calories vs Objectif</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-display font-semibold text-sm">Calories vs Objectif</h3>
+          {visibleNutritionData.some((d) => d.hasSession) && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              🏋️ Séance effectuée
+            </span>
+          )}
+        </div>
         <ZoomPanArea controller={controller} className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart 
@@ -420,7 +430,14 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <Tooltip 
                 contentStyle={tooltipStyle} 
                 itemStyle={{ color: "#FFFFFF" }}
-                cursor={{ fill: 'rgba(255,255,255,0.05)' }} 
+                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                labelFormatter={(label: any, payload: any[]) => {
+                  const item = payload?.[0]?.payload;
+                  if (item?.hasSession) {
+                    return `${label} · 🏋️ ${item.sessionsCount} séance${item.sessionsCount > 1 ? "s" : ""}`;
+                  }
+                  return label;
+                }}
               />
               <Bar dataKey="calories" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                 {visibleNutritionData.map((entry, index) => (
@@ -435,14 +452,44 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
       {/* 2. MACRONUTRIMENTS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-        <h3 className="font-display font-semibold text-sm mb-3">Macronutriments (g)</h3>
+        <div className="flex items-center justify-between mb-3">
+          <h3 className="font-display font-semibold text-sm">Macronutriments (g)</h3>
+          {visibleNutritionData.some((d) => d.hasSession) && (
+            <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+              🏋️ Séance d'entraînement
+            </span>
+          )}
+        </div>
         <ZoomPanArea controller={controller} className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={visibleNutritionData}>
               <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
               <XAxis dataKey="day" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={12} />
               <YAxis tick={{ fontSize: 10 }} />
-              <Tooltip contentStyle={tooltipStyle} />
+              <Tooltip 
+                contentStyle={tooltipStyle}
+                labelFormatter={(label: any, payload: any[]) => {
+                  const item = payload?.[0]?.payload;
+                  if (item?.hasSession) {
+                    return `${label} · 🏋️ ${item.sessionsCount} séance${item.sessionsCount > 1 ? "s" : ""}`;
+                  }
+                  return label;
+                }}
+              />
+        {visibleNutritionData.filter((d) => d.hasSession).map((d) => (
+                <ReferenceLine
+                  key={`session-${d.key}`}
+                  x={d.day}
+                  stroke="hsl(var(--primary))"
+                  strokeDasharray="3 3"
+                  strokeOpacity={0.6}
+                  label={{
+                    value: "🏋️",
+                    position: "top",
+                    fontSize: 10,
+                  }}
+                />
+              ))}
               <Line type="monotone" dataKey="proteinGoal" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Prot." isAnimationActive={false} />
               <Line type="monotone" dataKey="carbsGoal" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Gluc." isAnimationActive={false} />
               <Line type="monotone" dataKey="fatsGoal" stroke="#F43F5E" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Lip." isAnimationActive={false} />
@@ -453,7 +500,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           </ResponsiveContainer>
         </ZoomPanArea>
       </section>
-
 
       {/* 3. RADAR MICROS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
@@ -522,7 +568,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           resolvedMicros={resolvedMicros}
         />
         {customCharts.map((chart) => {
-          // Une série distincte par micronutriment sélectionné (pas d'addition)
           const selected = chart.micros
             .map((k) => resolvedMicros.find((r) => r.key === k))
             .filter(Boolean) as typeof resolvedMicros;
@@ -661,7 +706,6 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                           activeDot={{ r: 5 }}
                         />
                       ))}
-
                     </LineChart>
                   )}
                 </ResponsiveContainer>
@@ -669,9 +713,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             </section>
           );
         })}
-
       </div>
-
 
       {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
@@ -685,7 +727,16 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             const chartData = getVisibleBodySeries(chart.key);
             return (
             <section key={chart.key} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
-              <h3 className="font-display font-semibold text-sm mb-3" style={{ color: chart.color }}>{chart.title} ({chart.unit})</h3>
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="font-display font-semibold text-sm" style={{ color: chart.color }}>
+                  {chart.title} ({chart.unit})
+                </h3>
+                {chartData.some((d: any) => d.hasSession) && (
+                  <span className="text-[10px] text-muted-foreground flex items-center gap-1">
+                    🏋️ Séance le jour de pesée
+                  </span>
+                )}
+              </div>
               <ZoomPanArea controller={controller} className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData}>
@@ -701,12 +752,18 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                     <Tooltip 
                       content={({ active, payload }) => {
                         if (active && payload && payload.length) {
+                          const item = payload[0].payload;
                           return (
                             <div className="bg-[#1A1F2C] border border-white/10 p-2.5 rounded-xl shadow-xl">
-                              <p className="text-white/60 text-[11px] mb-0.5">{payload[0].payload.date}</p>
+                              <p className="text-white/60 text-[11px] mb-0.5">{item.date}</p>
                               <p className="text-white font-bold text-sm">
                                 {payload[0].value} {chart.unit}
                               </p>
+                              {item.hasSession && (
+                                <p className="text-primary text-[11px] font-medium mt-1">
+                                  🏋️ {item.sessionsCount} séance{item.sessionsCount > 1 ? "s" : ""}
+                                </p>
+                              )}
                             </div>
                           );
                         }
@@ -721,12 +778,42 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                         label={{ position: 'insideTopRight', value: 'Cible', fill: chart.color, fontSize: 9, opacity: 0.8 }}
                       />
                     )}
+                    {chartData.filter((d: any) => d.hasSession).map((d: any) => (
+                      <ReferenceLine
+                        key={`body-sess-${d.key}`}
+                        x={d.day}
+                        stroke="hsl(var(--primary))"
+                        strokeDasharray="3 3"
+                        strokeOpacity={0.4}
+                        label={{
+                          value: "🏋️",
+                          position: "top",
+                          fontSize: 10,
+                        }}
+                      />
+                    ))}
                     <Line
                       type="monotone"
                       dataKey={chart.key}
                       stroke={chart.color}
                       strokeWidth={3}
-                      dot={chartData.length === 1 ? { r: 3, fill: chart.color } : false}
+                      dot={(props: any) => {
+                        const { cx, cy, payload, index } = props;
+                        if (!cx || !cy || !payload) return <g key={`dot-${index}`} />;
+                        if (payload.hasSession) {
+                          return (
+                            <g key={`dot-${index}`}>
+                              <circle cx={cx} cy={cy} r={6} fill="hsl(var(--primary))" fillOpacity={0.3} />
+                              <circle cx={cx} cy={cy} r={3.5} fill={chart.color} stroke="#1A1F2C" strokeWidth={1.5} />
+                            </g>
+                          );
+                        }
+                        return chartData.length === 1 ? (
+                          <circle key={`dot-${index}`} cx={cx} cy={cy} r={3} fill={chart.color} />
+                        ) : (
+                          <g key={`dot-${index}`} />
+                        );
+                      }}
                       connectNulls
                       isAnimationActive={false}
                     />
@@ -743,4 +830,3 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 };
 
 export default EvolutionPage;
-                    
