@@ -1,11 +1,16 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Aligner les dates et la fenêtre visible de tous les graphiques d’Évolution, sans inventer de pesées
+- [x] Afficher les séances sur calories et composition, y compris les jours sans mesure
+- [x] Vérifier calendrier, navigation et détail du jour sur mobile/ordinateur avec données simulées ; 138 tests passent, dates Paris/Los Angeles vérifiées
+- [x] Fiabiliser le calendrier : pagination repas, état de chargement/erreur et détail actualisé
+- [ ] Valider le plan entraînements avec données réelles — bloqué : connexion automatique sans compte correspondant au demandeur et aucun appareil Android disponible
 - [x] Étape 3 : bandeau Lun→Dim sur l’accueil, un tap inverse un jour à venir, re-tap revient à la routine
 - [x] Étape 2 : bannière « Séance détectée » un jour de repos, confirmation en un tap ou « Garder Repos » (mémorisé pour la journée)
 - [ ] Étape 2 sur appareil — bloqué : nouvel APK nécessaire
-- [ ] Étape 1 : choix ponctuel Entraînement/Repos aujourd’hui, sauvegardé par date locale sans modifier la routine ; recalcul des cibles et retour à la routine
-- [ ] Tester les dérogations et leur sauvegarde dans l’interface
+- [x] Étape 1 : choix ponctuel Entraînement/Repos aujourd’hui, sauvegardé par date locale sans modifier la routine ; recalcul des cibles et retour à la routine (implémentation présente)
+- [ ] Tester les dérogations et leur sauvegarde dans l’interface — bloqué : pas de session correspondant au demandeur
 - [x] Détecter les jours habituels à partir des séances réelles des sources approuvées, sans compter les pas ni les calories quotidiennes
 - [x] Regrouper les réglages : corps, budget/nutrition, santé connectée, préférences, administration IA
 - [x] Tester la détection et vérifier les réglages avec des séances simulées (120 tests, dates Paris/Los Angeles, panneaux accessibles sans erreur)
@@ -66,4 +71,4 @@
 - [x] Prompts de détection compressés : expert (GPU) et court (CPU)
 
 - [x] Étape 4 : calendrier mensuel dans Évolution (routine/exceptions, séances approuvées, calories, pesées, fiche du jour)
-- [ ] Marqueurs de séances sur les graphiques poids/macros
+- [x] Marqueurs de séances sur calories/macros/poids/masse grasse/masse musculaire, même sans pesée ; axes et zoom communs

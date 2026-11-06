@@ -15,6 +15,11 @@ import { RotateCcw } from "lucide-react";
 import ActivityCalendar from "@/components/ActivityCalendar";
 import { readSessionsInRange } from "@/services/training-days";
 import { sessionsByDate } from "@/utils/activity-calendar";
+import { alignBodyTimeline, localDayCoordinate, timelineTicks } from "@/utils/evolution-timeline";
+
+const EMPTY_NUTRIENTS: CustomNutrientDef[] = [];
+const EMPTY_MICRO_OVERRIDES: MicroOverrides = {};
+const EMPTY_CHARTS: CustomChartConfig[] = [];
 
 interface EvolutionPageProps {
   userId: string;
@@ -35,8 +40,8 @@ interface EvolutionPageProps {
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
   userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
   targetWeight, targetBodyFat, targetMuscleMass, userProfile,
-  customNutrients = [], microOverrides = {},
-  customCharts = [], onCustomChartsChange
+  customNutrients = EMPTY_NUTRIENTS, microOverrides = EMPTY_MICRO_OVERRIDES,
+  customCharts = EMPTY_CHARTS, onCustomChartsChange
 }) => {
   const [view, setView] = useState<"charts" | "calendar">("charts");
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
@@ -136,6 +141,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
       const sessionCount = sessionsMap[key] || 0;
       dayMap[key] = {
         key,
+        time: localDayCoordinate(key),
         day: period === "7d" ? format(d, "EEE", { locale: fr }) : format(d, "dd/MM"),
         date: format(d, "dd/MM/yyyy"),
         calories: 0, proteins: 0, carbs: 0, fats: 0,
@@ -292,14 +298,35 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     [nutritionData, zoomWindow],
   );
 
-  const getVisibleBodySeries = (metricKey: string) => {
-    const hasValue = (entry: any) => entry[metricKey] !== null && Number.isFinite(Number(entry[metricKey]));
-    if (!visibleNutritionData.length) return bodyData.filter(hasValue);
-    const from = visibleNutritionData[0].key;
-    const to = visibleNutritionData[visibleNutritionData.length - 1].key;
-    const inRange = bodyData.filter((b) => hasValue(b) && (!b.key || (b.key >= from && b.key <= to)));
-    const anchor = [...bodyData].reverse().find((b) => hasValue(b) && b.key && b.key < from);
-    return anchor ? [anchor, ...inRange] : inRange;
+  const visibleBodyData = useMemo(
+    () => alignBodyTimeline(visibleNutritionData, bodyData),
+    [visibleNutritionData, bodyData],
+  );
+  const xTicks = useMemo(() => timelineTicks(visibleNutritionData), [visibleNutritionData]);
+  const firstTime = visibleNutritionData[0]?.time ?? 0;
+  const lastTime = visibleNutritionData[visibleNutritionData.length - 1]?.time ?? firstTime;
+  const xDomain: [number, number] = firstTime === lastTime
+    ? [firstTime - 43200000, lastTime + 43200000]
+    : [firstTime, lastTime];
+  const chartMargin = { top: 20, right: 8, bottom: 5, left: 0 };
+  const timeAxis = (
+    <XAxis dataKey="time" type="number" scale="time" domain={xDomain}
+      ticks={xTicks} allowDataOverflow padding={{ left: 8, right: 8 }}
+      tickFormatter={(time) => format(new Date(time), period === "7d" ? "EEE" : "dd/MM", { locale: fr })}
+      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }}
+      axisLine={false} tickLine={false} interval={0} />
+  );
+  const sessionLines = visibleNutritionData.filter((day) => day.hasSession).map((day) => (
+    <ReferenceLine key={`session-${day.key}`} x={day.time}
+      stroke="hsl(var(--primary))" strokeDasharray="3 3" strokeOpacity={0.6}
+      label={{ value: "🏋️", position: "top", fontSize: 10 }} />
+  ));
+  const dateLabel = (time: number) => {
+    const item = visibleNutritionData.find((day) => day.time === Number(time));
+    const date = format(new Date(Number(time)), "dd/MM/yyyy");
+    return item?.hasSession
+      ? `${date} · 🏋️ ${item.sessionsCount} séance${item.sessionsCount > 1 ? "s" : ""}`
+      : date;
   };
 
   const rangeLabel = visibleNutritionData.length
@@ -341,19 +368,19 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         isLimit: m.isLimit,
       };
     });
-  }, [nutritionData, resolvedMicros]);
+  }, [visibleNutritionData, resolvedMicros]);
 
   const tooltipStyle = {
-    backgroundColor: "#1A1F2C",
-    border: "1px solid rgba(255,255,255,0.1)",
+    backgroundColor: "hsl(var(--popover))",
+    border: "1px solid hsl(var(--border))",
     borderRadius: "12px",
     fontSize: "13px",
-    color: "#FFFFFF",
+    color: "hsl(var(--popover-foreground))",
     padding: "10px"
   };
 
   const getExtendedDomain = (data: any[], key: string, target: number | null | undefined, padding: number) => {
-    const values = data.map(d => d[key]).filter(v => v !== null);
+    const values = data.map(d => d[key]).filter(v => v !== null && v !== undefined && Number.isFinite(Number(v)));
     if (values.length === 0 && !target) return [0, 100];
     const min = Math.min(...values, target || Infinity);
     const max = Math.max(...values, target || -Infinity);
@@ -420,25 +447,20 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         <ZoomPanArea controller={controller} className="h-48">
           <ResponsiveContainer width="100%" height="100%">
             <ComposedChart 
-              data={visibleNutritionData} 
+              data={visibleNutritionData} margin={chartMargin}
               onMouseMove={(state) => { if (state.activeTooltipIndex !== undefined) setActiveIndex(state.activeTooltipIndex); }}
               onMouseLeave={() => setActiveIndex(null)}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={12} />
-              <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+              {timeAxis}
+              <YAxis width={60} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip 
                 contentStyle={tooltipStyle} 
-                itemStyle={{ color: "#FFFFFF" }}
-                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
-                labelFormatter={(label: any, payload: any[]) => {
-                  const item = payload?.[0]?.payload;
-                  if (item?.hasSession) {
-                    return `${label} · 🏋️ ${item.sessionsCount} séance${item.sessionsCount > 1 ? "s" : ""}`;
-                  }
-                  return label;
-                }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                cursor={{ fill: 'hsl(var(--muted))' }}
+                labelFormatter={dateLabel}
               />
+              {sessionLines}
               <Bar dataKey="calories" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                 {visibleNutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
@@ -462,34 +484,15 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
         <ZoomPanArea controller={controller} className="h-56">
           <ResponsiveContainer width="100%" height="100%">
-            <LineChart data={visibleNutritionData}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10 }} interval="preserveStartEnd" minTickGap={12} />
-              <YAxis tick={{ fontSize: 10 }} />
+            <LineChart data={visibleNutritionData} margin={chartMargin}>
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+              {timeAxis}
+              <YAxis width={60} tick={{ fontSize: 10 }} />
               <Tooltip 
                 contentStyle={tooltipStyle}
-                labelFormatter={(label: any, payload: any[]) => {
-                  const item = payload?.[0]?.payload;
-                  if (item?.hasSession) {
-                    return `${label} · 🏋️ ${item.sessionsCount} séance${item.sessionsCount > 1 ? "s" : ""}`;
-                  }
-                  return label;
-                }}
+                labelFormatter={dateLabel}
               />
-        {visibleNutritionData.filter((d) => d.hasSession).map((d) => (
-                <ReferenceLine
-                  key={`session-${d.key}`}
-                  x={d.day}
-                  stroke="hsl(var(--primary))"
-                  strokeDasharray="3 3"
-                  strokeOpacity={0.6}
-                  label={{
-                    value: "🏋️",
-                    position: "top",
-                    fontSize: 10,
-                  }}
-                />
-              ))}
+              {sessionLines}
               <Line type="monotone" dataKey="proteinGoal" stroke="#3B82F6" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Prot." isAnimationActive={false} />
               <Line type="monotone" dataKey="carbsGoal" stroke="#F59E0B" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Gluc." isAnimationActive={false} />
               <Line type="monotone" dataKey="fatsGoal" stroke="#F43F5E" strokeWidth={1.5} strokeDasharray="4 4" dot={false} strokeOpacity={0.5} name="Obj. Lip." isAnimationActive={false} />
@@ -587,7 +590,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           const single = series[0];
 
           const data = visibleNutritionData.map((d) => {
-            const row: any = { day: d.day, date: d.date };
+            const row: any = { time: d.time, day: d.day, date: d.date };
             series.forEach((s) => {
               row[s.key] = Math.round((Number(d[s.key]) || 0) * 10) / 10;
             });
@@ -622,13 +625,14 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
           const commonAxes = (
             <>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-              <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} interval="preserveStartEnd" minTickGap={12} />
-              <YAxis tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+              {timeAxis}
+              <YAxis width={60} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
-                itemStyle={{ color: "#FFFFFF" }}
-                cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                itemStyle={{ color: "hsl(var(--popover-foreground))" }}
+                cursor={{ fill: "hsl(var(--muted))" }}
+                labelFormatter={dateLabel}
                 formatter={(v: any, name: any) => {
                   const s = series.find((x) => x.label === name || x.key === name);
                   return [`${v} ${s?.unit ?? ""}`, s?.label ?? name];
@@ -666,7 +670,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <ZoomPanArea controller={controller} className="h-48">
                 <ResponsiveContainer width="100%" height="100%">
                   {chart.chart_type === "bar" ? (
-                    <BarChart data={data} barGap={2}>
+                    <BarChart data={data} barGap={2} margin={chartMargin}>
                       {commonAxes}
                       {referenceLines}
                       {isSingle ? (
@@ -691,7 +695,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                       )}
                     </BarChart>
                   ) : (
-                    <LineChart data={data}>
+                    <LineChart data={data} margin={chartMargin}>
                       {commonAxes}
                       {referenceLines}
                       {series.map((s) => (
@@ -724,7 +728,8 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
             { title: "Masse Grasse", key: "bodyFat", unit: "%", color: "#F43F5E", target: targetBodyFat, padding: 1 },
             { title: "Masse Musculaire", key: "muscleMass", unit: "kg", color: "#3B82F6", target: targetMuscleMass, padding: 1 }
           ].map((chart) => {
-            const chartData = getVisibleBodySeries(chart.key);
+            const chartData = visibleBodyData;
+            const measuredCount = chartData.filter((day) => day[chart.key] != null).length;
             return (
             <section key={chart.key} className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
               <div className="flex items-center justify-between mb-3">
@@ -733,41 +738,39 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 </h3>
                 {chartData.some((d: any) => d.hasSession) && (
                   <span className="text-[10px] text-muted-foreground flex items-center gap-1">
-                    🏋️ Séance le jour de pesée
+                    🏋️ Séance effectuée
                   </span>
                 )}
               </div>
               <ZoomPanArea controller={controller} className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
-                  <LineChart data={chartData}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
-                    <XAxis dataKey="day" tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} />
+                  <LineChart data={chartData} margin={chartMargin}>
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
+                    {timeAxis}
                     <YAxis 
                       domain={getExtendedDomain(chartData, chart.key, chart.target, chart.padding)} 
-                      tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} 
-                      width={35}
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} 
+                      width={60}
                       axisLine={false}
                       tickLine={false}
                     />
-                    <Tooltip 
-                      content={({ active, payload }) => {
-                        if (active && payload && payload.length) {
-                          const item = payload[0].payload;
-                          return (
-                            <div className="bg-[#1A1F2C] border border-white/10 p-2.5 rounded-xl shadow-xl">
-                              <p className="text-white/60 text-[11px] mb-0.5">{item.date}</p>
-                              <p className="text-white font-bold text-sm">
-                                {payload[0].value} {chart.unit}
-                              </p>
-                              {item.hasSession && (
-                                <p className="text-primary text-[11px] font-medium mt-1">
-                                  🏋️ {item.sessionsCount} séance{item.sessionsCount > 1 ? "s" : ""}
-                                </p>
-                              )}
-                            </div>
-                          );
-                        }
-                        return null;
+                    <Tooltip filterNull={false}
+                      content={({ active, label }) => {
+                        if (!active || label == null) return null;
+                        const item = chartData.find((day) => day.time === Number(label));
+                        if (!item) return null;
+                        const value = item[chart.key];
+                        return (
+                          <div className="bg-popover border border-border p-2.5 rounded-lg shadow-xl">
+                            <p className="text-muted-foreground text-[11px] mb-0.5">{item.date}</p>
+                            <p className="text-popover-foreground font-bold text-sm">
+                              {value == null ? "Aucune mesure" : `${value} ${chart.unit}`}
+                            </p>
+                            {item.hasSession && <p className="text-primary text-[11px] font-medium mt-1">
+                              🏋️ {item.sessionsCount} séance{item.sessionsCount > 1 ? "s" : ""}
+                            </p>}
+                          </div>
+                        );
                       }}
                     />
                     {chart.target && (
@@ -778,20 +781,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                         label={{ position: 'insideTopRight', value: 'Cible', fill: chart.color, fontSize: 9, opacity: 0.8 }}
                       />
                     )}
-                    {chartData.filter((d: any) => d.hasSession).map((d: any) => (
-                      <ReferenceLine
-                        key={`body-sess-${d.key}`}
-                        x={d.day}
-                        stroke="hsl(var(--primary))"
-                        strokeDasharray="3 3"
-                        strokeOpacity={0.4}
-                        label={{
-                          value: "🏋️",
-                          position: "top",
-                          fontSize: 10,
-                        }}
-                      />
-                    ))}
+                    {sessionLines}
                     <Line
                       type="monotone"
                       dataKey={chart.key}
@@ -799,16 +789,16 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                       strokeWidth={3}
                       dot={(props: any) => {
                         const { cx, cy, payload, index } = props;
-                        if (!cx || !cy || !payload) return <g key={`dot-${index}`} />;
+                        if (!Number.isFinite(cx) || !Number.isFinite(cy) || !payload || payload[chart.key] == null) return <g key={`dot-${index}`} />;
                         if (payload.hasSession) {
                           return (
                             <g key={`dot-${index}`}>
                               <circle cx={cx} cy={cy} r={6} fill="hsl(var(--primary))" fillOpacity={0.3} />
-                              <circle cx={cx} cy={cy} r={3.5} fill={chart.color} stroke="#1A1F2C" strokeWidth={1.5} />
+                              <circle cx={cx} cy={cy} r={3.5} fill={chart.color} stroke="hsl(var(--card))" strokeWidth={1.5} />
                             </g>
                           );
                         }
-                        return chartData.length === 1 ? (
+                        return measuredCount === 1 ? (
                           <circle key={`dot-${index}`} cx={cx} cy={cy} r={3} fill={chart.color} />
                         ) : (
                           <g key={`dot-${index}`} />

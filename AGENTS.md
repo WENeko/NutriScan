@@ -1,4 +1,5 @@
 # Project rules
+- Evolution charts share a numeric local-date timeline, visible domain, ticks and plot margins; join body measurements by date with null gaps so session markers never depend on weigh-ins.
 - Store day-type exceptions in `training_day_overrides` by user and local date; derive only that day's cycling coefficient from existing same-type routine days (neutral if absent), never mutate the weekly routine, redistribute other days or infer meal workout context.
 
 - Keep IQM calculations pure in `src/utils/metabolic-quality.ts`; unknown nutrients remain unknown and coverage accompanies provisional scores so missing records never become fabricated measurements.
