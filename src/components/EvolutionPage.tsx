@@ -17,6 +17,10 @@ import { readSessionsInRange } from "@/services/training-days";
 import { sessionsByDate } from "@/utils/activity-calendar";
 import { alignBodyTimeline, localDayCoordinate, timelineTicks } from "@/utils/evolution-timeline";
 
+const EMPTY_NUTRIENTS: CustomNutrientDef[] = [];
+const EMPTY_MICRO_OVERRIDES: MicroOverrides = {};
+const EMPTY_CHARTS: CustomChartConfig[] = [];
+
 interface EvolutionPageProps {
   userId: string;
   calorieGoal: number;
@@ -36,8 +40,8 @@ interface EvolutionPageProps {
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
   userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
   targetWeight, targetBodyFat, targetMuscleMass, userProfile,
-  customNutrients = [], microOverrides = {},
-  customCharts = [], onCustomChartsChange
+  customNutrients = EMPTY_NUTRIENTS, microOverrides = EMPTY_MICRO_OVERRIDES,
+  customCharts = EMPTY_CHARTS, onCustomChartsChange
 }) => {
   const [view, setView] = useState<"charts" | "calendar">("charts");
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
@@ -447,13 +451,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               onMouseMove={(state) => { if (state.activeTooltipIndex !== undefined) setActiveIndex(state.activeTooltipIndex); }}
               onMouseLeave={() => setActiveIndex(null)}
             >
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
               {timeAxis}
-              <YAxis width={60} tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <YAxis width={60} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip 
                 contentStyle={tooltipStyle} 
                 itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                cursor={{ fill: 'rgba(255,255,255,0.05)' }}
+                cursor={{ fill: 'hsl(var(--muted))' }}
                 labelFormatter={dateLabel}
               />
               {sessionLines}
@@ -481,7 +485,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         <ZoomPanArea controller={controller} className="h-56">
           <ResponsiveContainer width="100%" height="100%">
             <LineChart data={visibleNutritionData} margin={chartMargin}>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
               {timeAxis}
               <YAxis width={60} tick={{ fontSize: 10 }} />
               <Tooltip 
@@ -621,13 +625,13 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
           const commonAxes = (
             <>
-              <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+              <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
               {timeAxis}
-              <YAxis width={60} tick={{ fontSize: 10, fill: "rgba(255,255,255,0.5)" }} axisLine={false} tickLine={false} />
+              <YAxis width={60} tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} axisLine={false} tickLine={false} />
               <Tooltip
                 contentStyle={tooltipStyle}
                 itemStyle={{ color: "hsl(var(--popover-foreground))" }}
-                cursor={{ fill: "rgba(255,255,255,0.05)" }}
+                cursor={{ fill: "hsl(var(--muted))" }}
                 labelFormatter={dateLabel}
                 formatter={(v: any, name: any) => {
                   const s = series.find((x) => x.label === name || x.key === name);
@@ -741,11 +745,11 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <ZoomPanArea controller={controller} className="h-44">
                 <ResponsiveContainer width="100%" height="100%">
                   <LineChart data={chartData} margin={chartMargin}>
-                    <CartesianGrid strokeDasharray="3 3" stroke="rgba(255,255,255,0.05)" vertical={false} />
+                    <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--muted))" vertical={false} />
                     {timeAxis}
                     <YAxis 
                       domain={getExtendedDomain(chartData, chart.key, chart.target, chart.padding)} 
-                      tick={{ fontSize: 10, fill: "rgba(255,255,255,0.3)" }} 
+                      tick={{ fontSize: 10, fill: "hsl(var(--muted-foreground))" }} 
                       width={60}
                       axisLine={false}
                       tickLine={false}
