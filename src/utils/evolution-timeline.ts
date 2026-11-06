@@ -32,6 +32,7 @@ export function localDayCoordinate(key: string): number {
 
 export function timelineTicks(days: { time: number }[], maxTicks = 6): number[] {
   if (!days.length) return [];
+  if (days.length === 1) return [days[0].time];
   const count = Math.min(days.length, Math.max(2, maxTicks));
   return Array.from(new Set(Array.from({ length: count }, (_, i) =>
     days[Math.round(i * (days.length - 1) / (count - 1))].time,
