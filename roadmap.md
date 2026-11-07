@@ -42,7 +42,7 @@
 
 
 - [x] Préserver les repas hybrides cloud partiellement résolus et afficher les aliments non résolus et le total partiel
-- [x] Améliorer les recherches OFF/USDA sans perdre la cuisson lors de la sélection ; ajouter citron et lentilles USDA vérifiés cloud-only
+- [x] Améliorer les recherches OFF/USDA sans perdre la cuisson ; fiches vérifiées cloud-only : citron, lentilles, gnocchis (FDC 2708722), endive (SR 168412), Schupfnudeln (provisoire)
 - [x] Tester et déployer le correctif hybride cloud
 
 - [x] Remplacer l’appariement hybride cloud par une sélection sémantique de fiches existantes, sans modifier noms/portions ni le cloud classique
@@ -66,7 +66,7 @@
 - [x] Distance Camera2 transmise même sur capteur « uncalibrated » ; masse ≤ 2 g traitée comme inconnue
 - [x] MiniCPM-V 4.6 natif (llama.cpp, process :vlm) comme détecteur du mode hybride
 - [x] Complétion micronutriments : sources supplémentaires (USDA FoodData Central, Fichier canadien CNF) puis passe IA ciblée sur les seules cases vides
-- [ ] Badge de source par micronutriment dans le détail du repas
+- [x] Badge de source par micronutriment dans le détail du repas (colonne micro_sources, badge dans Détails Santé)
 - [x] Accélération GPU Vulkan avec détection de compatibilité et repli CPU automatique
 - [x] Prompts de détection compressés : expert (GPU) et court (CPU)
 

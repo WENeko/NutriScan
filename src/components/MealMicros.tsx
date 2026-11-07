@@ -32,9 +32,19 @@ const MicroInfoBubble: React.FC<{ info: string; id: string }> = ({ info, id }) =
   );
 };
 
+const SOURCE_LABELS: Record<string, string> = {
+  library: "Bibliothèque",
+  reference: "Référence",
+  openfoodfacts: "OFF",
+  usda: "USDA",
+  cnf: "CNF",
+  ai: "IA",
+};
+
 const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs = [], refreshKey, qualityInput }) => {
   const [open, setOpen] = useState(false);
   const [micros, setMicros] = useState<Record<string, number> | null>(null);
+  const [microSources, setMicroSources] = useState<Record<string, string>>({});
   const prefix = useId();
 
   const allNutrients = getMasterList(customDefs);
@@ -44,19 +54,31 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
     (async () => {
       const { data } = await supabase
         .from("meal_items")
-        .select("nutrients_std, nutrients_custom")
+        .select("nutrients_std, nutrients_custom, micro_sources")
         .eq("meal_id", mealId);
       if (data) {
         const totals: Record<string, number> = {};
+        const sourceWeight: Record<string, Record<string, number>> = {};
         allNutrients.forEach((n) => (totals[n.key] = 0));
         (data as any[]).forEach((item) => {
           const std = item.nutrients_std || {};
           const custom = item.nutrients_custom || {};
+          const srcs = (item.micro_sources || {}) as Record<string, string>;
           allNutrients.forEach((n) => {
             const v = Number(std[n.key] ?? custom[n.key] ?? 0);
             if (Number.isFinite(v)) totals[n.key] += v;
+            const src = srcs[n.key];
+            if (src && Number.isFinite(v) && v > 0) {
+              sourceWeight[n.key] = sourceWeight[n.key] || {};
+              sourceWeight[n.key][src] = (sourceWeight[n.key][src] || 0) + v;
+            }
           });
         });
+        const dominant: Record<string, string> = {};
+        for (const [key, bySrc] of Object.entries(sourceWeight)) {
+          dominant[key] = Object.entries(bySrc).sort((a, b) => b[1] - a[1])[0]?.[0] ?? "";
+        }
+        setMicroSources(dominant);
         setMicros(totals);
       }
     })();
@@ -92,7 +114,14 @@ const MealMicros: React.FC<MealMicrosProps> = ({ mealId, microGoals, customDefs 
                       <span className="text-[10px] font-medium">{n.label}</span>
                       {info && <MicroInfoBubble info={info} id={`${prefix}-mm-${i}`} />}
                     </div>
-                    <span className="text-[10px] font-bold">{Math.round((micros[n.key] || 0) * 10) / 10}{n.unit}</span>
+                    <span className="flex items-center gap-1">
+                      {microSources[n.key] && (
+                        <span className="text-[8px] uppercase tracking-wide text-muted-foreground/70 border border-border/60 rounded px-1 py-px">
+                          {SOURCE_LABELS[microSources[n.key]] ?? microSources[n.key]}
+                        </span>
+                      )}
+                      <span className="text-[10px] font-bold">{Math.round((micros[n.key] || 0) * 10) / 10}{n.unit}</span>
+                    </span>
                   </div>
                 );
               })

@@ -36,6 +36,13 @@
       "when": 1793683366993,
       "tag": "0004_training_day_overrides",
       "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1794054335423,
+      "tag": "0005_migration",
+      "breakpoints": true
     }
   ]
 }
