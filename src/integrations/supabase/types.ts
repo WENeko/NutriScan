@@ -216,6 +216,7 @@ export type Database = {
           fats: number | null
           id: string
           meal_id: string
+          micro_sources: Json | null
           name: string
           nutrients_custom: Json
           nutrients_std: Json
@@ -231,6 +232,7 @@ export type Database = {
           fats?: number | null
           id?: string
           meal_id: string
+          micro_sources?: Json | null
           name: string
           nutrients_custom?: Json
           nutrients_std?: Json
@@ -246,6 +248,7 @@ export type Database = {
           fats?: number | null
           id?: string
           meal_id?: string
+          micro_sources?: Json | null
           name?: string
           nutrients_custom?: Json
           nutrients_std?: Json

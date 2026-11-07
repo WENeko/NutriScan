@@ -1,0 +1,2 @@
+ALTER TABLE public.meal_items ADD COLUMN IF NOT EXISTS micro_sources jsonb;
+COMMENT ON COLUMN public.meal_items.micro_sources IS 'Provenance par nutriment (library|reference|openfoodfacts|usda|cnf|ai), renseignée par le pipeline hybride cloud.';
