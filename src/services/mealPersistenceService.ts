@@ -116,7 +116,7 @@ function buildItemRows(
       unit_weight_g: it.unit_weight_g ?? null,
       nutrients_std: buildStdNutrients(it as Record<string, unknown>),
       nutrients_custom: buildCustomNutrients(it as Record<string, unknown>, customDefs),
-      micro_sources: (it as Record<string, unknown>).microSources ?? (it as Record<string, unknown>).micro_sources ?? null,
+      micro_sources: ((it as Record<string, unknown>).microSources ?? (it as Record<string, unknown>).micro_sources ?? null) as Record<string, string> | null,
     };
   });
 }
