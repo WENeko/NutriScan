@@ -59,6 +59,7 @@ interface MealItem {
   fatsDensity: number;
   isCustom?: boolean;
   nutritionSource?: string;
+  microSources?: Record<string, string>;
   fiber?: number;
   sugar?: number;
   saturated_fat?: number;
@@ -505,6 +506,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         fatsDensity: fats / weight,
         isCustom,
         ...(cloudHybrid ? { nutritionSource: item.source } : {}),
+        ...(cloudHybrid && item.micro_sources ? { microSources: item.micro_sources as Record<string, string> } : {}),
         ...(cloudHybrid && Array.isArray(item.choices) && item.choices.length ? { choices: item.choices.map(String) } : {}),
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
