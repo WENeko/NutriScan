@@ -1019,7 +1019,7 @@ const [searchQuery, setSearchQuery] = useState("");
                 value={editContext} allowSuggestion={!editContextChosen} onChange={value => { setEditContext(value); setEditContextChosen(true); }} />
               <NutritionQuality preset={sportPreset} input={qualityInputFromMeal({ total_calories: editItems.reduce((sum, item) => sum + (item.calories ?? 0), 0), total_proteins: editItems.reduce((sum, item) => sum + (item.proteins ?? 0), 0), total_carbs: editItems.reduce((sum, item) => sum + (item.carbs ?? 0), 0), total_fats: editItems.reduce((sum, item) => sum + (item.fats ?? 0), 0), peri_workout: editContext }, editItems.map(item => ({ ...item, nutrients_std: buildStdNutrients(item as unknown as Record<string, unknown>) })))} />
               {/* Distance de prise de vue (recalcule les quantités) */}
-              <div className="space-y-1">
+              {Boolean(meal.image_url || meal.capture_distance_m != null) && <div className="space-y-1">
                 <label className="text-[10px] font-semibold text-muted-foreground">Distance de prise de vue</label>
                 <div className="relative h-8">
                   <DistanceBadge
@@ -1028,6 +1028,7 @@ const [searchQuery, setSearchQuery] = useState("");
                   />
                 </div>
               </div>
+              }
               {/* Edit items */}
               <h4 className="text-[10px] font-semibold text-muted-foreground pt-1">Ingrédients</h4>
               {editItems.map((item, i) => (

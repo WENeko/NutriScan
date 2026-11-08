@@ -1,6 +1,9 @@
 # Roadmap
 
 ## Demande actuelle
+- [ ] Masquer la distance hors photo et importer l’heure originale de la galerie
+- [ ] Enregistrer les fenêtres pré/post-effort personnalisables par profil et filtrer les suggestions
+- [ ] Tester les fenêtres et les dates photo ; vérifier le parcours disponible
 - [x] Aligner les dates et la fenêtre visible de tous les graphiques d’Évolution, sans inventer de pesées
 - [x] Afficher les séances sur calories et composition, y compris les jours sans mesure
 - [x] Vérifier calendrier, navigation et détail du jour sur mobile/ordinateur avec données simulées ; 138 tests passent, dates Paris/Los Angeles vérifiées
