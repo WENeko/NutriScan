@@ -104,7 +104,19 @@ export function calculateDailyQuality(meals: QualityInput[], preset: UserPreset 
   return { score, grade: grade(score), coverage: energy > 0 ? supportedEnergy / energy : 0 };
 }
 
-export interface WorkoutInterval { start_time: string; end_time: string }
+export interface WorkoutInterval { start_time: string; end_time: string; calories_kcal?: number | null }
+export interface WorkoutWindows { preMin: number; postMin: number }
+export const WORKOUT_WINDOW_DEFAULTS: Record<UserPreset, WorkoutWindows> = {
+  endurance: { preMin: 90, postMin: 45 }, hypertrophy: { preMin: 90, postMin: 120 },
+  cut: { preMin: 60, postMin: 60 }, health: { preMin: 90, postMin: 90 },
+};
+export function normalizeWorkoutWindows(value: unknown, preset: UserPreset = "hypertrophy"): WorkoutWindows {
+  const raw = value && typeof value === "object" ? value as Partial<WorkoutWindows> : {};
+  const defaults = WORKOUT_WINDOW_DEFAULTS[preset];
+  const minutes = (v: unknown, fallback: number, max: number) =>
+    typeof v === "number" && Number.isFinite(v) ? Math.max(15, Math.min(max, Math.round(v / 15) * 15)) : fallback;
+  return { preMin: minutes(raw.preMin, defaults.preMin, 180), postMin: minutes(raw.postMin, defaults.postMin, 240) };
+}
 export const QUALITY_KEYS = ["sugar", "fiber", "saturated_fat", "omega3_mg"] as const;
 
 /** A nutrient total is known only when every ingredient has a measurement. */
@@ -151,16 +163,18 @@ export function normalizeSportPreset(value: unknown): UserPreset {
 /** Suggestion only; caller must preserve an explicitly chosen user tag.
  * Absolute instants handle timezone changes and sessions crossing midnight.
  */
-export function detectWorkoutContext(timestamp: string | Date, sessions: WorkoutInterval[]): WorkoutContext {
+export function detectWorkoutContext(timestamp: string | Date, sessions: WorkoutInterval[], windows: WorkoutWindows = WORKOUT_WINDOW_DEFAULTS.hypertrophy): WorkoutContext {
   const time = new Date(timestamp).getTime();
   if (!Number.isFinite(time)) return "none";
   const candidates: { context: WorkoutContext; distance: number }[] = [];
   for (const session of sessions) {
     const start = new Date(session.start_time).getTime(), end = new Date(session.end_time).getTime();
     if (!Number.isFinite(start) || !Number.isFinite(end) || end <= start) continue;
-    if (time >= start && time < end) return "intra_workout";
-    if (time >= start - 60 * 60_000 && time < start) candidates.push({ context: "pre_workout", distance: start - time });
-    if (time >= end && time <= end + 120 * 60_000) candidates.push({ context: "post_workout", distance: time - end });
+    const durationMin = (end - start) / 60_000;
+    if (durationMin < 20 && (session.calories_kcal ?? 0) < 100) continue;
+    if (time >= start && time < end && durationMin >= 45) return "intra_workout";
+    if (time >= start - windows.preMin * 60_000 && time < start) candidates.push({ context: "pre_workout", distance: start - time });
+    if (time >= end && time <= end + windows.postMin * 60_000) candidates.push({ context: "post_workout", distance: time - end });
   }
   return candidates.sort((a, b) => a.distance - b.distance)[0]?.context ?? "none";
 }

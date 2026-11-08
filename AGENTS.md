@@ -1,4 +1,6 @@
 # Project rules
+- Persist adjustable workout windows independently of calorie goals; suggestions read approved native exercise records, never energy samples, and remain user-confirmed.
+- Gallery timestamps preserve EXIF local wall time with file-date fallback; camera capture does not inherit gallery dates.
 - Evolution charts share a numeric local-date timeline, visible domain, ticks and plot margins; join body measurements by date with null gaps so session markers never depend on weigh-ins.
 - Store day-type exceptions in `training_day_overrides` by user and local date; derive only that day's cycling coefficient from existing same-type routine days (neutral if absent), never mutate the weekly routine, redistribute other days or infer meal workout context.
 

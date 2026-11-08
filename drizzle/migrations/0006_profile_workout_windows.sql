@@ -1,0 +1,2 @@
+ALTER TABLE public.profiles ADD COLUMN IF NOT EXISTS workout_windows jsonb;
+COMMENT ON COLUMN public.profiles.workout_windows IS 'User-adjustable preMin/postMin meal workout suggestion windows, independent of calorie goals; null uses sport preset defaults.';

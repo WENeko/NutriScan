@@ -1,6 +1,10 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Masquer la distance hors photo et importer l’heure originale de la galerie
+- [x] Enregistrer les fenêtres pré/post-effort personnalisables par profil et filtrer les suggestions sur les séances natives approuvées
+- [x] Tester les fenêtres et les dates photo : 45 tests ciblés, Paris/Los Angeles ; ouverture publique sans erreur
+- [ ] Vérifier sauvegarde IQM et import galerie avec votre compte et séances Android — bloqué : aucun compte correspondant à la connexion automatique, aucun appareil Android
 - [x] Aligner les dates et la fenêtre visible de tous les graphiques d’Évolution, sans inventer de pesées
 - [x] Afficher les séances sur calories et composition, y compris les jours sans mesure
 - [x] Vérifier calendrier, navigation et détail du jour sur mobile/ordinateur avec données simulées ; 138 tests passent, dates Paris/Los Angeles vérifiées
