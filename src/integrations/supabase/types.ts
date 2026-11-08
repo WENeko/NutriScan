@@ -414,6 +414,7 @@ export type Database = {
           weighin_frequency: string | null
           weighin_hour: number | null
           weighin_minute: number | null
+          workout_windows: Json | null
         }
         Insert: {
           activity_level?: string | null
@@ -459,6 +460,7 @@ export type Database = {
           weighin_frequency?: string | null
           weighin_hour?: number | null
           weighin_minute?: number | null
+          workout_windows?: Json | null
         }
         Update: {
           activity_level?: string | null
@@ -504,6 +506,7 @@ export type Database = {
           weighin_frequency?: string | null
           weighin_hour?: number | null
           weighin_minute?: number | null
+          workout_windows?: Json | null
         }
         Relationships: []
       }

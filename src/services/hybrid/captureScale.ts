@@ -16,6 +16,7 @@ export interface CaptureScale {
   /** Camera2 : qualité de l'unité de LENS_FOCUS_DISTANCE. */
   calibration?: "calibrated" | "approximate" | "uncalibrated";
   focusDiopters?: number | null;
+  capturedAt?: string;
 }
 
 let last: CaptureScale | null = null;
@@ -36,6 +37,7 @@ export function parseImageScale(buf: ArrayBuffer): CaptureScale {
     const marker = v.getUint8(off + 1);
     const len = v.getUint16(off + 2);
     const start = off + 4;
+    if (len < 2 || start + len - 2 > v.byteLength) break;
     if (marker === 0xe1) {
       const head = String.fromCharCode(...new Uint8Array(buf, start, Math.min(29, len - 2)));
       if (head.startsWith("Exif\0")) readExif(v, start + 6, out);
@@ -59,10 +61,21 @@ function readExif(v: DataView, tiff: number, out: CaptureScale) {
       for (let i = 0; i < n; i++) { const e = o + 2 + i * 12; cb(u16(e), e); }
     };
     let exifIfd = 0;
-    ifd(tiff + u32(tiff + 4), (tag, e) => { if (tag === 0x8769) exifIfd = tiff + u32(e + 8); });
+    const dates: Partial<Record<number, string>> = {};
+    const readDate = (tag: number, e: number) => {
+      if (![0x9003, 0x9004, 0x0132].includes(tag) || u16(e + 2) !== 2) return;
+      const count = u32(e + 4);
+      if (count < 19 || count > 64) return;
+      const text = new TextDecoder().decode(new Uint8Array(v.buffer, tiff + u32(e + 8), count)).replace(/\0.*$/, "");
+      const date = parseExifLocalDate(text);
+      if (date) dates[tag] = date;
+    };
+    ifd(tiff + u32(tiff + 4), (tag, e) => { if (tag === 0x8769) exifIfd = tiff + u32(e + 8); readDate(tag, e); });
+    out.capturedAt = dates[0x0132];
     if (!exifIfd) return;
     let range = 0;
     ifd(exifIfd, (tag, e) => {
+      readDate(tag, e);
       if (tag === 0x9206) {
         const num = u32(tiff + u32(e + 8));
         // 0xFFFFFFFF = infini, 0 = inconnu (norme EXIF).
@@ -72,6 +85,7 @@ function readExif(v: DataView, tiff: number, out: CaptureScale) {
       else if (tag === 0xa405) out.focal35Mm = u16(e + 8) || null;
       else if (tag === 0xa40c) range = u16(e + 8);
     });
+    out.capturedAt = dates[0x9003] ?? dates[0x9004] ?? dates[0x0132];
     // Repli : SubjectDistanceRange (1 = macro, 2 = vue rapprochée) → valeur approximative.
     if (!out.distanceM && (range === 1 || range === 2)) {
       out.distanceM = range === 1 ? 0.2 : 0.4;
@@ -126,3 +140,20 @@ export function scaleFromCameraExif(exif: Record<string, unknown> | undefined): 
 
 /** Lecture sans effacement (pour l'affichage du badge). */
 export function peekCaptureScale(): CaptureScale | null { return last; }
+
+export function parseExifLocalDate(text: string): string | null {
+  const m = /^(\d{4}):(\d{2}):(\d{2}) (\d{2}):(\d{2}):(\d{2})$/.exec(text);
+  if (!m) return null;
+  const [year, month, day, hour, minute, second] = m.slice(1).map(Number);
+  const date = new Date(year, month - 1, day, hour, minute, second);
+  if (year < 1900 || date.getFullYear() !== year || date.getMonth() !== month - 1 || date.getDate() !== day || date.getHours() !== hour || date.getMinutes() !== minute || date.getSeconds() !== second) return null;
+  return `${m[1]}-${m[2]}-${m[3]}T${m[4]}:${m[5]}`;
+}
+
+export function galleryMealTimestamp(scale: CaptureScale | null, lastModified: number, now = new Date()): string | null {
+  if (scale?.capturedAt && new Date(scale.capturedAt).getTime() <= now.getTime()) return scale.capturedAt;
+  const date = new Date(lastModified);
+  if (!Number.isFinite(date.getTime()) || lastModified <= 0 || lastModified >= now.getTime()) return null;
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}

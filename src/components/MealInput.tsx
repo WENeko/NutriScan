@@ -23,7 +23,7 @@ import type { RoutingProgressEvent, RoutingProgressStep } from "@/lib/aiRouting"
 import { acquireAnalysisWakeLock } from "@/lib/analysisWakeLock";
 import { uploadMealImage } from "@/lib/mealImageUpload";
 import DistanceBadge from "./DistanceBadge";
-import { parseImageScale, peekCaptureScale, setCaptureScale, type CaptureScale } from "@/services/hybrid/captureScale";
+import { parseImageScale, galleryMealTimestamp, peekCaptureScale, setCaptureScale, type CaptureScale } from "@/services/hybrid/captureScale";
 import NutritionQuality from "./NutritionQuality";
 import WorkoutContextPicker from "./WorkoutContextPicker";
 import { sumQualityNutrients, normalizeSportPreset, type UserPreset, type WorkoutContext } from "@/utils/metabolic-quality";
@@ -304,11 +304,15 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
+    const isGallery = e.target === galleryInputRef.current;
+    let photoScale: CaptureScale | null = null;
     try {
       const sc = parseImageScale(await file.arrayBuffer());
+      photoScale = sc;
       setCaptureScale(sc);
       setCaptureScaleState(sc);
     } catch { setCaptureScaleState(null); }
+    if (isGallery) setMealTimestamp(galleryMealTimestamp(photoScale, file.lastModified) ?? getLocalDateTimeString());
     setImageFile(file);
     setPreview(URL.createObjectURL(file));
     setSource("ai");
