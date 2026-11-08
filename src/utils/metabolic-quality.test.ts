@@ -89,9 +89,9 @@ describe("IQM — barème applicatif", () => {
 
 describe("suggestion de contexte sportif", () => {
   const sessions = [{ start_time: "2026-10-29T17:00:00Z", end_time: "2026-10-29T18:00:00Z" }];
-  it("pré-effort commence 60 minutes avant et pas avant", () => {
-    expect(detectWorkoutContext("2026-10-29T16:00:00Z", sessions)).toBe("pre_workout");
-    expect(detectWorkoutContext("2026-10-29T15:59:59Z", sessions)).toBe("none");
+  it("pré-effort hypertrophie commence 90 minutes avant et pas avant", () => {
+    expect(detectWorkoutContext("2026-10-29T15:30:00Z", sessions)).toBe("pre_workout");
+    expect(detectWorkoutContext("2026-10-29T15:29:59Z", sessions)).toBe("none");
   });
   it("classe pendant l'effort entre début et fin", () => {
     expect(detectWorkoutContext("2026-10-29T17:00:00Z", sessions)).toBe("intra_workout");
