@@ -193,6 +193,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const fileInputRef = useRef<HTMLInputElement>(null);
   const galleryInputRef = useRef<HTMLInputElement>(null);
   const mapItemRef = useRef<((item: any) => MealItem) | null>(null);
+  const stdMapRef = useRef<((item: any) => MealItem) | null>(null);
   const [choiceBusyIdx, setChoiceBusyIdx] = useState<number | null>(null);
   const [otherIdx, setOtherIdx] = useState<number | null>(null);
   const [otherText, setOtherText] = useState("");
@@ -511,7 +512,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         isCustom,
         ...(cloudHybrid ? { nutritionSource: item.source } : {}),
         ...(cloudHybrid && item.micro_sources ? { microSources: item.micro_sources as Record<string, string> } : {}),
-        ...(cloudHybrid && Array.isArray(item.choices) && item.choices.length ? { choices: item.choices.map(String) } : {}),
+        ...(Array.isArray(item.choices) && item.choices.length ? { choices: item.choices.map(String) } : {}),
         fiber, sugar, saturated_fat, omega3_mg, sodium_mg, potassium_mg, magnesium_mg, calcium_mg,
         iron_mg, zinc_mg, vitamin_b_mg, vitamin_b9_mcg, vitamin_b12_mcg, vitamin_c_mg, vitamin_d_mcg, vitamin_e_mg,
         ...(Object.keys(customExtras).length ? { customExtras } : {}),
@@ -519,6 +520,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
       };
     };
     mapItemRef.current = (item: any) => mapOne(item, true);
+    stdMapRef.current = (item: any) => mapOne(item, false);
     const mappedItems: MealItem[] = (data.items || []).map((item: any) => mapOne(item, Boolean(data?.pipeline?.detector)));
     setItems(mappedItems);
   };
@@ -595,6 +597,17 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         .from("custom_foods")
         .select("name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, nutrients_std, nutrients_custom")
         .eq("user_id", userId);
+      if (!current.nutritionSource) {
+        // Cloud standard : mini-requête texte, l'IA ré-estime l'aliment choisi au poids actuel.
+        const w = getItemWeight(current);
+        const res = await analyzeMeal({ text: `${w} g de ${choice}`, custom_foods: customFoods || [], custom_nutrients: customNutrients, local_time: new Date().toLocaleString("fr-FR") });
+        const first = res?.items?.[0];
+        if (!first || !stdMapRef.current) throw new Error("Ré-estimation impossible");
+        const next = stdMapRef.current({ ...first, name: choice, estimated_weight_g: w, unit_count: current.unitCount, unit_weight_g: current.unitWeightG, unit_label: current.unitLabel, choices: undefined });
+        setItems((prev) => prev.map((it, i) => (i === idx ? { ...next, isCooked: it.isCooked } : it)));
+        setOtherIdx(null);
+        return;
+      }
       const resolved = await resolveCloudChoice(choice, getItemWeight(current), {
         custom_foods: customFoods || [],
         custom_nutrients: customNutrients as any,
@@ -1068,7 +1081,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
                 </div>
               </div>
 
-              {item.nutritionSource && (item.choices?.length || item.nutritionSource === "unresolved") ? (
+              {item.choices?.length || item.nutritionSource === "unresolved" ? (
                 <div className="space-y-1.5">
                   <p className="text-[10px] text-muted-foreground">
                     {item.choices?.length ? "Pas sûr de l'aliment ? Précise :" : "Aliment non trouvé : précise ou renomme-le."}

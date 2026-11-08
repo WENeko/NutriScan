@@ -158,6 +158,8 @@ Liste STANDARD (NUTRIENTS_STD_LIST — source unique de vérité côté client) 
 Si l'utilisateur t'a fourni une liste de "custom_nutrients" (clé + label + unité), retourne aussi
 ces clés dans chaque item avec la valeur numérique estimée pour le poids estimé. Mets 0 si tu ne peux pas estimer, mais n'omets JAMAIS la clé.
 
+IMPORTANT - Ambiguïté : si la nature exacte d'un aliment est visuellement incertaine (type de viande, espèce de poisson, fromage), garde ton meilleur choix dans "name" (valeurs calculées pour lui) et ajoute "choices" : 2 à 4 alternatives plausibles précises (ex : ["Bœuf","Agneau","Porc"]). N'ajoute pas "choices" si tu es sûr.
+
 Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
 {
   "meal_name": "string",
@@ -170,6 +172,7 @@ Réponds UNIQUEMENT en JSON strict, sans markdown, sans commentaire :
       "unit_count": 3 (optionnel),
       "unit_weight_g": 50 (optionnel),
       "unit_label": "portion" (optionnel),
+      "choices": ["Bœuf","Agneau"] (optionnel),
       "calories": 250,
       "proteins": 25,
       "carbs": 2,
