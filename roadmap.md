@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Demande actuelle
+- [ ] Ajouter bilans Évolution : adhérence par type de jour, corrélations hebdomadaires IQM/composition, CSV et impression
+- [ ] Tester les calculs et le parcours export ; distinguer données absentes et objectifs estimés
 - [x] Masquer la distance hors photo et importer l’heure originale de la galerie
 - [x] Enregistrer les fenêtres pré/post-effort personnalisables par profil et filtrer les suggestions sur les séances natives approuvées
 - [x] Tester les fenêtres et les dates photo : 45 tests ciblés, Paris/Los Angeles ; ouverture publique sans erreur

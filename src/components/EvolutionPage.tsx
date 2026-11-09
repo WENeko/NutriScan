@@ -13,6 +13,8 @@ import CustomChartsManager, { CHART_COLORS, type CustomChartConfig } from "@/com
 import { useChartZoomPan, ZoomPanArea } from "@/hooks/useChartZoomPan";
 import { RotateCcw } from "lucide-react";
 import ActivityCalendar from "@/components/ActivityCalendar";
+import EvolutionReport from "@/components/EvolutionReport";
+import { Button } from "@/components/ui/button";
 import { readSessionsInRange } from "@/services/training-days";
 import { sessionsByDate } from "@/utils/activity-calendar";
 import { alignBodyTimeline, localDayCoordinate, timelineTicks } from "@/utils/evolution-timeline";
@@ -43,7 +45,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
   customNutrients = EMPTY_NUTRIENTS, microOverrides = EMPTY_MICRO_OVERRIDES,
   customCharts = EMPTY_CHARTS, onCustomChartsChange
 }) => {
-  const [view, setView] = useState<"charts" | "calendar">("charts");
+  const [view, setView] = useState<"charts" | "calendar" | "report">("charts");
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
   const [nutritionData, setNutritionData] = useState<any[]>([]);
   const [bodyData, setBodyData] = useState<any[]>([]);
@@ -389,20 +391,20 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
   const viewSwitch = (
     <div className="flex rounded-xl bg-muted p-1 gap-1 max-w-lg mx-auto">
-      {(["charts", "calendar"] as const).map((v) => (
-        <button key={v} onClick={() => setView(v)}
+      {(["charts", "calendar", "report"] as const).map((v) => (
+        <Button variant="ghost" key={v} onClick={() => setView(v)} aria-pressed={view === v}
           className={`flex-1 py-2 rounded-lg text-xs font-semibold transition-all ${view === v ? "bg-card text-foreground shadow-card" : "text-muted-foreground"}`}>
-          {v === "charts" ? "Graphiques" : "Calendrier"}
-        </button>
+          {v === "charts" ? "Graphiques" : v === "calendar" ? "Calendrier" : "Bilans"}
+        </Button>
       ))}
     </div>
   );
 
-  if (view === "calendar") {
+  if (view === "calendar" || view === "report") {
     return (
       <div className="space-y-4 pb-10">
         {viewSwitch}
-        <ActivityCalendar userId={userId} calorieGoal={calorieGoal} userProfile={userProfile} />
+        {view === "calendar" ? <ActivityCalendar userId={userId} calorieGoal={calorieGoal} userProfile={userProfile} /> : <EvolutionReport userId={userId} />}
       </div>
     );
   }
