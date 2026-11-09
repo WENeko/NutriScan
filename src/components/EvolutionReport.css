@@ -1,0 +1,12 @@
+.report-progress { appearance: none; border: 0; border-radius: 4px; overflow: hidden; background: hsl(var(--muted)); }
+.report-progress::-webkit-progress-bar { background: hsl(var(--muted)); }
+.report-progress::-webkit-progress-value { background: hsl(var(--primary)); }
+.report-progress::-moz-progress-bar { background: hsl(var(--primary)); }
+@media print {
+  body > * { display: none !important; }
+  body > [data-radix-portal], body > div:has(.report-print-root) { display: block !important; }
+  .report-print-root { position: static !important; transform: none !important; width: 100% !important; max-width: none !important; max-height: none !important; overflow: visible !important; box-shadow: none !important; border: 0 !important; }
+  .report-no-print, .report-print-root > button:last-child { display: none !important; }
+  .report-print-root table { min-width: 0 !important; }
+  .report-print-root section { break-inside: avoid; }
+}
