@@ -73,38 +73,6 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
     const key = format(startOfWeek(parseISO(d.date), { weekStartsOn: 1 }), "yyyy-MM-dd");
     groups.set(key, [...(groups.get(key) ?? []), d]);
   }
-  return [...groups].map(([date, rows]) => {
-    const scored = rows.filter(d => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
-    const energy = scored.reduce((s, d) => s + (d.calories ?? 0), 0);
-    const delta = (key: "weight" | "bodyFat" | "muscle") => {
-      const measured = rows.filter(d => d[key] !== null).sort((a, b) => a.date.localeCompare(b.date));
-      const first = measured[0]?.[key], last = measured.at(-1)?.[key];
-      return measured.length >= 2 && first != null && last != null ? last - first : null;
-    };
-    return { date, days: scored.length, iqm: energy > 0 && scored.length >= 3 ? scored.reduce((s, d) => s + (d.iqm ?? 0) * (d.calories ?? 0), 0) / energy : null,
-      weight: delta("weight"), bodyFat: delta("bodyFat"), muscle: delta("muscle") };
-  });
-}
-export function correlation(weeks: ReportWeek[], key: "weight" | "bodyFat" | "muscle") {
-  const pairs = weeks.filter(w => numeric(w.iqm) && numeric(w[key]));
-  if (pairs.length < 4) return { n: pairs.length, r: null };
-  const x = pairs.reduce((s, w) => s + (w.iqm ?? 0), 0) / pairs.length;
-  const y = pairs.reduce((s, w) => s + (w[key] ?? 0), 0) / pairs.length;
-  let covariance = 0, vx = 0, vy = 0;
-  for (const w of pairs) { const dx = (w.iqm ?? 0) - x, dy = (w[key] ?? 0) - y; covariance += dx * dy; vx += dx * dx; vy += dy * dy; }
-  return { n: pairs.length, r: vx > 0 && vy > 0 ? covariance / Math.sqrt(vx * vy) : null };
-}
-export function reportCsv(days: ReportDay[]) {
-  const headers = ["Date", "Type prévu", "Exception", "Jour terminé", "Repas saisis", "Calories cible enregistrée", "Calories consommées", "Protéines g", "Glucides g", "Lipides g", "IQM", "Couverture IQM %", "Fibres g", "Oméga-3 mg", "Poids kg", "Masse grasse %", "Masse musculaire kg", "Séances approuvées", "Durée séances min"];
-  const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
-  return "\uFEFF" + [headers, ...days.map(d => [d.date, d.type === "training" ? "Entraînement" : "Repos", d.exception ? "Oui" : "Non", d.completed ? "Oui" : "Non", d.logged ? "Oui" : "Non", d.goal, d.calories, d.proteins, d.carbs, d.fats, d.iqm, Math.round(d.coverage * 100), d.fiber, d.omega3, d.weight, d.bodyFat, d.muscle, d.sessions, d.minutes])].map(row => row.map(cell).join(";")).join("\r\n");
-}
-export function reportWeeks(days: ReportDay[]): ReportWeek[] {
-  const groups = new Map<string, ReportDay[]>();
-  for (const d of days.filter(d => d.completed)) {
-    const key = format(startOfWeek(parseISO(d.date), { weekStartsOn: 1 }), "yyyy-MM-dd");
-    groups.set(key, [...(groups.get(key) ?? []), d]);
-  }
 
   // Trier les semaines par ordre chronologique
   const sortedWeeks = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
@@ -165,4 +133,18 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
       muscle: calcDelta(curr.muscleMeasures, prev?.muscleMeasures, "muscle"),
     };
   });
-          }
+}
+export function correlation(weeks: ReportWeek[], key: "weight" | "bodyFat" | "muscle") {
+  const pairs = weeks.filter(w => numeric(w.iqm) && numeric(w[key]));
+  if (pairs.length < 4) return { n: pairs.length, r: null };
+  const x = pairs.reduce((s, w) => s + (w.iqm ?? 0), 0) / pairs.length;
+  const y = pairs.reduce((s, w) => s + (w[key] ?? 0), 0) / pairs.length;
+  let covariance = 0, vx = 0, vy = 0;
+  for (const w of pairs) { const dx = (w.iqm ?? 0) - x, dy = (w[key] ?? 0) - y; covariance += dx * dy; vx += dx * dx; vy += dy * dy; }
+  return { n: pairs.length, r: vx > 0 && vy > 0 ? covariance / Math.sqrt(vx * vy) : null };
+}
+export function reportCsv(days: ReportDay[]) {
+  const headers = ["Date", "Type prévu", "Exception", "Jour terminé", "Repas saisis", "Calories cible enregistrée", "Calories consommées", "Protéines g", "Glucides g", "Lipides g", "IQM", "Couverture IQM %", "Fibres g", "Oméga-3 mg", "Poids kg", "Masse grasse %", "Masse musculaire kg", "Séances approuvées", "Durée séances min"];
+  const cell = (v: unknown) => `"${String(v ?? "").replace(/"/g, '""')}"`;
+  return "\uFEFF" + [headers, ...days.map(d => [d.date, d.type === "training" ? "Entraînement" : "Repos", d.exception ? "Oui" : "Non", d.completed ? "Oui" : "Non", d.logged ? "Oui" : "Non", d.goal, d.calories, d.proteins, d.carbs, d.fats, d.iqm, Math.round(d.coverage * 100), d.fiber, d.omega3, d.weight, d.bodyFat, d.muscle, d.sessions, d.minutes])].map(row => row.map(cell).join(";")).join("\r\n");
+}
