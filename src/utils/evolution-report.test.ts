@@ -38,4 +38,11 @@ describe("evolution reports", () => {
     const csv = reportCsv([day({ fiber: 0, omega3: null, coverage: 0.25 })]);
     expect(csv).toContain('"80";"25";"0";""'); expect(csv.startsWith("\uFEFF")).toBe(true);
   });
+  it("calculates inter-week delta when user weighs once per consecutive week", () => {
+  const weeks = reportWeeks([
+    day({ date: "2026-11-02", weight: 80 }),
+    day({ date: "2026-11-09", weight: 79.4 }),
+  ]);
+  expect(weeks[0].weight).toBeNull(); // Première semaine : pas d'historique antérieur
+  expect(weeks[1].weight).toBe(-0.6); // Semaine consécutive : 79.4 - 80.0 = -0.6 kg
 });
