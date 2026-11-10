@@ -7,12 +7,37 @@ import type { CalorieCycling } from "@/utils/goals-calc";
 
 export async function loadEvolutionReport(userId: string, period: "7d" | "28d" | "all", now = new Date()) {
   let start = startOfDay(subDays(now, period === "7d" ? 6 : 27));
+
   if (period === "all") {
-    const first = await supabase.from("meals").select("timestamp").eq("user_id", userId).order("timestamp").limit(1);
-    if (first.error) throw first.error;
-    if (first.data?.[0]) start = startOfDay(new Date(first.data[0].timestamp));
+    // Chercher la date la plus ancienne entre repas ET pesées corporelles
+    const [{ data: firstMeal }, { data: firstBody }] = await Promise.all([
+      supabase.from("meals").select("timestamp").eq("user_id", userId).order("timestamp").limit(1),
+      supabase.from("body_composition").select("recorded_at").eq("user_id", userId).order("recorded_at").limit(1),
+    ]);
+    const candidates: Date[] = [];
+    if (firstMeal?.[0]?.timestamp) candidates.push(new Date(firstMeal[0].timestamp));
+    if (firstBody?.[0]?.recorded_at) candidates.push(parseISO(firstBody[0].recorded_at));
+    if (candidates.length) {
+      start = startOfDay(new Date(Math.min(...candidates.map(d => d.getTime()))));
+    }
   }
-  const end = endOfDay(now), from = format(start, "yyyy-MM-dd"), to = format(now, "yyyy-MM-dd");
+
+  const end = endOfDay(now);
+  const from = format(start, "yyyy-MM-dd");
+  const to = format(now, "yyyy-MM-dd");
+
+  // Charger aussi la dernière pesée antérieure à 'from' comme point de départ
+  const prevBodyResult = await supabase
+    .from("body_composition")
+    .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg")
+    .eq("user_id", userId)
+    .lt("recorded_at", from)
+    .not("weight_kg", "is", null)
+    .order("recorded_at", { ascending: false })
+    .limit(1);
+
+  const baselineBody = prevBodyResult.data?.[0];
+  const body: ReportBody[] = baselineBody ? [baselineBody] : [];
   const pageSize = 500;
   const meals: ReportMeal[] = [], body: ReportBody[] = [];
   const goals: { recorded_at: string; calories: number }[] = [];
