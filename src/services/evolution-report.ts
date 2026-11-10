@@ -1,5 +1,5 @@
 import { supabase } from "@/integrations/supabase/client";
-import { eachDayOfInterval, endOfDay, format, startOfDay, subDays } from "date-fns";
+import { eachDayOfInterval, endOfDay, format, parseISO, startOfDay, subDays } from "date-fns";
 import { buildReportDays, type ReportBody, type ReportMeal } from "@/utils/evolution-report";
 import { readSessionsInRange } from "./training-days";
 import type { DayType } from "@/utils/day-cycling";
@@ -39,7 +39,7 @@ export async function loadEvolutionReport(userId: string, period: "7d" | "28d" |
   const baselineBody = prevBodyResult.data?.[0];
   const body: ReportBody[] = baselineBody ? [baselineBody] : [];
   const pageSize = 500;
-  const meals: ReportMeal[] = [], body: ReportBody[] = [];
+  const meals: ReportMeal[] = [];
   const goals: { recorded_at: string; calories: number }[] = [];
   const overrides: Record<string, DayType> = {};
   const profileResult = await supabase.from("profiles").select("calorie_cycling, sport_preset, sport_allowed_sources").eq("user_id", userId).single();
