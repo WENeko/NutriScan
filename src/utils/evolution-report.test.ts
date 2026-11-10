@@ -46,3 +46,4 @@ describe("evolution reports", () => {
   expect(weeks[0].weight).toBeNull(); // Première semaine : pas d'historique antérieur
   expect(weeks[1].weight).toBe(-0.6); // Semaine consécutive : 79.4 - 80.0 = -0.6 kg
 });
+});
