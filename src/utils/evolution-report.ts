@@ -151,67 +151,6 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
   });
 }
 
-
-  // Trier les semaines par ordre chronologique
-  const sortedWeeks = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
-
-  // Extraire les pesées et l'IQM de chaque semaine
-  const parsed = sortedWeeks.map(([date, rows]) => {
-    const scored = rows.filter(d => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
-    const energy = scored.reduce((s, d) => s + (d.calories ?? 0), 0);
-
-    const getMeasures = (key: "weight" | "bodyFat" | "muscle") =>
-      rows.filter(d => d[key] !== null).sort((a, b) => a.date.localeCompare(b.date));
-
-    return {
-      date,
-      rows,
-      scoredLength: scored.length,
-      iqm: energy > 0 && scored.length >= 3
-        ? scored.reduce((s, d) => s + (d.iqm ?? 0) * (d.calories ?? 0), 0) / energy
-        : null,
-      weightMeasures: getMeasures("weight"),
-      bodyFatMeasures: getMeasures("bodyFat"),
-      muscleMeasures: getMeasures("muscle"),
-    };
-  });
-
-  return parsed.map((curr, idx) => {
-    const prev = idx > 0 ? parsed[idx - 1] : null;
-    // Vérifie que la semaine précédente est bien consécutive (7 jours d'écart)
-    const isConsecutive = prev
-      ? (parseISO(curr.date).getTime() - parseISO(prev.date).getTime()) === 7 * 86400000
-      : false;
-
-    const calcDelta = (
-      currMeasures: ReportDay[],
-      prevMeasures: ReportDay[] | undefined,
-      key: "weight" | "bodyFat" | "muscle"
-    ) => {
-      if (currMeasures.length >= 2) {
-        // Cas intra-semaine : au moins 2 pesées dans la semaine
-        const first = currMeasures[0]?.[key], last = currMeasures.at(-1)?.[key];
-        return first != null && last != null ? Number((last - first).toFixed(2)) : null;
-      }
-      if (currMeasures.length === 1 && isConsecutive && prevMeasures && prevMeasures.length >= 1) {
-        // Cas 1 pesée par semaine : écart avec la dernière pesée de la semaine passée
-        const currentVal = currMeasures[0]?.[key];
-        const prevVal = prevMeasures.at(-1)?.[key];
-        return currentVal != null && prevVal != null ? Number((currentVal - prevVal).toFixed(2)) : null;
-      }
-      return null;
-    };
-
-    return {
-      date: curr.date,
-      days: curr.scoredLength,
-      iqm: curr.iqm,
-      weight: calcDelta(curr.weightMeasures, prev?.weightMeasures, "weight"),
-      bodyFat: calcDelta(curr.bodyFatMeasures, prev?.bodyFatMeasures, "bodyFat"),
-      muscle: calcDelta(curr.muscleMeasures, prev?.muscleMeasures, "muscle"),
-    };
-  });
-}
 export function correlation(weeks: ReportWeek[], key: "weight" | "bodyFat" | "muscle") {
   const pairs = weeks.filter(w => numeric(w.iqm) && numeric(w[key]));
   if (pairs.length < 4) return { n: pairs.length, r: null };
