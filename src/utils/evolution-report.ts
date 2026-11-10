@@ -3,6 +3,7 @@ import { calculateDailyQuality, normalizeSportPreset, qualityInputFromMeal } fro
 import { resolveTrainingDays, type DayType } from "./day-cycling";
 import type { CalorieCycling } from "./goals-calc";
 import type { ExerciseSession } from "@/services/training-days";
+import { calculateDailyQuality, normalizeSportPreset, qualityInputFromMeal, sumQualityNutrients } from "./metabolic-quality";
 
 export interface ReportMeal {
   id: string; timestamp: string; total_calories: number | null; total_proteins: number | null;
@@ -31,13 +32,7 @@ export function buildReportDays(input: {
     // Report measurements require all ingredients to cover each nutrient, not a partial sum.
     const quality = meals.map(m => {
       const items = input.items[m.id] ?? [];
-      const q = qualityInputFromMeal({ ...m, peri_workout: m.peri_workout ?? undefined }, items);
-      q.nutrients_std = Object.fromEntries(["sugar", "fiber", "saturated_fat", "omega3_mg"].flatMap(key => {
-        const total = sumKnown(items.map(item => (item.nutrients_std as Record<string, number> | undefined)?.[key]));
-        return total === null ? [] : [[key, total]];
-      }));
-      q.carbohydrateBasis = "unknown";
-      return q;
+      return qualityInputFromMeal({ ...m, peri_workout: m.peri_workout ?? undefined }, items);
     });
     const score = calculateDailyQuality(quality, preset);
     const body = input.body.find(b => b.recorded_at === date);
@@ -66,13 +61,96 @@ export function adherence(days: ReportDay[], type: DayType, tolerance = 7.5) {
   const conforming = eligible.filter(d => Math.abs((d.calories ?? 0) - (d.goal ?? 0)) <= (d.goal ?? 0) * tolerance / 100 + 1e-8).length;
   return { count: eligible.length, conforming, percent: eligible.length ? Math.round(conforming / eligible.length * 100) : null };
 }
-export interface ReportWeek { date: string; iqm: number | null; days: number; weight: number | null; bodyFat: number | null; muscle: number | null }
+export interface ReportWeek {
+  date: string;
+  iqm: number | null;
+  days: number;
+  weight: number | null;
+  bodyFat: number | null;
+  muscle: number | null;
+  weightValue: number | null;
+  bodyFatValue: number | null;
+  muscleValue: number | null;
+}
+
 export function reportWeeks(days: ReportDay[]): ReportWeek[] {
   const groups = new Map<string, ReportDay[]>();
   for (const d of days.filter(d => d.completed)) {
     const key = format(startOfWeek(parseISO(d.date), { weekStartsOn: 1 }), "yyyy-MM-dd");
     groups.set(key, [...(groups.get(key) ?? []), d]);
   }
+
+  const sortedWeeks = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
+
+  // Accepter les jours avec un score IQM réel (sans exiger 100% de couverture théorique)
+  const parsed = sortedWeeks.map(([date, rows]) => {
+    const scored = rows.filter(d => d.iqm !== null && (d.calories ?? 0) > 0);
+    const energy = scored.reduce((s, d) => s + (d.calories ?? 0), 0);
+
+    const getMeasures = (key: "weight" | "bodyFat" | "muscle") =>
+      rows.filter(d => d[key] !== null).sort((a, b) => a.date.localeCompare(b.date));
+
+    return {
+      date,
+      rows,
+      scoredLength: scored.length,
+      iqm: energy > 0 && scored.length >= 3
+        ? scored.reduce((s, d) => s + (d.iqm ?? 0) * (d.calories ?? 0), 0) / energy
+        : null,
+      weightMeasures: getMeasures("weight"),
+      bodyFatMeasures: getMeasures("bodyFat"),
+      muscleMeasures: getMeasures("muscle"),
+    };
+  });
+
+  // Conserver la dernière pesée connue pour calculer le delta même si une semaine a été sautée
+  let lastKnownWeight: number | null = null;
+  let lastKnownBodyFat: number | null = null;
+  let lastKnownMuscle: number | null = null;
+
+  return parsed.map((curr) => {
+    const calcDelta = (
+      measures: ReportDay[],
+      lastKnown: number | null,
+      key: "weight" | "bodyFat" | "muscle"
+    ): { delta: number | null; currentVal: number | null } => {
+      if (measures.length >= 2) {
+        const first = measures[0]?.[key], last = measures.at(-1)?.[key];
+        return {
+          delta: first != null && last != null ? Number((last - first).toFixed(2)) : null,
+          currentVal: last ?? null,
+        };
+      }
+      if (measures.length === 1) {
+        const val = measures[0]?.[key] ?? null;
+        const delta = val != null && lastKnown != null ? Number((val - lastKnown).toFixed(2)) : null;
+        return { delta, currentVal: val };
+      }
+      return { delta: null, currentVal: null };
+    };
+
+    const wRes = calcDelta(curr.weightMeasures, lastKnownWeight, "weight");
+    const bfRes = calcDelta(curr.bodyFatMeasures, lastKnownBodyFat, "bodyFat");
+    const mRes = calcDelta(curr.muscleMeasures, lastKnownMuscle, "muscle");
+
+    if (wRes.currentVal != null) lastKnownWeight = wRes.currentVal;
+    if (bfRes.currentVal != null) lastKnownBodyFat = bfRes.currentVal;
+    if (mRes.currentVal != null) lastKnownMuscle = mRes.currentVal;
+
+    return {
+      date: curr.date,
+      days: curr.scoredLength,
+      iqm: curr.iqm,
+      weight: wRes.delta,
+      bodyFat: bfRes.delta,
+      muscle: mRes.delta,
+      weightValue: wRes.currentVal,
+      bodyFatValue: bfRes.currentVal,
+      muscleValue: mRes.currentVal,
+    };
+  });
+}
+
 
   // Trier les semaines par ordre chronologique
   const sortedWeeks = [...groups.entries()].sort(([a], [b]) => a.localeCompare(b));
