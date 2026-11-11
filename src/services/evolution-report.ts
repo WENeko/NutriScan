@@ -27,17 +27,13 @@ export async function loadEvolutionReport(userId: string, period: "7d" | "28d" |
   const to = format(now, "yyyy-MM-dd");
 
   // Charger aussi la dernière pesée antérieure à 'from' comme point de départ
-  const prevBodyResult = await supabase
-    .from("body_composition")
-    .select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg")
-    .eq("user_id", userId)
-    .lt("recorded_at", from)
-    .not("weight_kg", "is", null)
-    .order("recorded_at", { ascending: false })
-    .limit(1);
-
-  const baselineBody = prevBodyResult.data?.[0];
-  const body: ReportBody[] = baselineBody ? [baselineBody] : [];
+  const baselineColumns = ["weight_kg", "body_fat_percent", "muscle_mass_kg"] as const;
+  const baselineResults = await Promise.all(baselineColumns.map(key => supabase
+    .from("body_composition").select("recorded_at, weight_kg, body_fat_percent, muscle_mass_kg")
+    .eq("user_id", userId).lt("recorded_at", from).not(key, "is", null)
+    .order("recorded_at", { ascending: false }).order("created_at", { ascending: false }).limit(1)));
+  for (const result of baselineResults) if (result.error) throw result.error;
+  const body: ReportBody[] = [];
   const pageSize = 500;
   const meals: ReportMeal[] = [];
   const goals: { recorded_at: string; calories: number }[] = [];
@@ -86,7 +82,13 @@ export async function loadEvolutionReport(userId: string, period: "7d" | "28d" |
   const sessions = allowed.length && nativeReader ? await readSessionsInRange(start, end) : [];
   // Empty native reads may mean denied permissions; don't assert a measured zero.
   const sessionsAvailable = sessions.length > 0;
-  return buildReportDays({ dates: eachDayOfInterval({ start, end }).map(d => format(d, "yyyy-MM-dd")), today: to,
+  const days = buildReportDays({ dates: eachDayOfInterval({ start, end }).map(d => format(d, "yyyy-MM-dd")), today: to,
     meals, items, body, goals, overrides, cycling: profile.calorie_cycling as unknown as CalorieCycling | null,
     preset: profile.sport_preset, sessions, allowed, sessionsAvailable });
+  if (days[0]) days[0].baselineBody = {
+    weight: baselineResults[0].data?.[0]?.weight_kg ?? null,
+    bodyFat: baselineResults[1].data?.[0]?.body_fat_percent ?? null,
+    muscle: baselineResults[2].data?.[0]?.muscle_mass_kg ?? null,
+  };
+  return days;
 }

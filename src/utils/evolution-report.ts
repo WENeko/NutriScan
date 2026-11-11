@@ -3,7 +3,6 @@ import { calculateDailyQuality, normalizeSportPreset, qualityInputFromMeal } fro
 import { resolveTrainingDays, type DayType } from "./day-cycling";
 import type { CalorieCycling } from "./goals-calc";
 import type { ExerciseSession } from "@/services/training-days";
-import { calculateDailyQuality, normalizeSportPreset, qualityInputFromMeal, sumQualityNutrients } from "./metabolic-quality";
 
 export interface ReportMeal {
   id: string; timestamp: string; total_calories: number | null; total_proteins: number | null;
@@ -16,6 +15,7 @@ export interface ReportDay {
   goal: number | null; iqm: number | null; coverage: number; fiber: number | null; omega3: number | null;
   weight: number | null; bodyFat: number | null; muscle: number | null;
   sessions: number | null; minutes: number | null;
+  baselineBody?: { weight: number | null; bodyFat: number | null; muscle: number | null };
 }
 const numeric = (v: unknown): v is number => typeof v === "number" && Number.isFinite(v);
 const sumKnown = (values: (number | null | undefined)[]) => values.length && values.every(numeric) ? values.reduce<number>((s, n) => s + (n ?? 0), 0) : null;
@@ -84,7 +84,7 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
 
   // Accepter les jours avec un score IQM réel (sans exiger 100% de couverture théorique)
   const parsed = sortedWeeks.map(([date, rows]) => {
-    const scored = rows.filter(d => d.iqm !== null && (d.calories ?? 0) > 0);
+    const scored = rows.filter(d => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
     const energy = scored.reduce((s, d) => s + (d.calories ?? 0), 0);
 
     const getMeasures = (key: "weight" | "bodyFat" | "muscle") =>
@@ -104,9 +104,9 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
   });
 
   // Conserver la dernière pesée connue pour calculer le delta même si une semaine a été sautée
-  let lastKnownWeight: number | null = null;
-  let lastKnownBodyFat: number | null = null;
-  let lastKnownMuscle: number | null = null;
+  let lastKnownWeight: number | null = days[0]?.baselineBody?.weight ?? null;
+  let lastKnownBodyFat: number | null = days[0]?.baselineBody?.bodyFat ?? null;
+  let lastKnownMuscle: number | null = days[0]?.baselineBody?.muscle ?? null;
 
   return parsed.map((curr) => {
     const calcDelta = (

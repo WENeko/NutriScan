@@ -6,6 +6,9 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { loadEvolutionReport } from "@/services/evolution-report";
 import { adherence, correlation, reportCsv, reportWeeks, type ReportDay } from "@/utils/evolution-report";
+import { evolutionPdf } from "@/utils/evolution-pdf";
+import { deliverReportFile } from "@/services/report-file";
+import { toast } from "@/hooks/use-toast";
 import "./EvolutionReport.css";
 
 const display = (n: number | null, digits = 1) =>
@@ -19,6 +22,7 @@ export default function EvolutionReport({ userId }: { userId: string }) {
   const [retry, setRetry] = useState(0);
   const [tolerance, setTolerance] = useState(7.5);
   const [preview, setPreview] = useState(false);
+  const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -44,7 +48,7 @@ export default function EvolutionReport({ userId }: { userId: string }) {
   const complete = days.filter((d) => d.completed && d.logged);
 
   // Filtrage assoupli : accepte les jours avec un score IQM et des calories réelles
-  const qualified = complete.filter((d) => d.iqm !== null && (d.calories ?? 0) > 0);
+  const qualified = complete.filter((d) => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
   const energy = qualified.reduce((s, d) => s + (d.calories ?? 0), 0);
   const average = energy
     ? qualified.reduce((s, d) => s + (d.iqm ?? 0) * (d.calories ?? 0), 0) / energy
@@ -54,23 +58,14 @@ export default function EvolutionReport({ userId }: { userId: string }) {
     ? `${format(parseISO(days[0].date), "dd/MM/yyyy")} – ${format(parseISO(days[days.length - 1].date), "dd/MM/yyyy")}`
     : "";
 
-  const download = () => {
-    const url = URL.createObjectURL(
-      new Blob([reportCsv(days)], { type: "text/csv;charset=utf-8;" })
-    );
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `NutriScan-bilan-${days[0]?.date}-${days.at(-1)?.date}.csv`;
-    a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 1000);
-  };
-
-  // Impression compatible mobile/desktop : fermeture du dialogue avant déclenchement
-  const handlePrint = () => {
-    setPreview(false);
-    setTimeout(() => {
-      window.print();
-    }, 250);
+  const exportFile = async (pdf: boolean) => {
+    setExporting(true);
+    try {
+      const blob = pdf ? evolutionPdf(days, tolerance) : new Blob([reportCsv(days)], { type: "text/csv;charset=utf-8;" });
+      await deliverReportFile(blob, `NutriScan-bilan-${days[0]?.date}-${days.at(-1)?.date}.${pdf ? "pdf" : "csv"}`);
+    } catch {
+      toast({ title: "Export impossible", description: "Le bilan n’a pas pu être enregistré ou partagé. Réessayez.", variant: "destructive" });
+    } finally { setExporting(false); }
   };
 
   const formatDelta = (val: number | null, delta: number | null, unit = "") => {
@@ -153,7 +148,8 @@ export default function EvolutionReport({ userId }: { userId: string }) {
           })}
         </div>
         <p className="text-xs text-muted-foreground">
-          Au moins 3 jours d’IQM et 1 pesée par semaine ; 4 semaines appariées pour une corrélation.
+          Au moins 3 jours d’IQM à couverture complète et 1 pesée par semaine ; 4 semaines appariées pour une corrélation.
+          Après une semaine sans pesée, le delta compare les dernières mesures réelles et peut couvrir plus de 7 jours.
           Association descriptive, pas une preuve de causalité ni une validation clinique de l’IQM. Le
           profil IQM actuel est utilisé.
         </p>
@@ -242,11 +238,14 @@ export default function EvolutionReport({ userId }: { userId: string }) {
           </div>
           {summary}
           <div className="flex flex-wrap gap-2 border-t pt-4">
-            <Button variant="outline" disabled={!days.length} onClick={download}>
+            <Button variant="outline" disabled={!days.length || exporting} onClick={() => void exportFile(false)}>
               <Download /> Export CSV
             </Button>
             <Button variant="outline" disabled={!days.length} onClick={() => setPreview(true)}>
               <Printer /> Bilan imprimable
+            </Button>
+            <Button variant="outline" disabled={!days.length || exporting} onClick={() => void exportFile(true)}>
+              <Download /> {exporting ? "Export…" : "Exporter PDF"}
             </Button>
           </div>
         </>
@@ -259,8 +258,8 @@ export default function EvolutionReport({ userId }: { userId: string }) {
             Nutrition, activité et mesures corporelles enregistrées.
           </DialogDescription>
           {summary}
-          <Button className="report-no-print" onClick={handlePrint}>
-            <Printer /> Imprimer / PDF
+          <Button className="report-no-print" disabled={exporting} onClick={() => void exportFile(true)}>
+            <Download /> {exporting ? "Export…" : "Exporter PDF"}
           </Button>
         </DialogContent>
       </Dialog>

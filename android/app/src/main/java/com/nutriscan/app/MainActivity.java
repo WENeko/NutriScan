@@ -9,6 +9,8 @@ public class MainActivity extends BridgeActivity {
   @Override
   public void onCreate(Bundle savedInstanceState) {
     registerPlugin(HealthPlugin.class);
+    registerPlugin(com.capacitorjs.plugins.filesystem.FilesystemPlugin.class);
+    registerPlugin(com.capacitorjs.plugins.share.SharePlugin.class);
     registerPlugin(BoneMassPlugin.class);
     registerPlugin(SportSamplesPlugin.class);
     registerPlugin(LocalAiGalleryPlugin.class);

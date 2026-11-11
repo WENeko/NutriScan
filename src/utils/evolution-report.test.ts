@@ -29,7 +29,7 @@ describe("evolution reports", () => {
     expect(reportWeeks([day({ weight: 80 })])[0].weight).toBeNull();
   });
   it("requires four paired weeks and nonconstant values for correlation", () => {
-    const weeks = [60, 70, 80, 90].map((iqm, i) => ({ date: `week${i}`, days: 3, iqm, weight: -i, bodyFat: null, muscle: null }));
+    const weeks = [60, 70, 80, 90].map((iqm, i) => ({ date: `week${i}`, days: 3, iqm, weight: -i, bodyFat: null, muscle: null, weightValue: null, bodyFatValue: null, muscleValue: null }));
     expect(correlation(weeks.slice(0, 3), "weight").r).toBeNull();
     expect(correlation(weeks, "weight").r).toBeCloseTo(-1);
     expect(correlation(weeks.map(w => ({ ...w, weight: 0 })), "weight").r).toBeNull();
@@ -46,4 +46,20 @@ describe("evolution reports", () => {
   expect(weeks[0].weight).toBeNull(); // Première semaine : pas d'historique antérieur
   expect(weeks[1].weight).toBe(-0.6); // Semaine consécutive : 79.4 - 80.0 = -0.6 kg
 });
+  it("preserves actual measurements across an unmeasured week without filling gaps", () => {
+    const weeks = reportWeeks([day({ weight: 80 }), day({ date: "2026-11-09" }), day({ date: "2026-11-16", weight: 79 })]);
+    expect(weeks[1].weightValue).toBeNull();
+    expect(weeks[1].weight).toBeNull();
+    expect(weeks[2].weightValue).toBe(79);
+    expect(weeks[2].weight).toBe(-1);
+  });
+  it("does not correlate provisional IQM even when three days are logged", () => {
+    expect(reportWeeks([day({ coverage: 0.25 }), day({ date: "2026-11-03", coverage: 0.25 }), day({ date: "2026-11-04", coverage: 0.25 })])[0].iqm).toBeNull();
+  });
+  it("uses pre-period baseline per metric without adding a fictitious weigh-in", () => {
+    const [week] = reportWeeks([day({ weight: 79, bodyFat: 20, baselineBody: { weight: 80, bodyFat: 21, muscle: null } })]);
+    expect(week.weight).toBe(-1);
+    expect(week.bodyFat).toBe(-1);
+    expect(week.muscleValue).toBeNull();
+  });
 });
