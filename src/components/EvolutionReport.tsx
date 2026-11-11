@@ -6,7 +6,6 @@ import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { loadEvolutionReport } from "@/services/evolution-report";
 import { adherence, correlation, reportCsv, reportWeeks, type ReportDay } from "@/utils/evolution-report";
-import { evolutionPdf } from "@/utils/evolution-pdf";
 import { deliverReportFile } from "@/services/report-file";
 import { toast } from "@/hooks/use-toast";
 import "./EvolutionReport.css";
@@ -61,12 +60,20 @@ export default function EvolutionReport({ userId }: { userId: string }) {
   const exportFile = async (pdf: boolean) => {
     setExporting(true);
     try {
-      const blob = pdf ? evolutionPdf(days, tolerance) : new Blob([reportCsv(days)], { type: "text/csv;charset=utf-8;" });
+      let blob: Blob;
+      if (pdf) {
+        // Chargement dynamique : jsPDF n'est téléchargé qu'au moment de l'export
+        const { evolutionPdf } = await import("@/utils/evolution-pdf");
+        blob = evolutionPdf(days, tolerance);
+      } else {
+        blob = new Blob([reportCsv(days)], { type: "text/csv;charset=utf-8;" });
+      }
       await deliverReportFile(blob, `NutriScan-bilan-${days[0]?.date}-${days.at(-1)?.date}.${pdf ? "pdf" : "csv"}`);
     } catch {
       toast({ title: "Export impossible", description: "Le bilan n’a pas pu être enregistré ou partagé. Réessayez.", variant: "destructive" });
     } finally { setExporting(false); }
   };
+
 
   const formatDelta = (val: number | null, delta: number | null, unit = "") => {
     if (val === null && delta === null) return "—";
