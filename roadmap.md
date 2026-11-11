@@ -1,6 +1,9 @@
 # Roadmap
 
 ## Demande actuelle
+- [ ] Terminer PDF téléchargeable/partage natif et corriger les tests des bilans
+- [ ] Enrichir le coach existant : arbitrages IQM, classement de portions connues, gain calculé sans nutriments inventés
+- [ ] Vérifier ces deux étapes ; validation Android réelle bloquée sans appareil
 - [x] Ajouter bilans Évolution : adhérence par type de jour, corrélations hebdomadaires IQM/composition, CSV et impression
 - [x] Tester les calculs et le parcours export avec données simulées ; données absentes laissées vides
 - [ ] Vérifier les bilans avec votre compte et vos séances Android — bloqué : connexion automatique sans compte correspondant, aucun appareil Android

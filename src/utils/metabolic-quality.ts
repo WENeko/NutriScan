@@ -125,16 +125,17 @@ export function sumQualityNutrients(items: Record<string, unknown>[]): Record<st
   if (!items.length) return totals;
   for (const key of QUALITY_KEYS) {
     let sum = 0;
-    let hasAny = false;
+    let complete = true;
     for (const item of items) {
       const std = item.nutrients_std as Record<string, unknown> | undefined;
       const raw = std && std[key] !== undefined ? std[key] : item[key];
-      if (typeof raw === "number" && !isNaN(raw) && raw >= 0) {
+      if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
         sum += raw;
-        hasAny = true;
+      } else {
+        complete = false;
       }
     }
-    if (hasAny) {
+    if (complete) {
       totals[key] = Math.round(sum * 10) / 10;
     }
   }

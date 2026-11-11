@@ -3,7 +3,6 @@ import { calculateDailyQuality, normalizeSportPreset, qualityInputFromMeal } fro
 import { resolveTrainingDays, type DayType } from "./day-cycling";
 import type { CalorieCycling } from "./goals-calc";
 import type { ExerciseSession } from "@/services/training-days";
-import { calculateDailyQuality, normalizeSportPreset, qualityInputFromMeal, sumQualityNutrients } from "./metabolic-quality";
 
 export interface ReportMeal {
   id: string; timestamp: string; total_calories: number | null; total_proteins: number | null;
@@ -84,7 +83,7 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
 
   // Accepter les jours avec un score IQM réel (sans exiger 100% de couverture théorique)
   const parsed = sortedWeeks.map(([date, rows]) => {
-    const scored = rows.filter(d => d.iqm !== null && (d.calories ?? 0) > 0);
+    const scored = rows.filter(d => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
     const energy = scored.reduce((s, d) => s + (d.calories ?? 0), 0);
 
     const getMeasures = (key: "weight" | "bodyFat" | "muscle") =>
