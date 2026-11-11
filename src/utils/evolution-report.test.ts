@@ -56,4 +56,10 @@ describe("evolution reports", () => {
   it("does not correlate provisional IQM even when three days are logged", () => {
     expect(reportWeeks([day({ coverage: 0.25 }), day({ date: "2026-11-03", coverage: 0.25 }), day({ date: "2026-11-04", coverage: 0.25 })])[0].iqm).toBeNull();
   });
+  it("uses pre-period baseline per metric without adding a fictitious weigh-in", () => {
+    const [week] = reportWeeks([day({ weight: 79, bodyFat: 20, baselineBody: { weight: 80, bodyFat: 21, muscle: null } })]);
+    expect(week.weight).toBe(-1);
+    expect(week.bodyFat).toBe(-1);
+    expect(week.muscleValue).toBeNull();
+  });
 });
