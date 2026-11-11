@@ -18,6 +18,9 @@ import { executeAIFeatureWithFallback, type FeatureKey } from "@/lib/aiRouting";
 import { analyzeMeal } from "@/services/mealAnalysisService";
 import type { UserProfile } from "@/lib/micro-goals";
 import { buildCoachMealContext } from "@/lib/coachMealContext";
+import { loadCoachQuality } from "@/services/coach-quality";
+import type { CoachSuggestion } from "@/utils/coach-quality";
+import { Button } from "@/components/ui/button";
 
 interface Macro {
   calories: number;
@@ -100,6 +103,7 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
   const [recipeText, setRecipeText] = useState("");
   const [recipePhotos, setRecipePhotos] = useState<string[]>([]);
   const [recipeBusy, setRecipeBusy] = useState(false);
+  const [qualitySuggestions, setQualitySuggestions] = useState<CoachSuggestion[]>([]);
   const scrollRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileRef = useRef<HTMLInputElement>(null);
@@ -114,7 +118,7 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
     [context]
   );
 
-  const buildSystem = (opts?: { availableFoods?: string[]; recipe?: boolean; mealContext?: string }) => {
+  const buildSystem = (opts?: { availableFoods?: string[]; recipe?: boolean; mealContext?: string; qualityContext?: string }) => {
     const p = context.userProfile || {};
     const lines = [
       BASE_SYSTEM,
@@ -132,6 +136,7 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
     if (opts?.mealContext) {
       lines.push("", opts.mealContext);
     }
+    lines.push("", opts?.qualityContext ?? "IQM indisponible : ne pas inventer de score ni de gain prévisionnel.");
     if (opts?.recipe) {
       lines.push("", RECIPE_EXPORT_RULE);
     }
@@ -182,9 +187,13 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
 
     try {
       // Recherche intelligente : injecte les repas pertinents de l'utilisateur.
-      const mealContext = await buildCoachMealContext(userId, trimmed);
+      const [mealContext, quality] = await Promise.all([
+        buildCoachMealContext(userId, trimmed),
+        loadCoachQuality(userId, remaining, context.weight, context.goals.calories).catch(() => null),
+      ]);
+      setQualitySuggestions(quality?.suggestions ?? []);
       const { result, modelUsed } = await executeAIFeatureWithFallback(feature, {
-        system: buildSystem({ ...opts, mealContext }),
+        system: buildSystem({ ...opts, mealContext, qualityContext: quality?.context }),
         userText: trimmed,
       });
       const reply = String(result);
@@ -344,6 +353,21 @@ const CoachPage: React.FC<Props> = ({ userId, context, onExportRecipe }) => {
           </div>
         )}
       </div>
+
+      {qualitySuggestions.length > 0 && !sending && (
+        <div className="border-t pt-2 mt-2 space-y-2 max-h-40 overflow-y-auto">
+          {qualitySuggestions.map((suggestion) => (
+            <div key={suggestion.foods[0]?.id} className="flex items-center justify-between gap-2 text-xs">
+              <div className="min-w-0">
+                <p className="font-medium">{suggestion.foods.map(f => `${f.name} · ${Math.round(f.grams)} g`).join(", ")}</p>
+                <p className="text-muted-foreground">Bibliothèque · {Math.round(suggestion.nutrition.calories ?? 0)} kcal · IQM repas {suggestion.mealScore ?? "—"}/100
+                  {suggestion.gain !== null ? ` · journée ${suggestion.gain >= 0 ? "+" : ""}${suggestion.gain} pts → ${suggestion.projectedScore}/100` : ` · gain indisponible${suggestion.coverage < 1 ? " (données partielles)" : ""}`}</p>
+              </div>
+              {onExportRecipe && <Button variant="ghost" size="icon" aria-label="Préparer cette portion" title="Préparer cette portion" onClick={() => onExportRecipe({ title: suggestion.foods.map(f => f.name).join(", "), portions: 1, ingredients: suggestion.foods.map(f => ({ name: f.name, grams: f.grams })) })}><FileEdit className="w-4 h-4" /></Button>}
+            </div>
+          ))}
+        </div>
+      )}
 
       {/* Composer recette (photos + texte) */}
       {showRecipe && (
