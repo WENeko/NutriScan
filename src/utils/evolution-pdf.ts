@@ -59,7 +59,7 @@ export function evolutionPdf(days: ReportDay[], tolerance: number, palette = rep
     rows.forEach((cells, row) => {
       doc.setFont("helvetica", "normal"); doc.setFontSize(8);
       const wrapped = cells.map((s, i) => doc.splitTextToSize(s, widths[i] - 4) as string[]);
-      const height = Math.max(9, Math.max(...wrapped.map(lines => lines.length)) * 4 + 4);
+      const height = Math.max(7.5, Math.max(...wrapped.map(lines => lines.length)) * 4 + 3.5);
       if (y + height > bottom) { page(); header(); }
       if (row % 2 === 0) { doc.setFillColor(palette.tint); doc.rect(margin, y, width, height, "F"); }
       let x = margin;
