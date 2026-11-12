@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
-import { Download, Printer, RefreshCw } from "lucide-react";
+import { Download, FileText, RefreshCw, Share2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { loadEvolutionReport } from "@/services/evolution-report";
 import { adherence, correlation, reportCsv, reportWeeks, type ReportDay } from "@/utils/evolution-report";
-import { deliverReportFile } from "@/services/report-file";
+import { canShareReportFiles, deliverReportFile, shareReportFile } from "@/services/report-file";
 import { toast } from "@/hooks/use-toast";
 import "./EvolutionReport.css";
 
@@ -22,6 +22,20 @@ export default function EvolutionReport({ userId }: { userId: string }) {
   const [tolerance, setTolerance] = useState(7.5);
   const [preview, setPreview] = useState(false);
   const [exporting, setExporting] = useState(false);
+  const [pdfBlob, setPdfBlob] = useState<Blob | null>(null);
+  const [pdfError, setPdfError] = useState(false);
+  const csvBlob = useMemo(() => new Blob([reportCsv(days)], { type: "text/csv;charset=utf-8;" }), [days]);
+  const shareAvailable = canShareReportFiles();
+
+  useEffect(() => {
+    let cancelled = false;
+    setPdfBlob(null); setPdfError(false);
+    if (!days.length) return;
+    void import("@/utils/evolution-pdf").then(({ evolutionPdf }) => {
+      if (!cancelled) setPdfBlob(evolutionPdf(days, tolerance));
+    }).catch(() => { if (!cancelled) setPdfError(true); });
+    return () => { cancelled = true; };
+  }, [days, tolerance]);
 
   useEffect(() => {
     let cancelled = false;
@@ -57,18 +71,18 @@ export default function EvolutionReport({ userId }: { userId: string }) {
     ? `${format(parseISO(days[0].date), "dd/MM/yyyy")} – ${format(parseISO(days[days.length - 1].date), "dd/MM/yyyy")}`
     : "";
 
-  const exportFile = async (pdf: boolean) => {
+  const exportFile = async (pdf: boolean, share = false) => {
+    const blob = pdf ? pdfBlob : csvBlob;
+    if (!blob) return;
     setExporting(true);
     try {
-      let blob: Blob;
-      if (pdf) {
-        // Chargement dynamique : jsPDF n'est téléchargé qu'au moment de l'export
-        const { evolutionPdf } = await import("@/utils/evolution-pdf");
-        blob = evolutionPdf(days, tolerance);
+      const filename = `NutriScan-bilan-${days[0]?.date}-${days.at(-1)?.date}.${pdf ? "pdf" : "csv"}`;
+      if (share) {
+        await shareReportFile(blob, filename);
       } else {
-        blob = new Blob([reportCsv(days)], { type: "text/csv;charset=utf-8;" });
+        const result = await deliverReportFile(blob, filename);
+        if (result.saved && result.location) toast({ title: "Bilan enregistré", description: `Fichier enregistré dans ${result.location}.` });
       }
-      await deliverReportFile(blob, `NutriScan-bilan-${days[0]?.date}-${days.at(-1)?.date}.${pdf ? "pdf" : "csv"}`);
     } catch {
       toast({ title: "Export impossible", description: "Le bilan n’a pas pu être enregistré ou partagé. Réessayez.", variant: "destructive" });
     } finally { setExporting(false); }
@@ -246,15 +260,20 @@ export default function EvolutionReport({ userId }: { userId: string }) {
           {summary}
           <div className="flex flex-wrap gap-2 border-t pt-4">
             <Button variant="outline" disabled={!days.length || exporting} onClick={() => void exportFile(false)}>
-              <Download /> Export CSV
+              <Download /> Télécharger CSV
             </Button>
             <Button variant="outline" disabled={!days.length} onClick={() => setPreview(true)}>
-              <Printer /> Bilan imprimable
+              <FileText /> Aperçu du bilan
             </Button>
-            <Button variant="outline" disabled={!days.length || exporting} onClick={() => void exportFile(true)}>
-              <Download /> {exporting ? "Export…" : "Exporter PDF"}
+            <Button variant="outline" disabled={!pdfBlob || exporting} onClick={() => void exportFile(true)}>
+              <Download /> {exporting ? "Export…" : !pdfBlob && days.length && !pdfError ? "Préparation PDF…" : "Télécharger PDF"}
             </Button>
+            {shareAvailable && <>
+              <Button variant="ghost" disabled={!pdfBlob || exporting} onClick={() => void exportFile(true, true)}><Share2 /> Partager PDF</Button>
+              <Button variant="ghost" disabled={!days.length || exporting} onClick={() => void exportFile(false, true)}><Share2 /> Partager CSV</Button>
+            </>}
           </div>
+          {pdfError && <p role="alert" className="text-sm text-destructive">Le PDF n’a pas pu être préparé. Rechargez le bilan.</p>}
         </>
       )}
 
@@ -265,8 +284,8 @@ export default function EvolutionReport({ userId }: { userId: string }) {
             Nutrition, activité et mesures corporelles enregistrées.
           </DialogDescription>
           {summary}
-          <Button className="report-no-print" disabled={exporting} onClick={() => void exportFile(true)}>
-            <Download /> {exporting ? "Export…" : "Exporter PDF"}
+          <Button className="report-no-print" disabled={!pdfBlob || exporting} onClick={() => void exportFile(true)}>
+            <Download /> {exporting ? "Export…" : "Télécharger PDF"}
           </Button>
         </DialogContent>
       </Dialog>

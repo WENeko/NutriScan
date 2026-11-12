@@ -11,6 +11,7 @@ public class MainActivity extends BridgeActivity {
     registerPlugin(HealthPlugin.class);
     registerPlugin(com.capacitorjs.plugins.filesystem.FilesystemPlugin.class);
     registerPlugin(com.capacitorjs.plugins.share.SharePlugin.class);
+    registerPlugin(ReportDownloadPlugin.class);
     registerPlugin(BoneMassPlugin.class);
     registerPlugin(SportSamplesPlugin.class);
     registerPlugin(LocalAiGalleryPlugin.class);
