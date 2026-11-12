@@ -48,6 +48,13 @@
     --sidebar-ring: 217.2 91.2% 59.8%;
 
     /* Custom NutriScan tokens */
+    /* Fixed paper palette, independent of the screen theme. */
+    --report-paper: #ffffff;
+    --report-ink: #16372d;
+    --report-muted: #52665f;
+    --report-accent: #288566;
+    --report-tint: #edf5f1;
+    --report-rule: #d6e3dc;
     --nutrigreen: 160 60% 40%;
     --nutrigreen-light: 160 50% 92%;
     --nutri-orange: 30 95% 55%;

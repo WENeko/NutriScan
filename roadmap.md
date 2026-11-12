@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Demande actuelle
+- [ ] Recomposer le PDF en tableaux paginés avec synthèse et pieds de page ; séparer Télécharger et Partager pour PDF/CSV
+- [ ] Vérifier téléchargement navigateur et pagination ; validation du stockage Android sur appareil requise
 - [x] Terminer PDF téléchargeable/partage natif et corriger les tests des bilans ; brancher les pesées antérieures par mesure
 - [x] Enrichir le coach existant : arbitrages IQM, classement de portions connues, gain calculé sans nutriments inventés
 - [x] Vérifier tests, PDF téléchargé et classement avec données simulées

@@ -1,5 +1,5 @@
 # Project rules
-- Generate evolution PDFs from report data with paginated text and deliver files through native cache/share on Capacitor or browser downloads; WebView printing is unreliable.
+- Generate evolution PDFs from report data with paginated tables and print tokens; prepare blobs before clicks to preserve browser activation. Download uses browser downloads or Android MediaStore (document picker before Android 10); only explicit Share actions use native cache/share. WebView printing is unreliable.
 - Enrich the existing coach routing with current ingredient IQM and rank only known library portions within the calorie budget; compute comparable gains with the pure IQM engine, never from generated nutrition.
 - Evolution reports use exact dated goal snapshots (already cycled), complete-coverage IQM and actual within-week body deltas; label correlations descriptive and leave unavailable values blank to avoid invented historical measurements.
 - Persist adjustable workout windows independently of calorie goals; suggestions read approved native exercise records, never energy samples, and remain user-confirmed.
