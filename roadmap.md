@@ -1,8 +1,9 @@
 # Roadmap
 
 ## Demande actuelle
-- [ ] Recomposer le PDF en tableaux paginés avec synthèse et pieds de page ; séparer Télécharger et Partager pour PDF/CSV
-- [ ] Vérifier téléchargement navigateur et pagination ; validation du stockage Android sur appareil requise
+- [x] Recomposer le PDF en tableaux paginés avec synthèse et pieds de page ; séparer Télécharger et Partager pour PDF/CSV
+- [x] Vérifier téléchargement navigateur PDF/CSV, pagination (3 pages/28 jours), mobile sans débordement, 14 tests et vérification TypeScript
+- [ ] Valider le téléchargement natif Android et les bilans connectés — bloqué : aucun appareil/SDK Java disponible, aucun compte correspondant pour la connexion automatique ; nouvel APK manuel nécessaire
 - [x] Terminer PDF téléchargeable/partage natif et corriger les tests des bilans ; brancher les pesées antérieures par mesure
 - [x] Enrichir le coach existant : arbitrages IQM, classement de portions connues, gain calculé sans nutriments inventés
 - [x] Vérifier tests, PDF téléchargé et classement avec données simulées
