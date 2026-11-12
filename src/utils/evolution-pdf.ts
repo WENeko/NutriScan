@@ -72,7 +72,7 @@ export function evolutionPdf(days: ReportDay[], tolerance: number, palette = rep
     });
     y += 8;
   };
-  const n = (v: number | null) => v === null ? "-" : v.toLocaleString("fr-FR", { maximumFractionDigits: 2 });
+  const n = (v: number | null) => v === null ? "-" : v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }).replace(/[\u202f\u00a0]/g, " ");
   const measure = (v: number | null, delta: number | null) => `${n(v)}${delta === null ? "" : `\n(${delta > 0 ? "+" : ""}${n(delta)})`}`;
   const qualified = days.filter(d => d.completed && d.logged && d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
   const energy = qualified.reduce((s, d) => s + (d.calories ?? 0), 0);
