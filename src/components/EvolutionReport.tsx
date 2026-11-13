@@ -3,6 +3,8 @@ import { Download, FileText, RefreshCw, Share2 } from "lucide-react";
 import { format, parseISO } from "date-fns";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Info } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
 import { loadEvolutionReport } from "@/services/evolution-report";
 import { adherence, correlation, reportCsv, reportWeeks, type ReportDay } from "@/utils/evolution-report";
@@ -147,7 +149,22 @@ export default function EvolutionReport({ userId }: { userId: string }) {
       </section>
 
       <section className="space-y-3 border-t pt-4">
-        <h3 className="font-semibold">IQM & variations corporelles</h3>
+        <div className="flex items-center gap-2">
+          <h3 className="font-semibold">Corrélations & variations corporelles</h3>
+          <Popover>
+            <PopoverTrigger aria-label="Comment lire r" className="text-muted-foreground"><Info className="h-4 w-4" /></PopoverTrigger>
+            <PopoverContent className="text-xs space-y-1">
+              <p><b>r</b> (Pearson) va de −1 à +1 : il mesure si deux séries évoluent ensemble, semaine après semaine.</p>
+              <p>|r| &lt; 0,3 : lien faible ou nul · 0,3–0,5 : modéré · &gt; 0,5 : fort.</p>
+              <p>r positif : quand l’indicateur monte, la variation monte aussi ; r négatif : elle baisse.</p>
+              <p>« Écart calorique » = écart moyen à la cible du jour (%, surplus positif). C’est en général lui qui explique le poids, l’IQM agit plutôt sur le long terme.</p>
+              <p>Association descriptive, pas une preuve de cause.</p>
+            </PopoverContent>
+          </Popover>
+        </div>
+        {([["iqm", "IQM"], ["calorieGap", "Écart à la cible calorique"]] as const).map(([source, title]) => (
+        <div key={source} className="space-y-1">
+        <p className="text-sm font-medium">{title}</p>
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           {(
             [
@@ -156,7 +173,7 @@ export default function EvolutionReport({ userId }: { userId: string }) {
               ["muscle", "Masse musculaire"],
             ] as const
           ).map(([key, label]) => {
-            const result = correlation(weeks, key);
+            const result = correlation(weeks, key, source);
             return (
               <div key={key} className="border rounded-lg p-3">
                 <p className="text-xs text-muted-foreground">{label}</p>
@@ -168,8 +185,10 @@ export default function EvolutionReport({ userId }: { userId: string }) {
             );
           })}
         </div>
+        </div>
+        ))}
         <p className="text-xs text-muted-foreground">
-          Au moins 3 jours d’IQM calculé (couverture partielle acceptée) et 1 pesée par semaine ; 4 semaines appariées pour une corrélation.
+          Au moins 3 jours d’IQM calculé (couverture partielle acceptée) ou 3 jours avec cible calorique enregistrée et 1 pesée par semaine ; 4 semaines appariées pour une corrélation.
           Après une semaine sans pesée, le delta compare les dernières mesures réelles et peut couvrir plus de 7 jours.
           Association descriptive, pas une preuve de causalité ni une validation clinique de l’IQM. Le
           profil IQM actuel est utilisé.
