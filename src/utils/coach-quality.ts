@@ -34,7 +34,7 @@ export function rankCoachSuggestions(meals: QualityInput[], foods: CoachFood[], 
       if (nutrition.calories == null || nutrition.calories <= 0 || nutrition.calories > remaining.calories) continue;
       const quality = calculateMealQuality(nutrition, preset);
       const projected = calculateDailyQuality([...meals, nutrition], preset);
-      const comparable = meals.length > 0 && before.coverage >= 0.999 && projected.coverage >= 0.999 && before.score !== null && projected.score !== null;
+      const comparable = meals.length > 0 && before.score !== null && projected.score !== null;
       const gain = comparable ? (projected.score ?? 0) - (before.score ?? 0) : null;
       // Rule 1: calorie ceiling. Rule 2: do not trade measured quality for quota filling.
       if (gain !== null && gain < 0) continue;
@@ -46,9 +46,9 @@ export function rankCoachSuggestions(meals: QualityInput[], foods: CoachFood[], 
         const need = Math.max(0, remaining[key]);
         fit += need > 0 ? Math.min(v, need) / need - Math.max(0, v - need) / need : -v / Math.max(1, remaining.calories / 9);
       }
-      const rank = (gain ?? 0) * 4 + (quality.coverage >= 0.999 ? (quality.score ?? 0) / 100 : 0) + fit / 3;
+      const rank = (gain ?? 0) * 4 + (quality.score ?? 0) / 100 + fit / 3;
       candidates.push({ foods: [{ id: food.id, name: food.name, grams: food.grams * factor }], nutrition,
-        mealScore: quality.score, projectedScore: projected.coverage >= 0.999 ? projected.score : null, gain, coverage: quality.coverage, rank });
+        mealScore: quality.score, projectedScore: projected.score, gain, coverage: quality.coverage, rank });
     }
   }
   const unique = new Set<string>();

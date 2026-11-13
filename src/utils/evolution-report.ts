@@ -84,7 +84,7 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
 
   // Accepter les jours avec un score IQM réel (sans exiger 100% de couverture théorique)
   const parsed = sortedWeeks.map(([date, rows]) => {
-    const scored = rows.filter(d => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
+    const scored = rows.filter(d => d.iqm !== null && (d.calories ?? 0) > 0);
     const energy = scored.reduce((s, d) => s + (d.calories ?? 0), 0);
 
     const getMeasures = (key: "weight" | "bodyFat" | "muscle") =>

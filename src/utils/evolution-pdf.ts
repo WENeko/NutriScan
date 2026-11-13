@@ -74,7 +74,7 @@ export function evolutionPdf(days: ReportDay[], tolerance: number, palette = rep
   };
   const n = (v: number | null) => v === null ? "-" : v.toLocaleString("fr-FR", { maximumFractionDigits: 2 }).replace(/[\u202f\u00a0]/g, " ");
   const measure = (v: number | null, delta: number | null) => `${n(v)}${delta === null ? "" : `\n(${delta > 0 ? "+" : ""}${n(delta)})`}`;
-  const qualified = days.filter(d => d.completed && d.logged && d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
+  const qualified = days.filter(d => d.completed && d.logged && d.iqm !== null && (d.calories ?? 0) > 0);
   const energy = qualified.reduce((s, d) => s + (d.calories ?? 0), 0);
   const average = energy ? qualified.reduce((s, d) => s + (d.iqm ?? 0) * (d.calories ?? 0), 0) / energy : null;
   page(true);
@@ -101,7 +101,7 @@ export function evolutionPdf(days: ReportDay[], tolerance: number, palette = rep
     const c = correlation(weeks, key);
     return [label, c.r === null ? "Données insuffisantes" : n(c.r), String(c.n)];
   }));
-  paragraph("Associations descriptives, sans preuve de causalité ni validation clinique de l’IQM. Profil IQM actuel. IQM hebdomadaire : au moins 3 jours à couverture complète ; corrélation : au moins 4 semaines appariées.");
+  paragraph("Associations descriptives, sans preuve de causalité ni validation clinique de l’IQM. Profil IQM actuel. IQM hebdomadaire : au moins 3 jours avec IQM calculé ; corrélation : au moins 4 semaines appariées.");
   title("Mesures hebdomadaires");
   table(["Semaine du", "IQM / 100", "Jours", "Poids kg", "MG %", "Muscle kg"], [31, 28, 17, 35, 34, 35], weeks.map(w => [date(w.date), n(w.iqm), String(w.days), measure(w.weightValue, w.weight), measure(w.bodyFatValue, w.bodyFat), measure(w.muscleValue, w.muscle)]), [1, 2, 3, 4, 5]);
   paragraph("Entre parenthèses : variation des mesures réelles. Une semaine sans pesée reste vide ; la comparaison avec la dernière mesure connue peut couvrir plus de 7 jours. La masse grasse varie en points de pourcentage.");
