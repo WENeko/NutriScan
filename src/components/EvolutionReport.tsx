@@ -61,7 +61,7 @@ export default function EvolutionReport({ userId }: { userId: string }) {
   const complete = days.filter((d) => d.completed && d.logged);
 
   // Filtrage assoupli : accepte les jours avec un score IQM et des calories réelles
-  const qualified = complete.filter((d) => d.iqm !== null && d.coverage >= 0.999 && (d.calories ?? 0) > 0);
+  const qualified = complete.filter((d) => d.iqm !== null && (d.calories ?? 0) > 0);
   const energy = qualified.reduce((s, d) => s + (d.calories ?? 0), 0);
   const average = energy
     ? qualified.reduce((s, d) => s + (d.iqm ?? 0) * (d.calories ?? 0), 0) / energy
@@ -169,7 +169,7 @@ export default function EvolutionReport({ userId }: { userId: string }) {
           })}
         </div>
         <p className="text-xs text-muted-foreground">
-          Au moins 3 jours d’IQM à couverture complète et 1 pesée par semaine ; 4 semaines appariées pour une corrélation.
+          Au moins 3 jours d’IQM calculé (couverture partielle acceptée) et 1 pesée par semaine ; 4 semaines appariées pour une corrélation.
           Après une semaine sans pesée, le delta compare les dernières mesures réelles et peut couvrir plus de 7 jours.
           Association descriptive, pas une preuve de causalité ni une validation clinique de l’IQM. Le
           profil IQM actuel est utilisé.

@@ -25,7 +25,7 @@ describe("evolution reports", () => {
   it("weights weekly IQM by energy with three complete days and two actual body measurements", () => {
     const weeks = reportWeeks([day({ weight: 80 }), day({ date: "2026-11-03", iqm: 60, calories: 1000 }), day({ date: "2026-11-04", weight: 79 })]);
     expect(weeks[0].iqm).toBe(76); expect(weeks[0].weight).toBe(-1);
-    expect(reportWeeks([day({ coverage: 0.25, weight: 80 })])[0].iqm).toBeNull();
+    expect(reportWeeks([day({ coverage: 0.25, weight: 80 })])[0].iqm).toBeNull(); // fewer than 3 days
     expect(reportWeeks([day({ weight: 80 })])[0].weight).toBeNull();
   });
   it("requires four paired weeks and nonconstant values for correlation", () => {
@@ -53,8 +53,8 @@ describe("evolution reports", () => {
     expect(weeks[2].weightValue).toBe(79);
     expect(weeks[2].weight).toBe(-1);
   });
-  it("does not correlate provisional IQM even when three days are logged", () => {
-    expect(reportWeeks([day({ coverage: 0.25 }), day({ date: "2026-11-03", coverage: 0.25 }), day({ date: "2026-11-04", coverage: 0.25 })])[0].iqm).toBeNull();
+  it("keeps provisional IQM days with partial coverage", () => {
+    expect(reportWeeks([day({ coverage: 0.25 }), day({ date: "2026-11-03", coverage: 0.25 }), day({ date: "2026-11-04", coverage: 0.25 })])[0].iqm).toBe(80);
   });
   it("uses pre-period baseline per metric without adding a fictitious weigh-in", () => {
     const [week] = reportWeeks([day({ weight: 79, bodyFat: 20, baselineBody: { weight: 80, bodyFat: 21, muscle: null } })]);
