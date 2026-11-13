@@ -71,6 +71,8 @@ export interface ReportWeek {
   weightValue: number | null;
   bodyFatValue: number | null;
   muscleValue: number | null;
+  /** Mean signed calorie gap vs recorded goal, in % (surplus > 0); null without goals. */
+  calorieGap: number | null;
 }
 
 export function reportWeeks(days: ReportDay[]): ReportWeek[] {
@@ -100,6 +102,10 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
       weightMeasures: getMeasures("weight"),
       bodyFatMeasures: getMeasures("bodyFat"),
       muscleMeasures: getMeasures("muscle"),
+      calorieGap: (() => {
+        const g = rows.filter(d => d.logged && numeric(d.calories) && numeric(d.goal) && (d.goal ?? 0) > 0);
+        return g.length >= 3 ? Number((g.reduce((s, d) => s + ((d.calories ?? 0) - (d.goal ?? 0)) / (d.goal ?? 1) * 100, 0) / g.length).toFixed(1)) : null;
+      })(),
     };
   });
 
@@ -147,17 +153,18 @@ export function reportWeeks(days: ReportDay[]): ReportWeek[] {
       weightValue: wRes.currentVal,
       bodyFatValue: bfRes.currentVal,
       muscleValue: mRes.currentVal,
+      calorieGap: curr.calorieGap,
     };
   });
 }
 
-export function correlation(weeks: ReportWeek[], key: "weight" | "bodyFat" | "muscle") {
-  const pairs = weeks.filter(w => numeric(w.iqm) && numeric(w[key]));
+export function correlation(weeks: ReportWeek[], key: "weight" | "bodyFat" | "muscle", source: "iqm" | "calorieGap" = "iqm") {
+  const pairs = weeks.filter(w => numeric(w[source]) && numeric(w[key]));
   if (pairs.length < 4) return { n: pairs.length, r: null };
-  const x = pairs.reduce((s, w) => s + (w.iqm ?? 0), 0) / pairs.length;
+  const x = pairs.reduce((s, w) => s + (w[source] ?? 0), 0) / pairs.length;
   const y = pairs.reduce((s, w) => s + (w[key] ?? 0), 0) / pairs.length;
   let covariance = 0, vx = 0, vy = 0;
-  for (const w of pairs) { const dx = (w.iqm ?? 0) - x, dy = (w[key] ?? 0) - y; covariance += dx * dy; vx += dx * dx; vy += dy * dy; }
+  for (const w of pairs) { const dx = (w[source] ?? 0) - x, dy = (w[key] ?? 0) - y; covariance += dx * dy; vx += dx * dx; vy += dy * dy; }
   return { n: pairs.length, r: vx > 0 && vy > 0 ? covariance / Math.sqrt(vx * vy) : null };
 }
 export function reportCsv(days: ReportDay[]) {

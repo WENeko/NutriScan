@@ -63,3 +63,13 @@ describe("evolution reports", () => {
     expect(week.muscleValue).toBeNull();
   });
 });
+
+describe("correlation with calorie gap", () => {
+  it("correlates the weekly calorie gap with weight deltas", async () => {
+    const { correlation } = await import("./evolution-report");
+    const base = { iqm: null, days: 0, bodyFat: null, muscle: null, weightValue: null, bodyFatValue: null, muscleValue: null };
+    const weeks = [[-10, -0.5], [0, 0], [10, 0.5], [20, 1]].map(([gap, w], i) => ({ ...base, date: `2026-0${i + 1}-01`, calorieGap: gap, weight: w }));
+    expect(correlation(weeks, "weight", "calorieGap").r).toBeCloseTo(1);
+    expect(correlation(weeks, "weight").r).toBeNull();
+  });
+});
