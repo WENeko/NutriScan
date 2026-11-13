@@ -72,7 +72,7 @@ export interface ReportWeek {
   bodyFatValue: number | null;
   muscleValue: number | null;
   /** Mean signed calorie gap vs recorded goal, in % (surplus > 0); null without goals. */
-  calorieGap: number | null;
+  calorieGap?: number | null;
 }
 
 export function reportWeeks(days: ReportDay[]): ReportWeek[] {
