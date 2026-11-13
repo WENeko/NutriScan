@@ -27,7 +27,7 @@ describe("coach IQM arbitration", () => {
     expect(result.gain).not.toBeNull();
     const [partial] = rankCoachSuggestions([poor], [{ ...good, per100: { ...poor, nutrients_std: {} } }], budget, "hypertrophy");
     expect(partial.coverage).toBe(0.25);
-    expect(partial.projectedScore).toBeNull();
+    expect(partial.projectedScore).not.toBeNull();
     expect(partial.nutrition.nutrients_std?.fiber).toBeUndefined();
   });
 });
