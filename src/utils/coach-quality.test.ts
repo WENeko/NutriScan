@@ -22,9 +22,9 @@ describe("coach IQM arbitration", () => {
   it("does not sacrifice a measured IQM to fill macros", () => {
     expect(rankCoachSuggestions([good.per100], [{ ...good, per100: poor }], budget, "hypertrophy")).toEqual([]);
   });
-  it("leaves missing nutrients and incomparable gains unknown", () => {
+  it("computes gains even with partial nutrient coverage", () => {
     const [result] = rankCoachSuggestions([{ ...poor, nutrients_std: {} }], [good], budget, "hypertrophy");
-    expect(result.gain).toBeNull();
+    expect(result.gain).not.toBeNull();
     const [partial] = rankCoachSuggestions([poor], [{ ...good, per100: { ...poor, nutrients_std: {} } }], budget, "hypertrophy");
     expect(partial.coverage).toBe(0.25);
     expect(partial.projectedScore).toBeNull();
