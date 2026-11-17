@@ -50,6 +50,13 @@
       "when": 1794171991718,
       "tag": "0006_profile_workout_windows",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1794957582335,
+      "tag": "0007_meal_workout_context_lock",
+      "breakpoints": true
     }
   ]
 }

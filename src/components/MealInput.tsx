@@ -805,6 +805,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
           image_url: imageUrl,
           timestamp,
           peri_workout: workoutContext,
+          workout_context_locked: contextChosen,
           raw_ai_analysis: rawAnalysis || null,
           raw_text_input: rawTextInput,
           is_confirmed: true,

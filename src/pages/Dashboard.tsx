@@ -31,6 +31,7 @@ import { applyFavoriteOrder, favoriteKey, loadFavoriteOrder, moveItem, saveFavor
 import { startOfDay, startOfWeek, endOfWeek, format, isToday } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
 import UpdateDialog from "@/components/UpdateDialog";
+import WorkoutAutoClassification from "@/components/WorkoutAutoClassification";
 import { MACRO_COLORS } from "@/lib/macro-colors";
 import { isLovableAiEnabled, isAiConfigured, loadAiAccess } from "@/lib/aiAccess";
 import OnboardingFlow, { isOnboardingDone } from "@/components/OnboardingFlow";
@@ -665,6 +666,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   return (
     <TooltipProvider>
     <UpdateDialog />
+    <WorkoutAutoClassification userId={userId} />
     {showOnboarding && (
       <OnboardingFlow
         userId={userId}

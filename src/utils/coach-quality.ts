@@ -1,4 +1,5 @@
 import { calculateDailyQuality, calculateMealQuality, qualityTargets, type QualityInput, type UserPreset, type WorkoutContext } from "./metabolic-quality";
+import { coachNutrientObservations } from "./coach-observations";
 
 export interface CoachBudget { calories: number; proteins: number; carbs: number; fats: number }
 export interface CoachFood { id: string; name: string; grams: number; per100: QualityInput }
@@ -62,18 +63,13 @@ export function rankCoachSuggestions(meals: QualityInput[], foods: CoachFood[], 
 export function coachQualityContext(meals: QualityInput[], preset: UserPreset, weight: number, goalCalories: number, suggestions: CoachSuggestion[]) {
   const current = calculateDailyQuality(meals, preset);
   const last = meals.at(-1);
-  const totals: Record<string, number | null> = {};
-  for (const key of ["fiber", "sugar", "saturated_fat", "omega3_mg"]) {
-    const values = meals.map(m => m.nutrients_std?.[key]);
-    totals[key] = values.length && values.every(v => typeof v === "number" && Number.isFinite(v))
-      ? values.reduce<number>((s, v) => s + (v ?? 0), 0) : null;
-  }
+  const observations = coachNutrientObservations(meals);
   return [
     "QUALITÉ IQM (calculée à partir des ingrédients enregistrés, non clinique) :",
     JSON.stringify({ preset, current, lastMeal: last ? { quality: calculateMealQuality(last, preset), context: last.peri_workout ?? "none" } : null,
-      totals, targets: qualityTargets(preset, weight, goalCalories), suggestions }),
+      observations, targets: qualityTargets(preset, weight, goalCalories), suggestions }),
     "Arbitrages : 1. Respecter les calories restantes, ne pas imposer un repas si le budget est épuisé. 2. À macros comparables, privilégier fibres et oméga-3 et limiter les saturés/sucres hors effort confirmé ; ne pas dégrader un IQM mesuré pour remplir un quota. 3. Adapter protéines au profil et tolérance fibres/lipides au contexte du repas explicitement confirmé, jamais au sport lissé.",
-    "Les suggestions sont des portions de fiches connues, pas nécessairement des repas complets. Mentionner les quantités et sources, privilégier ces pistes dans les recettes compatibles avec les ingrédients disponibles. Ne pas les appliquer automatiquement. Ne jamais inventer un nutriment manquant, un déficit de fibres/oméga-3 ou un gain IQM. Un gain chiffré est autorisé uniquement s'il est fourni ci-dessus ; une recette différente n'a pas de gain calculé. Coverage < 1 : score provisoire, comparaison indisponible. Conserver les règles expertes existantes.",
+    "Les suggestions sont des portions de fiches connues, pas nécessairement des repas complets. Mentionner les quantités et sources, privilégier ces pistes dans les recettes compatibles avec les ingrédients disponibles. Ne pas les appliquer automatiquement. Ne jamais inventer un nutriment manquant, un déficit de fibres/oméga-3 ou un gain IQM. Un gain chiffré est autorisé uniquement s'il est fourni ci-dessus ; une recette différente n'a pas de gain calculé. Coverage < 1 : score et gain provisoires. Les observations partielles sont des sommes minimales mesurées, pas des totaux journaliers ; ne pas déduire de carence d'une couverture incomplète. Même sans portion de bibliothèque compatible, proposer des pistes qualitatives adaptées (légumineuses, légumes, graines, poissons gras, noix), sans nutriments ni gain chiffrés non calculés. Conserver les règles expertes existantes.",
   ].join("\n");
 }
 

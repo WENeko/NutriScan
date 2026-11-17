@@ -766,6 +766,7 @@ const [searchQuery, setSearchQuery] = useState("");
         meal_name: editMealName || null,
         capture_distance_m: editDistance,
         peri_workout: editContext,
+        workout_context_locked: true,
         timestamp: editTimestamp ? localDateTimeToISO(editTimestamp) : undefined,
         total_calories: Math.round(totals.calories),
         total_proteins: Math.round(totals.proteins * 10) / 10,

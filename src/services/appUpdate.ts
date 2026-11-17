@@ -12,6 +12,28 @@ const GITHUB_REPO = "WENeko/NutriScan";
 const LATEST_URL = `https://api.github.com/repos/${GITHUB_REPO}/releases/latest`;
 export const RELEASE_PAGE_URL = `https://github.com/${GITHUB_REPO}/releases/latest`;
 const SKIP_KEY = "nutriscan-update-skipped";
+const SEEN_KEY = "nutriscan-update-seen-version";
+const PENDING_KEY = "nutriscan-update-pending-notes";
+
+export function hasUnseenInstalledVersion(current: number, seen: number) {
+  return seen > 0 && current > seen;
+}
+export function markInstalledVersionSeen() {
+  localStorage.setItem(SEEN_KEY, String(currentVersionCode()));
+}
+export async function installedReleaseNotes(): Promise<UpdateInfo | null> {
+  const current = currentVersionCode();
+  const seen = Number(localStorage.getItem(SEEN_KEY)) || 0;
+  if (!seen) { markInstalledVersionSeen(); return null; }
+  if (!hasUnseenInstalledVersion(current, seen)) return null;
+  try {
+    const pending: UpdateInfo | null = JSON.parse(localStorage.getItem(PENDING_KEY) || "null");
+    if (pending?.versionCode === current && pending.notes) return pending;
+  } catch { /* Fall back to the exact installed release. */ }
+  const release = await fetchLatestRelease(`https://api.github.com/repos/${GITHUB_REPO}/releases/tags/v${currentVersionName()}`);
+  if (release?.versionCode === current && release.notes) return release;
+  return null; // Retry on next launch if notes are not available yet.
+}
 
 interface ApkUpdaterPlugin {
   canInstall(): Promise<{ allowed: boolean }>;
@@ -50,9 +72,9 @@ export function currentVersionName(): string {
 }
 
 /** Récupère la dernière release publiée, ou null en cas d'échec réseau. */
-export async function fetchLatestRelease(): Promise<UpdateInfo | null> {
+export async function fetchLatestRelease(url = LATEST_URL): Promise<UpdateInfo | null> {
   try {
-    const res = await fetch(LATEST_URL, {
+    const res = await fetch(url, {
       headers: { Accept: "application/vnd.github+json" },
       cache: "no-store",
     });
@@ -124,6 +146,7 @@ export async function downloadAndInstall(
 ): Promise<void> {
   if (!info.apkUrl) throw new Error("Aucun fichier APK dans cette release");
   if (!isNativeUpdateSupported()) throw new Error("Mise à jour intégrée disponible uniquement sur Android");
+  localStorage.setItem(PENDING_KEY, JSON.stringify(info));
 
   const handle = onProgress
     ? await ApkUpdater.addListener("downloadProgress", ({ percent }) => onProgress(percent))

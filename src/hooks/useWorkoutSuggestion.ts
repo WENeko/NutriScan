@@ -9,7 +9,8 @@ export function useWorkoutSuggestion(userId: string, timestamp: string) {
   useEffect(() => {
     const refresh = () => setRevision(value => value + 1);
     window.addEventListener("nutriscan:quality-profile", refresh);
-    return () => window.removeEventListener("nutriscan:quality-profile", refresh);
+    window.addEventListener("nutriscan:health-refreshed", refresh);
+    return () => { window.removeEventListener("nutriscan:quality-profile", refresh); window.removeEventListener("nutriscan:health-refreshed", refresh); };
   }, []);
   useEffect(() => {
     let active = true;

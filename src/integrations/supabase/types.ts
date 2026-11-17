@@ -291,6 +291,7 @@ export type Database = {
           total_proteins: number | null
           updated_at: string
           user_id: string
+          workout_context_locked: boolean
         }
         Insert: {
           capture_distance_m?: number | null
@@ -314,6 +315,7 @@ export type Database = {
           total_proteins?: number | null
           updated_at?: string
           user_id: string
+          workout_context_locked?: boolean
         }
         Update: {
           capture_distance_m?: number | null
@@ -337,6 +339,7 @@ export type Database = {
           total_proteins?: number | null
           updated_at?: string
           user_id?: string
+          workout_context_locked?: boolean
         }
         Relationships: [
           {

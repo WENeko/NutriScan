@@ -1,0 +1,1 @@
+ALTER TABLE public.meals ADD COLUMN IF NOT EXISTS workout_context_locked boolean NOT NULL DEFAULT false; COMMENT ON COLUMN public.meals.workout_context_locked IS 'Manual workout context or dismissed automatic classification; must not be overwritten by sport sync.';

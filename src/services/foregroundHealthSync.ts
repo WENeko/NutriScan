@@ -31,7 +31,10 @@ export function startForegroundHealthSync(
     running = (async () => {
       try { await sync(userId); }
       catch (error) { console.warn("[health] foreground import failed", error); }
-      if (!disposed) await refresh();
+      if (!disposed) {
+        await refresh();
+        window.dispatchEvent(new Event("nutriscan:health-refreshed"));
+      }
     })().catch((error) => console.warn("[health] foreground refresh failed", error))
       .finally(() => { running = undefined; });
   };

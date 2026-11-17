@@ -18,6 +18,7 @@ import AdminUsersPanel from "@/components/AdminUsersPanel";
 import MealCardSettings from "@/components/MealCardSettings";
 import ThemeColorsSettings from "@/components/ThemeColorsSettings";
 import AppPermissionsSettings from "@/components/AppPermissionsSettings";
+import AppUpdateSettings from "@/components/AppUpdateSettings";
 import DataSourcesSettings from "@/components/DataSourcesSettings";
 
 import { useBackHandler } from "@/lib/backNavigation";
@@ -1283,6 +1284,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         {/* ============ SETTINGS ============ */}
         {subPage === "settings" && (
           <>
+            <AppUpdateSettings />
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <div className="flex items-center gap-2 mb-3">
                 <Bell className="w-4 h-4 text-primary" />

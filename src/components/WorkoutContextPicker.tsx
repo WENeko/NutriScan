@@ -1,5 +1,6 @@
 import { Button } from "@/components/ui/button";
-import { Armchair, Dumbbell, Zap, Check } from "lucide-react";
+import { Armchair, Dumbbell, Zap } from "lucide-react";
+import { useEffect } from "react";
 import { useWorkoutSuggestion } from "@/hooks/useWorkoutSuggestion";
 import type { WorkoutContext } from "@/utils/metabolic-quality";
 
@@ -10,6 +11,9 @@ export default function WorkoutContextPicker({ userId, timestamp, value, onChang
   userId: string; timestamp: string; value: WorkoutContext; onChange: (value: WorkoutContext) => void; allowSuggestion?: boolean;
 }) {
   const suggestion = useWorkoutSuggestion(userId, timestamp);
+  useEffect(() => {
+    if (allowSuggestion && suggestion !== "none" && suggestion !== value) onChange(suggestion);
+  }, [allowSuggestion, suggestion, value, onChange]);
   return <div className="space-y-2" onClick={event => event.stopPropagation()}>
     <p className="text-xs font-semibold text-muted-foreground">Contexte sportif</p>
     <div className="grid grid-cols-2 gap-1.5 sm:grid-cols-4" role="group" aria-label="Contexte sportif">
@@ -21,9 +25,5 @@ export default function WorkoutContextPicker({ userId, timestamp, value, onChang
         </Button>;
       })}
     </div>
-    {allowSuggestion && suggestion !== "none" && suggestion !== value && <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-      <span>Séance à proximité · {WORKOUT_LABELS[suggestion]}</span>
-      <Button type="button" variant="secondary" size="sm" onClick={() => onChange(suggestion)}><Check />Confirmer</Button>
-    </div>}
   </div>;
 }

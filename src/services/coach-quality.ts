@@ -9,7 +9,7 @@ export async function loadCoachQuality(userId: string, remaining: CoachBudget, w
     supabase.from("custom_foods").select("id, name, serving_size_g, calories_per_100g, proteins_per_100g, carbs_per_100g, fats_per_100g, nutrients_std").eq("user_id", userId).order("id").limit(500),
   ]);
   if (profile.error) throw profile.error;
-  if (library.error) throw library.error;
+  // A failed/empty library must not suppress the day's measured quality context.
   const preset = normalizeSportPreset(profile.data.sport_preset);
   const meals: Parameters<typeof qualityInputFromMeal>[0][] = [];
   const ids: string[] = [];

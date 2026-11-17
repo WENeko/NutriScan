@@ -4,12 +4,10 @@ import WorkoutContextPicker from "./WorkoutContextPicker";
 
 vi.mock("@/hooks/useWorkoutSuggestion", () => ({ useWorkoutSuggestion: () => "post_workout" }));
 afterEach(cleanup);
-describe("confirmed workout context", () => {
-  it("never applies a detected session without user confirmation", () => {
+describe("automatic workout context", () => {
+  it("automatically selects an eligible detected session at entry", () => {
     const onChange = vi.fn();
     render(<WorkoutContextPicker userId="test" timestamp="2026-10-30T18:00:00Z" value="none" onChange={onChange} />);
-    expect(onChange).not.toHaveBeenCalled();
-    fireEvent.click(screen.getByRole("button", { name: "Confirmer" }));
     expect(onChange).toHaveBeenCalledWith("post_workout");
   });
   it("lets the user explicitly choose Standard instead of a detected workout", () => {

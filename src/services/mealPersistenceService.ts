@@ -61,6 +61,7 @@ interface SaveMealParams {
     image_url?: string | null;
     timestamp?: string;
     peri_workout?: WorkoutContext;
+    workout_context_locked?: boolean;
     raw_ai_analysis?: string | null;
     raw_text_input?: string | null;
     is_confirmed?: boolean;
@@ -83,6 +84,7 @@ function buildMealRow(m: SaveMealParams["mealData"], userId: string) {
     total_fats: m.total_fats,
     timestamp: m.timestamp ?? new Date().toISOString(),
     peri_workout: normalizeWorkoutContext(m.peri_workout),
+    workout_context_locked: m.workout_context_locked ?? false,
     image_url: m.image_url ?? null,
     raw_ai_analysis: m.raw_ai_analysis ?? null,
     raw_text_input: m.raw_text_input ?? null,
