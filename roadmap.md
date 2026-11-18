@@ -1,10 +1,11 @@
 # Roadmap
 
 ## Demande actuelle
-- [ ] Classer les repas éligibles après lecture des séances approuvées avec compte à rebours de 5 secondes, validation et annulation ; préserver les choix manuels
-- [ ] Remplacer la fenêtre de mise à jour au démarrage par les préférences et un récapitulatif après installation
-- [ ] Renforcer le coach IQM avec mesures partielles explicites et conseils qualitatifs sans valeurs inventées
-- [ ] Tester ces trois changements ; validation Android sur appareil reste nécessaire
+- [x] Classer les repas éligibles après lecture des séances approuvées avec compte à rebours de 5 secondes, validation et annulation ; préserver les choix manuels
+- [x] Remplacer la fenêtre de mise à jour au démarrage par les préférences et un récapitulatif après installation
+- [x] Renforcer le coach IQM avec mesures partielles explicites et conseils qualitatifs sans valeurs inventées
+- [x] Tests et parcours connecté : repas sauvegardés, classement automatique et annulation relus, réglages sur mobile/ordinateur sans erreur ; séances simulées
+- [ ] Valider séances réelles, téléchargement/installation et réponses du coach sur Android — appareil absent et IA non configurée sur le compte de test ; APK manuel nécessaire
 - [x] Recomposer le PDF en tableaux paginés avec synthèse et pieds de page ; séparer Télécharger et Partager pour PDF/CSV
 - [x] Vérifier téléchargement navigateur PDF/CSV, pagination (3 pages/28 jours), mobile sans débordement, 14 tests et vérification TypeScript
 - [ ] Valider le téléchargement natif Android et les bilans connectés — bloqué : aucun appareil/SDK Java disponible, aucun compte correspondant pour la connexion automatique ; nouvel APK manuel nécessaire

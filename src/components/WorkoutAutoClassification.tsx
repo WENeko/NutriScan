@@ -13,6 +13,7 @@ export default function WorkoutAutoClassification({ userId }: { userId: string }
   const [seconds, setSeconds] = useState(WORKOUT_COUNTDOWN_SECONDS);
   const [busy, setBusy] = useState(false);
   const pending = useRef(false);
+  const countdownMeal = useRef<string | undefined>();
   const seen = useRef(new Set<string>());
   const current = queue[0];
   useEffect(() => {
@@ -72,14 +73,18 @@ export default function WorkoutAutoClassification({ userId }: { userId: string }
     finally { setQueue(q => q.slice(1)); pending.current = false; setBusy(false); }
   }, [current, userId]);
   useEffect(() => {
+    countdownMeal.current = undefined;
     setSeconds(WORKOUT_COUNTDOWN_SECONDS);
     if (!current) return;
     const timer = window.setInterval(() => {
-      if (document.visibilityState === "visible") setSeconds(s => Math.max(0, s - 1));
+      if (document.visibilityState === "visible") {
+        countdownMeal.current = current.id;
+        setSeconds(s => Math.max(0, s - 1));
+      }
     }, 1000);
     return () => window.clearInterval(timer);
   }, [current?.id]);
-  useEffect(() => { if (current && seconds === 0) void finish(false); }, [current, seconds, finish]);
+  useEffect(() => { if (current && seconds === 0 && countdownMeal.current === current.id) void finish(false); }, [current, seconds, finish]);
   if (!current) return null;
   return <div role="status" className="fixed inset-x-3 bottom-24 z-50 mx-auto max-w-md rounded-lg border border-border bg-background p-4 shadow-lg">
     <p className="text-sm font-semibold">Séance détectée · {WORKOUT_LABELS[current.context]}</p>

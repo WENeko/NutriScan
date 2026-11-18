@@ -1017,7 +1017,7 @@ const [searchQuery, setSearchQuery] = useState("");
                 <Input type="datetime-local" value={editTimestamp} onChange={(e) => setEditTimestamp(e.target.value)} className="h-8 text-xs rounded-lg" />
               </div>
               <WorkoutContextPicker userId={userId} timestamp={editTimestamp ? localDateTimeToISO(editTimestamp) : meal.timestamp}
-                value={editContext} allowSuggestion={!editContextChosen} onChange={value => { setEditContext(value); setEditContextChosen(true); }} />
+                value={editContext} allowSuggestion={false} onChange={value => { setEditContext(value); setEditContextChosen(true); }} />
               <NutritionQuality preset={sportPreset} input={qualityInputFromMeal({ total_calories: editItems.reduce((sum, item) => sum + (item.calories ?? 0), 0), total_proteins: editItems.reduce((sum, item) => sum + (item.proteins ?? 0), 0), total_carbs: editItems.reduce((sum, item) => sum + (item.carbs ?? 0), 0), total_fats: editItems.reduce((sum, item) => sum + (item.fats ?? 0), 0), peri_workout: editContext }, editItems.map(item => ({ ...item, nutrients_std: buildStdNutrients(item as unknown as Record<string, unknown>) })))} />
               {/* Distance de prise de vue (recalcule les quantités) */}
               {Boolean(meal.image_url || meal.capture_distance_m != null) && <div className="space-y-1">

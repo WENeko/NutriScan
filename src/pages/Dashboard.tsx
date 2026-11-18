@@ -688,9 +688,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
-            <button onClick={() => setShowProfile(true)} className="p-2 rounded-xl hover:bg-muted transition-colors">
+            <Button aria-label="Profil" variant="ghost" size="icon" onClick={() => setShowProfile(true)}>
               <User className="w-5 h-5 text-muted-foreground" />
-            </button>
+            </Button>
             <button onClick={handleLogout} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <LogOut className="w-5 h-5 text-muted-foreground" />
             </button>
