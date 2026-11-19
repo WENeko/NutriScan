@@ -5,6 +5,7 @@ import { format, parseISO } from "date-fns";
 import { fr } from "date-fns/locale";
 import { buildMonthGrid, sessionsByDate, ymd, type CalendarDay } from "@/utils/activity-calendar";
 import { readSessionsInRange } from "@/services/training-days";
+import { aggregateSportCalories, type SportSample } from "@/services/sport-calories";
 import type { DayType } from "@/utils/day-cycling";
 import { Button } from "@/components/ui/button";
 
@@ -18,6 +19,7 @@ const ActivityCalendar: React.FC<Props> = ({ userId, calorieGoal, userProfile })
   const [overrides, setOverrides] = useState<Record<string, DayType>>({});
   const [sessions, setSessions] = useState<Record<string, number>>({});
   const [calories, setCalories] = useState<Record<string, number>>({});
+  const [burned, setBurned] = useState<Record<string, number>>({});
   const [weights, setWeights] = useState<Record<string, number>>({});
   const [selected, setSelected] = useState<CalendarDay | null>(null);
   const [loading, setLoading] = useState(false);
@@ -49,26 +51,31 @@ const ActivityCalendar: React.FC<Props> = ({ userId, calorieGoal, userProfile })
           if (!data || data.length < pageSize) return rows;
         }
       };
-      const [ov, meals, body, sess] = await Promise.all([
+      const [ov, meals, body, sess, sport] = await Promise.all([
         supabase.from("training_day_overrides").select("local_date, day_type").eq("user_id", userId).gte("local_date", from).lt("local_date", to),
         readMeals(),
         supabase.from("body_composition").select("recorded_at, weight_kg").eq("user_id", userId).gte("recorded_at", from).lt("recorded_at", to),
         allowed.length ? readSessionsInRange(start, end) : Promise.resolve([]),
+        allowed.length ? supabase.from("sport_activity_samples").select("source_package, start_time, end_time, value_kcal, recorded_date").eq("user_id", userId).gte("recorded_date", from).lt("recorded_date", to).limit(5000) : Promise.resolve({ data: [], error: null }),
       ]);
       if (cancelled) return;
       if (ov.error) throw ov.error;
       if (body.error) throw body.error;
+      const byDay: Record<string, SportSample[]> = {};
+      ((sport as any).data || []).forEach((s: SportSample) => { (byDay[s.recorded_date] ||= []).push(s); });
+      const b: Record<string, number> = {};
+      Object.entries(byDay).forEach(([k, list]) => { const v = aggregateSportCalories(list, allowed); if (v > 0) b[k] = v; });
       const o: Record<string, DayType> = {};
       (ov.data || []).forEach((r: any) => { o[r.local_date] = r.day_type; });
       const c: Record<string, number> = {};
       meals.forEach((m) => { const k = ymd(new Date(m.timestamp)); c[k] = (c[k] || 0) + (Number(m.total_calories) || 0); });
       const w: Record<string, number> = {};
       (body.data || []).forEach((b: any) => { if (b.weight_kg) w[b.recorded_at] = Number(b.weight_kg); });
-      setOverrides(o); setCalories(c); setWeights(w); setSessions(sessionsByDate(sess, allowed));
+      setOverrides(o); setBurned(b); setCalories(c); setWeights(w); setSessions(sessionsByDate(sess, allowed));
       } catch {
         if (!cancelled) {
           setLoadError(true);
-          setOverrides({}); setCalories({}); setWeights({}); setSessions({});
+          setOverrides({}); setBurned({}); setCalories({}); setWeights({}); setSessions({});
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -117,6 +124,7 @@ const ActivityCalendar: React.FC<Props> = ({ userId, calorieGoal, userProfile })
                 {d.sessions > 0 && <Dumbbell className="w-2.5 h-2.5 text-primary" />}
                 {d.weight != null && <Scale className="w-2.5 h-2.5 text-muted-foreground" />}
               </div>
+              {burned[d.date] != null && <span className="text-[8px] leading-none text-primary">{Math.round(burned[d.date])}</span>}
               {d.calories != null && <span className={`absolute bottom-0.5 w-3 h-0.5 rounded-full ${ratioClass(d.calories)}`} />}
             </Button>
           ))}
@@ -127,6 +135,7 @@ const ActivityCalendar: React.FC<Props> = ({ userId, calorieGoal, userProfile })
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded bg-primary/10" /> Prévu entraînement</span>
           <span className="flex items-center gap-1"><span className="w-3 h-3 rounded border border-dashed border-primary" /> Exception</span>
           <span className="flex items-center gap-1"><Dumbbell className="w-3 h-3 text-primary" /> Séance réalisée</span>
+          <span className="flex items-center gap-1"><span className="text-primary font-medium">123</span> kcal dépensées</span>
           <span className="flex items-center gap-1"><Scale className="w-3 h-3" /> Pesée</span>
           <span className="flex items-center gap-1"><span className="w-3 h-0.5 bg-primary" /> Calories dans l'objectif</span>
         </div>
@@ -143,7 +152,8 @@ const ActivityCalendar: React.FC<Props> = ({ userId, calorieGoal, userProfile })
             <span>{selectedDay.planned === "training" ? "Entraînement" : "Repos"}{selectedDay.override ? " (exception)" : " (routine)"}</span>
           </div>
           <p className="text-sm">Séances : <b>{selectedDay.sessions}</b></p>
-          <p className="text-sm">Calories : <b>{selectedDay.calories != null ? `${Math.round(selectedDay.calories)} kcal` : "—"}</b>{calorieGoal ? ` / ${Math.round(calorieGoal)} kcal` : ""}</p>
+          <p className="text-sm">Dépense sportive : <b>{burned[selectedDay.date] != null ? `${Math.round(burned[selectedDay.date])} kcal` : "—"}</b></p>
+          <p className="text-sm">Calories consommées : <b>{selectedDay.calories != null ? `${Math.round(selectedDay.calories)} kcal` : "—"}</b>{calorieGoal ? ` / ${Math.round(calorieGoal)} kcal` : ""}</p>
           <p className="text-sm">Poids : <b>{selectedDay.weight != null ? `${selectedDay.weight.toFixed(1)} kg` : "—"}</b></p>
         </div>
       )}
