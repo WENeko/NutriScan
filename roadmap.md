@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Automatiser les descriptions des releases APK et embarquer l’historique cumulé des nouveautés ; 12 tests couvrent versions sautées, fonctionnement hors ligne, acquittement et déclenchement manuel
+- [ ] Valider la publication de l’archive et les nouveautés sur APK installé — prochain lancement manuel GitHub Actions et appareil Android nécessaires ; historique précis initialisé à partir de ce premier APK
 - [x] Classer les repas éligibles après lecture des séances approuvées avec compte à rebours de 5 secondes, validation et annulation ; préserver les choix manuels
 - [x] Remplacer la fenêtre de mise à jour au démarrage par les préférences et un récapitulatif après installation
 - [x] Renforcer le coach IQM avec mesures partielles explicites et conseils qualitatifs sans valeurs inventées

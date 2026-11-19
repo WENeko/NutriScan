@@ -1,0 +1,40 @@
+{
+  "changes": [
+    {
+      "id": "2026-11-18-sport-coach-reports-updates",
+      "sections": [
+        {
+          "title": "Classement sportif automatique",
+          "items": [
+            "Le contexte pré, intra ou post-effort est sélectionné à la saisie lorsqu’une séance éligible est déjà connue.",
+            "Après l’import d’une séance, les repas éligibles déjà enregistrés sont reclassés après cinq secondes : vous pouvez annuler ou valider immédiatement. Vos choix manuels sont conservés.",
+            "Les fenêtres pré et post-effort sont réglables dans les préférences."
+          ]
+        },
+        {
+          "title": "Coach et qualité nutritionnelle",
+          "items": [
+            "Le coach prend en compte l’IQM, les fibres, les oméga-3 et l’équilibre des sucres et des graisses, en complément des calories et des macros.",
+            "Les données partielles restent utilisables et sont signalées comme telles, sans inventer les nutriments manquants."
+          ]
+        },
+        {
+          "title": "Bilans et exports",
+          "items": [
+            "Les bilans comparent aussi l’écart à la cible calorique aux variations de poids, de masse grasse et de masse musculaire. Une information explique la lecture des corrélations.",
+            "Les PDF présentent des tableaux paginés et une synthèse. Télécharger et Partager sont désormais deux actions distinctes pour les PDF et les CSV."
+          ]
+        },
+        {
+          "title": "Photos et mises à jour",
+          "items": [
+            "Les photos de la galerie reprennent leur date et heure d’origine quand elles sont disponibles. La distance est masquée pour les repas sans photo.",
+            "La proposition de téléchargement au lancement est supprimée. Vous pouvez vérifier les mises à jour à tout moment dans les préférences.",
+            "Après installation, les nouveautés des versions sautées sont regroupées et disponibles sans connexion. Les descriptions des prochaines releases sont remplies automatiquement.",
+            "Le verrou des dépendances a été resynchronisé pour débloquer l’installation pendant la compilation Android."
+          ]
+        }
+      ]
+    }
+  ]
+}

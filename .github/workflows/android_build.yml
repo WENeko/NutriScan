@@ -79,6 +79,39 @@ jobs:
           node scripts/generate-version.mjs
           cat android/version.properties
 
+      - name: Retrieve published release history
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const fs = require('node:fs');
+            let previous = [];
+            let release;
+            try {
+              release = (await github.rest.repos.getLatestRelease({ owner: context.repo.owner, repo: context.repo.repo })).data;
+            } catch (error) {
+              if (error.status !== 404) throw error;
+            }
+            const asset = release?.assets.find(asset => asset.name === 'release-history.json');
+            if (asset) {
+              const response = await github.rest.repos.getReleaseAsset({
+                owner: context.repo.owner, repo: context.repo.repo, asset_id: asset.id,
+                headers: { accept: 'application/octet-stream' }
+              });
+              previous = JSON.parse(Buffer.from(response.data).toString('utf8'));
+              if (!Array.isArray(previous) || !previous.some(entry => `v${entry.versionName}` === release.tag_name)) {
+                throw new Error('Published release history is incomplete');
+              }
+            } else if (release) {
+              if (release.body?.includes('nutriscan-release-history-v1')) {
+                throw new Error('Release history asset is missing; restore it before building.');
+              }
+              core.warning('Legacy release has no archived history; cumulative notes begin with this build.');
+            }
+            fs.writeFileSync('previous-release-history.json', JSON.stringify(previous));
+
+      - name: Prepare bundled changelog and release description
+        run: node scripts/release-notes.mjs previous-release-history.json release-notes.md
+
       - name: Build web app
         run: npm run build
 
@@ -141,16 +174,15 @@ jobs:
           cp android/app/build/outputs/apk/debug/app-debug.apk \
              "release-files/NutriScan-${{ steps.version.outputs.name }}-debug.apk"
           ls -la release-files
+          cp src/data/release-history.json release-files/release-history.json
 
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: v${{ steps.version.outputs.name }}
           name: NutriScan ${{ steps.version.outputs.name }}
-          body: |
-            APK release signé (mise à jour par-dessus l'installation existante, sans désinstaller).
-            Version ${{ steps.version.outputs.name }} — commit ${{ github.sha }}
-          files: release-files/*.apk
+          body_path: release-notes.md
+          files: release-files/*
           make_latest: true
           draft: false
           prerelease: false
