@@ -10,7 +10,7 @@ import { Button } from "@/components/ui/button";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { QualityBadge, QualityFractions } from "@/components/NutritionQuality";
 import { QualityTargets } from "@/components/QualityTargets";
-import { calculateDailyQuality, qualityInputFromMeal, sumQualityNutrients, normalizeSportPreset, type UserPreset } from "@/utils/metabolic-quality";
+import { calculateDailyQuality, qualityInputFromMeal, qualityNutrientMeasurements, normalizeSportPreset, type UserPreset } from "@/utils/metabolic-quality";
 import CircularProgress from "@/components/CircularProgress";
 import MealInput from "@/components/MealInput";
 import MealHistory from "@/components/MealHistory";
@@ -472,8 +472,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const dailyQualityInput = useMemo(() => ({
     ...todayTotals,
     carbohydrateBasis: "available" as const,
-    nutrients_std: Object.keys(todayMicros).length > 0 ? todayMicros : sumQualityNutrients(qualityItems),
-  }), [todayTotals, todayMicros, qualityItems]);
+    ...qualityNutrientMeasurements(qualityItems),
+  }), [todayTotals, qualityItems]);
   useEffect(() => {
     const refresh = () => { void fetchData(); };
     window.addEventListener("nutriscan:quality-profile", refresh);

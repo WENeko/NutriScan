@@ -11,6 +11,8 @@ export interface QualityInput {
   carbs?: number | null;
   fats?: number | null;
   nutrients_std?: Record<string, number | null | undefined>;
+  /** Fraction of ingredients with a measurement; partial sums are observed, not totals. */
+  nutrientCoverage?: Record<string, number>;
   /** EU available carbohydrate excludes fibre; US total carbohydrate includes it. */
   carbohydrateBasis: CarbohydrateBasis;
   peri_workout?: WorkoutContext;
@@ -20,7 +22,7 @@ export interface QualityResult {
   score: number | null;
   grade: "A" | "B" | "C" | "D" | null;
   scores: { carbs: number | null; fats: number | null; proteins: number | null };
-  /** Share of the configured pillar weights supported by complete measurements. */
+  /** Pillar weights adjusted for actual ingredient measurement coverage. */
   coverage: number;
   missing: string[];
   fractions: {
@@ -47,8 +49,9 @@ export function calculateMealQuality(input: QualityInput, preset: UserPreset = "
   const sugar = micro.sugar, fiber = micro.fiber, sat = micro.saturated_fat, omega = micro.omega3_mg;
   const peri = input.peri_workout !== undefined && input.peri_workout !== "none";
   const missing: string[] = [];
+  const coverageOf = (key: string) => measured(micro[key]) ? clamp(input.nutrientCoverage?.[key] ?? 1, 0, 1) : 0;
   for (const [key, value] of Object.entries({ calories: kcal, proteins: p, carbs: c, fats: l, sugar, fiber, saturated_fat: sat, omega3_mg: omega })) {
-    if (!measured(value)) missing.push(key);
+    if (!measured(value) || (QUALITY_KEYS.includes(key as typeof QUALITY_KEYS[number]) && coverageOf(key) < 1)) missing.push(key);
   }
   const validEnergy = measured(kcal) && kcal > 0;
   let carbs: number | null = null, fats: number | null = null, proteins: number | null = null;
@@ -68,13 +71,19 @@ export function calculateMealQuality(input: QualityInput, preset: UserPreset = "
   }
   if (validEnergy && measured(p)) proteins = clamp(p * 4 / kcal / PROTEIN_ENERGY_TARGET[preset] * 100);
   const scores = { carbs, fats, proteins };
-  let coverage = 0, weighted = 0;
+  const support = {
+    carbs: Math.min(coverageOf("sugar"), coverageOf("fiber")),
+    fats: peri ? 1 : Math.min(coverageOf("saturated_fat"), coverageOf("omega3_mg")),
+    proteins: 1,
+  };
+  let coverage = 0, weighted = 0, calculable = 0;
   for (const key of ["carbs", "fats", "proteins"] as const) {
     const value = scores[key];
-    if (value !== null) { coverage += WEIGHTS[key]; weighted += value * WEIGHTS[key]; }
+    if (value !== null) { coverage += WEIGHTS[key] * support[key]; calculable += WEIGHTS[key]; weighted += value * WEIGHTS[key]; }
   }
-  const score = coverage > 0 ? Math.round(weighted / coverage) : null;
+  const score = calculable > 0 ? Math.round(weighted / calculable) : null;
   const nonSugarCarbs = measured(c) && measured(sugar) && input.carbohydrateBasis !== "unknown"
+    && coverageOf("sugar") === 1 && (input.carbohydrateBasis !== "includes_fiber" || coverageOf("fiber") === 1)
     && (input.carbohydrateBasis === "available" || measured(fiber))
     ? Math.max(0, c - sugar - (input.carbohydrateBasis === "includes_fiber" && measured(fiber) ? fiber : 0)) : null;
   return {
@@ -83,9 +92,9 @@ export function calculateMealQuality(input: QualityInput, preset: UserPreset = "
       // This remainder is not a measured starch amount or a glycaemic index.
       nonSugarCarbs,
       // May also contain trans/other fats: do not label as measured unsaturated fat.
-      unsaturatedRemainder: measured(l) && measured(sat) ? Math.max(0, l - sat) : null,
-      sugarRatio: measured(c) && measured(sugar) ? sugar / Math.max(1, c) : null,
-      saturatedRatio: measured(l) && measured(sat) ? sat / Math.max(1, l) : null,
+      unsaturatedRemainder: measured(l) && measured(sat) && coverageOf("saturated_fat") === 1 ? Math.max(0, l - sat) : null,
+      sugarRatio: measured(c) && measured(sugar) && coverageOf("sugar") === 1 ? sugar / Math.max(1, c) : null,
+      saturatedRatio: measured(l) && measured(sat) && coverageOf("saturated_fat") === 1 ? sat / Math.max(1, l) : null,
     },
   };
 }
@@ -119,27 +128,31 @@ export function normalizeWorkoutWindows(value: unknown, preset: UserPreset = "hy
 }
 export const QUALITY_KEYS = ["sugar", "fiber", "saturated_fat", "omega3_mg"] as const;
 
-/** A nutrient total is known only when every ingredient has a measurement. */
-export function sumQualityNutrients(items: Record<string, unknown>[]): Record<string, number> {
+/** Sum only measured values, retaining per-nutrient ingredient coverage. */
+export function qualityNutrientMeasurements(items: Record<string, unknown>[]) {
   const totals: Record<string, number> = {};
-  if (!items.length) return totals;
+  const nutrientCoverage: Record<string, number> = {};
   for (const key of QUALITY_KEYS) {
     let sum = 0;
-    let complete = true;
+    let count = 0;
     for (const item of items) {
       const std = item.nutrients_std as Record<string, unknown> | undefined;
       const raw = std && std[key] !== undefined ? std[key] : item[key];
       if (typeof raw === "number" && Number.isFinite(raw) && raw >= 0) {
         sum += raw;
-      } else {
-        complete = false;
+        count += 1;
       }
     }
-    if (complete) {
+    nutrientCoverage[key] = items.length ? count / items.length : 0;
+    if (count > 0) {
       totals[key] = Math.round(sum * 10) / 10;
     }
   }
-  return totals;
+  return { nutrients_std: totals, nutrientCoverage };
+}
+
+export function sumQualityNutrients(items: Record<string, unknown>[]): Record<string, number> {
+  return qualityNutrientMeasurements(items).nutrients_std;
 }
 
 export function qualityInputFromMeal(meal: { total_calories: number | null; total_proteins: number | null; total_carbs: number | null; total_fats: number | null; peri_workout?: string }, items: Record<string, unknown>[]): QualityInput {
@@ -148,7 +161,7 @@ export function qualityInputFromMeal(meal: { total_calories: number | null; tota
     proteins: meal.total_proteins,
     carbs: meal.total_carbs,
     fats: meal.total_fats,
-    nutrients_std: sumQualityNutrients(items),
+    ...qualityNutrientMeasurements(items),
     carbohydrateBasis: "available",
     peri_workout: normalizeWorkoutContext(meal.peri_workout),
   };

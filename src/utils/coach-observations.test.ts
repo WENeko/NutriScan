@@ -13,4 +13,8 @@ describe("coach measured quality observations", () => {
     expect(coachNutrientObservations([{ carbohydrateBasis: "unknown", nutrients_std: { fiber: 0 } }, { carbohydrateBasis: "unknown", nutrients_std: { fiber: 8 } }]).fiber)
       .toEqual({ observed: 8, measuredMeals: 2, totalMeals: 2, complete: true });
   });
+  it("does not present a partial ingredient sum as a complete daily total", () => {
+    expect(coachNutrientObservations([{ carbohydrateBasis: "unknown", nutrients_std: { fiber: 7.3 }, nutrientCoverage: { fiber: 0.5 } }]).fiber)
+      .toEqual({ observed: 7.3, measuredMeals: 1, totalMeals: 1, complete: false });
+  });
 });

@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "id": "2026-11-20-iqm-observed-ingredient-sums",
+      "sections": [{
+        "title": "Jauges de qualité nutritionnelle",
+        "items": ["Les jauges IQM affichent les fibres, sucres et graisses saturées mesurés même si certains ingrédients sont incomplets. Les sommes partielles sont signalées et le score reste provisoire, sans inventer de valeurs manquantes."]
+      }]
+    },
+    {
       "id": "2026-11-18-sport-coach-reports-updates",
       "sections": [
         {

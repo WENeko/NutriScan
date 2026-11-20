@@ -19,7 +19,7 @@ describe("evolution reports", () => {
       cycling: { enabled: true, multipliers: [1.2, 1, 1, 1, 1, 1, 1], trainingDays: [0] }, preset: "health",
       sessions: [{ source_package: "unapproved", start_time: "2026-11-02T10:00:00", end_time: "2026-11-02T11:00:00" }], allowed: ["approved"], sessionsAvailable: true });
     expect(result[0].type).toBe("rest"); expect(result[0].goal).toBe(2400);
-    expect(result[0].fiber).toBeNull(); expect(result[0].coverage).toBe(0.25); expect(result[0].sessions).toBe(0);
+    expect(result[0].fiber).toBeNull(); expect(result[0].coverage).toBeCloseTo(0.625); expect(result[0].sessions).toBe(0);
     expect(result[1].goal).toBeNull(); expect(result[1].calories).toBeNull();
   });
   it("weights weekly IQM by energy with three complete days and two actual body measurements", () => {

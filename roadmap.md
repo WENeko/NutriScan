@@ -1,6 +1,7 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Aligner les jauges IQM sur les sommes mesurées partielles, avec couverture par nutriment et score provisoire ; préserver les totaux inconnus dans les bilans et le coach
 - [x] Automatiser les descriptions des releases APK et embarquer l’historique cumulé des nouveautés ; 12 tests couvrent versions sautées, fonctionnement hors ligne, acquittement et déclenchement manuel
 - [ ] Valider la publication de l’archive et les nouveautés sur APK installé — prochain lancement manuel GitHub Actions et appareil Android nécessaires ; historique précis initialisé à partir de ce premier APK
 - [x] Classer les repas éligibles après lecture des séances approuvées avec compte à rebours de 5 secondes, validation et annulation ; préserver les choix manuels

@@ -29,7 +29,7 @@ export function buildReportDays(input: {
   const preset = normalizeSportPreset(input.preset);
   return input.dates.map(date => {
     const meals = input.meals.filter(m => format(new Date(m.timestamp), "yyyy-MM-dd") === date);
-    // Report measurements require all ingredients to cover each nutrient, not a partial sum.
+    // IQM accepts observed partial sums; report nutrient totals still require full coverage.
     const quality = meals.map(m => {
       const items = input.items[m.id] ?? [];
       return qualityInputFromMeal({ ...m, peri_workout: m.peri_workout ?? undefined }, items);
@@ -48,7 +48,8 @@ export function buildReportDays(input: {
       // goals_history already contains cycled daily targets: never cycle a snapshot twice or forward-fill it.
       goal: input.goals.find(g => g.recorded_at === date)?.calories ?? null,
       iqm: score.score, coverage: score.coverage,
-      fiber: sumKnown(quality.map(q => q.nutrients_std?.fiber)), omega3: sumKnown(quality.map(q => q.nutrients_std?.omega3_mg)),
+      fiber: sumKnown(quality.map(q => q.nutrientCoverage?.fiber === 1 ? q.nutrients_std?.fiber : null)),
+      omega3: sumKnown(quality.map(q => q.nutrientCoverage?.omega3_mg === 1 ? q.nutrients_std?.omega3_mg : null)),
       weight: body?.weight_kg ?? null, bodyFat: body?.body_fat_percent ?? null, muscle: body?.muscle_mass_kg ?? null,
       sessions: input.sessionsAvailable ? sessions.length : null,
       minutes: input.sessionsAvailable ? sessions.reduce((sum, s) => sum + (new Date(s.end_time).getTime() - new Date(s.start_time).getTime()) / 60000, 0) : null,

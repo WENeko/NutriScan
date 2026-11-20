@@ -26,7 +26,7 @@ import DistanceBadge from "./DistanceBadge";
 import { parseImageScale, galleryMealTimestamp, peekCaptureScale, setCaptureScale, type CaptureScale } from "@/services/hybrid/captureScale";
 import NutritionQuality from "./NutritionQuality";
 import WorkoutContextPicker from "./WorkoutContextPicker";
-import { sumQualityNutrients, normalizeSportPreset, type UserPreset, type WorkoutContext } from "@/utils/metabolic-quality";
+import { qualityNutrientMeasurements, normalizeSportPreset, type UserPreset, type WorkoutContext } from "@/utils/metabolic-quality";
 import { resolveCloudChoice } from "@/services/hybrid/cloudHybridService";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
@@ -1237,7 +1237,7 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
           <WorkoutContextPicker userId={userId} timestamp={mealTimestamp ? localDateTimeToISO(mealTimestamp) : new Date().toISOString()}
             value={workoutContext} allowSuggestion={!contextChosen} onChange={value => { setWorkoutContext(value); setContextChosen(true); }} />
-          <NutritionQuality preset={sportPreset} input={{ ...totals, nutrients_std: sumQualityNutrients(items as unknown as Record<string, unknown>[]), carbohydrateBasis: "unknown", peri_workout: workoutContext }} />
+          <NutritionQuality preset={sportPreset} input={{ ...totals, ...qualityNutrientMeasurements(items as unknown as Record<string, unknown>[]), carbohydrateBasis: "unknown", peri_workout: workoutContext }} />
           <div className="bg-accent rounded-xl p-3">
             <div className="flex items-center justify-between text-sm">
               <span className="font-semibold">{items.some((item) => item.nutritionSource === "unresolved") ? "Total partiel" : "Total"}</span>

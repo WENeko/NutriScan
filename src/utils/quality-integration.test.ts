@@ -6,8 +6,27 @@ describe("nutrition quality persistence adapters", () => {
   it("preserves measured zero sugar without creating missing measurements", () => {
     expect(buildStdNutrients({ sugar: 0, fiber: undefined, saturated_fat: null, omega3_mg: "" })).toEqual({ sugar: 0 });
   });
-  it("requires complete ingredient coverage per nutrient", () => {
-    expect(sumQualityNutrients([{ nutrients_std: { sugar: 4, fiber: 2 } }, { nutrients_std: { sugar: 0 } }])).toEqual({ sugar: 4 });
+  it("retains observed partial sums and measured zero without inventing absent nutrients", () => {
+    expect(sumQualityNutrients([{ nutrients_std: { sugar: 4, fiber: 2 } }, { nutrients_std: { sugar: 0 } }])).toEqual({ sugar: 4, fiber: 2 });
+    expect(sumQualityNutrients([{ nutrients_std: {} }])).toEqual({});
+    expect(sumQualityNutrients([])).toEqual({});
+  });
+  it("uses the breakfast's observed 7.3g fibre, 12g sugar and 0.7g saturated fat provisionally", () => {
+    const input = qualityInputFromMeal({ total_calories: 432, total_proteins: 15, total_carbs: 70, total_fats: 10 }, [
+      { nutrients_std: { fiber: 4, saturated_fat: 0.5, sugar: 0.4 } },
+      { nutrients_std: { fiber: 3.3, saturated_fat: 0.2, sugar: 7.5 } },
+      { nutrients_std: {} },
+      { nutrients_std: { sugar: 4.1 } },
+    ]);
+    expect(input.nutrients_std).toEqual({ fiber: 7.3, saturated_fat: 0.7, sugar: 12 });
+    expect(input.nutrientCoverage).toEqual({ fiber: 0.5, saturated_fat: 0.5, sugar: 0.75, omega3_mg: 0 });
+    const result = calculateMealQuality(input);
+    expect(result.scores.carbs).toBe(100);
+    expect(result.coverage).toBeCloseTo(0.45);
+    expect(result.missing).toEqual(expect.arrayContaining(["sugar", "fiber", "saturated_fat", "omega3_mg"]));
+    expect(result.fractions.nonSugarCarbs).toBeNull();
+    expect(result.fractions.unsaturatedRemainder).toBeNull();
+    expect(calculateDailyQuality([input]).coverage).toBeCloseTo(0.45);
   });
   it("keeps the explicit Standard choice", () => {
     expect(normalizeWorkoutContext("none")).toBe("none");

@@ -24,7 +24,7 @@ export function QualityBadge({ score, grade, coverage }: { score: number | null;
           </Button>
         </PopoverTrigger>
         <PopoverContent className="max-w-64 text-xs p-3 leading-relaxed" side="top" onClick={(e) => e.stopPropagation()}>
-          Score indicatif, non clinique. Les valeurs manquantes restent inconnues. La couverture représente les critères calculables.
+          Score indicatif, non clinique. Les sommes partielles mesurées sont prises en compte : le score reste provisoire. La couverture tient compte des critères calculables et des ingrédients renseignés. Les valeurs manquantes restent inconnues.
         </PopoverContent>
       </Popover>
     </div>
@@ -34,20 +34,22 @@ export function QualityBadge({ score, grade, coverage }: { score: number | null;
 
 const format = (value: number | null | undefined, unit = "g") => value == null ? "—" : `${Math.round(value * 10) / 10} ${unit}`;
 export function QualityFractions({ input }: { input: QualityInput }) {
+  const partial = (key: string) => (input.nutrientCoverage?.[key] ?? 1) < 1;
+  const label = (key: string, value: number | null | undefined, unit = "g") => `${format(value, unit)}${value != null && partial(key) ? " · partiel" : ""}`;
   const sugar = input.nutrients_std?.sugar, fiber = input.nutrients_std?.fiber, sat = input.nutrients_std?.saturated_fat;
   // Fibre is separate: its inclusion in carbohydrate totals differs by catalogue.
   const bars = [
-    { label: "Glucides", total: input.carbs, detail: sugar, fraction: "Sucres totaux", className: "quality-sugar" },
-    { label: "Lipides", total: input.fats, detail: sat, fraction: "Saturés", className: "quality-saturated" },
+    { label: "Glucides", total: input.carbs, detail: sugar, key: "sugar", fraction: "Sucres totaux", className: "quality-sugar" },
+    { label: "Lipides", total: input.fats, detail: sat, key: "saturated_fat", fraction: "Saturés", className: "quality-saturated" },
   ];
   return <div className="space-y-3">
     {bars.map(bar => <div key={bar.label} className="space-y-1">
-      <div className="flex flex-wrap justify-between gap-1 text-xs"><span className="font-semibold">{bar.label} · {format(bar.total)}</span><span className="text-muted-foreground">{bar.fraction} {format(bar.detail)}{bar.detail != null && bar.total != null && bar.total > 0 ? ` · ${Math.round(bar.detail / bar.total * 100)} %` : ""}</span></div>
+      <div className="flex flex-wrap justify-between gap-1 text-xs"><span className="font-semibold">{bar.label} · {format(bar.total)}</span><span className="text-muted-foreground">{bar.fraction} {label(bar.key, bar.detail)}{!partial(bar.key) && bar.detail != null && bar.total != null && bar.total > 0 ? ` · ${Math.round(bar.detail / bar.total * 100)} %` : ""}</span></div>
       <div className="flex h-2 overflow-hidden rounded-sm bg-muted" role="img" aria-label={`${bar.fraction} ${format(bar.detail)} sur ${format(bar.total)}`}>
         {bar.detail != null && bar.total != null && bar.total > 0 && <div className={bar.className} style={{ width: `${Math.min(100, bar.detail / bar.total * 100)}%` }} />}
       </div>
     </div>)}
-    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Fibres {format(fiber)}</span><span>Oméga-3 {format(input.nutrients_std?.omega3_mg, "mg")}</span></div>
+    <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground"><span>Fibres {label("fiber", fiber)}</span><span>Oméga-3 {label("omega3_mg", input.nutrients_std?.omega3_mg, "mg")}</span></div>
   </div>;
 }
 export default function NutritionQuality({ input, preset = "hypertrophy" }: { input: QualityInput; preset?: UserPreset }) {
