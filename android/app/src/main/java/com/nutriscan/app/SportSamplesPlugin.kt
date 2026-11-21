@@ -71,7 +71,7 @@ class SportSamplesPlugin : Plugin() {
     fun readHistorySamples(call: PluginCall) {
         val start = call.getString("startDate") ?: return call.reject("startDate required")
         val end = call.getString("endDate") ?: return call.reject("endDate required")
-        val sources = call.getArray("sources")?.toList()?.map { it.toString() }?.toSet() ?: emptySet()
+        val sources = call.getArray("sources")?.toList<String>()?.toSet() ?: emptySet()
         val c = client() ?: return call.reject("Health Connect unavailable")
         CoroutineScope(Dispatchers.IO).launch {
             try {
