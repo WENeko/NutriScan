@@ -8,6 +8,7 @@ import { Switch } from "@/components/ui/switch";
 import { toast } from "@/hooks/use-toast";
 import { Save, ArrowLeft, Calculator, Dumbbell, Bell, Palette, Info, HelpCircle, Sparkles, Sliders, FlaskConical, Plus, Loader2, User, Activity, Heart, Target, Settings, ChevronRight, RefreshCw, Droplets, Scale } from "lucide-react";
 import SportPresetPicker from "./SportPresetPicker";
+import { useHasUpdate } from "@/services/appUpdate";
 import ThemeSwitcher from "@/components/ThemeSwitcher";
 import { differenceInYears, format } from "date-fns";
 import { fr } from "date-fns/locale";
@@ -22,8 +23,6 @@ import AppUpdateSettings from "@/components/AppUpdateSettings";
 import DataSourcesSettings from "@/components/DataSourcesSettings";
 
 import { useBackHandler } from "@/lib/backNavigation";
-
-
 
 import MicroGoalsEditor from "@/components/MicroGoalsEditor";
 import CyclingEditor from "@/components/CyclingEditor";
@@ -42,7 +41,6 @@ import { computeSmoothedDailySport } from "@/services/sport-calories";
 
 type GoalsMode = "scientific" | "manual" | "ai_coach";
 type SubPage = null | "identity" | "health" | "goals" | "settings" | "admin";
-
 
 interface SuggestedCustom extends CustomNutrientDef {}
 
@@ -176,6 +174,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
   // Sub-page navigation
   const [subPage, setSubPage] = useState<SubPage>(null);
+  const hasUpdate = useHasUpdate();
 
   // Health Connect sync state
   const [isSyncing, setIsSyncing] = useState(false);
@@ -212,7 +211,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       setIsSyncing(false);
     }
   };
-
 
   const age = dateOfBirth ? differenceInYears(new Date(), new Date(dateOfBirth)) : 30;
   const leanMass = bodyFat !== "" && weight > 0 ? weight * (1 - (bodyFat as number) / 100) : null;
@@ -296,7 +294,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
         const parsedTrainingDays = Array.isArray(cc.trainingDays)
           ? cc.trainingDays.map(Number).filter((d: number) => d >= 0 && d < 7)
           : [];
-        // Déduction automatique si trainingDays est absent de l'ancien format
         const trainingDays = parsedTrainingDays.length > 0
           ? parsedTrainingDays
           : rawMultipliers.map((m: number, idx: number) => (m > 1.01 ? idx : -1)).filter((idx: number) => idx >= 0);
@@ -311,7 +308,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
       const goals = d.goals as any;
       if (goals?.goalType) setGoalType(goals.goalType);
-      // For non-scientific modes, restore saved targets so they are not overwritten
       if (d.goals_mode && d.goals_mode !== "scientific" && goals) {
         setTargets({
           calories: Number(goals.calories) || 0,
@@ -322,7 +318,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       }
     }
 
-    // Moyenne sportive 7 j lissée (filtrée par sources autorisées)
     try {
       const allowed = (data as any)?.sport_allowed_sources || [];
       if (allowed.length) {
@@ -365,7 +360,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
       if (cal > 0) setTargets({ calories: cal, proteins: p, carbs: c, fats: f });
       setAiRationale(typeof data?.rationale === "string" ? data.rationale : "");
       const sugg = Array.isArray(data?.suggested_custom_nutrients) ? data.suggested_custom_nutrients : [];
-      // Filter out keys already present in existing customs
       const existingKeys = new Set(existingCustoms.map((c) => c.key));
       const cleaned: SuggestedCustom[] = [];
       for (const s of sugg) {
@@ -417,7 +411,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     const sport = Math.max(0, sportDailyAvg || 0);
     setTdee(Math.round(tdeeBase + sport));
 
-    // Ajustement de phase : % ou kcal absolu
     const v = Number(phaseAdjustValue) || 0;
     const adjust = phaseAdjustMode === "absolute" ? v : (tdeeBase + sport) * (v / 100);
     const targetCalories = Math.round(tdeeBase + sport + adjust);
@@ -425,7 +418,7 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
     const goal = GOAL_TYPES.find((g) => g.value === goalType) || GOAL_TYPES[1];
     const targetProteins = Math.round(weight * goal.proteinPerKg);
     const targetFats = Math.round((targetCalories * 0.25) / 9);
-    const targetCarbs = Math.round((targetCalories - targetProteins * 4 - targetFats * 9) / 4);
+        const targetCarbs = Math.round((targetCalories - targetProteins * 4 - targetFats * 9) / 4);
 
     setTargets({
       calories: targetCalories,
@@ -512,7 +505,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
       const today = format(new Date(), "yyyy-MM-dd");
 
-      // Snapshot des objectifs du jour (sans dupliquer weight/fat)
       const goalsSnap: any = {
         user_id: userId,
         recorded_at: today,
@@ -579,7 +571,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
 
   const goBack = () => (subPage ? setSubPage(null) : onBack());
 
-  // Bouton retour matériel : sous-page → hub, hub → dashboard.
   useBackHandler(
     React.useCallback(() => {
       goBack();
@@ -625,11 +616,21 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     className="w-full bg-card rounded-2xl p-4 shadow-card flex items-center gap-3 text-left hover:bg-muted/40 transition-colors animate-fade-up"
                     style={{ animationDelay: `${idx * 30}ms` }}
                   >
-                    <div className="w-10 h-10 rounded-xl nutri-gradient flex items-center justify-center flex-shrink-0">
+                    <div className="w-10 h-10 rounded-xl nutri-gradient flex items-center justify-center flex-shrink-0 relative">
                       <Icon className="w-5 h-5 text-primary-foreground" />
+                      {item.id === "settings" && hasUpdate && (
+                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive border-2 border-background animate-pulse" />
+                      )}
                     </div>
                     <div className="flex-1 min-w-0">
-                      <div className="text-sm font-display font-semibold">{item.label}</div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-sm font-display font-semibold">{item.label}</span>
+                        {item.id === "settings" && hasUpdate && (
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-destructive/15 text-destructive px-2 py-0.5 rounded-full">
+                            MÀJ
+                          </span>
+                        )}
+                      </div>
                       <div className="text-[11px] text-muted-foreground truncate">{item.desc}</div>
                     </div>
                     <ChevronRight className="w-4 h-4 text-muted-foreground flex-shrink-0" />
@@ -708,7 +709,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 </div>
               )}
 
-              {/* Nouveau : bouton dédié pour enregistrer explicitement une pesée manuelle */}
               <div className="mt-4 pt-3 border-t border-border/50 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-2">
                 <span className="text-[11px] text-muted-foreground">
                   {lastWeighinRecordedAt ? (
@@ -817,7 +817,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 })}
               </div>
             </section>
-
             {goalsMode === "scientific" && (
               <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up" style={{ animationDelay: "30ms" }}>
                 <h2 className="font-display font-semibold text-base mb-3">Métabolisme de Base (MB)</h2>
@@ -946,9 +945,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                 </p>
               </section>
             )}
-
-
-
               </>
             )}
 
@@ -1226,58 +1222,56 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
               <p className="text-[10px] text-muted-foreground mt-2">+500 ml automatiques les jours avec sport.</p>
             </section>
 
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
+              <div className="flex items-center gap-2 mb-3">
+                <Heart className="w-4 h-4 text-primary" />
+                <h2 className="font-display font-semibold text-base">Santé & Mode de vie</h2>
+              </div>
+              <p className="text-xs text-muted-foreground mb-4">
+                Ces indicateurs personnalisent les objectifs <strong>micronutriments</strong> en mode scientifique (vitamines, minéraux…).
+              </p>
 
-
-          <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-            <div className="flex items-center gap-2 mb-3">
-              <Heart className="w-4 h-4 text-primary" />
-              <h2 className="font-display font-semibold text-base">Santé & Mode de vie</h2>
-            </div>
-            <p className="text-xs text-muted-foreground mb-4">
-              Ces indicateurs personnalisent les objectifs <strong>micronutriments</strong> en mode scientifique (vitamines, minéraux…).
-            </p>
-
-            <div className="space-y-3">
-              {[
-                {
-                  key: "athlete",
-                  label: "Sportif·ve régulier·ère",
-                  desc: "Augmente Magnésium, Zinc, Sodium, Vit. C/E, B12, Oméga-3.",
-                  value: isAthlete,
-                  set: setIsAthlete,
-                },
-                {
-                  key: "smoker",
-                  label: "Fumeur·euse",
-                  desc: "Augmente Vit. C (+35 mg) et Vit. E (+2 mg).",
-                  value: isSmoker,
-                  set: setIsSmoker,
-                },
-                {
-                  key: "pregnant",
-                  label: "Grossesse",
-                  desc: "Fer 27 mg, B9 (folates) 600 µg.",
-                  value: isPregnant,
-                  set: setIsPregnant,
-                },
-                {
-                  key: "menopausal",
-                  label: "Ménopause",
-                  desc: "Calcium 1200 mg, Fer abaissé à 8 mg.",
-                  value: isMenopausal,
-                  set: setIsMenopausal,
-                },
-              ].map((item) => (
-                <div key={item.key} className="flex items-start gap-3 bg-accent/40 rounded-xl p-3">
-                  <div className="flex-1 min-w-0">
-                    <div className="text-sm font-medium">{item.label}</div>
-                    <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+              <div className="space-y-3">
+                {[
+                  {
+                    key: "athlete",
+                    label: "Sportif·ve régulier·ère",
+                    desc: "Augmente Magnésium, Zinc, Sodium, Vit. C/E, B12, Oméga-3.",
+                    value: isAthlete,
+                    set: setIsAthlete,
+                  },
+                  {
+                    key: "smoker",
+                    label: "Fumeur·euse",
+                    desc: "Augmente Vit. C (+35 mg) et Vit. E (+2 mg).",
+                    value: isSmoker,
+                    set: setIsSmoker,
+                  },
+                  {
+                    key: "pregnant",
+                    label: "Grossesse",
+                    desc: "Fer 27 mg, B9 (folates) 600 µg.",
+                    value: isPregnant,
+                    set: setIsPregnant,
+                  },
+                  {
+                    key: "menopausal",
+                    label: "Ménopause",
+                    desc: "Calcium 1200 mg, Fer abaissé à 8 mg.",
+                    value: isMenopausal,
+                    set: setIsMenopausal,
+                  },
+                ].map((item) => (
+                  <div key={item.key} className="flex items-start gap-3 bg-accent/40 rounded-xl p-3">
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{item.label}</div>
+                      <div className="text-[10px] text-muted-foreground mt-0.5">{item.desc}</div>
+                    </div>
+                    <Switch checked={item.value} onCheckedChange={item.set} />
                   </div>
-                  <Switch checked={item.value} onCheckedChange={item.set} />
-                </div>
-              ))}
-            </div>
-          </section>
+                ))}
+              </div>
+            </section>
           </>
         )}
 
@@ -1349,8 +1343,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <AppPermissionsSettings />
 
             <MealCardSettings />
-
-
           </>
         )}
 
@@ -1361,7 +1353,6 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
             <AdminUsersPanel userId={userId} />
           </>
         )}
-
 
         {/* Save button at bottom of every sub-page */}
         {subPage !== null && (
@@ -1379,4 +1370,4 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
   );
 };
 
-export default ProfilePage;
+export default ProfilePage;     
