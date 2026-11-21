@@ -67,6 +67,7 @@ class SportSamplesPlugin : Plugin() {
     }
 
     /** Extended history: measured active energy inside approved exercise sessions only. */
+    /** Extended history: measured active energy inside approved exercise sessions only. */
     @PluginMethod
     fun readHistorySamples(call: PluginCall) {
         val start = call.getString("startDate") ?: return call.reject("startDate required")
@@ -79,6 +80,7 @@ class SportSamplesPlugin : Plugin() {
                     call.reject("History, active energy and exercise permissions required")
                     return@launch
                 }
+                val allowedOrigins = sources.map { DataOrigin(it) }.toSet()
                 val out = JSArray()
                 var token: String? = null
                 do {
@@ -91,14 +93,14 @@ class SportSamplesPlugin : Plugin() {
                         val aggregate = c.aggregate(AggregateRequest(
                             metrics = setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
                             timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime),
-                            dataOriginFilter = setOf(session.metadata.dataOrigin)
+                            dataOriginFilter = allowedOrigins
                         ))
                         val energy = aggregate[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
-                        // Missing energy remains missing; never invent a zero.
                         if (energy != null) out.put(JSObject()
                             .put("source_package", session.metadata.dataOrigin.packageName)
                             .put("source_name", session.metadata.dataOrigin.packageName)
-                            .put("start_time", session.startTime.toString()).put("end_time", session.endTime.toString())
+                            .put("start_time", session.startTime.toString())
+                            .put("end_time", session.endTime.toString())
                             .put("value_kcal", energy))
                     }
                     token = response.pageToken
