@@ -42,6 +42,7 @@ import { initWidgetDeepLinks, consumePendingIntent, WIDGET_INTENT_EVENT, type Wi
 import { toast } from "@/hooks/use-toast";
 import { resolveWidgetTheme, COLORS_CHANGED_EVENT } from "@/lib/themeColors";
 import { useBackHandler } from "@/lib/backNavigation";
+import { useHasUpdate } from "@/services/appUpdate";
 
 
 
@@ -110,7 +111,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
   const [customCharts, setCustomCharts] = useState<any[]>([]);
   const [todayMicros, setTodayMicros] = useState<Record<string, number>>({});
   const [weekMicros, setWeekMicros] = useState<Record<string, number>>({});
-
+  const hasUpdate = useHasUpdate();
+  
   // État IA : onboarding (nouvel utilisateur) + rappel si aucune IA fonctionnelle.
   const [aiReady, setAiReady] = useState(true);
   const [showOnboarding, setShowOnboarding] = useState(false);
@@ -662,8 +664,11 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
-            <Button aria-label="Profil" variant="ghost" size="icon" onClick={() => setShowProfile(true)}>
+            <Button aria-label="Profil" variant="ghost" size="icon" className="relative" onClick={() => setShowProfile(true)}>
               <User className="w-5 h-5 text-muted-foreground" />
+              {hasUpdate && (
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
+              )}
             </Button>
             <button onClick={handleLogout} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <LogOut className="w-5 h-5 text-muted-foreground" />
