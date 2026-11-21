@@ -21,6 +21,22 @@ export interface SportSample {
   recorded_date: string; // YYYY-MM-DD local
 }
 
+/** Read all pages; missing days stay absent rather than becoming measured zeros. */
+export async function loadSportCaloriesByDate(userId: string, from: string, to: string, allowed: string[]): Promise<Record<string, number>> {
+  if (!allowed.length) return {};
+  const byDay: Record<string, SportSample[]> = {};
+  for (let offset = 0; ; offset += 500) {
+    const { data, error } = await supabase.from("sport_activity_samples")
+      .select("source_package, start_time, end_time, value_kcal, recorded_date")
+      .eq("user_id", userId).gte("recorded_date", from).lte("recorded_date", to)
+      .in("source_package", allowed).order("start_time").order("id").range(offset, offset + 499);
+    if (error) throw error;
+    for (const sample of data ?? []) (byDay[sample.recorded_date] ||= []).push(sample);
+    if (!data || data.length < 500) break;
+  }
+  return Object.fromEntries(Object.entries(byDay).map(([date, rows]) => [date, aggregateSportCalories(rows, allowed)]));
+}
+
 /** Agrège les kcal d'un set de samples (un jour donné) après filtrage par sources
  *  autorisées et dédoublonnage temporel (chevauchements → on garde le max). */
 export function aggregateSportCalories(

@@ -6,7 +6,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import { calculateScientificGoals } from "@/utils/goals-calc";
 import { differenceInYears, format } from "date-fns";
-import { createThrottledHealthSync } from "./foregroundHealthSync";
+import { createThrottledHealthSync, runHealthImport } from "./foregroundHealthSync";
 import {
   computeSmoothedDailySport,
   type SportSample,
@@ -430,8 +430,10 @@ export const autoSyncHealthData = createThrottledHealthSync(async (userId: strin
     if (!available) return;
     const authorized = await checkHealthPermissions();
     if (!authorized) return;
-    const data = await readNativeHealthData(30);
-    await syncHealthData(userId, data, prefs);
+    await runHealthImport(userId, async () => {
+      const data = await readNativeHealthData(30);
+      await syncHealthData(userId, data, prefs);
+    });
   } catch (e) {
     console.warn("[health] autoSyncHealthData failed", e);
   }

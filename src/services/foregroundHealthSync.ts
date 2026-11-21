@@ -2,6 +2,18 @@ import { App } from "@capacitor/app";
 
 export const HEALTH_SYNC_INTERVAL_MS = 60_000;
 
+const imports = new Map<string, { started: number; running: boolean }>();
+/** Shared by extended imports and foreground imports; never overlap writes. */
+export async function runHealthImport<T>(userId: string, task: () => Promise<T>): Promise<T> {
+  const previous = imports.get(userId);
+  if (previous?.running || (previous && Date.now() - previous.started < HEALTH_SYNC_INTERVAL_MS)) {
+    throw new Error("Une synchronisation est en cours ou vient de se terminer. Réessayez dans une minute.");
+  }
+  const state = { started: Date.now(), running: true };
+  imports.set(userId, state);
+  try { return await task(); } finally { state.running = false; }
+}
+
 /** Per-user single flight and start-time throttle, shared across dashboard mounts. */
 export function createThrottledHealthSync(sync: (userId: string) => Promise<void>, now = Date.now) {
   const states = new Map<string, { started: number; running?: Promise<void> }>();

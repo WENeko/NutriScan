@@ -6,6 +6,8 @@
 - Gallery timestamps preserve EXIF local wall time with file-date fallback; camera capture does not inherit gallery dates.
 - Evolution charts share a numeric local-date timeline, visible domain, ticks and plot margins; join body measurements by date with null gaps so session markers never depend on weigh-ins.
 - Store day-type exceptions in `training_day_overrides` by user and local date; derive only that day's cycling coefficient from existing same-type routine days (neutral if absent), never mutate the weekly routine, redistribute other days or infer meal workout context.
+- Share dated-goal resolution across calendar/charts: exact snapshots are already cycled, exceptions and missing dates use base goals; the live weekly budget sums seven independently cycled dates to prevent forward-fill drift.
+- Extended sport imports read paginated approved exercise sessions and their source-filtered active energy, using the shared import guard; never import basal energy or rewrite body measurements/goals during historical backfill.
 
 - Keep IQM calculations pure in `src/utils/metabolic-quality.ts`; unknown nutrients remain unknown and coverage accompanies provisional scores so missing records never become fabricated measurements.
 - Persist meal workout contexts and the IQM preset independently of calorie goals; derive IQM from current ingredients using observed nutrient sums with per-nutrient ingredient coverage and provisional scores. Partial sums never become complete totals, derived remainders or deficits; never infer carbohydrate catalogue conventions.

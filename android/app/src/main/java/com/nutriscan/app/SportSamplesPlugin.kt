@@ -2,6 +2,7 @@ package com.nutriscan.app
 
 import androidx.activity.result.ActivityResult
 import androidx.health.connect.client.HealthConnectClient
+import androidx.health.connect.client.HealthConnectFeatures
 import androidx.health.connect.client.PermissionController
 import androidx.health.connect.client.permission.HealthPermission
 import androidx.health.connect.client.records.ActiveCaloriesBurnedRecord
@@ -35,6 +36,77 @@ class SportSamplesPlugin : Plugin() {
     private val activePerm = HealthPermission.getReadPermission(ActiveCaloriesBurnedRecord::class)
     private val totalPerm  = HealthPermission.getReadPermission(TotalCaloriesBurnedRecord::class)
     private val exoPerm    = HealthPermission.getReadPermission(ExerciseSessionRecord::class)
+    private val historyPerm = HealthPermission.PERMISSION_READ_HEALTH_DATA_HISTORY
+
+    @PluginMethod
+    fun historyStatus(call: PluginCall) {
+        val c = client() ?: return call.resolve(JSObject().put("available", false).put("supported", false).put("granted", false))
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                val supported = c.features.getFeatureStatus(HealthConnectFeatures.FEATURE_READ_HEALTH_DATA_HISTORY) == HealthConnectFeatures.FEATURE_STATUS_AVAILABLE
+                val permissions = c.permissionController.getGrantedPermissions()
+                call.resolve(JSObject().put("available", true).put("supported", supported)
+                    .put("granted", permissions.containsAll(setOf(historyPerm, activePerm, exoPerm))))
+            } catch (e: Exception) { call.reject(e.message ?: "History permission check failed", e) }
+        }
+    }
+
+    @PluginMethod
+    fun requestHistoryPermission(call: PluginCall) {
+        try {
+            val contract = PermissionController.createRequestPermissionResultContract()
+            startActivityForResult(call, contract.createIntent(context, setOf(historyPerm, activePerm, exoPerm)), "historyPermResult")
+        } catch (e: Exception) { call.reject(e.message ?: "History permission request failed", e) }
+    }
+
+    @ActivityCallback
+    private fun historyPermResult(call: PluginCall?, result: ActivityResult) {
+        if (call == null) return
+        val granted = PermissionController.createRequestPermissionResultContract().parseResult(result.resultCode, result.data)
+        call.resolve(JSObject().put("granted", granted.containsAll(setOf(historyPerm, activePerm, exoPerm))))
+    }
+
+    /** Extended history: measured active energy inside approved exercise sessions only. */
+    @PluginMethod
+    fun readHistorySamples(call: PluginCall) {
+        val start = call.getString("startDate") ?: return call.reject("startDate required")
+        val end = call.getString("endDate") ?: return call.reject("endDate required")
+        val sources = call.getArray("sources")?.toList()?.map { it.toString() }?.toSet() ?: emptySet()
+        val c = client() ?: return call.reject("Health Connect unavailable")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                if (!c.permissionController.getGrantedPermissions().containsAll(setOf(historyPerm, activePerm, exoPerm))) {
+                    call.reject("History, active energy and exercise permissions required")
+                    return@launch
+                }
+                val out = JSArray()
+                var token: String? = null
+                do {
+                    val response = c.readRecords(ReadRecordsRequest(
+                        recordType = ExerciseSessionRecord::class,
+                        timeRangeFilter = TimeRangeFilter.between(Instant.parse(start), Instant.parse(end)),
+                        pageToken = token
+                    ))
+                    response.records.filter { sources.contains(it.metadata.dataOrigin.packageName) }.forEach { session ->
+                        val aggregate = c.aggregate(AggregateRequest(
+                            metrics = setOf(ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL),
+                            timeRangeFilter = TimeRangeFilter.between(session.startTime, session.endTime),
+                            dataOriginFilter = setOf(session.metadata.dataOrigin)
+                        ))
+                        val energy = aggregate[ActiveCaloriesBurnedRecord.ACTIVE_CALORIES_TOTAL]?.inKilocalories
+                        // Missing energy remains missing; never invent a zero.
+                        if (energy != null) out.put(JSObject()
+                            .put("source_package", session.metadata.dataOrigin.packageName)
+                            .put("source_name", session.metadata.dataOrigin.packageName)
+                            .put("start_time", session.startTime.toString()).put("end_time", session.endTime.toString())
+                            .put("value_kcal", energy))
+                    }
+                    token = response.pageToken
+                } while (token != null)
+                call.resolve(JSObject().put("samples", out))
+            } catch (e: Exception) { call.reject(e.message ?: "Sport history read failed", e) }
+        }
+    }
 
     private fun client(): HealthConnectClient? = try {
         if (HealthConnectClient.getSdkStatus(context) == HealthConnectClient.SDK_AVAILABLE)

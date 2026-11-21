@@ -5,6 +5,7 @@ import { getPersonalizedMicroGoals, getMicroInfo, getCustomMicroInfo, type UserP
 import { resolveMicroGoals, type MicroOverrides } from "@/utils/nutrition-logic";
 import { getIsoDayIndex, type CalorieCycling } from "@/utils/goals-calc";
 import { applyDayCycling, buildWeekStrip, nextDayChoice, type DayType } from "@/utils/day-cycling";
+import { weeklyGoals } from "@/utils/dated-goals";
 import { readFirstSessionToday } from "@/services/training-days";
 import { Button } from "@/components/ui/button";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
@@ -213,6 +214,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
       setTargetBodyFat((profile as any).target_body_fat_percent ? Number((profile as any).target_body_fat_percent) : null);
       setTargetMuscleMass((profile as any).target_muscle_mass_kg ? Number((profile as any).target_muscle_mass_kg) : null);
       setUserProfile({
+        goals: g,
         gender: profile.gender,
         age: profile.age,
         weight_kg: currentWeight,
@@ -283,39 +285,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         .from("goals_history")
         .upsert(todaySnap, { onConflict: "user_id,recorded_at" });
 
-      // === Budget hebdo : somme des objectifs caloriques journaliers (forward-fill) ===
-      const { data: goalsHist } = await supabase
-        .from("goals_history")
-        .select("recorded_at, calories")
-        .eq("user_id", userId)
-        .lte("recorded_at", format(weekEnd, "yyyy-MM-dd"))
-        .order("recorded_at");
-      const histList = (goalsHist || []) as Array<{ recorded_at: string; calories: number }>;
-      let weeklyTarget = 0;
-      let elapsedTarget = 0;
-      let current: number | null = null;
-      // dernier snapshot antérieur au début de semaine
-      const weekStartStr = format(weekStart, "yyyy-MM-dd");
-      for (const h of histList) {
-        if (h.recorded_at < weekStartStr) current = Number(h.calories);
-        else break;
-      }
-      let hIdx = histList.findIndex((h) => h.recorded_at >= weekStartStr);
-      if (hIdx < 0) hIdx = histList.length;
-      for (let i = 0; i < 7; i++) {
-        const d = new Date(weekStart);
-        d.setDate(d.getDate() + i);
-        const key = format(d, "yyyy-MM-dd");
-        while (hIdx < histList.length && histList[hIdx].recorded_at <= key) {
-          current = Number(histList[hIdx].calories);
-          hIdx++;
-        }
-        const dailyGoal = current ?? baseCalories;
-        weeklyTarget += dailyGoal;
-        if (i < mondayBased) elapsedTarget += dailyGoal;
-      }
-      setWeeklyCalorieTarget(Math.round(weeklyTarget));
-      setWeeklyElapsedTarget(Math.round(elapsedTarget));
+      // Live weekly plan: each local date gets its own routine/exception.
+      const budget = weeklyGoals(baseGoals, cycling, now, currentWeight, wk);
+      setWeeklyCalorieTarget(budget.total);
+      setWeeklyElapsedTarget(budget.elapsed);
     }
 
     const todayStart = startOfDay(now);

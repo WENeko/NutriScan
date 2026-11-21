@@ -15,6 +15,8 @@ import {
   type HealthConnectPreferences,
 } from "@/services/health-connect";
 import { listDetectedSources } from "@/services/sport-calories";
+import { importSportHistory } from "@/services/sport-history";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { pingPersoBridge, isPersonalDbEnabled } from "@/services/mealPersistenceService";
 import { ensureUserInPersonalDB } from "@/services/databaseSyncService";
@@ -67,6 +69,22 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack, onSpo
   const [isConnected, setIsConnected] = useState(false);
   const [isChecking, setIsChecking] = useState(true);
   const [isSyncing, setIsSyncing] = useState(false);
+  const [historyMonths, setHistoryMonths] = useState("12");
+  const [historyProgress, setHistoryProgress] = useState<string | null>(null);
+  const handleHistory = async () => {
+    setIsSyncing(true);
+    setHistoryProgress("Import en cours…");
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error("Connectez-vous pour importer l’historique.");
+      const count = await importSportHistory(user.id, Number(historyMonths), (done, total) => setHistoryProgress(`Import : ${Math.round(done / total * 100)} %`));
+      setHistoryProgress(`${count} séance(s) avec calories disponibles importée(s).`);
+      toast({ title: "Historique sportif importé", description: `${count} séance(s) enregistrée(s).` });
+    } catch (error) {
+      setHistoryProgress(null);
+      toast({ title: "Import non terminé", description: error instanceof Error ? error.message : "Réessayez.", variant: "destructive" });
+    } finally { setIsSyncing(false); }
+  };
 
   useEffect(() => {
     checkAvailability();
@@ -298,6 +316,25 @@ const DataSourcesSettings: React.FC<DataSourcesSettingsProps> = ({ onBack, onSpo
 
       {/* Sources sportives détectées (dédoublonnage) */}
       {prefs.sync_calories && <SportSourcesCard onChange={onSportSourcesChange} />}
+      {prefs.sync_calories && (
+        <section className="space-y-3">
+          <h3 className="font-semibold text-sm">Historique sportif</h3>
+          <div className="flex gap-2">
+            <Select value={historyMonths} onValueChange={setHistoryMonths} disabled={isSyncing}>
+              <SelectTrigger className="w-28 shrink-0" aria-label="Période à importer"><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="3">3 mois</SelectItem>
+                <SelectItem value="6">6 mois</SelectItem>
+                <SelectItem value="12">1 an</SelectItem>
+              </SelectContent>
+            </Select>
+            <Button variant="outline" onClick={handleHistory} disabled={isSyncing || !isConnected} className="flex-1 h-auto whitespace-normal">
+              <RefreshCw className={`w-4 h-4 shrink-0 mr-2 ${isSyncing ? "animate-spin" : ""}`} />Importer l’historique
+            </Button>
+          </div>
+          {historyProgress && <p role="status" className="text-xs text-muted-foreground">{historyProgress}</p>}
+        </section>
+      )}
 
       {/* BDD perso — double sauvegarde */}
       <PersoBridgeCard />

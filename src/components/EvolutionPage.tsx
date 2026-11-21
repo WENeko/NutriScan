@@ -19,6 +19,10 @@ import { readSessionsInRange } from "@/services/training-days";
 import { sessionsByDate } from "@/utils/activity-calendar";
 import { alignBodyTimeline, localDayCoordinate, timelineTicks } from "@/utils/evolution-timeline";
 
+import { loadDatedGoals } from "@/services/dated-goals";
+import { loadSportCaloriesByDate } from "@/services/sport-calories";
+import { MACRO_COLORS } from "@/lib/macro-colors";
+
 const EMPTY_NUTRIENTS: CustomNutrientDef[] = [];
 const EMPTY_MICRO_OVERRIDES: MicroOverrides = {};
 const EMPTY_CHARTS: CustomChartConfig[] = [];
@@ -56,7 +60,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 
   useEffect(() => { 
     fetchData(); 
-  }, [userId, period, customNutrients, userProfile?.sport_allowed_sources]);
+  }, [userId, period, customNutrients, userProfile, calorieGoal, proteinGoal, carbsGoal, fatsGoal]);
 
   const fetchData = async () => {
     const today = new Date();
@@ -262,24 +266,18 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
     }));
 
     const sortedKeys = Object.keys(dayMap).sort();
-    let gIdx = 0;
-    let current: any = null;
-    for (let i = 0; i < goalsList.length; i++) {
-      if (goalsList[i].recorded_at <= sortedKeys[0]) current = goalsList[i];
-      else break;
-    }
-    while (gIdx < goalsList.length && goalsList[gIdx].recorded_at < sortedKeys[0]) gIdx++;
-
-    sortedKeys.forEach((key) => {
-      while (gIdx < goalsList.length && goalsList[gIdx].recorded_at <= key) {
-        current = goalsList[gIdx];
-        gIdx++;
-      }
-      const c = current;
-      dayMap[key].calorieGoal = c?.calories ?? calorieGoal;
-      dayMap[key].proteinGoal = c?.proteins ?? proteinGoal;
-      dayMap[key].carbsGoal = c?.carbs ?? carbsGoal;
-      dayMap[key].fatsGoal = c?.fats ?? fatsGoal;
+    const base = userProfile?.goals ?? { calories: calorieGoal, proteins: proteinGoal, carbs: carbsGoal, fats: fatsGoal };
+    const [targets, sportByDate] = await Promise.all([
+      loadDatedGoals(userId, sortedKeys, base, userProfile?.calorie_cycling ?? null, userProfile?.weight_kg ?? 70),
+      loadSportCaloriesByDate(userId, sortedKeys[0], sortedKeys[sortedKeys.length - 1], allowedSources),
+    ]);
+    sortedKeys.forEach(key => {
+      const goal = targets[key];
+      dayMap[key].calorieGoal = goal?.calories ?? null;
+      dayMap[key].proteinGoal = goal?.proteins ?? null;
+      dayMap[key].carbsGoal = goal?.carbs ?? null;
+      dayMap[key].fatsGoal = goal?.fats ?? null;
+      dayMap[key].sportCalories = sportByDate[key] ?? null;
     });
 
     setNutritionData(Object.values(dayMap));
@@ -468,7 +466,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
-              <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
+              <Line type="linear" dataKey="sportCalories" stroke={MACRO_COLORS.fat} strokeWidth={2} dot={false} name="Dépense sportive (kcal)" connectNulls={false} isAnimationActive={false} />
+              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Line type="stepAfter" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </ZoomPanArea>
