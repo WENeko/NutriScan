@@ -109,6 +109,7 @@ export interface NutritionUserProfile {
 
 /** Type legacy pour compatibilité avec les anciens composants (Dashboard.tsx) */
 export interface UserProfile {
+  goals?: { calories: number; proteins: number; carbs: number; fats: number };
   gender?: string | null;
   age?: number | null;
   weight_kg?: number | null;
