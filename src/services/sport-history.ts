@@ -44,8 +44,8 @@ export async function importSportHistory(userId: string, months: number, progres
       count += rows.length;
       done = Math.min(total, done + 7); progress(done, total);
       cursor = next;
-    } { force: true });
+    }
     window.dispatchEvent(new Event("nutriscan:health-refreshed"));
     return count;
-  });
+  }, { force: true });
 }
