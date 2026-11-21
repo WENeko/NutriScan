@@ -156,3 +156,20 @@ export async function downloadAndInstall(
     await handle?.remove();
   }
 }
+
+import { useState } from "react";
+
+export function useHasUpdate(): boolean {
+  const [hasUpdate, setHasUpdate] = useState(false);
+  useEffect(() => {
+    let active = true;
+    void checkForUpdate({ ignoreSkipped: true }).then((info) => {
+      if (active && info && info.versionCode > currentVersionCode()) {
+        setHasUpdate(true);
+      }
+    });
+    return () => { active = false; };
+  }, []);
+  return hasUpdate;
+}
+
