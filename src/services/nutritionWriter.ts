@@ -12,6 +12,7 @@
  */
 import { appLogger } from "./appLogger";
 import type { MealItemWithMicros } from "./mealPersistenceService";
+import { safeNutrient } from "@/utils/nutrient-value";
 
 const WINDOWS_KEY = "nutriscan-hc-write-windows";
 const ENABLED_KEY = "nutriscan-hc-nutrition-sync";
@@ -52,6 +53,7 @@ export function syncNutritionFlagToNative() {
 
 interface WriteWindow {
   startTime: string;
+  clientRecordId?: string;
 }
 
 function getPlugin(): any | null {
@@ -69,7 +71,7 @@ function deriveMealType(timestampIso: string): string {
 }
 
 function sumItems(items: MealItemWithMicros[] | undefined | null) {
-  const n = (it: any, k: string) => Number(it?.[k]) || 0;
+  const n = (it: any, k: string) => safeNutrient(it?.[k]);
   const list = items || [];
   return {
     fiber: list.reduce((s, it) => s + n(it, "fiber"), 0),
@@ -89,7 +91,8 @@ function sumItems(items: MealItemWithMicros[] | undefined | null) {
   };
 }
 
-function buildPayload(
+export function buildPayload(
+  mealId: string,
   mealData: {
     meal_name: string;
     total_calories: number;
@@ -104,19 +107,21 @@ function buildPayload(
   // Une duplication est horodatée à l'instant même : l'ancien intervalle
   // [timestamp, timestamp + 1 min] était donc systématiquement rejeté.
   // Le timestamp du repas représente désormais la fin de l'intervalle.
-  const mealTime = new Date(mealData.timestamp || new Date().toISOString());
+  const parsedTime = new Date(mealData.timestamp || new Date().toISOString());
+  const mealTime = Number.isFinite(parsedTime.getTime()) ? parsedTime : new Date();
   const end = new Date(Math.min(mealTime.getTime(), Date.now()));
   const start = new Date(end.getTime() - 60_000);
   const startIso = start.toISOString();
   const s = sumItems(items);
   return {
+    mealId,
     startTime: startIso,
     endTime: end.toISOString(),
-    kcal: Number(mealData.total_calories) || 0,
+    kcal: safeNutrient(mealData.total_calories),
     kcalFromFat: 0,
-    proteinGrams: Number(mealData.total_proteins) || 0,
-    totalCarbohydrateGrams: Number(mealData.total_carbs) || 0,
-    totalFatGrams: Number(mealData.total_fats) || 0,
+    proteinGrams: safeNutrient(mealData.total_proteins),
+    totalCarbohydrateGrams: safeNutrient(mealData.total_carbs),
+    totalFatGrams: safeNutrient(mealData.total_fats),
     dietaryFiberGrams: s.fiber,
     sugarGrams: s.sugar,
     saturatedFatGrams: s.saturated_fat,
@@ -222,11 +227,11 @@ export async function writeMealToHealthConnect(
         return false;
       }
     }
-    const payload = buildPayload(mealData, items);
+    const payload = buildPayload(mealId, mealData, items);
     const res = await p.writeMeal(payload);
     if (res?.ok) {
       const map = readWindows();
-      map[mealId] = { startTime: payload.startTime };
+      map[mealId] = { startTime: payload.startTime, clientRecordId: `nutriscan_meal_${mealId}` };
       writeWindows(map);
       appLogger.info("NutritionWriter", "écrit", { mealId, context, kcal: payload.kcal, startTime: payload.startTime });
       return true;
@@ -269,13 +274,13 @@ export async function resyncMealToHealthConnect(
     }
     const map = readWindows();
     const old = map[mealId];
-    if (old) {
+    if (old && !old.clientRecordId) {
       await p.deleteMealWindow(deleteWindowFor(old.startTime));
     }
-    const payload = buildPayload(mealData, items);
+    const payload = buildPayload(mealId, mealData, items);
     const res = await p.writeMeal(payload);
     if (res?.ok) {
-      map[mealId] = { startTime: payload.startTime };
+      map[mealId] = { startTime: payload.startTime, clientRecordId: `nutriscan_meal_${mealId}` };
       writeWindows(map);
       appLogger.info("NutritionWriter", "resync ok", { mealId });
     } else {
@@ -295,9 +300,9 @@ export async function deleteMealFromHealthConnect(
   if (!p) return;
   try {
     const map = readWindows();
+    await p.deleteMealById({ mealId });
     const old = map[mealId] || (timestampIso ? { startTime: timestampIso } : null);
-    if (!old) return;
-    await p.deleteMealWindow(deleteWindowFor(old.startTime));
+    if (old && !old.clientRecordId) await p.deleteMealWindow(deleteWindowFor(old.startTime));
     delete map[mealId];
     writeWindows(map);
     appLogger.info("NutritionWriter", "supprimé", { mealId });

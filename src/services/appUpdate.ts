@@ -157,7 +157,7 @@ export async function downloadAndInstall(
   }
 }
 
-import { useState } from "react";
+import { useState, useEffect } from "react";
 
 export function useHasUpdate(): boolean {
   const [hasUpdate, setHasUpdate] = useState(false);

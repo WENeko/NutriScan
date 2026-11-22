@@ -81,7 +81,10 @@ class NutritionWriterPlugin : Plugin() {
         }
     }
 
-    private fun d(call: PluginCall, key: String): Double = call.getDouble(key) ?: 0.0
+    private fun d(call: PluginCall, key: String): Double {
+        val value = call.getDouble(key) ?: 0.0
+        return if (value.isFinite() && value >= 0.0) value else 0.0
+    }
 
     /** Mass en grammes, null si valeur nulle (champ optionnel non écrit). */
     private fun g(call: PluginCall, key: String): Mass? {
@@ -113,6 +116,8 @@ class NutritionWriterPlugin : Plugin() {
         val c = client()
             ?: return call.resolve(JSObject().put("ok", false).put("error", "unavailable"))
         val endIso = call.getString("endTime")
+        val mealId = call.getString("mealId")?.takeIf { it.isNotBlank() }
+            ?: return call.reject("mealId required")
 
         CoroutineScope(Dispatchers.IO).launch {
             try {
@@ -120,17 +125,22 @@ class NutritionWriterPlugin : Plugin() {
                     call.resolve(JSObject().put("ok", false).put("error", "no_permission"))
                     return@launch
                 }
-                val start = Instant.parse(startIso)
-                var end = if (endIso != null) Instant.parse(endIso) else start.plusSeconds(60)
+                var start = Instant.parse(startIso)
+                val requestedEnd = if (endIso != null) Instant.parse(endIso) else start.plusSeconds(60)
+                val now = Instant.now()
+                val end = if (requestedEnd.isAfter(now)) now else requestedEnd
                 // NutritionRecord exige startTime < endTime.
-                if (!start.isBefore(end)) end = start.plusSeconds(60)
+                if (!start.isBefore(end)) start = end.minusSeconds(60)
 
                 val record = NutritionRecord(
                     startTime = start,
                     startZoneOffset = null,
                     endTime = end,
                     endZoneOffset = null,
-                    metadata = Metadata.manualEntry(),
+                    metadata = Metadata.manualEntry(
+                        clientRecordId = "nutriscan_meal_$mealId",
+                        clientRecordVersion = System.currentTimeMillis(),
+                    ),
                     energy = kcal(call, "kcal"),
                     energyFromFat = kcal(call, "kcalFromFat"),
                     protein = g(call, "proteinGrams"),
@@ -159,6 +169,20 @@ class NutritionWriterPlugin : Plugin() {
                 call.resolve(
                     JSObject().put("ok", false).put("error", e.message ?: "write failed")
                 )
+            }
+        }
+    }
+
+    @PluginMethod
+    fun deleteMealById(call: PluginCall) {
+        val mealId = call.getString("mealId") ?: return call.reject("mealId required")
+        val c = client() ?: return call.reject("Health Connect unavailable")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                c.deleteRecords(NutritionRecord::class, emptyList(), listOf("nutriscan_meal_$mealId"))
+                call.resolve(JSObject().put("ok", true))
+            } catch (e: Exception) {
+                call.reject(e.message ?: "delete failed", e)
             }
         }
     }

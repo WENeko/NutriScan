@@ -28,6 +28,7 @@ import NutritionQuality from "./NutritionQuality";
 import WorkoutContextPicker from "./WorkoutContextPicker";
 import { qualityNutrientMeasurements, normalizeSportPreset, type UserPreset, type WorkoutContext } from "@/utils/metabolic-quality";
 import { resolveCloudChoice } from "@/services/hybrid/cloudHybridService";
+import { observedNutrient, safeNutrient } from "@/utils/nutrient-value";
 
 // --- CONFIGURATION SUPABASE PERSONNEL ---
 const PERSONAL_SUPABASE_URL = import.meta.env.VITE_PERSONAL_SUPABASE_URL;
@@ -86,7 +87,7 @@ interface MealItem {
   choices?: string[];
 }
 
-const knownNutrient = (value: unknown): number | undefined => value == null || value === "" || !Number.isFinite(Number(value)) ? undefined : Number(value);
+const knownNutrient = observedNutrient;
 const scaledNutrient = (value: unknown, factor: number) => { const n = knownNutrient(value); return n === undefined ? undefined : Math.round(n * factor * 10) / 10; };
 
 const roundNutrient = (value: number) => Math.round(value * 10) / 10;
@@ -763,10 +764,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
   const computeTotals = () =>
     items.reduce(
       (acc, item) => ({
-        calories: acc.calories + Number(item.calories),
-        proteins: acc.proteins + Number(item.proteins),
-        carbs: acc.carbs + Number(item.carbs),
-        fats: acc.fats + Number(item.fats),
+        calories: acc.calories + safeNutrient(item.calories),
+        proteins: acc.proteins + safeNutrient(item.proteins),
+        carbs: acc.carbs + safeNutrient(item.carbs),
+        fats: acc.fats + safeNutrient(item.fats),
       }),
       { calories: 0, proteins: 0, carbs: 0, fats: 0 }
     );
@@ -817,10 +818,10 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
         items: items.map(item => ({
           food_name: item.name,
           name: item.name,
-          calories: Number(item.calories),
-          proteins: Number(item.proteins),
-          carbs: Number(item.carbs),
-          fats: Number(item.fats),
+          calories: safeNutrient(item.calories),
+          proteins: safeNutrient(item.proteins),
+          carbs: safeNutrient(item.carbs),
+          fats: safeNutrient(item.fats),
           fiber: knownNutrient(item.fiber),
           sugar: knownNutrient(item.sugar),
           sodium_mg: knownNutrient(item.sodium_mg),

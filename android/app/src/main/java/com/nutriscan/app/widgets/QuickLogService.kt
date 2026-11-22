@@ -142,7 +142,7 @@ class QuickLogService : Service() {
       val start = end.minusSeconds(60)
       fun g(k: String, div: Double = 1.0): androidx.health.connect.client.units.Mass? {
         val v = meal.optDouble(k, 0.0) / div
-        return if (v > 0.0) androidx.health.connect.client.units.Mass.grams(v) else null
+        return if (v.isFinite() && v > 0.0) androidx.health.connect.client.units.Mass.grams(v) else null
       }
       val kcal = meal.optDouble("calories", 0.0)
       val hour = java.util.Calendar.getInstance().get(java.util.Calendar.HOUR_OF_DAY)
@@ -155,8 +155,11 @@ class QuickLogService : Service() {
       val record = androidx.health.connect.client.records.NutritionRecord(
         startTime = start, startZoneOffset = null,
         endTime = end, endZoneOffset = null,
-        metadata = androidx.health.connect.client.records.metadata.Metadata.manualEntry(),
-        energy = if (kcal > 0) androidx.health.connect.client.units.Energy.kilocalories(kcal) else null,
+        metadata = androidx.health.connect.client.records.metadata.Metadata.manualEntry(
+          clientRecordId = "nutriscan_meal_$mealId",
+          clientRecordVersion = System.currentTimeMillis(),
+        ),
+        energy = if (kcal.isFinite() && kcal > 0) androidx.health.connect.client.units.Energy.kilocalories(kcal) else null,
         protein = g("proteins"),
         totalCarbohydrate = g("carbs"),
         totalFat = g("fats"),
@@ -171,7 +174,7 @@ class QuickLogService : Service() {
       val prefs = app.getSharedPreferences("NutriScanWidget", Context.MODE_PRIVATE)
       val map = runCatching { JSONObject(prefs.getString("hc_written_windows", "{}") ?: "{}") }
         .getOrDefault(JSONObject())
-      map.put(mealId, JSONObject().put("startTime", start.toString()))
+      map.put(mealId, JSONObject().put("startTime", start.toString()).put("clientRecordId", "nutriscan_meal_$mealId"))
       prefs.edit().putString("hc_written_windows", map.toString()).apply()
     }
   }

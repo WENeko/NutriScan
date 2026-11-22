@@ -13,7 +13,8 @@ import { Capacitor } from "@capacitor/core";
 import { Preferences } from "@capacitor/preferences";
 import { supabase } from "@/integrations/supabase/client";
 import { appLogger } from "./appLogger";
-import { isNutritionSyncEnabled, syncNutritionFlagToNative } from "./nutritionWriter";
+import { buildPayload as mealPayload, isNutritionSyncEnabled, syncNutritionFlagToNative } from "./nutritionWriter";
+import { safeNutrient } from "@/utils/nutrient-value";
 
 const WINDOWS_KEY = "nutriscan-hc-write-windows";
 const LOOKBACK_DAYS = 30;
@@ -22,6 +23,7 @@ const NATIVE_WRITTEN_KEY = "hc_written_windows";
 interface WriteWindow {
   startTime: string;
   sig?: string;
+  clientRecordId?: string;
 }
 
 function getPlugin(): any | null {
@@ -58,7 +60,7 @@ async function mergeNativeWindows(map: Record<string, WriteWindow>) {
   }
 }
 
-const num = (v: unknown) => Number(v) || 0;
+const num = safeNutrient;
 
 function signature(meal: any, items: any[]): string {
   const r = (v: unknown) => Math.round(num(v) * 10) / 10;
@@ -68,47 +70,8 @@ function signature(meal: any, items: any[]): string {
   ].join("|");
 }
 
-function mealType(iso: string) {
-  const h = new Date(iso).getHours();
-  if (h < 11) return "breakfast";
-  if (h < 16) return "lunch";
-  if (h < 18) return "snack";
-  return "dinner";
-}
-
-function micro(items: any[], key: string) {
-  return items.reduce((s, it) => s + num(it?.nutrients_std?.[key]), 0);
-}
-
 function buildPayload(meal: any, items: any[]) {
-  const t = new Date(meal.timestamp);
-  const end = new Date(Math.min(t.getTime(), Date.now()));
-  const start = new Date(end.getTime() - 60_000);
-  return {
-    startTime: start.toISOString(),
-    endTime: end.toISOString(),
-    kcal: num(meal.total_calories),
-    kcalFromFat: 0,
-    proteinGrams: num(meal.total_proteins),
-    totalCarbohydrateGrams: num(meal.total_carbs),
-    totalFatGrams: num(meal.total_fats),
-    dietaryFiberGrams: micro(items, "fiber"),
-    sugarGrams: micro(items, "sugar"),
-    saturatedFatGrams: micro(items, "saturated_fat"),
-    sodiumGrams: micro(items, "sodium_mg") / 1000,
-    potassiumGrams: micro(items, "potassium_mg") / 1000,
-    magnesiumGrams: micro(items, "magnesium_mg") / 1000,
-    calciumGrams: micro(items, "calcium_mg") / 1000,
-    ironGrams: micro(items, "iron_mg") / 1000,
-    zincGrams: micro(items, "zinc_mg") / 1000,
-    vitaminCGrams: micro(items, "vitamin_c_mg") / 1000,
-    vitaminDGrams: micro(items, "vitamin_d_mcg") / 1_000_000,
-    folateGrams: micro(items, "vitamin_b9_mcg") / 1_000_000,
-    vitaminB12Grams: micro(items, "vitamin_b12_mcg") / 1_000_000,
-    vitaminEGrams: micro(items, "vitamin_e_mg") / 1000,
-    name: meal.meal_name || "Repas NutriScan",
-    mealType: mealType(end.toISOString()),
-  };
+  return mealPayload(meal.id, meal, items.map(it => it.nutrients_std ?? {}));
 }
 
 function deleteWindow(startIso: string) {
@@ -172,11 +135,11 @@ async function doReconcile() {
       continue;
     }
     try {
-      if (existing) await p.deleteMealWindow(deleteWindow(existing.startTime));
+      if (existing && !existing.clientRecordId) await p.deleteMealWindow(deleteWindow(existing.startTime));
       const payload = buildPayload(meal, items);
       const res = await p.writeMeal(payload);
       if (res?.ok) {
-        map[meal.id] = { startTime: payload.startTime, sig };
+        map[meal.id] = { startTime: payload.startTime, sig, clientRecordId: `nutriscan_meal_${meal.id}` };
         existing ? updated++ : written++;
       }
     } catch (e) {
@@ -192,7 +155,8 @@ async function doReconcile() {
       continue;
     }
     try {
-      await p.deleteMealWindow(deleteWindow(w.startTime));
+      if (w.clientRecordId) await p.deleteMealById({ mealId: id });
+      else await p.deleteMealWindow(deleteWindow(w.startTime));
       delete map[id];
       removed++;
     } catch { /* retenté au prochain passage */ }

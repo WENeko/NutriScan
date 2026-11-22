@@ -1,4 +1,6 @@
 # Project rules
+- NutritionWriter uses stable meal clientRecordIds and increasing versions for upserts; delete by identity, retaining window cleanup only for legacy records. This prevents retry/reinstall duplicates.
+- Parse meal decimals through nutrient-value; preserve absent micros and sanitize required macros before totals and persistence to avoid invalid numeric writes.
 - Generate evolution PDFs from report data with paginated tables and print tokens; prepare blobs before clicks to preserve browser activation. Download uses browser downloads or Android MediaStore (document picker before Android 10); only explicit Share actions use native cache/share. WebView printing is unreliable.
 - Enrich the existing coach routing with current ingredient IQM and rank only known library portions within the calorie budget; compute comparable gains with the pure IQM engine, never from generated nutrition.
 - Evolution reports use exact dated goal snapshots (already cycled), any computed IQM (partial coverage accepted, shown as provisional) and actual within-week body deltas; label correlations descriptive and leave unavailable values blank to avoid invented historical measurements.

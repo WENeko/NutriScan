@@ -1,6 +1,9 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Corriger le démarrage, les nouveaux doublons Santé Connect et la conversion des nutriments ; changelog actualisé, 208 tests réussis et accueil connecté sans exception
+- [ ] Valider le parcours complet d’un repas — compte de test sans IA configurée et caméra absente ; conversion/envoi testés automatiquement, aliment décimal sauvegardé et relu
+- [ ] Valider envoi et dédoublonnage réels Santé Connect — appareil Android et nouvel APK nécessaires
 - [ ] Corriger les cibles par date dans Évolution/calendrier et la somme hebdomadaire, avec exceptions sans double cyclage des snapshots
 - [ ] Ajouter la courbe sportive et l’import historique des sources approuvées, avec permission Android et pagination
 - [ ] Mettre à jour le changelog et vérifier calculs/parcours ; validation native sur appareil à réaliser

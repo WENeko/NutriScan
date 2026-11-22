@@ -1,6 +1,17 @@
 {
   "changes": [
     {
+      "id": "2026-11-22-startup-nutrition-sync-fixes",
+      "sections": [{
+        "title": "Démarrage et enregistrement des repas",
+        "items": [
+          "Correction de l’écran blanc au démarrage lié aux pastilles de mise à jour.",
+          "Les nouveaux envois de repas à Santé Connect utilisent un identifiant stable pour éviter les doublons après un renvoi ou une réinstallation. Les doublons anciens ne sont pas supprimés automatiquement.",
+          "Les valeurs saisies avec une virgule sont acceptées ; les valeurs invalides sont sécurisées avant l’enregistrement, sans compléter les micronutriments inconnus."
+        ]
+      }]
+    },
+    {
       "id": "2026-11-21-dated-cycling-sport-history",
       "sections": [{
         "title": "Objectifs et historique sportif",
