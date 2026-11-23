@@ -619,14 +619,14 @@ const ProfilePage: React.FC<ProfilePageProps> = ({ userId, onBack }) => {
                     <div className="w-10 h-10 rounded-xl nutri-gradient flex items-center justify-center flex-shrink-0 relative">
                       <Icon className="w-5 h-5 text-primary-foreground" />
                       {item.id === "settings" && hasUpdate && (
-                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-destructive border-2 border-background animate-pulse" />
+                        <span className="absolute -top-1 -right-1 w-3 h-3 rounded-full bg-red-500 border-2 border-background shadow-[0_0_8px_rgba(239,68,68,0.9)] animate-pulse" />
                       )}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2">
                         <span className="text-sm font-display font-semibold">{item.label}</span>
                         {item.id === "settings" && hasUpdate && (
-                          <span className="text-[10px] font-bold uppercase tracking-wider bg-destructive/15 text-destructive px-2 py-0.5 rounded-full">
+                          <span className="text-[10px] font-bold uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/30 px-2 py-0.5 rounded-full">
                             MÀJ
                           </span>
                         )}
