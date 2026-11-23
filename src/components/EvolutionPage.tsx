@@ -461,13 +461,19 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                 labelFormatter={dateLabel}
               />
               {sessionLines}
-              <Bar dataKey="calories" radius={[4, 4, 0, 0]} isAnimationActive={false}>
+              <Bar dataKey="calories" name="Consommé" radius={[4, 4, 0, 0]} isAnimationActive={false}>
                 {visibleNutritionData.map((entry, index) => (
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
               <Line type="monotone" dataKey="sportCalories" stroke="none" dot={{ r: 4, fill: MACRO_COLORS.fat, stroke: "hsl(var(--card))", strokeWidth: 1.5 }} activeDot={{ r: 6, fill: MACRO_COLORS.fat }} legendType="circle" name="Dépense sportive (kcal)" connectNulls={false} isAnimationActive={false} />
-              <Legend wrapperStyle={{ fontSize: 10 }} />
+              <Legend wrapperStyle={{ fontSize: 10 }} content={() => (
+                <div className="flex flex-wrap items-center justify-center gap-x-4 gap-y-1 pt-1 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-sm" style={{ background: "rgba(16, 185, 129, 0.4)" }} />Consommé</span>
+                  <span className="flex items-center gap-1.5"><span className="inline-block h-2.5 w-2.5 rounded-full" style={{ background: MACRO_COLORS.fat }} />Dépense sportive (kcal)</span>
+                  <span className="flex items-center gap-1.5"><svg width="16" height="4"><line x1="0" y1="2" x2="16" y2="2" stroke="hsl(var(--primary))" strokeWidth="2" strokeDasharray="3 3" /></svg>Objectif</span>
+                </div>
+              )} />
               <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
