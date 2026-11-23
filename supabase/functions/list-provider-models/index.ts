@@ -70,6 +70,11 @@ serve(async (req) => {
     const endpoint = models_endpoint && /models\s*$/.test(models_endpoint) ? models_endpoint : "/models";
     const headers: Record<string, string> = { "Content-Type": "application/json", Accept: "application/json" };
     if (key) headers.Authorization = `Bearer ${key}`;
+    if (/openrouter\.ai/i.test(base_url)) {
+      headers["HTTP-Referer"] = "https://calorie-capture-clever.lovable.app";
+      headers["X-Title"] = "NutriScan";
+    }
+
 
     // GitHub Models : l'ancien hôte Azure est hors service et le catalogue vit
     // sur une URL dédiée (hors préfixe /inference).
