@@ -667,8 +667,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <Button aria-label="Profil" variant="ghost" size="icon" className="relative" onClick={() => setShowProfile(true)}>
               <User className="w-5 h-5 text-muted-foreground" />
               {hasUpdate && (
-                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-destructive animate-pulse" />
-              )}
+                <span className="absolute top-1.5 right-1.5 w-2.5 h-2.5 rounded-full bg-red-500 ring-2 ring-background shadow-[0_0_8px_rgba(239,68,68,0.9)] animate-pulse" />              )}
             </Button>
             <button onClick={handleLogout} className="p-2 rounded-xl hover:bg-muted transition-colors">
               <LogOut className="w-5 h-5 text-muted-foreground" />
