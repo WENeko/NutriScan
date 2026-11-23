@@ -466,9 +466,9 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                   <Cell key={`cell-${index}`} fill={activeIndex === index ? "hsl(var(--primary))" : "rgba(16, 185, 129, 0.4)"} />
                 ))}
               </Bar>
-              <Line type="linear" dataKey="sportCalories" stroke={MACRO_COLORS.fat} strokeWidth={2} dot={false} name="Dépense sportive (kcal)" connectNulls={false} isAnimationActive={false} />
+              <Line type="monotone" dataKey="sportCalories" stroke="none" dot={{ r: 4, fill: MACRO_COLORS.fat, stroke: "hsl(var(--card))", strokeWidth: 1.5 }} activeDot={{ r: 6, fill: MACRO_COLORS.fat }} legendType="circle" name="Dépense sportive (kcal)" connectNulls={false} isAnimationActive={false} />
               <Legend wrapperStyle={{ fontSize: 10 }} />
-              <Line type="stepAfter" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
+              <Line type="monotone" dataKey="calorieGoal" stroke="hsl(var(--primary))" strokeWidth={2} strokeDasharray="4 4" dot={false} name="Objectif" isAnimationActive={false} />
             </ComposedChart>
           </ResponsiveContainer>
         </ZoomPanArea>
