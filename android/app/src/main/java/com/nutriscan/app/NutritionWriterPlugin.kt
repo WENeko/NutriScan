@@ -187,6 +187,22 @@ class NutritionWriterPlugin : Plugin() {
         }
     }
 
+    /** Purge every NutritionRecord written by this app in [startDate, endDate] (own package only). */
+    @PluginMethod
+    fun purgeMeals(call: PluginCall) {
+        val startIso = call.getString("startDate") ?: return call.reject("startDate required")
+        val endIso = call.getString("endDate") ?: return call.reject("endDate required")
+        val c = client() ?: return call.reject("Health Connect unavailable")
+        CoroutineScope(Dispatchers.IO).launch {
+            try {
+                c.deleteRecords(NutritionRecord::class, TimeRangeFilter.between(Instant.parse(startIso), Instant.parse(endIso)))
+                call.resolve(JSObject().put("ok", true))
+            } catch (e: Exception) {
+                call.reject(e.message ?: "purge failed", e)
+            }
+        }
+    }
+
     /**
      * Supprime les NutritionRecord de cette app dans la fenêtre temporelle
      * [startDate, endDate]. Health Connect filtre automatiquement pour ne

@@ -97,7 +97,7 @@ export function reconcileHealthConnect(): Promise<void> {
   return running;
 }
 
-async function doReconcile() {
+async function doReconcile(lookbackDays = LOOKBACK_DAYS) {
   const p = getPlugin();
   if (!p || !isNutritionSyncEnabled()) return;
   try {
@@ -108,7 +108,7 @@ async function doReconcile() {
   const userId = auth.user?.id;
   if (!userId) return;
 
-  const since = new Date(Date.now() - LOOKBACK_DAYS * 86_400_000).toISOString();
+  const since = new Date(Date.now() - lookbackDays * 86_400_000).toISOString();
   const { data: meals, error } = await supabase
     .from("meals")
     .select("id, timestamp, meal_name, total_calories, total_proteins, total_carbs, total_fats, meal_items(nutrients_std)")
@@ -166,6 +166,35 @@ async function doReconcile() {
   if (written || updated || removed) {
     appLogger.info("HCReconcile", "réconciliation", { written, updated, removed });
   }
+}
+
+/**
+ * Supprime tous les repas écrits par NutriScan dans Santé Connect sur `days` jours,
+ * puis les réécrit depuis la base (source de vérité) avec un identifiant stable.
+ */
+export async function cleanResyncNutrition(days = 365): Promise<void> {
+  const p = getPlugin();
+  if (!p) throw new Error("Santé Connect indisponible");
+  if ((await p.hasPermission())?.granted !== true) throw new Error("Autorisation d'écriture absente");
+  if (running) await running;
+  running = (async () => {
+    try {
+      const end = new Date(Date.now() + 86_400_000).toISOString();
+      const start = new Date(Date.now() - days * 86_400_000).toISOString();
+      await p.purgeMeals({ startDate: start, endDate: end });
+      writeWindows({});
+      if (Capacitor.isNativePlatform()) {
+        try {
+          await Preferences.configure({ group: "NutriScanWidget" });
+          await Preferences.remove({ key: NATIVE_WRITTEN_KEY });
+        } catch { /* ignore */ }
+      }
+      await doReconcile(days);
+    } finally {
+      running = null;
+    }
+  })();
+  return running;
 }
 
 let debounce: ReturnType<typeof setTimeout> | null = null;

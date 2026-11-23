@@ -10,6 +10,7 @@ import {
   setNutritionSyncEnabled,
 } from "@/services/nutritionWriter";
 import { Button } from "@/components/ui/button";
+import { cleanResyncNutrition } from "@/services/healthConnectReconciler";
 import { checkHealthPermissions, requestHealthPermissions } from "@/services/health-connect";
 import { useToast } from "@/hooks/use-toast";
 
@@ -55,6 +56,20 @@ const AppPermissionsSettings: React.FC = () => {
   const [nutriWrite, setNutriWrite] = useState<Status>(isNative ? "unknown" : "unavailable");
   const [nutriSync, setNutriSync] = useState<boolean>(isNutritionSyncEnabled());
   const [loading, setLoading] = useState(false);
+  const [cleaning, setCleaning] = useState(false);
+
+  const cleanDuplicates = async () => {
+    if (!window.confirm("Supprimer les repas NutriScan de Santé Connect (12 derniers mois) puis les renvoyer depuis l'application ?")) return;
+    setCleaning(true);
+    try {
+      await cleanResyncNutrition(365);
+      toast({ title: "Doublons supprimés", description: "Les repas ont été renvoyés une seule fois." });
+    } catch (e) {
+      toast({ title: "Nettoyage impossible", description: (e as Error)?.message, variant: "destructive" });
+    } finally {
+      setCleaning(false);
+    }
+  };
 
 
   const refresh = useCallback(async () => {
@@ -259,6 +274,13 @@ const AppPermissionsSettings: React.FC = () => {
           aria-label="Activer l'écriture nutrition dans Santé Connect"
         />
       </div>
+
+      {isNative && nutriSync && nutriWrite === "granted" && (
+        <Button variant="outline" className="w-full mt-2 rounded-xl" onClick={() => void cleanDuplicates()} disabled={cleaning}>
+          <RefreshCw className={`w-4 h-4 mr-2 ${cleaning ? "animate-spin" : ""}`} />
+          {cleaning ? "Nettoyage en cours…" : "Nettoyer les doublons Santé Connect"}
+        </Button>
+      )}
 
       <Button variant="outline" className="w-full mt-4 rounded-xl" onClick={openSystemSettings}>
         <ExternalLink className="w-4 h-4 mr-2" />
