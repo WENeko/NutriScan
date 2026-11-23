@@ -208,6 +208,13 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
         if (image) userContent.push({ type: "image_url", image_url: { url: image } });
         const headers: Record<string, string> = { "Content-Type": "application/json" };
         if (apiKey) headers.Authorization = `Bearer ${apiKey}`;
+        if (/openrouter\.ai/i.test(baseUrl)) {
+          headers["HTTP-Referer"] = typeof window !== "undefined" && window.location.origin
+            ? window.location.origin
+            : "https://calorie-capture-clever.lovable.app";
+          headers["X-Title"] = "NutriScan";
+        }
+
         res = await fetch(`${baseUrl}/chat/completions`, {
           method: "POST",
           headers,
