@@ -277,6 +277,13 @@ async function callChatProvider(p: ResolvedProvider, model: string, system: stri
   if (isOpenAiCompatible(p.apiType)) {
     const headers: Record<string, string> = { "Content-Type": "application/json" };
     if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;
+    if (/openrouter\.ai/i.test(baseUrl)) {
+      headers["HTTP-Referer"] = typeof window !== "undefined" && window.location.origin
+        ? window.location.origin
+        : "https://calorie-capture-clever.lovable.app";
+      headers["X-Title"] = "NutriScan";
+    }
+
     const res = await fetch(`${baseUrl}/chat/completions`, {
       method: "POST",
       headers,
@@ -607,11 +614,19 @@ export async function checkStepHealth(userId: string, step: RoutingStep): Promis
     const headers: Record<string, string> = {};
     if (p.apiType === "gemini") {
       url = `${base}/v1beta/models?key=${encodeURIComponent(p.apiKey ?? "")}`;
+
     } else {
       url = `${base}${p.modelsEndpoint || "/models"}`;
       // Serveur perso : la clé (Bearer) est facultative.
       if (p.apiKey) headers.Authorization = `Bearer ${p.apiKey}`;
+      if (/openrouter\.ai/i.test(base)) {
+        headers["HTTP-Referer"] = typeof window !== "undefined" && window.location.origin
+          ? window.location.origin
+          : "https://calorie-capture-clever.lovable.app";
+        headers["X-Title"] = "NutriScan";
+      }
     }
+
     const controller = new AbortController();
     const to = setTimeout(() => controller.abort(), 5000);
     const res = await fetch(url, { headers, signal: controller.signal });
