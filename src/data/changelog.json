@@ -1,6 +1,16 @@
 {
   "changes": [
     {
+      "id": "2026-11-24-gemini-structured-output",
+      "sections": [{
+        "title": "Analyses Gemini",
+        "items": [
+          "Les analyses Gemini demandent une réponse JSON et un budget de sortie explicite. Une réponse coupée par la limite de tokens est retentée une fois avec un budget supérieur, sans accepter un repas incomplet ni inventer de nutriments.",
+          "Les réponses réparties sur plusieurs parties sont réunies sans inclure les raisonnements internes ; une réponse vide ou invalide laisse la cascade essayer le fournisseur suivant."
+        ]
+      }]
+    },
+    {
       "id": "2026-11-22-startup-nutrition-sync-fixes",
       "sections": [{
         "title": "Démarrage et enregistrement des repas",

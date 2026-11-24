@@ -6,6 +6,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { isLovableAiEnabled, getActiveProviderConfig, isLocalApiType, isKeyOptional, isOpenAiCompatible } from '@/lib/aiAccess';
 import { runLocalIntentChat } from '@/services/localAiBridge';
 import { fallbackModelFor } from '@/lib/providerCatalog';
+import { GEMINI_OUTPUT_TOKENS, GEMINI_RETRY_OUTPUT_TOKENS, parseMealJson, readGeminiContent } from '@/utils/gemini-response';
 // SOURCE UNIQUE DE VÉRITÉ du prompt — partagée avec l'edge function `analyze-meal`.
 import {
   buildSystemContent,
@@ -177,6 +178,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   let res: Response | null = null;
   // Réponse texte directe d'une IA locale native (Intent Android), si applicable.
   let intentContent: string | null = null;
+  let geminiContent: string | null = null;
+  let outputTokens = GEMINI_OUTPUT_TOKENS;
 
   for (let attempt = 0; attempt < MAX_RETRIES; attempt++) {
     try {
@@ -238,11 +241,25 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
           body: JSON.stringify({
             systemInstruction: { parts: [{ text: systemContent }] },
             contents: [{ role: "user", parts: userParts }],
+            generationConfig: { maxOutputTokens: outputTokens, responseMimeType: "application/json" },
           }),
         });
       }
 
       if (res.ok) {
+        if (!isOpenAiCompatible(apiType)) {
+          const response = readGeminiContent(await res.json());
+          if (response.truncated) {
+            if (outputTokens === GEMINI_OUTPUT_TOKENS && attempt < MAX_RETRIES - 1) {
+              outputTokens = GEMINI_RETRY_OUTPUT_TOKENS;
+              appLogger.warn("IA", `Réponse Gemini tronquée (MAX_TOKENS), nouvelle tentative avec ${outputTokens} tokens`);
+              continue;
+            }
+            throw new Error("Réponse Gemini tronquée (MAX_TOKENS) ; analyse incomplète refusée.");
+          }
+          if (!response.content.trim()) throw new Error("Gemini n’a renvoyé aucun contenu d’analyse.");
+          geminiContent = response.content;
+        }
         appLogger.info("IA", `Succès avec ${chosenModel} après ${attempt + 1} tentative(s)`);
         break;
       }
@@ -272,6 +289,8 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
   let content: string;
   if (intentContent !== null) {
     content = intentContent || "{}";
+  } else if (geminiContent !== null) {
+    content = geminiContent;
   } else {
     if (!res || !res.ok) {
       throw lastError || new Error("Échec de la requête IA");
@@ -289,10 +308,15 @@ export async function analyzeMealWithGemini({ image, text, custom_foods, custom_
 
   let result: any;
   try {
-    const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
-    result = JSON.parse(jsonMatch ? jsonMatch[0] : trimmed);
+    if (apiType === "gemini") {
+      result = parseMealJson(trimmed);
+    } else {
+      const jsonMatch = trimmed.match(/\{[\s\S]*\}/);
+      result = JSON.parse(jsonMatch ? jsonMatch[0] : trimmed);
+    }
   } catch (e) {
     appLogger.error("IA", "Erreur parsing JSON", { error: e, content: trimmed });
+    if (apiType === "gemini") throw new Error("Réponse Gemini JSON invalide ; essayez le fournisseur suivant.");
     result = trimmed;
   }
 

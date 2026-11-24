@@ -1,6 +1,8 @@
 # Roadmap
 
 ## Demande actuelle
+- [x] Corriger les sorties Gemini tronquées sans inventer de données ; 25 tests ciblés réussis, changelog actualisé ; analyse réelle avec clé personnelle non vérifiée
+- [x] Actualiser les cascades conseillées depuis les catalogues officiels gratuits, sans modifier les choix enregistrés
 - [x] Corriger le démarrage, les nouveaux doublons Santé Connect et la conversion des nutriments ; changelog actualisé, 208 tests réussis et accueil connecté sans exception
 - [ ] Valider le parcours complet d’un repas — compte de test sans IA configurée et caméra absente ; conversion/envoi testés automatiquement, aliment décimal sauvegardé et relu
 - [ ] Valider envoi et dédoublonnage réels Santé Connect — appareil Android et nouvel APK nécessaires

@@ -1,4 +1,5 @@
 # Project rules
+- Gemini meal JSON uses explicit output budgets and one bounded MAX_TOKENS retry; never repair truncated meals, because missing foods or nutrients would be silently lost.
 - NutritionWriter uses stable meal clientRecordIds and increasing versions for upserts; delete by identity, retaining window cleanup only for legacy records. This prevents retry/reinstall duplicates.
 - Parse meal decimals through nutrient-value; preserve absent micros and sanitize required macros before totals and persistence to avoid invalid numeric writes.
 - Generate evolution PDFs from report data with paginated tables and print tokens; prepare blobs before clicks to preserve browser activation. Download uses browser downloads or Android MediaStore (document picker before Android 10); only explicit Share actions use native cache/share. WebView printing is unreliable.
