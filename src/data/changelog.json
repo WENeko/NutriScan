@@ -1,6 +1,16 @@
 {
   "changes": [
     {
+      "id": "2026-11-24-dashboard-declutter",
+      "sections": [{
+        "title": "Accueil allégé",
+        "items": [
+          "Les repas des jours précédents sont regroupés dans un volet replié, y compris la journée d’hier.",
+          "Le détail de la qualité nutritionnelle et la semaine d’entraînement se déplient d’un toucher."
+        ]
+      }]
+    },
+    {
       "id": "2026-11-24-gemini-structured-output",
       "sections": [{
         "title": "Analyses Gemini",

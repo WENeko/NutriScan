@@ -711,6 +711,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                     })}
                     {dayOverride && <Button size="icon" variant="ghost" title="Revenir à la routine" aria-label="Revenir à la routine" disabled={savingDay} onClick={() => void changeDayType(null)}><ArrowUpDown /></Button>}
                   </div>
+                  <details className="group">
+                  <summary className="list-none cursor-pointer flex items-center justify-between text-[11px] text-muted-foreground">Semaine d’entraînement<ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" /></summary>
+                  <div className="space-y-2 pt-2">
                   <div className="grid grid-cols-7 gap-1" role="group" aria-label="Semaine d’entraînement">
                     {buildWeekStrip(dayRoutine, new Date(), weekOverrides).map(d => (
                       <button key={d.date} type="button" disabled={d.isPast || savingDay || !dayReady}
@@ -723,6 +726,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                     ))}
                   </div>
                   <p className="text-[10px] text-muted-foreground">Touchez un jour à venir pour inverser ; bord pointillé = ajusté (re-touchez pour revenir à la routine).</p>
+                  </div>
+                  </details>
                   {unplannedSession && (
                     <div className="rounded-xl border border-primary/40 bg-primary/10 p-3 space-y-2" role="status">
                       <p className="text-xs font-medium">Séance détectée à {format(unplannedSession, "HH:mm")}. Passer la journée en Entraînement ?</p>
@@ -782,8 +787,13 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
               <div className="space-y-3 border-t border-border py-3">
                 <QualityBadge {...dailyQuality} />
+                <details className="group">
+                  <summary className="list-none cursor-pointer flex items-center justify-between text-xs text-muted-foreground">Détails qualité et objectifs<ChevronDown className="w-3.5 h-3.5 transition-transform group-open:rotate-180" /></summary>
+                  <div className="space-y-3 pt-2">
                 <QualityFractions input={dailyQualityInput} />
                 <QualityTargets preset={sportPreset} weightKg={weight} calories={goals.calories} totals={todayTotals} nutrients={dailyQualityInput.nutrients_std} />
+                  </div>
+                </details>
               </div>
               {/* Sport info */}
               {sportCalories > 0 && (
@@ -960,8 +970,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
             {/* All history — today's meals are shown in "Repas du jour" above, so exclude them here to avoid redundancy */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
-              <h2 className="font-display font-semibold text-base mb-3">Historique complet</h2>
+              <details className="group">
+              <summary className="list-none cursor-pointer flex items-center justify-between font-display font-semibold text-base mb-3">Jours précédents<ChevronDown className="w-4 h-4 transition-transform group-open:rotate-180" /></summary>
               <MealHistory sportPreset={sportPreset} meals={allMeals.filter((m) => !isToday(new Date(m.timestamp)))} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
+              </details>
             </section>
           </>
         )}

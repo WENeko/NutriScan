@@ -1148,7 +1148,7 @@ const [searchQuery, setSearchQuery] = useState("");
         </div>
       ) : groups ? (
         groups.map((g) => {
-          const collapsed = collapsedGroups[g.key] ?? (g.order > 1);
+          const collapsed = collapsedGroups[g.key] ?? (g.order >= 1);
           const totalKcal = g.meals.reduce((s, m) => s + (m.total_calories || 0), 0);
           return (
             <div key={g.key} className="space-y-2">
