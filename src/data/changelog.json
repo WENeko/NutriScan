@@ -1,6 +1,16 @@
 {
   "changes": [
     {
+      "id": "2026-11-25-dashboard-axis3",
+      "sections": [{
+        "title": "Accueil plus compact",
+        "items": [
+          "L’ajout de repas remonte juste sous l’anneau calorique principal.",
+          "Le budget hebdomadaire et le suivi d’hydratation s’affichent côte à côte."
+        ]
+      }]
+    },
+    {
       "id": "2026-11-24-dashboard-declutter",
       "sections": [{
         "title": "Accueil allégé",

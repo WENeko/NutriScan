@@ -828,9 +828,15 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               )}
             </section>
 
-            {/* Weekly calorie budget - Calendar week Mon-Sun */}
+            {/* Meal input */}
+            <section className="animate-fade-up" style={{ animationDelay: "25ms" }}>
+              <MealInput userId={userId} onMealSaved={fetchData} prefillRecipe={pendingRecipe} onPrefillConsumed={() => setPendingRecipe(null)} />
+            </section>
+
+            {/* Weekly budget + Water side by side */}
+            <div className={weeklyCalorieTarget > 0 ? "grid grid-cols-2 gap-3 items-stretch" : ""}>
             {weeklyCalorieTarget > 0 && (
-              <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "25ms" }}>
+              <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "50ms" }}>
                 {(() => {
                   const weeklyTarget = weeklyCalorieTarget;
                   const budgetDelta = weekTotalCalories - weeklyTarget;
@@ -886,6 +892,12 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               </section>
             )}
 
+            {/* Water tracker */}
+            <section className="animate-fade-up" style={{ animationDelay: "50ms" }}>
+              <WaterTracker userId={userId} goal={waterGoal} sportCalories={sportCalories} />
+            </section>
+            </div>
+
             {/* Weighin reminder */}
             <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
 
@@ -901,16 +913,6 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                 </div>
               </section>
             )}
-
-            {/* Water tracker */}
-            <section className="animate-fade-up" style={{ animationDelay: "50ms" }}>
-              <WaterTracker userId={userId} goal={waterGoal} sportCalories={sportCalories} />
-            </section>
-
-            {/* Meal input */}
-            <section className="animate-fade-up" style={{ animationDelay: "100ms" }}>
-              <MealInput userId={userId} onMealSaved={fetchData} prefillRecipe={pendingRecipe} onPrefillConsumed={() => setPendingRecipe(null)} />
-            </section>
 
             {/* Today's meals */}
             {todayMeals.length > 0 && (
