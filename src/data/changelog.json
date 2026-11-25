@@ -1,6 +1,17 @@
 {
   "changes": [
     {
+      "id": "2026-11-25-dashboard-layout-editor",
+      "sections": [{
+        "title": "Accueil personnalisable",
+        "items": [
+          "Un crayon ouvre le mode édition : déplacement des modules, masquage et réinitialisation de la disposition.",
+          "Budget hebdomadaire et hydratation peuvent occuper une demi-largeur ou toute la ligne ; disposition conservée sur l’appareil, séparément pour chaque compte.",
+          "L’ajout de repas reste toujours accessible ; les rappels importants restent hors des modules masquables."
+        ]
+      }]
+    },
+    {
       "id": "2026-11-25-dashboard-axis3",
       "sections": [{
         "title": "Accueil plus compact",

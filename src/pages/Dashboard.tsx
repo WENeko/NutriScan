@@ -8,6 +8,7 @@ import { applyDayCycling, buildWeekStrip, nextDayChoice, type DayType } from "@/
 import { weeklyGoals } from "@/utils/dated-goals";
 import { readFirstSessionToday } from "@/services/training-days";
 import { Button } from "@/components/ui/button";
+import DashboardLayout, { DashboardWidget } from "@/components/DashboardLayout";
 import { type CustomNutrientDef } from "@/utils/nutrients-helpers";
 import { QualityBadge, QualityFractions } from "@/components/NutritionQuality";
 import { QualityTargets } from "@/components/QualityTargets";
@@ -27,7 +28,7 @@ import { TooltipProvider } from "@/components/TooltipContext";
 import WeighinReminder from "@/components/WeighinReminder";
 import { autoSyncHealthData } from "@/services/health-connect";
 import { startHealthConnectAutoSync } from "@/services/healthConnectReconciler";
-import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Leaf, LogOut, User, TrendingUp, TrendingDown, Minus, ChevronDown, Heart, AlertTriangle, Smartphone, ArrowUpDown, ArrowUp, ArrowDown, Pencil, Check } from "lucide-react";
 import { applyFavoriteOrder, favoriteKey, loadFavoriteOrder, moveItem, saveFavoriteOrder } from "@/lib/favoriteOrder";
 import { startOfDay, startOfWeek, endOfWeek, format, isToday } from "date-fns";
 import BuildInfo from "@/components/BuildInfo";
@@ -67,6 +68,7 @@ interface Meal {
 }
 
 const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
+  const [editingLayout, setEditingLayout] = useState(false);
   const [dayOverride, setDayOverride] = useState<DayType | null>(null);
   const [weekOverrides, setWeekOverrides] = useState<Record<string, DayType>>({});
   const [unplannedSession, setUnplannedSession] = useState<Date | null>(null);
@@ -664,6 +666,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
+            {activeTab === "dashboard" && <Button variant={editingLayout ? "default" : "ghost"} size="icon" aria-label={editingLayout ? "Terminer la disposition" : "Modifier la disposition"} title={editingLayout ? "Terminer" : "Modifier la disposition"} aria-pressed={editingLayout} onClick={() => setEditingLayout(value => !value)}>{editingLayout ? <Check /> : <Pencil />}</Button>}
             <Button aria-label="Profil" variant="ghost" size="icon" className="relative" onClick={() => setShowProfile(true)}>
               <User className="w-5 h-5 text-muted-foreground" />
               {hasUpdate && (
@@ -696,6 +699,20 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               </button>
             )}
 
+            <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
+            {showElectrolyteWarning && (
+              <section className="bg-secondary/10 border border-secondary/30 rounded-2xl p-4 animate-fade-up flex items-start gap-3">
+                <AlertTriangle className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
+                <div>
+                  <p className="text-sm font-semibold text-secondary">Récupération</p>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    Ton apport en électrolytes est faible par rapport à ton activité du jour ({sportCalories} kcal sport). Pense à bien t'hydrater et saler ton prochain repas.
+                  </p>
+                </div>
+              </section>
+            )}
+            <DashboardLayout key={userId} userId={userId} editing={editingLayout}>
+            <DashboardWidget id="summary" title="Bilan du jour">
             {/* Remaining focus card */}
             <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               {dayRoutine?.enabled && (
@@ -828,14 +845,16 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               )}
             </section>
 
+            </DashboardWidget>
+            <DashboardWidget id="input" title="Ajouter un repas">
             {/* Meal input */}
             <section className="animate-fade-up" style={{ animationDelay: "25ms" }}>
               <MealInput userId={userId} onMealSaved={fetchData} prefillRecipe={pendingRecipe} onPrefillConsumed={() => setPendingRecipe(null)} />
             </section>
+            </DashboardWidget>
 
-            {/* Weekly budget + Water side by side */}
-            <div className={weeklyCalorieTarget > 0 ? "grid grid-cols-2 gap-3 items-stretch" : ""}>
             {weeklyCalorieTarget > 0 && (
+              <DashboardWidget id="budget" title="Budget hebdomadaire">
               <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up" style={{ animationDelay: "50ms" }}>
                 {(() => {
                   const weeklyTarget = weeklyCalorieTarget;
@@ -849,7 +868,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
 
                   return (
                     <>
-                      <div className="flex items-center justify-between mb-2">
+                      <div className="flex flex-wrap items-center justify-between gap-1 mb-2">
                         <h3 className="font-display font-semibold text-sm">Budget Hebdo</h3>
                         <span className="text-xs text-muted-foreground">
                           Lun→Dim · J{weekDaysElapsed}/7
@@ -870,7 +889,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                         />
                       </div>
 
-                      <div className="flex items-center justify-between text-xs">
+                      <div className="flex flex-wrap items-center justify-between gap-1 text-xs">
                         <span className="text-muted-foreground">
                           {Math.round(weekTotalCalories).toLocaleString()} / {Math.round(weeklyTarget).toLocaleString()} kcal ({Math.round(pct * 100)}%)
                         </span>
@@ -890,45 +909,36 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   );
                 })()}
               </section>
+              </DashboardWidget>
             )}
 
+            <DashboardWidget id="water" title="Hydratation">
             {/* Water tracker */}
             <section className="animate-fade-up" style={{ animationDelay: "50ms" }}>
               <WaterTracker userId={userId} goal={waterGoal} sportCalories={sportCalories} />
             </section>
-            </div>
-
-            {/* Weighin reminder */}
-            <WeighinReminder userId={userId} onGoToProfile={() => setShowProfile(true)} />
-
-            {/* Electrolyte recovery warning */}
-            {showElectrolyteWarning && (
-              <section className="bg-secondary/10 border border-secondary/30 rounded-2xl p-4 animate-fade-up flex items-start gap-3">
-                <AlertTriangle className="w-5 h-5 text-secondary flex-shrink-0 mt-0.5" />
-                <div>
-                  <p className="text-sm font-semibold text-secondary">Récupération</p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Ton apport en électrolytes est faible par rapport à ton activité du jour ({sportCalories} kcal sport). Pense à bien t'hydrater et saler ton prochain repas.
-                  </p>
-                </div>
-              </section>
-            )}
+            </DashboardWidget>
 
             {/* Today's meals */}
             {todayMeals.length > 0 && (
+              <DashboardWidget id="today" title="Repas du jour">
               <section className="animate-fade-up" style={{ animationDelay: "150ms" }}>
                 <h2 className="font-display font-semibold text-base mb-3">Repas du jour</h2>
                 <MealHistory sportPreset={sportPreset} meals={todayMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
               </section>
+              </DashboardWidget>
             )}
 
+            <DashboardWidget id="health" title="Détails santé">
             {/* Health details */}
             <section className="animate-fade-up" style={{ animationDelay: "175ms" }}>
               <HealthDetails micros={microsList} radarMicros={radarMicrosList} />
             </section>
+            </DashboardWidget>
 
             {/* Favorites */}
             {favoriteMeals.length > 0 && (
+              <DashboardWidget id="favorites" title="Favoris">
               <section className="animate-fade-up" style={{ animationDelay: "200ms" }}>
                 <div className="flex items-center justify-between w-full mb-3 gap-2">
                   <button onClick={() => setShowFavorites(!showFavorites)} className="flex items-center justify-between flex-1">
@@ -968,8 +978,10 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   <MealHistory sportPreset={sportPreset} meals={favoriteMeals} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} />
                 )}
               </section>
+              </DashboardWidget>
             )}
 
+            <DashboardWidget id="history" title="Jours précédents">
             {/* All history — today's meals are shown in "Repas du jour" above, so exclude them here to avoid redundancy */}
             <section className="animate-fade-up" style={{ animationDelay: "250ms" }}>
               <details className="group">
@@ -977,6 +989,8 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               <MealHistory sportPreset={sportPreset} meals={allMeals.filter((m) => !isToday(new Date(m.timestamp)))} userId={userId} onSelect={() => {}} onRefresh={fetchData} microGoals={microGoals} customDefs={customNutrients} groupByPeriod searchable />
               </details>
             </section>
+            </DashboardWidget>
+            </DashboardLayout>
           </>
         )}
 

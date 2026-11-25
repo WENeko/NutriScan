@@ -1,5 +1,10 @@
 # Roadmap
 
+## Personnalisation de l’accueil — étape 1
+- [ ] Ajouter le mode crayon : déplacement tactile/clavier, visibilité, largeur des modules compacts et réinitialisation ; sauvegarde locale par compte, sans dépendance ajoutée
+- [ ] Tester la sauvegarde et vérifier le parcours connecté sur mobile ; actualiser les nouveautés et enregistrer les modifications
+- [ ] Étapes suivantes hors de cette livraison : dossiers et personnalisation des autres écrans
+
 ## Demande actuelle
 - [x] Corriger les sorties Gemini tronquées sans inventer de données ; 25 tests ciblés réussis, changelog actualisé ; analyse réelle avec clé personnelle non vérifiée
 - [x] Actualiser les cascades conseillées depuis les catalogues officiels gratuits, sans modifier les choix enregistrés
