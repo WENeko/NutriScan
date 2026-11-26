@@ -1,5 +1,6 @@
 {
   "changes": [
+    {"id":"2026-11-26-cycling-widget","sections":[{"title":"Accueil personnalisable","items":["Le cyclage Entraînement/Repos et la semaine deviennent une carte indépendante, déplaçable et masquable.","Crayon de disposition plus discret."]}]},
     {
       "id": "2026-11-25-dashboard-layout-editor",
       "sections": [{

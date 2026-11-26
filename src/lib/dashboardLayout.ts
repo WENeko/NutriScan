@@ -1,5 +1,5 @@
 export const DASHBOARD_WIDGETS = [
-  "summary", "input", "budget", "water", "today", "health", "favorites", "history",
+  "cycling", "summary", "input", "budget", "water", "today", "health", "favorites", "history",
 ] as const;
 export type DashboardWidgetId = typeof DASHBOARD_WIDGETS[number];
 export interface WidgetLayout { id: DashboardWidgetId; half: boolean; hidden: boolean }

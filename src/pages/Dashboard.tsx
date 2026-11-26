@@ -666,7 +666,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
-            {activeTab === "dashboard" && <Button variant={editingLayout ? "default" : "ghost"} size="icon" aria-label={editingLayout ? "Terminer la disposition" : "Modifier la disposition"} title={editingLayout ? "Terminer" : "Modifier la disposition"} aria-pressed={editingLayout} onClick={() => setEditingLayout(value => !value)}>{editingLayout ? <Check /> : <Pencil />}</Button>}
+            {activeTab === "dashboard" && <Button variant={editingLayout ? "default" : "ghost"} size="icon" className={editingLayout ? "" : "text-muted-foreground/60 hover:text-foreground"} aria-label={editingLayout ? "Terminer la disposition" : "Modifier la disposition"} title={editingLayout ? "Terminer" : "Modifier la disposition"} aria-pressed={editingLayout} onClick={() => setEditingLayout(value => !value)}>{editingLayout ? <Check /> : <Pencil />}</Button>}
             <Button aria-label="Profil" variant="ghost" size="icon" className="relative" onClick={() => setShowProfile(true)}>
               <User className="w-5 h-5 text-muted-foreground" />
               {hasUpdate && (
@@ -712,11 +712,9 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
               </section>
             )}
             <DashboardLayout key={userId} userId={userId} editing={editingLayout}>
-            <DashboardWidget id="summary" title="Bilan du jour">
-            {/* Remaining focus card */}
-            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
-              {dayRoutine?.enabled && (
-                <div className="mb-4 space-y-2" aria-label="Cyclage aujourd’hui" aria-busy={savingDay}>
+            {dayRoutine?.enabled && <DashboardWidget id="cycling" title="Entraînement & cyclage">
+            <section className="bg-card rounded-2xl p-4 shadow-card">
+                <div className="space-y-2" aria-label="Cyclage aujourd’hui" aria-busy={savingDay}>
                   <div className="flex items-center justify-between gap-2 text-xs">
                     <span className="font-semibold">Aujourd’hui · {format(new Date(), "dd/MM")}</span>
                     <span className="text-muted-foreground">{dayOverride ? "Ajustement ponctuel" : "Routine"}</span>
@@ -756,7 +754,11 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
                   )}
                   <p className="text-xs text-muted-foreground">Cible : {goals.calories} kcal · {goals.carbs} g de glucides</p>
                 </div>
-              )}
+            </section>
+            </DashboardWidget>}
+            <DashboardWidget id="summary" title="Bilan du jour">
+            {/* Remaining focus card */}
+            <section className="bg-card rounded-2xl p-5 shadow-card animate-fade-up">
               <div className="flex items-center justify-center mb-4">
                   <CircularProgress
                     value={todayTotals.calories}
