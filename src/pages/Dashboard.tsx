@@ -666,7 +666,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
             <h1 className="text-lg font-display font-bold nutri-gradient-text">NutriScan</h1>
           </div>
           <div className="flex items-center gap-1">
-            {activeTab === "dashboard" && <Button variant={editingLayout ? "default" : "ghost"} size="icon" className={editingLayout ? "" : "text-muted-foreground/60 hover:text-foreground"} aria-label={editingLayout ? "Terminer la disposition" : "Modifier la disposition"} title={editingLayout ? "Terminer" : "Modifier la disposition"} aria-pressed={editingLayout} onClick={() => setEditingLayout(value => !value)}>{editingLayout ? <Check /> : <Pencil />}</Button>}
+            {(activeTab === "dashboard" || activeTab === "evolution") && <Button variant={editingLayout ? "default" : "ghost"} size="icon" className={editingLayout ? "" : "text-muted-foreground/60 hover:text-foreground"} aria-label={editingLayout ? "Terminer la disposition" : "Modifier la disposition"} title={editingLayout ? "Terminer" : "Modifier la disposition"} aria-pressed={editingLayout} onClick={() => setEditingLayout(value => !value)}>{editingLayout ? <Check /> : <Pencil />}</Button>}
             <Button aria-label="Profil" variant="ghost" size="icon" className="relative" onClick={() => setShowProfile(true)}>
               <User className="w-5 h-5 text-muted-foreground" />
               {hasUpdate && (
@@ -1016,7 +1016,7 @@ const Dashboard: React.FC<{ userId: string }> = ({ userId }) => {
         )}
 
         {activeTab === "evolution" && (
-          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} microOverrides={microOverrides} customCharts={customCharts} onCustomChartsChange={setCustomCharts} />
+          <EvolutionPage userId={userId} calorieGoal={goals.calories} proteinGoal={goals.proteins} carbsGoal={goals.carbs} fatsGoal={goals.fats} targetWeight={targetWeight} targetBodyFat={targetBodyFat} targetMuscleMass={targetMuscleMass} userProfile={userProfile} customNutrients={customNutrients} microOverrides={microOverrides} customCharts={customCharts} onCustomChartsChange={setCustomCharts} editingLayout={editingLayout} />
         )}
 
         {activeTab === "library" && (

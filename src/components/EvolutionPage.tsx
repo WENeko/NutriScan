@@ -15,6 +15,7 @@ import { RotateCcw } from "lucide-react";
 import ActivityCalendar from "@/components/ActivityCalendar";
 import EvolutionReport from "@/components/EvolutionReport";
 import { Button } from "@/components/ui/button";
+import DashboardLayout, { DashboardWidget } from "@/components/DashboardLayout";
 import { readSessionsInRange } from "@/services/training-days";
 import { sessionsByDate } from "@/utils/activity-calendar";
 import { alignBodyTimeline, localDayCoordinate, timelineTicks } from "@/utils/evolution-timeline";
@@ -41,10 +42,11 @@ interface EvolutionPageProps {
   microOverrides?: MicroOverrides;
   customCharts?: CustomChartConfig[];
   onCustomChartsChange?: (next: CustomChartConfig[]) => void;
+  editingLayout?: boolean;
 }
 
 const EvolutionPage: React.FC<EvolutionPageProps> = ({ 
-  userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
+ editingLayout = false,  userId, calorieGoal, proteinGoal, carbsGoal, fatsGoal, 
   targetWeight, targetBodyFat, targetMuscleMass, userProfile,
   customNutrients = EMPTY_NUTRIENTS, microOverrides = EMPTY_MICRO_OVERRIDES,
   customCharts = EMPTY_CHARTS, onCustomChartsChange
@@ -434,6 +436,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         )}
       </div>
 
+      <DashboardLayout userId={userId} surface="evolution" editing={editingLayout}><DashboardWidget id="evo_calories" title="Calories vs objectif">
       {/* 1. CALORIES */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <div className="flex items-center justify-between mb-3">
@@ -480,6 +483,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </ZoomPanArea>
       </section>
 
+      </DashboardWidget><DashboardWidget id="evo_macros" title="Macronutriments">
       {/* 2. MACRONUTRIMENTS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <div className="flex items-center justify-between mb-3">
@@ -512,6 +516,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </ZoomPanArea>
       </section>
 
+      </DashboardWidget><DashboardWidget id="evo_micros" title="Bilan micronutriments">
       {/* 3. RADAR MICROS */}
       <section className="bg-card rounded-2xl p-4 shadow-card animate-fade-up">
         <h3 className="font-display font-semibold text-sm mb-1">Bilan Micronutriments</h3>
@@ -570,6 +575,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         </div>
       </section>
 
+      </DashboardWidget><DashboardWidget id="evo_custom" title="Graphiques personnalisés">
       {/* 3bis. GRAPHIQUES PERSONNALISÉS */}
       <div className="space-y-3 pt-2">
         <CustomChartsManager
@@ -727,6 +733,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
         })}
       </div>
 
+      </DashboardWidget><DashboardWidget id="evo_body" title="Analyse corporelle">
       {/* 4. COMPOSITION CORPORELLE */}
       {bodyData.length > 0 && (
         <div className="space-y-6">
@@ -823,6 +830,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
           })}
         </div>
       )}
+      </DashboardWidget></DashboardLayout>
     </div>
   );
 };

@@ -36,3 +36,9 @@ describe("dashboard layout", () => {
     expect(loadDashboardLayout("alice")).toEqual(defaultDashboardLayout());
   });
 });
+describe("evolution layout", () => {
+  it("keeps evolution modules separate from the dashboard", () => {
+    expect(defaultDashboardLayout("evolution").map(w => w.id)).toEqual(["evo_calories", "evo_macros", "evo_micros", "evo_custom", "evo_body"]);
+    expect(normalizeDashboardLayout([{ id: "water" }, { id: "evo_body", hidden: true }], "evolution")[0]).toEqual({ id: "evo_body", half: false, hidden: true });
+  });
+});

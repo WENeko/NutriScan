@@ -1,71 +1,105 @@
 {
   "changes": [
-    {"id":"2026-11-26-cycling-widget","sections":[{"title":"Accueil personnalisable","items":["Le cyclage Entraînement/Repos et la semaine deviennent une carte indépendante, déplaçable et masquable.","Crayon de disposition plus discret."]}]},
+    {
+      "id": "2026-11-26-evolution-layout",
+      "sections": [
+        {
+          "title": "Évolution personnalisable",
+          "items": [
+            "Le crayon permet aussi de déplacer et masquer les graphiques de la page Évolution."
+          ]
+        }
+      ]
+    },
+    {
+      "id": "2026-11-26-cycling-widget",
+      "sections": [
+        {
+          "title": "Accueil personnalisable",
+          "items": [
+            "Le cyclage Entraînement/Repos et la semaine deviennent une carte indépendante, déplaçable et masquable.",
+            "Crayon de disposition plus discret."
+          ]
+        }
+      ]
+    },
     {
       "id": "2026-11-25-dashboard-layout-editor",
-      "sections": [{
-        "title": "Accueil personnalisable",
-        "items": [
-          "Un crayon ouvre le mode édition : déplacement des modules, masquage et réinitialisation de la disposition.",
-          "Budget hebdomadaire et hydratation peuvent occuper une demi-largeur ou toute la ligne ; disposition conservée sur l’appareil, séparément pour chaque compte.",
-          "L’ajout de repas reste toujours accessible ; les rappels importants restent hors des modules masquables."
-        ]
-      }]
+      "sections": [
+        {
+          "title": "Accueil personnalisable",
+          "items": [
+            "Un crayon ouvre le mode édition : déplacement des modules, masquage et réinitialisation de la disposition.",
+            "Budget hebdomadaire et hydratation peuvent occuper une demi-largeur ou toute la ligne ; disposition conservée sur l’appareil, séparément pour chaque compte.",
+            "L’ajout de repas reste toujours accessible ; les rappels importants restent hors des modules masquables."
+          ]
+        }
+      ]
     },
     {
       "id": "2026-11-25-dashboard-axis3",
-      "sections": [{
-        "title": "Accueil plus compact",
-        "items": [
-          "L’ajout de repas remonte juste sous l’anneau calorique principal.",
-          "Le budget hebdomadaire et le suivi d’hydratation s’affichent côte à côte."
-        ]
-      }]
+      "sections": [
+        {
+          "title": "Accueil plus compact",
+          "items": [
+            "L’ajout de repas remonte juste sous l’anneau calorique principal.",
+            "Le budget hebdomadaire et le suivi d’hydratation s’affichent côte à côte."
+          ]
+        }
+      ]
     },
     {
       "id": "2026-11-24-dashboard-declutter",
-      "sections": [{
-        "title": "Accueil allégé",
-        "items": [
-          "Les repas des jours précédents sont regroupés dans un volet replié, y compris la journée d’hier.",
-          "Le détail de la qualité nutritionnelle et la semaine d’entraînement se déplient d’un toucher."
-        ]
-      }]
+      "sections": [
+        {
+          "title": "Accueil allégé",
+          "items": [
+            "Les repas des jours précédents sont regroupés dans un volet replié, y compris la journée d’hier.",
+            "Le détail de la qualité nutritionnelle et la semaine d’entraînement se déplient d’un toucher."
+          ]
+        }
+      ]
     },
     {
       "id": "2026-11-24-gemini-structured-output",
-      "sections": [{
-        "title": "Analyses Gemini",
-        "items": [
-          "Les analyses Gemini demandent une réponse JSON et un budget de sortie explicite. Une réponse coupée par la limite de tokens est retentée une fois avec un budget supérieur, sans accepter un repas incomplet ni inventer de nutriments.",
-          "Les réponses réparties sur plusieurs parties sont réunies sans inclure les raisonnements internes ; une réponse vide ou invalide laisse la cascade essayer le fournisseur suivant."
-        ]
-      }]
+      "sections": [
+        {
+          "title": "Analyses Gemini",
+          "items": [
+            "Les analyses Gemini demandent une réponse JSON et un budget de sortie explicite. Une réponse coupée par la limite de tokens est retentée une fois avec un budget supérieur, sans accepter un repas incomplet ni inventer de nutriments.",
+            "Les réponses réparties sur plusieurs parties sont réunies sans inclure les raisonnements internes ; une réponse vide ou invalide laisse la cascade essayer le fournisseur suivant."
+          ]
+        }
+      ]
     },
     {
       "id": "2026-11-22-startup-nutrition-sync-fixes",
-      "sections": [{
-        "title": "Démarrage et enregistrement des repas",
-        "items": [
-          "Correction de l’écran blanc au démarrage lié aux pastilles de mise à jour.",
-          "Les nouveaux envois de repas à Santé Connect utilisent un identifiant stable pour éviter les doublons après un renvoi ou une réinstallation.",
-          "Nouveau bouton « Nettoyer les doublons Santé Connect » (Autorisations) : supprime les anciens repas NutriScan des 12 derniers mois et les renvoie une seule fois depuis l’application.",
-          "Graphique Calories vs Objectif : objectif de nouveau en courbe lissée, dépenses sportives affichées par des pastilles sur les jours de séance.",
-          "Les valeurs saisies avec une virgule sont acceptées ; les valeurs invalides sont sécurisées avant l’enregistrement, sans compléter les micronutriments inconnus."
-        ]
-      }]
+      "sections": [
+        {
+          "title": "Démarrage et enregistrement des repas",
+          "items": [
+            "Correction de l’écran blanc au démarrage lié aux pastilles de mise à jour.",
+            "Les nouveaux envois de repas à Santé Connect utilisent un identifiant stable pour éviter les doublons après un renvoi ou une réinstallation.",
+            "Nouveau bouton « Nettoyer les doublons Santé Connect » (Autorisations) : supprime les anciens repas NutriScan des 12 derniers mois et les renvoie une seule fois depuis l’application.",
+            "Graphique Calories vs Objectif : objectif de nouveau en courbe lissée, dépenses sportives affichées par des pastilles sur les jours de séance.",
+            "Les valeurs saisies avec une virgule sont acceptées ; les valeurs invalides sont sécurisées avant l’enregistrement, sans compléter les micronutriments inconnus."
+          ]
+        }
+      ]
     },
     {
       "id": "2026-11-21-dated-cycling-sport-history",
-      "sections": [{
-        "title": "Objectifs et historique sportif",
-        "items": [
-          "Le budget hebdomadaire additionne les sept objectifs cyclés et tient compte des exceptions entraînement/repos, sans modifier la routine.",
-          "Le calendrier et les graphiques utilisent des objectifs propres à chaque date, sans répéter le dernier jour de repos ni appliquer deux fois le cyclage aux objectifs enregistrés.",
-          "Une courbe de dépense sportive complète Calories vs Objectif, avec filtrage des sources approuvées et dédoublonnage.",
-          "Dans Santé connectée, l’import historique couvre 3 mois, 6 mois ou 1 an selon les données et autorisations disponibles. Il récupère les calories actives des séances approuvées sans inventer les valeurs absentes."
-        ]
-      }]
+      "sections": [
+        {
+          "title": "Objectifs et historique sportif",
+          "items": [
+            "Le budget hebdomadaire additionne les sept objectifs cyclés et tient compte des exceptions entraînement/repos, sans modifier la routine.",
+            "Le calendrier et les graphiques utilisent des objectifs propres à chaque date, sans répéter le dernier jour de repos ni appliquer deux fois le cyclage aux objectifs enregistrés.",
+            "Une courbe de dépense sportive complète Calories vs Objectif, avec filtrage des sources approuvées et dédoublonnage.",
+            "Dans Santé connectée, l’import historique couvre 3 mois, 6 mois ou 1 an selon les données et autorisations disponibles. Il récupère les calories actives des séances approuvées sans inventer les valeurs absentes."
+          ]
+        }
+      ]
     },
     {
       "id": "2026-11-20-iqm-observed-ingredient-sums",

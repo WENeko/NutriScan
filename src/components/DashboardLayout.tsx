@@ -5,7 +5,7 @@ import { CSS } from "@dnd-kit/utilities";
 import { GripVertical, Eye, EyeOff, Columns2, RectangleHorizontal, RotateCcw } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useDashboardLayout } from "@/hooks/useDashboardLayout";
-import { canHideWidget, canUseHalfWidth, type DashboardWidgetId, type WidgetLayout } from "@/lib/dashboardLayout";
+import { canHideWidget, canUseHalfWidth, type DashboardWidgetId, type LayoutSurface, type WidgetLayout } from "@/lib/dashboardLayout";
 
 interface WidgetProps { id: DashboardWidgetId; title: string; children: React.ReactNode }
 export function DashboardWidget({ children }: WidgetProps) { return <>{children}</>; }
@@ -35,8 +35,8 @@ function SortableWidget({ widget, config, editing, toggleHidden, toggleWidth }: 
   );
 }
 
-export default function DashboardLayout({ userId, editing, children }: { userId: string; editing: boolean; children: React.ReactNode }) {
-  const { layout, move, toggleHidden, toggleWidth, reset } = useDashboardLayout(userId);
+export default function DashboardLayout({ userId, editing, children, surface = "dashboard" }: { userId: string; editing: boolean; children: React.ReactNode; surface?: LayoutSurface }) {
+  const { layout, move, toggleHidden, toggleWidth, reset } = useDashboardLayout(userId, surface);
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 8 } }), useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }));
   const widgets = React.Children.toArray(children).filter((child): child is React.ReactElement<WidgetProps> => React.isValidElement<WidgetProps>(child));
   const available = layout.filter(config => widgets.some(w => w.props.id === config.id));
@@ -45,7 +45,7 @@ export default function DashboardLayout({ userId, editing, children }: { userId:
     <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={({ active, over }) => { if (over) move(String(active.id), String(over.id)); }}
       accessibility={{ screenReaderInstructions: { draggable: "Appuyez sur Espace pour déplacer, utilisez les flèches, puis Espace pour déposer ou Échap pour annuler." } }}>
       <SortableContext items={available.map(w => w.id)} strategy={rectSortingStrategy}>
-        <div className="grid grid-cols-2 gap-3 items-start" aria-label="Modules de l’accueil">
+        <div className="grid grid-cols-2 gap-3 items-start" aria-label={surface === "evolution" ? "Modules d’évolution" : "Modules de l’accueil"}>
           {available.map(config => {
             const widget = widgets.find(w => w.props.id === config.id);
             return widget ? <SortableWidget key={config.id} widget={widget} config={config} editing={editing} toggleHidden={toggleHidden} toggleWidth={toggleWidth} /> : null;
