@@ -1,6 +1,13 @@
 {
   "changes": [
     {
+      "id": "2026-11-27-evolution-scroll-stability",
+      "sections": [{
+        "title": "Graphiques plus stables",
+        "items": ["Animations désactivées en vue 30 jours et Global ; le défilement vertical ne déplace plus les courbes, tout en conservant le zoom et le glissement horizontal."]
+      }]
+    },
+    {
       "id": "2026-11-27-remove-personal-db-warnings",
       "sections": [
         {

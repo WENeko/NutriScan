@@ -53,6 +53,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
 }) => {
   const [view, setView] = useState<"charts" | "calendar" | "report">("charts");
   const [period, setPeriod] = useState<"7d" | "30d" | "all">("7d");
+  const animateCharts = period === "7d";
   const [nutritionData, setNutritionData] = useState<any[]>([]);
   const [bodyData, setBodyData] = useState<any[]>([]);
   const [goalsHistory, setGoalsHistory] = useState<any[]>([]);
@@ -541,6 +542,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               <PolarRadiusAxis angle={90} domain={[0, 150]} tick={false} axisLine={false} />
               <Radar
                 name="Objectif"
+                isAnimationActive={animateCharts}
                 dataKey="goalMarker"
                 stroke="hsl(var(--muted-foreground))"
                 strokeDasharray="4 4"
@@ -549,6 +551,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
               />
               <Radar
                 name="Apport"
+                isAnimationActive={animateCharts}
                 dataKey="value"
                 stroke="hsl(var(--primary))"
                 fill="hsl(var(--primary))"
@@ -689,7 +692,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                       {referenceLines}
                       {isSingle ? (
                         <>
-                          <Bar dataKey="baseValue" name={single.label} stackId="a" radius={single.isLimit ? [0, 0, 0, 0] : [4, 4, 0, 0]}>
+                          <Bar isAnimationActive={animateCharts} dataKey="baseValue" name={single.label} stackId="a" radius={single.isLimit ? [0, 0, 0, 0] : [4, 4, 0, 0]}>
                             {data.map((entry, index) => (
                               <Cell
                                 key={`cell-${index}`}
@@ -699,12 +702,12 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                             ))}
                           </Bar>
                           {single.isLimit && (
-                            <Bar dataKey="overValue" name="Dépassement" stackId="a" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
+                            <Bar isAnimationActive={animateCharts} dataKey="overValue" name="Dépassement" stackId="a" fill="hsl(var(--destructive))" radius={[4, 4, 0, 0]} />
                           )}
                         </>
                       ) : (
                         series.map((s) => (
-                          <Bar key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} />
+                          <Bar isAnimationActive={animateCharts} key={s.key} dataKey={s.key} name={s.label} fill={s.color} radius={[4, 4, 0, 0]} />
                         ))
                       )}
                     </BarChart>
@@ -715,6 +718,7 @@ const EvolutionPage: React.FC<EvolutionPageProps> = ({
                       {series.map((s) => (
                         <Line
                           key={s.key}
+                          isAnimationActive={animateCharts}
                           type="monotone"
                           dataKey={s.key}
                           name={s.label}

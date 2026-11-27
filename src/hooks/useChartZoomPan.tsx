@@ -88,6 +88,9 @@ export const ZoomPanArea: React.FC<ZoomPanAreaProps> = ({ controller, className,
 
     let pinchDist = 0;
     let lastX = 0;
+    let startX = 0;
+    let startY = 0;
+    let direction: "horizontal" | "vertical" | null = null;
     let dragging = false;
     let accumulated = 0;
 
@@ -101,6 +104,9 @@ export const ZoomPanArea: React.FC<ZoomPanAreaProps> = ({ controller, className,
         dragging = false;
       } else if (e.touches.length === 1) {
         lastX = e.touches[0].clientX;
+        startX = lastX;
+        startY = e.touches[0].clientY;
+        direction = null;
         dragging = true;
         accumulated = 0;
       }
@@ -124,6 +130,15 @@ export const ZoomPanArea: React.FC<ZoomPanAreaProps> = ({ controller, className,
       }
       if (dragging && e.touches.length === 1) {
         const x = e.touches[0].clientX;
+        if (direction === null) {
+          const dx = Math.abs(x - startX);
+          const dy = Math.abs(e.touches[0].clientY - startY);
+          if (Math.max(dx, dy) < 8) return;
+          direction = dx > dy ? "horizontal" : "vertical";
+        }
+        // A vertical page scroll must never shift the shared chart timeline.
+        if (direction === "vertical") return;
+        e.preventDefault();
         const dx = x - lastX;
         lastX = x;
         accumulated += (-dx / (rect.width || 1)) * ctrl.current.count;
