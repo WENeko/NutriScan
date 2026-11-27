@@ -1,6 +1,17 @@
 {
   "changes": [
     {
+      "id": "2026-11-27-remove-personal-db-warnings",
+      "sections": [
+        {
+          "title": "Accueil et réglages allégés",
+          "items": [
+            "Les avertissements de base de données personnelle ont été retirés de l’accueil et de « Santé & Activité connectée »."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-11-27-layout-folders",
       "sections": [
         {

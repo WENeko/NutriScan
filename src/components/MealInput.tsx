@@ -5,7 +5,7 @@ import { createClient } from "@supabase/supabase-js";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, AlertCircle, Download } from "lucide-react";
+import { Camera, Loader2, Check, X, Pencil, MessageSquareText, ScanBarcode, Plus, Clock, ImageIcon, Minus, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import BarcodeScanner from "./BarcodeScanner";
 import { Capacitor } from "@capacitor/core";
@@ -890,13 +890,6 @@ const MealInput: React.FC<MealInputProps> = ({ userId, onMealSaved, prefillRecip
 
   return (
     <div className="space-y-4">
-      {/* Validation env vars warning */}
-      {!supabasePerso && (
-        <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 flex items-center gap-2 text-sm text-yellow-800">
-          <AlertCircle className="w-4 h-4" />
-          <span>Configuration BDD perso manquante - vérifiez le .env</span>
-        </div>
-      )}
       
       {/* Bouton export logs (debug) */}
       <div className="flex justify-end">
