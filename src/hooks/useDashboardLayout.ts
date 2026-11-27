@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { canHideWidget, canUseHalfWidth, defaultDashboardLayout, loadDashboardLayout, reorderDashboardLayout, saveDashboardLayout, type DashboardWidgetId, type LayoutSurface, type WidgetLayout } from "@/lib/dashboardLayout";
+import { canHideWidget, canUseHalfWidth, defaultDashboardLayout, loadDashboardLayout, reorderDashboardLayout, saveDashboardLayout, groupWithPrevious, ungroupWidget, renameFolder, type DashboardWidgetId, type LayoutSurface, type WidgetLayout } from "@/lib/dashboardLayout";
 import { toast } from "@/hooks/use-toast";
 
 // The layout surface is keyed by account so this state never crosses sessions.
@@ -18,6 +18,9 @@ export function useDashboardLayout(userId: string, surface: LayoutSurface = "das
     move: (active: string, over: string) => update(current => reorderDashboardLayout(current, active, over)),
     toggleHidden: (id: DashboardWidgetId) => update(current => current.map(w => w.id === id && canHideWidget(id) ? { ...w, hidden: !w.hidden } : w)),
     toggleWidth: (id: DashboardWidgetId) => update(current => current.map(w => w.id === id && canUseHalfWidth(id) ? { ...w, half: !w.half } : w)),
+    group: (id: DashboardWidgetId) => update(current => groupWithPrevious(current, id)),
+    ungroup: (id: DashboardWidgetId) => update(current => ungroupWidget(current, id)),
+    rename: (from: string, to: string) => update(current => renameFolder(current, from, to)),
     reset: () => update(() => defaultDashboardLayout(surface)),
   };
 }

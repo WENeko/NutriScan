@@ -1,6 +1,17 @@
 {
   "changes": [
     {
+      "id": "2026-11-27-layout-folders",
+      "sections": [
+        {
+          "title": "Dossiers de cartes",
+          "items": [
+            "En mode crayon, groupez une carte avec la précédente pour créer un dossier repliable, renommable, sur l’accueil et dans Évolution."
+          ]
+        }
+      ]
+    },
+    {
       "id": "2026-11-26-evolution-layout",
       "sections": [
         {

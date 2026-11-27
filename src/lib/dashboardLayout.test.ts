@@ -42,3 +42,17 @@ describe("evolution layout", () => {
     expect(normalizeDashboardLayout([{ id: "water" }, { id: "evo_body", hidden: true }], "evolution")[0]).toEqual({ id: "evo_body", half: false, hidden: true });
   });
 });
+
+import { groupWithPrevious, ungroupWidget, renameFolder, segmentLayout } from "./dashboardLayout";
+describe("folders", () => {
+  it("groups, renames, segments and ungroups", () => {
+    let l = groupWithPrevious(defaultDashboardLayout(), "input");
+    expect(l[1].folder).toBe("Dossier 1"); expect(l[2].folder).toBe("Dossier 1");
+    l = groupWithPrevious(l, "budget"); expect(l[3].folder).toBe("Dossier 1");
+    l = renameFolder(l, "Dossier 1", "Matin");
+    expect(segmentLayout(l)[1]).toMatchObject({ folder: "Matin" });
+    expect(segmentLayout(l)[1].items).toHaveLength(3);
+    l = ungroupWidget(l, "budget"); expect(l[3].folder).toBeUndefined();
+    expect(normalizeDashboardLayout(JSON.parse(JSON.stringify(l)))[1].folder).toBe("Matin");
+  });
+});
